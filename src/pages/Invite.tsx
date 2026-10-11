@@ -43,7 +43,7 @@ export default function Invite() {
           <>
             <h1 className="mt-2 text-xl font-bold">팀에 초대받았습니다</h1>
             <p className="mt-2 text-sm text-slate-600">로그인하면 초대를 확인하고 바로 합류할 수 있습니다.</p>
-            <Link to={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}><Button className="mt-5 w-full">로그인하고 합류하기</Button></Link>
+            <Link to={`/login?mode=signup&next=${encodeURIComponent(`/invite/${token}`)}`}><Button className="mt-5 w-full">가입하고 합류하기</Button></Link>
           </>
         ) : preview ? (
           <>

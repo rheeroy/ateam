@@ -6,6 +6,7 @@ import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import type { Plan } from '../lib/types';
 import { cx, fmtDate, won } from '../lib/format';
+import { PasswordForm } from '../components/PasswordForm';
 import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
 const FEATURE_LABEL: Record<string, string> = {
@@ -234,6 +235,19 @@ function ProfileSettings() {
   );
 }
 
+function PasswordSettings() {
+  const toast = useToast();
+  return (
+    <Card className="p-5 max-w-lg space-y-4">
+      <div>
+        <div className="font-semibold">비밀번호</div>
+        <p className="text-sm text-slate-500 mt-0.5">메일 링크나 Google로 가입했다면 여기서 비밀번호를 정해 두세요. 다음부터 메일 없이 바로 로그인할 수 있습니다.</p>
+      </div>
+      <PasswordForm onDone={() => toast('비밀번호를 저장했습니다')} />
+    </Card>
+  );
+}
+
 type Tab = 'profile' | 'team' | 'billing';
 export default function SettingsPage() {
   const { isLeader } = useTeam();
@@ -246,7 +260,7 @@ export default function SettingsPage() {
     <section>
       <PageHeader title="설정" />
       <div className="mb-5"><Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={items} /></div>
-      {tab === 'billing' && isLeader ? <Billing /> : tab === 'team' && isLeader ? <TeamSettings /> : <ProfileSettings />}
+      {tab === 'billing' && isLeader ? <Billing /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings /><PasswordSettings /></div>}
     </section>
   );
 }

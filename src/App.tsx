@@ -25,6 +25,7 @@ const Checkin = lazy(() => import('./pages/Checkin'));
 const MySubmissions = lazy(() => import('./pages/MySubmissions'));
 const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 function NotConfigured() {
   return (
@@ -65,6 +66,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/invite/:token" element={<Invite />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <Checkin />} />
