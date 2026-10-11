@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body { background: #F6F7F9; color: #0F172A; }
+body { font-family: "IBM Plex Sans KR", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid #6366F1; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.prose-plain p + p { margin-top: .5rem; }
+/* 그리드 자식이 내용 폭 때문에 화면을 넘지 않게 */
+.grid > * { min-width: 0; }
