@@ -1,7 +1,7 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useSession } from './state/session';
-import { isConfigured } from './lib/supabase';
+import { isConfigured, supabase } from './lib/supabase';
 import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import Login from './pages/Login';
@@ -49,7 +49,19 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function RequireTeam({ children }: { children: ReactNode }) {
-  const { team } = useSession();
+  const { team, membershipError, refresh, session } = useSession();
+  if (!team && membershipError) return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="max-w-sm text-center space-y-3 text-sm">
+        <div className="font-semibold text-base">팀 정보를 불러오지 못했습니다</div>
+        <p className="text-slate-500">네트워크를 확인하고 다시 시도하세요. 계속되면 다시 로그인해 주세요.</p>
+        <div className="flex gap-2 justify-center">
+          <button className="px-3 py-2 rounded-lg bg-indigo-600 text-white font-semibold" onClick={() => refresh()}>다시 시도</button>
+          <button className="px-3 py-2 rounded-lg border border-slate-200" onClick={() => supabase.auth.signOut()}>다시 로그인 ({session?.user.email})</button>
+        </div>
+      </div>
+    </div>
+  );
   if (!team) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }

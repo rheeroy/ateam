@@ -5,7 +5,7 @@ import { useSession } from '../state/session';
 import { Button, ErrorBox, Field, inputCls } from '../components/ui';
 
 export default function Onboarding() {
-  const { team, refresh, setTeamId, profile } = useSession();
+  const { team, refresh, setTeamId, profile, session } = useSession();
   const [params] = useSearchParams();
   const nav = useNavigate();
   const [name, setName] = useState('');
@@ -41,7 +41,14 @@ export default function Onboarding() {
     <div className="min-h-screen flex items-center justify-center p-6">
       <form onSubmit={submit} className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl p-6 md:p-8 space-y-5">
         <div>
-          <div className="font-mono text-xs tracking-widest text-indigo-600">시작하기</div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-mono text-xs tracking-widest text-indigo-600">시작하기</div>
+            <button type="button" onClick={() => { void supabase.auth.signOut().then(() => nav('/login', { replace: true })); }}
+              className="text-xs text-slate-500 hover:text-indigo-600 truncate" title="다른 계정으로 로그인">
+              {session?.user.email} · 다른 계정으로 로그인
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">이 계정에는 아직 팀이 없습니다. 팀원으로 초대받았다면 팀장이 보낸 초대 링크로 들어오세요.</p>
           <h1 className="mt-2 text-2xl font-bold">팀을 만들어 주세요</h1>
           <p className="mt-1 text-sm text-slate-500">30일 동안 Pro 전체를 무료로 씁니다. 카드 등록은 필요 없고, 체험이 끝나도 기록 도구는 계속 무료입니다.</p>
         </div>

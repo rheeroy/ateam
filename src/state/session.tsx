@@ -11,6 +11,7 @@ interface Ctx {
   loading: boolean;
   profile: Profile | null;
   memberships: Membership[];
+  membershipError: unknown;
   team: Team | null;
   role: Role | null;
   isLeader: boolean;
@@ -34,7 +35,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
+    supabase.auth.getSession().then(async ({ data }) => {
+      // 저장된 로그인이 서버에서 사라진 계정(삭제·재생성된 데모 계정 등)이면 정리하고 로그인 화면으로
+      if (data.session) {
+        const { error } = await supabase.auth.getUser();
+        const st = (error as { status?: number } | null)?.status;
+        if (error && (st === 401 || st === 403 || st === 404 || /does not exist|not found/i.test(error.message))) {
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          setSession(null); setAuthReady(true);
+          return;
+        }
+      }
+      setSession(data.session); setAuthReady(true);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       if (!s) qc.clear();
@@ -84,6 +97,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       loading: !authReady || (!!uid && (memQ.isLoading || profileQ.isLoading)),
       profile: profileQ.data ?? null,
       memberships,
+      membershipError: memQ.error,
       team,
       role: current?.role ?? null,
       isLeader: current?.role === 'leader',
@@ -102,7 +116,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         qc.invalidateQueries({ queryKey: ['profile'] });
       },
     };
-  }, [session, authReady, uid, memQ.isLoading, profileQ.isLoading, profileQ.data, memberships, team, current, membersQ.data, creditsQ.data, qc]);
+  }, [session, authReady, uid, memQ.isLoading, memQ.error, profileQ.isLoading, profileQ.data, memberships, team, current, membersQ.data, creditsQ.data, qc]);
 
   return <SessionCtx.Provider value={value}>{children}</SessionCtx.Provider>;
 }
