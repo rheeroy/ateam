@@ -12,13 +12,14 @@ Vite + React + TypeScript + Tailwind · Supabase(Postgres·Auth·Storage·Edge F
 
 ```
 src/
-  pages/            화면 (팀장: 홈·내 노하우·1:1·리뷰룸·주간보고·팀 성과·팀 전략·시뮬레이션·평가·AI 인사이트·팀원·설정 / 팀원: 체크인·내 1:1·내 결과물)
+  pages/            화면 (팀장: 홈·목표·과제·내 노하우·1:1·리뷰룸·주간보고·팀 성과·팀 전략·시뮬레이션·평가·AI 인사이트·팀원·설정 / 팀원: 홈·내 목표·과제·체크인·공유하기·내 1:1)
   components/       ui · Prov(출처 표시) · charts(SVG) · Upload · MetricEditor · Layout
   lib/              supabase 클라이언트 · 타입 · sim(What-if 모델) · extract(docx·pptx 텍스트 추출)
   state/session.tsx 로그인·현재 팀·구성원·요금제
 supabase/
-  migrations/       0001 스키마 · 0002 RLS · 0003 과금 · 0004 트리거·RPC·분석 함수 · 0005 스토리지 · 0006 스케줄(cron) · 0007 내 노하우
-  functions/        ai-prep-1on1 · ai-review-submission · ai-weekly-briefing · ai-weekly-report · ai-evaluation-draft · ai-interpret · ai-ingest-knowhow · billing
+  migrations/       0001 스키마 · 0002 RLS · 0003 과금 · 0004 트리거·RPC·분석 함수 · 0005 스토리지 · 0006 스케줄(cron) · 0007 내 노하우 · 0008 목표·과제 자유 구조·요청·알림·과금 v2 · 0009 AI 인사이트 예약
+  functions/        ai-prep-1on1 · ai-review-submission · ai-weekly-briefing · ai-weekly-report · ai-evaluation-draft · ai-interpret · ai-ingest-knowhow · ai-insights · ai-plan · billing
+    _shared/signals.ts 팀 신호 엔진 (홈 화면과 AI 인사이트가 같이 씀)
     _shared/        http · supabase · anthropic · gateway(크레딧·출처·판단 보류) · prompts
   seed.sql          로컬 데모 데이터 (팀장 1 + 팀원 6, 26주치 기록)
   tests/            로컬 Postgres 검증용 스텁·시나리오 테스트
@@ -49,7 +50,7 @@ npm run dev                   # http://localhost:5173
 
 ## 2. 배포하기 (Supabase + Vercel)
 
-> **터미널 없이 Supabase 웹 대시보드로만 하려면 → [`supabase/dashboard/README.md`](supabase/dashboard/README.md)** (SQL 2개 + 함수 8개 붙여넣기)
+> **터미널 없이 Supabase 웹 대시보드로만 하려면 → [`supabase/dashboard/README.md`](supabase/dashboard/README.md)** (SQL 2개 + 함수 10개 붙여넣기)
 > 아래는 CLI를 쓰는 방법입니다.
 
 ### 2-1. Supabase

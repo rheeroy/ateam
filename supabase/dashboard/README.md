@@ -6,8 +6,10 @@
 |---|---|
 | `01_schema.sql` | SQL Editor에서 한 번 실행 — 테이블·권한·트리거·함수·스토리지 전부 |
 | `02_schedules.sql` | SQL Editor에서 한 번 실행 — 월요일 브리핑·결제 갱신 예약 (나중에 해도 됨) |
-| `03_add_knowhow.sql` | **예전 `01_schema.sql`을 이미 실행한 프로젝트만** 한 번 실행 — '내 노하우' 기능 추가 (새로 시작하면 01에 포함되어 있으니 건너뜀) |
-| `functions/*.ts` (8개) | Edge Functions 화면에 붙여넣기 — 파일 하나가 함수 하나 |
+| `03_add_knowhow.sql` | (예전 프로젝트용) '내 노하우' 추가분 — 새로 시작하면 01에 포함 |
+| `04_upgrade_v2.sql` | **예전 `01_schema.sql`을 이미 실행한 프로젝트만** 한 번 실행 — v2 (목표·과제 자유 구조, 팀원 계획·승인, 요청·알림, 공유 유형, 과금 v2). 기존 목표·과제 데이터는 자동으로 옮겨짐 |
+| `05_schedules_v2.sql` | **예전 `02_schedules.sql`을 이미 실행한 프로젝트만** 한 번 실행 — 일·주·월 AI 인사이트 예약 |
+| `functions/*.ts` (10개) | Edge Functions 화면에 붙여넣기 — 파일 하나가 함수 하나 |
 
 `supabase` 폴더의 나머지는 무시해도 됩니다.
 - `config.toml` — 터미널(CLI)·로컬 개발용 설정. 웹에서는 안 씀. 같은 내용은 아래 5번에서 화면으로 설정.
@@ -30,8 +32,8 @@
    - `APP_ORIGIN` = Vercel 주소 예: `https://ateam.vercel.app` (선택, 보안 강화)
    - `TOSS_SECRET_KEY` = 토스 시크릿 키 (결제 쓸 때)
 
-**4. 함수 8개 배포** — Edge Functions → Deploy a new function → Via Editor
-   - 함수 이름을 **파일 이름과 똑같이** 입력: `ai-prep-1on1`, `ai-review-submission`, `ai-weekly-briefing`, `ai-weekly-report`, `ai-evaluation-draft`, `ai-interpret`, `ai-ingest-knowhow`, `billing`
+**4. 함수 10개 배포** — Edge Functions → Deploy a new function → Via Editor
+   - 함수 이름을 **파일 이름과 똑같이** 입력: `ai-prep-1on1`, `ai-review-submission`, `ai-weekly-briefing`, `ai-weekly-report`, `ai-evaluation-draft`, `ai-interpret`, `ai-ingest-knowhow`, `ai-insights`, `ai-plan`, `billing`
    - 편집기의 예시 코드를 지우고 해당 `.ts` 파일 내용을 통째로 붙여넣기 → Deploy
    - JWT 검증(Verify JWT) 옵션은 켜 둔 채로 둡니다.
 
@@ -51,6 +53,12 @@
    (이걸 안 하면 월요일 자동 브리핑만 안 돌고, 앱 안의 '지금 만들기' 버튼은 그대로 됩니다.)
 
 ---
+
+## 이미 세팅한 프로젝트를 v2로 올리기
+1. SQL Editor → `04_upgrade_v2.sql` 붙여넣기 → Run (03을 아직 안 했다면 03 먼저)
+2. SQL Editor → `05_schedules_v2.sql` → Run (02를 실행했던 경우만)
+3. Edge Functions → 새 함수 2개 배포: `ai-insights`, `ai-plan`
+4. 기존 함수 8개도 새 파일로 코드 교체 후 Deploy (과금 v2·새 구조 반영)
 
 ## 이미 세팅한 프로젝트에 '내 노하우' 추가하기
 1. SQL Editor → `03_add_knowhow.sql` 붙여넣기 → Run (테이블 2개 + `knowhow` 스토리지 버킷 생성)

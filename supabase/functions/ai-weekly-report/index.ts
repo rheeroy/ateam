@@ -35,10 +35,12 @@ serve(async (req) => {
     .filter((m) => m.role === 'member' && !(checkins ?? []).some((c) => c.user_id === m.user_id))
     .map((m) => nameOf.get(m.user_id));
 
-  const { data: tasks } = await admin.from('tasks').select('id, title, status, progress, due_date, owner_id, goal_id')
-    .eq('team_id', body.team_id).in('status', ['in_progress', 'blocked', 'done']).gte('updated_at', new Date(Date.now() - 21 * 86400000).toISOString());
+  const { data: tasks } = await admin.from('work_items').select('id, title, status, progress, due_date, owner_id, base_due, replan_count, measure')
+    .eq('team_id', body.team_id).in('status', ['active', 'blocked', 'done']).not('parent_id', 'is', null)
+    .gte('updated_at', new Date(Date.now() - 21 * 86400000).toISOString()).limit(50);
+  const ST: Record<string, string> = { active: '진행', blocked: '막힘', done: '완료' };
   for (const t of tasks ?? []) {
-    book.add('task', t.id, `과제 ${t.title}`, `상태 ${t.status}, 진척 ${t.progress}%, 마감 ${t.due_date ?? '-'}, 담당 ${nameOf.get(t.owner_id) ?? '-'}`);
+    book.add('task', t.id, `과제 ${t.title}`, `상태 ${ST[t.status] ?? t.status}, 진척 ${t.progress}%, 마감 ${t.due_date ?? '-'}${t.base_due && t.due_date && t.base_due !== t.due_date ? ` (처음 계획 ${t.base_due})` : ''}, 담당 ${nameOf.get(t.owner_id) ?? '-'}`);
   }
 
   const { data: oos } = await admin.from('one_on_ones').select('id, member_id, scheduled_at, shared_notes')

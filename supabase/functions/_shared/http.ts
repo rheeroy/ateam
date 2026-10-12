@@ -28,7 +28,7 @@ export function serve(handler: (req: Request) => Promise<Response>) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
       // Postgres 예외 코드를 그대로 전달 (INSUFFICIENT_CREDITS, PLAN_FEATURE 등)
-      const known = msg.match(/(INSUFFICIENT_CREDITS|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
       if (known) return json({ error: known[1], message: msg }, known[1] === 'forbidden' ? 403 : 402);
       console.error(e);
       return json({ error: 'INTERNAL', message: msg }, 500);

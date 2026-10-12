@@ -7,7 +7,7 @@ import { INGEST } from '../_shared/prompts/index.ts';
 
 const CREDITS = 2;
 const KINDS = ['principle', 'rubric', 'framework', 'context', 'coaching', 'glossary'];
-const FEATURES = ['review', 'prep', 'report', 'evaluation', 'briefing', 'strategy', 'scenario'];
+const FEATURES = ['review', 'prep', 'report', 'evaluation', 'briefing', 'strategy', 'scenario', 'plan'];
 
 interface Out {
   summary: string;

@@ -25,7 +25,7 @@ function serve(handler) {
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      const known = msg.match(/(INSUFFICIENT_CREDITS|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
       if (known) return json({ error: known[1], message: msg }, known[1] === "forbidden" ? 403 : 402);
       console.error(e);
       return json({ error: "INTERNAL", message: msg }, 500);
@@ -156,6 +156,7 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
+  if (!(data?.features ?? []).includes("ai_premium")) throw new HttpError(402, "AI_LOCKED", "AI \uAE30\uB2A5\uC740 Pro\uC5D0\uC11C \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
   const left = (data?.monthly_remaining ?? 0) + (data?.topup_remaining ?? 0);
   if (left < need) throw new HttpError(402, "INSUFFICIENT_CREDITS", `\uD06C\uB808\uB527\uC774 \uBD80\uC871\uD569\uB2C8\uB2E4 (\uD544\uC694 ${need}, \uB0A8\uC74C ${left})`);
 }
@@ -181,6 +182,7 @@ AI\uAC00 \uC55E\uC73C\uB85C \uC774 \uD300\uC7A5\uC758 \uC77C\uC744 \uB3C4\uC6B8 
 - briefing: \uC6D4\uC694\uC77C \uD300 \uBE0C\uB9AC\uD551
 - strategy: \uBD84\uAE30 \uC804\uB7B5 \uC810\uAC80
 - scenario: What-if \uD574\uC11D
+- plan: \uBAA9\uD45C\xB7\uACFC\uC81C \uACC4\uD68D \uCD08\uC548\uACFC \uC218\uC815
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
@@ -195,7 +197,7 @@ cards \uB294 1~12\uAC1C. \uAC19\uC740 \uB0B4\uC6A9\uC740 \uD558\uB098\uB85C \uD5
 // functions/ai-ingest-knowhow/index.ts
 var CREDITS = 2;
 var KINDS = ["principle", "rubric", "framework", "context", "coaching", "glossary"];
-var FEATURES = ["review", "prep", "report", "evaluation", "briefing", "strategy", "scenario"];
+var FEATURES = ["review", "prep", "report", "evaluation", "briefing", "strategy", "scenario", "plan"];
 serve(async (req) => {
   const { source_id } = await readJson(req);
   if (!source_id) throw new HttpError(400, "MISSING_ID");

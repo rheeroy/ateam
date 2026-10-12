@@ -25,7 +25,7 @@ function serve(handler) {
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      const known = msg.match(/(INSUFFICIENT_CREDITS|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
       if (known) return json({ error: known[1], message: msg }, known[1] === "forbidden" ? 403 : 402);
       console.error(e);
       return json({ error: "INTERNAL", message: msg }, 500);
@@ -140,12 +140,29 @@ function toBase64(bytes) {
 }
 
 // functions/_shared/gateway.ts
+var CORE = [
+  "briefing",
+  "one_on_one_prep",
+  "review",
+  "weekly_report",
+  "insight_daily",
+  "insight_weekly",
+  "insight_monthly",
+  "plan_edit",
+  "self_check"
+];
 var CREDITS = {
-  one_on_one_prep: 1,
-  review: 3,
-  briefing: 2,
-  weekly_report: 2,
+  one_on_one_prep: 0,
+  review: 0,
+  briefing: 0,
+  weekly_report: 0,
+  insight_daily: 0,
+  insight_weekly: 0,
+  insight_monthly: 0,
+  plan_edit: 0,
+  self_check: 0,
   evaluation_draft: 5,
+  plan_draft: 2,
   forecast_note: 1,
   strategy_check: 1,
   scenario_note: 1
@@ -191,8 +208,10 @@ ${ls.join("\n")}` : "";
     return this.items.reduce((acc, i) => (acc[i.type] = (acc[i.type] ?? 0) + 1, acc), {});
   }
 };
-async function addKnowhow(book, teamId, feature, limitChars = 2600) {
-  const { data } = await admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]).order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
+async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+  if (onlyShared) qb = qb.eq("shared", true);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
   let used = 0, n = 0;
   for (const c of data ?? []) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
@@ -222,12 +241,25 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
+  if (!(data?.features ?? []).includes("ai_premium")) throw new HttpError(402, "AI_LOCKED", "AI \uAE30\uB2A5\uC740 Pro\uC5D0\uC11C \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
   const left = (data?.monthly_remaining ?? 0) + (data?.topup_remaining ?? 0);
   if (left < need) throw new HttpError(402, "INSUFFICIENT_CREDITS", `\uD06C\uB808\uB527\uC774 \uBD80\uC871\uD569\uB2C8\uB2E4 (\uD544\uC694 ${need}, \uB0A8\uC74C ${left})`);
 }
+async function assertCore(teamId) {
+  const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
+  if (error) throw error;
+  if (!(data?.features ?? []).includes("ai_core")) throw new HttpError(402, "AI_LOCKED", "AI \uAE30\uB2A5\uC740 Pro\uC5D0\uC11C \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
+  if ((data?.core_used ?? 0) >= (data?.core_cap ?? 0)) throw new HttpError(429, "CORE_LIMIT", "\uC774\uBC88 \uB2EC AI \uAE30\uBCF8 \uC0AC\uC6A9\uB7C9\uC744 \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4");
+}
+async function assertAccess(teamId, kind, credits) {
+  const need = credits ?? CREDITS[kind];
+  if (CORE.includes(kind) && !need) return assertCore(teamId);
+  return assertCredits(teamId, need);
+}
 async function runAi(job) {
   const credits = job.credits ?? CREDITS[job.kind];
-  await assertCredits(job.teamId, credits);
+  const core = CORE.includes(job.kind) && !credits;
+  await assertAccess(job.teamId, job.kind, credits);
   const res = await callClaude({
     model: job.model,
     system: `${BASE_RULES}
@@ -257,7 +289,15 @@ ${job.system}`,
     created_by: job.createdBy
   }).select().single();
   if (error) throw error;
-  const { error: cErr } = await admin.rpc("consume_credits", {
+  const { error: cErr } = core ? await admin.rpc("consume_core", {
+    p_team: job.teamId,
+    p_kind: job.kind,
+    p_ai_output: row.id,
+    p_model: res.model,
+    p_in: res.inputTokens,
+    p_out: res.outputTokens,
+    p_cost: res.costUsd
+  }) : await admin.rpc("consume_credits", {
     p_team: job.teamId,
     p_credits: credits,
     p_kind: job.kind,
@@ -300,12 +340,61 @@ var REVIEW = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uC81C\uCD9C\uD55C \uACB0\uACFC\u
 depth_score \uB294 1.0~4.0, 0.5 \uB2E8\uC704. strengths\xB7gaps \uB294 \uAC01\uAC01 \uCD5C\uB300 3\uAC1C.
 competency_signals \uC758 \uD0A4\uB294 \uC8FC\uC5B4\uC9C4 \uC5ED\uB7C9 \uC774\uB984\uB9CC \uC4F0\uACE0, \uAC12\uC740 -1(\uC57D\uD568 \uC2E0\uD638)/0/1(\uAC15\uD568 \uC2E0\uD638). \uC774 \uACB0\uACFC\uBB3C\uB85C \uC54C \uC218 \uC5C6\uB294 \uC5ED\uB7C9\uC740 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 criteria_check \uB294 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC8FC\uC5B4\uC84C\uC744 \uB54C\uB9CC, \uC774 \uACB0\uACFC\uBB3C\uC5D0 \uD574\uB2F9\uD558\uB294 \uAE30\uC900\uB9C8\uB2E4 \uD558\uB098\uC529(\uCD5C\uB300 5\uAC1C) \uC501\uB2C8\uB2E4. tag \uC5D0\uB294 \uADF8 \uAE30\uC900\uC758 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uB123\uC2B5\uB2C8\uB2E4. \uAE30\uC900\uC774 \uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4.`;
+var SELF_CHECK = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uACB0\uACFC\uBB3C\uC744 \uD300\uC7A5\uC5D0\uAC8C \uC62C\uB9AC\uAE30 \uC804\uC5D0 \uC2A4\uC2A4\uB85C \uC810\uAC80\uD558\uB3C4\uB85D \uB3D5\uC2B5\uB2C8\uB2E4. \uC774 \uACB0\uACFC\uB294 \uD300\uC6D0 \uBCF8\uC778\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.
+'\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC5D0 \uB9DE\uB294\uC9C0\uB97C \uBA3C\uC800 \uBD05\uB2C8\uB2E4. \uC5C6\uC73C\uBA74 \uC77C\uBC18\uC801\uC778 \uC5C5\uBB34 \uBCF4\uACE0\uC11C \uAE30\uC900(\uACB0\uB860 \uBA3C\uC800, \uADFC\uAC70, \uB300\uC548, \uB2E4\uC74C \uD589\uB3D9)\uC73C\uB85C \uBD05\uB2C8\uB2E4.
+\uB9D0\uD22C\uB294 \uB3D9\uB8CC\uAC00 \uC606\uC5D0\uC11C \uC870\uC5B8\uD558\uB4EF \uBD80\uB4DC\uB7FD\uACE0 \uAD6C\uCCB4\uC801\uC73C\uB85C. \uD3C9\uAC00\uB098 \uC810\uC218\uB294 \uB9E4\uAE30\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
+
+\uCD9C\uB825 JSON \uD615\uC2DD:
+{
+  "summary": "\uD55C\uB450 \uBB38\uC7A5 \uCD1D\uD3C9",
+  "ready": true,
+  "fixes": [{"where": "\xA72 \uB610\uB294 \uCCAB \uBB38\uB2E8 \uB4F1", "what": "\uACE0\uCE58\uBA74 \uC88B\uC744 \uC810 \uD55C \uBB38\uC7A5", "tag": "E1"}],
+  "good": ["\uC798 \uB41C \uC810 1~2\uAC1C"],
+  "criteria_check": [{"criterion": "\uD300\uC7A5 \uAE30\uC900 \uC774\uB984", "met": true, "note": "\uD55C \uBB38\uC7A5", "tag": "E2"}]
+}
+fixes \uB294 \uCD5C\uB300 4\uAC1C, \uC911\uC694\uD55C \uAC83\uBD80\uD130. \uD300\uC7A5 \uAE30\uC900\uC744 \uADFC\uAC70\uB85C \uD55C \uD56D\uBAA9\uC5D0\uB294 tag \uB97C \uB123\uACE0, \uC544\uB2C8\uBA74 \uBE48 \uBB38\uC790\uC5F4.
+ready \uB294 \uD070 \uBCF4\uC644 \uC5C6\uC774 \uC62C\uB824\uB3C4 \uB418\uBA74 true.`;
 
 // functions/ai-review-submission/index.ts
+var IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+async function selfCheck(caller, body) {
+  const { data: m } = await admin.from("team_members").select("role").eq("team_id", body.team_id).eq("user_id", caller.userId).eq("status", "active").maybeSingle();
+  if (!m) throw new HttpError(403, "forbidden");
+  const content = [];
+  if (!body.text?.trim()) throw new HttpError(422, "NO_TEXT", "\uC810\uAC80\uD560 \uBCF8\uBB38\uC774 \uC5C6\uC2B5\uB2C8\uB2E4");
+  const book = new SourceBook();
+  const n = await addKnowhow(book, body.team_id, "review", 2600, true);
+  content.push({ type: "text", text: [
+    `\uACB0\uACFC\uBB3C \uC81C\uBAA9: ${body.title}`,
+    n ? book.knowhowText() : "## \uD300\uC7A5\uC758 \uAE30\uC900\n(\uD300\uC7A5\uC774 \uACF5\uAC1C\uD55C \uAE30\uC900 \uC5C6\uC74C \u2014 \uC77C\uBC18\uC801\uC778 \uBCF4\uACE0\uC11C \uAE30\uC900\uC73C\uB85C \uC810\uAC80)",
+    `## \uBCF8\uBB38
+${body.text.slice(0, 4e4)}`
+  ].join("\n\n") });
+  const { output } = await runAi({
+    teamId: body.team_id,
+    kind: "self_check",
+    model: MODEL_SMART,
+    system: SELF_CHECK,
+    content,
+    book,
+    depth: 1,
+    level: "L1",
+    createdBy: caller.userId,
+    subjectUserId: caller.userId,
+    visibility: "subject",
+    maxTokens: 1e3
+  });
+  return output;
+}
 serve(async (req) => {
-  const { version_id } = await readJson(req);
-  if (!version_id) throw new HttpError(400, "MISSING_ID");
+  const body = await readJson(req);
   const caller = await getCaller(req);
+  if (body.mode === "self") {
+    if (!body.team_id || !body.title) throw new HttpError(400, "MISSING_FIELDS");
+    return json(await selfCheck(caller, body));
+  }
+  const version_id = body.version_id;
+  if (!version_id) throw new HttpError(400, "MISSING_ID");
   const ver = must(await admin.from("submission_versions").select("*").eq("id", version_id).maybeSingle());
   const sub = must(await admin.from("submissions").select("*").eq("id", ver.submission_id).maybeSingle());
   if (!caller.isService && caller.userId !== sub.author_id) {
@@ -316,14 +405,15 @@ serve(async (req) => {
   if (existing) return json(existing);
   const book = new SourceBook();
   const content = [];
-  if (ver.mime_type === "application/pdf" && ver.file_path) {
+  if (sub.request_type === "share" || sub.kind === "number") throw new HttpError(422, "NO_REVIEW", "\uACF5\uC720\xB7\uC22B\uC790 \uC5C5\uB370\uC774\uD2B8\uB294 AI \uAC80\uD1A0 \uB300\uC0C1\uC774 \uC544\uB2D9\uB2C8\uB2E4");
+  if ((ver.mime_type === "application/pdf" || IMAGE_TYPES.includes(ver.mime_type ?? "")) && ver.file_path) {
     const { data: file, error } = await admin.storage.from("submissions").download(ver.file_path);
     if (error) throw error;
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.length > 20 * 1024 * 1024) throw new HttpError(413, "FILE_TOO_LARGE");
-    content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: toBase64(bytes) }, title: sub.title });
-  } else if (!ver.extracted_text?.trim()) {
-    throw new HttpError(422, "NO_TEXT", "\uBCF8\uBB38 \uD14D\uC2A4\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. docx\xB7pdf\xB7txt\xB7md \uD30C\uC77C\uC744 \uC62C\uB824 \uC8FC\uC138\uC694.");
+    content.push(ver.mime_type === "application/pdf" ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: toBase64(bytes) }, title: sub.title } : { type: "image", source: { type: "base64", media_type: ver.mime_type, data: toBase64(bytes) } });
+  } else if (!ver.extracted_text?.trim() && !sub.link_url) {
+    throw new HttpError(422, "NO_TEXT", "\uBCF8\uBB38 \uD14D\uC2A4\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uD30C\uC77C\uC744 \uC62C\uB9AC\uAC70\uB098 \uB0B4\uC6A9\uC744 \uBD99\uC5EC \uB123\uC5B4 \uC8FC\uC138\uC694.");
   }
   const { data: prev } = await admin.from("submission_versions").select("id, version, note, extracted_text").eq("submission_id", sub.id).lt("version", ver.version).order("version", { ascending: false }).limit(1).maybeSingle();
   if (prev) book.add("submission", prev.id, `\uC774\uC804 \uBC84\uC804 v${prev.version}`, `\uBCC0\uACBD \uBA54\uBAA8: ${prev.note || "\uC5C6\uC74C"} / \uBCF8\uBB38 \uC55E\uBD80\uBD84: ${prev.extracted_text.slice(0, 1500)}`);
@@ -340,8 +430,9 @@ serve(async (req) => {
     `\uC9C0\uB09C \uAC80\uD1A0 \uAE30\uB85D \uC218: ${history?.length ?? 0}`,
     book.knowhowText(),
     book.text("\uCC38\uACE0 \uAE30\uB85D"),
+    sub.link_url ? `\uB9C1\uD06C (AI\uB294 \uC5F4\uC5B4 \uBCF4\uC9C0 \uC54A\uC74C, \uC124\uBA85\uB9CC \uC77D\uC74C): ${sub.link_url}` : "",
     ver.extracted_text?.trim() ? `## \uBCF8\uBB38
-${ver.extracted_text.slice(0, 6e4)}` : "## \uBCF8\uBB38\n(\uCCA8\uBD80 PDF)"
+${ver.extracted_text.slice(0, 6e4)}` : "## \uBCF8\uBB38\n(\uCCA8\uBD80 \uD30C\uC77C)"
   ].filter(Boolean).join("\n\n");
   content.push({ type: "text", text });
   const { output, parsed } = await runAi({

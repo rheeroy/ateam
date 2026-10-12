@@ -13,7 +13,8 @@ const PRICE: Record<string, { in: number; out: number; cacheRead: number; cacheW
 
 export type Block =
   | { type: 'text'; text: string }
-  | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string }; title?: string };
+  | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string }; title?: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'; data: string } };
 
 export interface ClaudeResult {
   text: string;

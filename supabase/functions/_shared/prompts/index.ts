@@ -135,6 +135,7 @@ AI가 앞으로 이 팀장의 일을 도울 때 참고할 '노하우 카드'로 
 - briefing: 월요일 팀 브리핑
 - strategy: 분기 전략 점검
 - scenario: What-if 해석
+- plan: 목표·과제 계획 초안과 수정
 
 출력 JSON 형식:
 {
@@ -145,3 +146,76 @@ AI가 앞으로 이 팀장의 일을 도울 때 참고할 '노하우 카드'로 
 }
 cards 는 1~12개. 같은 내용은 하나로 합칩니다. rules 는 카드당 1~5개, 각 40자 이내의 명령형 문장.
 자료가 개인정보(주민번호, 연봉 등)를 담고 있으면 그 부분은 카드에 옮기지 않습니다.`;
+
+
+export const SELF_CHECK = `과제: 팀원이 결과물을 팀장에게 올리기 전에 스스로 점검하도록 돕습니다. 이 결과는 팀원 본인에게만 보입니다.
+'팀장의 기준'이 있으면 그 기준에 맞는지를 먼저 봅니다. 없으면 일반적인 업무 보고서 기준(결론 먼저, 근거, 대안, 다음 행동)으로 봅니다.
+말투는 동료가 옆에서 조언하듯 부드럽고 구체적으로. 평가나 점수는 매기지 않습니다.
+
+출력 JSON 형식:
+{
+  "summary": "한두 문장 총평",
+  "ready": true,
+  "fixes": [{"where": "§2 또는 첫 문단 등", "what": "고치면 좋을 점 한 문장", "tag": "E1"}],
+  "good": ["잘 된 점 1~2개"],
+  "criteria_check": [{"criterion": "팀장 기준 이름", "met": true, "note": "한 문장", "tag": "E2"}]
+}
+fixes 는 최대 4개, 중요한 것부터. 팀장 기준을 근거로 한 항목에는 tag 를 넣고, 아니면 빈 문자열.
+ready 는 큰 보완 없이 올려도 되면 true.`;
+
+export const INSIGHT = `과제: 팀장이 이번 기간에 판단하고 챙겨야 할 것을 짚는 'AI 인사이트'를 씁니다.
+입력으로 (1) 규칙·모델이 계산한 '팀 신호'(사실), (2) 그 기간의 원본 기록 일부, (3) 팀장의 기준이 주어집니다.
+신호를 그대로 반복하지 말고, 서로 엮어서 원인·연결·우선순위를 짚습니다. 예: 지연된 과제와 담당자의 컨디션 하락, 막힘 반복이 같은 원인을 가리키는지.
+숫자와 사실은 입력에 있는 것만 씁니다. 추측은 '가능성'으로 표시하고, 판단의 근거 태그를 붙입니다.
+한 문장은 짧게. 팀장이 지금 할 행동을 구체적으로(누구와, 무엇을).
+
+출력 JSON 형식:
+{
+  "headline": "이번 기간 팀 상황을 한 문장으로",
+  "items": [
+    {"domain": "goal|exec|people|output|growth", "type": "risk|missed|forecast|pattern|good|data", "severity": 1,
+     "title": "짧은 제목", "body": "2~3문장 해석 [E1][E3]", "action": "팀장이 할 행동 한 문장", "link": "goals|team|reviews|one_on_ones|perf|sim|knowhow|report|eval"}
+  ],
+  "watch_next": "다음 기간에 지켜볼 것 한 문장"
+}
+severity 는 1~3 (3이 가장 급함). items 는 일간 2~4개, 주간 3~5개, 월간 4~6개.
+데이터가 부족해서 판단이 어려운 영역이 있으면 type 'data' 항목으로 무엇을 더 쌓으면 되는지 씁니다.`;
+
+export const INSIGHT_PERIOD: Record<string, string> = {
+  daily: '기간: 오늘. 오늘 안에 손써야 할 것(급한 리스크, 놓친 약속·요청·리뷰, 오늘 1:1 준비)만 짧게. 추세 해석은 하지 않습니다.',
+  weekly: '기간: 이번 주. 지난 7일의 흐름(진척 속도, 막힘 반복, 컨디션 추세, 리뷰 흐름)과 이번 주 우선순위를 짚습니다.',
+  monthly: '기간: 이번 달. 구조와 원인(목표 전망 변화, 계획이 반복해서 밀리는 패턴, 시간 배분, 결과물 품질 패턴, 팀원 성장 궤적, 팀장 자신의 운영 패턴)을 짚습니다. 상위 보고에 쓸 수 있는 문장으로.',
+};
+
+export const PLAN_DRAFT = `과제: 팀장(또는 팀원)이 준 자료(사업계획서, 업무 분장, 메모 등)를 읽고 목표·과제·할 일 계획 초안을 만듭니다.
+자료에 있는 내용만 구조화합니다. 없는 목표나 숫자를 지어내지 않습니다. 날짜가 없으면 비워 둡니다.
+'단계 이름'이 주어지면 그 이름으로 계층을 만듭니다 (예: 목표 > 과제 > 할 일). 계층은 최대 3단계.
+담당자는 주어진 팀원 이름 중에서만 고르고, 자료로 알 수 없으면 비워 둡니다.
+'상위 항목'이 주어지면 그 아래에 들어갈 하위 항목만 만듭니다.
+
+측정 방식(measure): check(한 번에 끝나는 일), children(하위 항목으로 진척 계산), percent(진척률로 관리), number(숫자 목표가 있는 일), recurring(정기 업무)
+
+출력 JSON 형식:
+{
+  "summary": "자료를 어떻게 구조화했는지 한두 문장",
+  "ops": [
+    {"op": "add", "ref": "n1", "parent": null, "title": "제목", "note": "설명(선택)", "owner": "팀원 이름 또는 빈 문자열",
+     "measure": "children", "start_date": "2026-11-01", "due_date": "2026-12-31", "num_target": null, "unit": "", "recur": null, "reason": "자료의 어디에서 왔는지"}
+  ]
+}
+parent 는 null(최상위), 같은 응답의 다른 add 항목의 ref, 또는 기존 항목 id. 항목은 30개 이하.`;
+
+export const PLAN_EDIT = `과제: 팀장(또는 팀원)의 말로 된 지시에 따라 현재 목표·과제 트리를 고치는 변경안을 만듭니다.
+지시에 필요한 변경만 만듭니다. 지시가 모호하면 가장 보수적으로 해석하고 summary 에 그 해석을 밝힙니다.
+항목은 [id] 로 가리킵니다. 담당자는 주어진 팀원 이름 중에서만 고릅니다. 날짜는 YYYY-MM-DD.
+
+op 종류:
+- add: {"op":"add","ref":"n1","parent": 기존 id 또는 ref 또는 null,"title","note","owner","measure","start_date","due_date","num_target","unit","recur","reason"}
+- update: {"op":"update","id":"기존 id","set":{"title"?, "note"?, "owner"?, "start_date"?, "due_date"?, "status"?, "measure"?, "num_target"?, "progress"?, "priority"?, "contribution"?},"reason"}
+- move: {"op":"move","id":"기존 id","parent": 새 상위 id 또는 null,"reason"}
+- delete: {"op":"delete","id":"기존 id","reason"}
+status 값: active, blocked, done, dropped.
+
+출력 JSON 형식:
+{ "summary": "무엇을 바꾸는지 한두 문장", "ops": [ ... ] }
+ops 는 20개 이하. 지시와 관계없는 항목은 건드리지 않습니다.`;

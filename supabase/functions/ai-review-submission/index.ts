@@ -4,12 +4,37 @@ import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART, toBase64, type Block } from '../_shared/anthropic.ts';
-import { REVIEW } from '../_shared/prompts/index.ts';
+import { REVIEW, SELF_CHECK } from '../_shared/prompts/index.ts';
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+/** 팀원이 올리기 전에 받는 셀프 점검 (팀장이 공개한 기준만 사용, 결과는 팀원에게 바로 돌려준다) */
+async function selfCheck(caller: { userId: string | null }, body: { team_id: string; title: string; text?: string }) {
+  const { data: m } = await admin.from('team_members').select('role')
+    .eq('team_id', body.team_id).eq('user_id', caller.userId!).eq('status', 'active').maybeSingle();
+  if (!m) throw new HttpError(403, 'forbidden');
+  const content: Block[] = [];
+  if (!body.text?.trim()) throw new HttpError(422, 'NO_TEXT', '점검할 본문이 없습니다');
+  const book = new SourceBook();
+  const n = await addKnowhow(book, body.team_id, 'review', 2600, true);
+  content.push({ type: 'text', text: [`결과물 제목: ${body.title}`, n ? book.knowhowText() : '## 팀장의 기준\n(팀장이 공개한 기준 없음 — 일반적인 보고서 기준으로 점검)',
+    `## 본문\n${body.text.slice(0, 40000)}`].join('\n\n') });
+  const { output } = await runAi({
+    teamId: body.team_id, kind: 'self_check', model: MODEL_SMART, system: SELF_CHECK, content, book,
+    depth: 1, level: 'L1', createdBy: caller.userId, subjectUserId: caller.userId, visibility: 'subject', maxTokens: 1000,
+  });
+  return output;
+}
 
 serve(async (req) => {
-  const { version_id } = await readJson<{ version_id: string }>(req);
-  if (!version_id) throw new HttpError(400, 'MISSING_ID');
+  const body = await readJson<{ version_id?: string; mode?: string; team_id?: string; title?: string; text?: string }>(req);
   const caller = await getCaller(req);
+  if (body.mode === 'self') {
+    if (!body.team_id || !body.title) throw new HttpError(400, 'MISSING_FIELDS');
+    return json(await selfCheck(caller, body as { team_id: string; title: string }));
+  }
+  const version_id = body.version_id;
+  if (!version_id) throw new HttpError(400, 'MISSING_ID');
 
   const ver = must(await admin.from('submission_versions').select('*').eq('id', version_id).maybeSingle());
   const sub = must(await admin.from('submissions').select('*').eq('id', ver.submission_id).maybeSingle());
@@ -29,15 +54,20 @@ serve(async (req) => {
   const book = new SourceBook();
   const content: Block[] = [];
 
-  // 본문: docx/txt 는 추출 텍스트, pdf 는 문서 블록으로 직접 읽힌다
-  if (ver.mime_type === 'application/pdf' && ver.file_path) {
+  // 공유(승인·피드백 없음)와 숫자 업데이트는 검토하지 않는다
+  if (sub.request_type === 'share' || sub.kind === 'number') throw new HttpError(422, 'NO_REVIEW', '공유·숫자 업데이트는 AI 검토 대상이 아닙니다');
+
+  // 본문: docx/txt 는 추출 텍스트, pdf·이미지는 직접 읽힌다, 링크는 설명과 주소
+  if ((ver.mime_type === 'application/pdf' || IMAGE_TYPES.includes(ver.mime_type ?? '')) && ver.file_path) {
     const { data: file, error } = await admin.storage.from('submissions').download(ver.file_path);
     if (error) throw error;
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.length > 20 * 1024 * 1024) throw new HttpError(413, 'FILE_TOO_LARGE');
-    content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toBase64(bytes) }, title: sub.title });
-  } else if (!ver.extracted_text?.trim()) {
-    throw new HttpError(422, 'NO_TEXT', '본문 텍스트가 없습니다. docx·pdf·txt·md 파일을 올려 주세요.');
+    content.push(ver.mime_type === 'application/pdf'
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toBase64(bytes) }, title: sub.title }
+      : { type: 'image', source: { type: 'base64', media_type: ver.mime_type as 'image/png', data: toBase64(bytes) } });
+  } else if (!ver.extracted_text?.trim() && !sub.link_url) {
+    throw new HttpError(422, 'NO_TEXT', '본문 텍스트가 없습니다. 파일을 올리거나 내용을 붙여 넣어 주세요.');
   }
 
   // 이전 버전
@@ -68,7 +98,8 @@ serve(async (req) => {
     `지난 검토 기록 수: ${history?.length ?? 0}`,
     book.knowhowText(),
     book.text('참고 기록'),
-    ver.extracted_text?.trim() ? `## 본문\n${ver.extracted_text.slice(0, 60000)}` : '## 본문\n(첨부 PDF)',
+    sub.link_url ? `링크 (AI는 열어 보지 않음, 설명만 읽음): ${sub.link_url}` : '',
+    ver.extracted_text?.trim() ? `## 본문\n${ver.extracted_text.slice(0, 60000)}` : '## 본문\n(첨부 파일)',
   ].filter(Boolean).join('\n\n');
   content.push({ type: 'text', text });
 

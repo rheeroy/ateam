@@ -50,34 +50,63 @@ begin
     (T, m_lee, 'member', '영업기획', now() - interval '150 days'),
     (T, m_han, 'member', '기획 (신규)', now() - interval '42 days');
 
-  -- 전략
-  insert into strategic_goals (team_id, title, sort) values (T, '신제품 시장 진입 검증', 1) returning id into g1;
-  insert into strategic_goals (team_id, title, sort) values (T, '파트너 채널 확대', 2) returning id into g2;
-  insert into strategic_goals (team_id, title, sort) values (T, '팀 역량 강화', 3) returning id into g3;
-  insert into hypotheses (team_id, goal_id, statement, signal) values
+  -- 목표·과제 (자유 계층)
+  update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb where id = T;
+  insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
+    values (T, L, '신제품 시장 진입 검증', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
+  insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
+    values (T, L, '파트너 채널 확대', 'children', 2, current_date - 90, current_date + 70, 5, now() - interval '90 days') returning id into g2;
+  insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
+    values (T, L, '팀 역량 강화', 'children', 3, current_date - 60, current_date + 100, 3, now() - interval '60 days') returning id into g3;
+  insert into hypotheses (team_id, item_id, statement, signal) values
     (T, g1, '침투가로 Q1 파일럿 전환율 20% 이상', '인터뷰 12명 중 구매 의향 7명'),
     (T, g2, 'B사 제휴로 연내 계약 4억', 'B사 데이터 수급 2주째 지연'),
     (T, g3, '온보딩 개편으로 신규 입사자 적응 기간 3개월 → 2개월', '한수진 6주차 독립 수행률 60%');
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, g1, '진입 전략 수립', m_kim, 1, 5, 16, 58, 'in_progress', current_date - 45, current_date + 40) returning id into t1;
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, g1, '가격 정책 확정', m_kim, 1, 4, 8, 85, 'in_progress', current_date - 60, current_date + 10) returning id into t2;
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, g2, '파트너 제안서', m_jung, 1, 5, 6, 30, 'blocked', current_date - 30, current_date + 20) returning id into t3;
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, g2, '영업 연계', m_lee, 2, 4, 6, 35, 'in_progress', current_date - 40, current_date + 50) returning id into t4;
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, g3, '온보딩 개선', m_choi, 2, 4, 10, 66, 'in_progress', current_date - 50, current_date + 30) returning id into t5;
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, null, '사내 보고 자료 정비', m_jung, 3, 1, 18, 40, 'in_progress', current_date - 90, current_date + 60) returning id into t6;
-  insert into tasks (team_id, goal_id, title, owner_id, priority, mission_contribution, est_hours_per_week, progress, status, start_date, due_date) values
-    (T, null, '레거시 리포트 운영', m_park, 3, 2, 12, 50, 'in_progress', current_date - 90, current_date + 60) returning id into t7;
-  insert into task_allocations (task_id, user_id, team_id, share_pct) values
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g1, '진입 전략 수립', m_kim, 1, 5, 16, 'children', 0, current_date - 45, current_date + 40, 1, now() - interval '45 days') returning id into t1;
+  insert into work_items (team_id, parent_id, owner_id, title, measure, status, due_date, sort) values
+    (T, t1, m_kim, '시장 규모 추정', 'check', 'done', current_date - 30, 1),
+    (T, t1, m_kim, '경쟁사 가격 재분석', 'check', 'done', current_date - 10, 2),
+    (T, t1, m_kim, '진입 시나리오 3안', 'check', 'active', current_date + 10, 3),
+    (T, t1, m_han, '고객 인터뷰 12명', 'check', 'active', current_date + 20, 4),
+    (T, t1, m_kim, '임원 보고', 'check', 'active', current_date + 38, 5);
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g1, '가격 정책 확정', m_kim, 1, 4, 8, 'percent', 85, current_date - 60, current_date - 5, 2, now() - interval '60 days') returning id into t2;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, status, start_date, due_date, sort, created_at) values
+    (T, g2, '파트너 제안서', m_jung, 1, 5, 6, 'percent', 30, 'blocked', current_date - 30, current_date + 20, 1, now() - interval '30 days') returning id into t3;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g2, '영업 연계', m_lee, 2, 4, 6, 'percent', 35, current_date - 40, current_date + 50, 2, now() - interval '40 days') returning id into t4;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g3, '온보딩 개선', m_choi, 2, 4, 10, 'percent', 66, current_date - 50, current_date + 30, 1, now() - interval '50 days') returning id into t5;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g3, '사내 보고 자료 정비', m_jung, 3, 1, 18, 'percent', 40, current_date - 90, current_date + 60, 2, now() - interval '90 days') returning id into t6;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, recur, sort, created_at) values
+    (T, g3, '월간 레거시 리포트 운영', m_park, 3, 2, 12, 'recurring', 'monthly', 3, now() - interval '120 days') returning id into t7;
+  insert into work_item_logs (item_id, team_id, author_id, kind, period, done) values
+    (t7, T, m_park, 'recurring', (v_month - interval '3 months')::date, true), (t7, T, m_park, 'recurring', (v_month - interval '2 months')::date, true),
+    (t7, T, m_park, 'recurring', (v_month - interval '1 months')::date, false);
+  -- 일정 변경 이력 (재계획 2회)
+  update work_items set due_date = current_date + 5, change_reason = '경쟁사 데이터 추가 확보' where id = t2;
+  update work_items set due_date = current_date + 10, change_reason = '임원 일정' where id = t2;
+  -- 진척 기록 (최근 3주 속도)
+  insert into work_item_logs (item_id, team_id, author_id, kind, period, value) values
+    (t3, T, m_jung, 'progress', current_date - 21, 22), (t3, T, m_jung, 'progress', current_date - 14, 26), (t3, T, m_jung, 'progress', current_date - 7, 28),
+    (t4, T, m_lee, 'progress', current_date - 21, 20), (t4, T, m_lee, 'progress', current_date - 14, 27),
+    (t5, T, m_choi, 'progress', current_date - 21, 45), (t5, T, m_choi, 'progress', current_date - 14, 55)
+    on conflict do nothing;
+  -- 팀원이 올린 계획(검토 대기) + 팀장 요청
+  insert into work_items (team_id, parent_id, owner_id, title, note, measure, status, start_date, due_date, sort)
+    values (T, g2, m_lee, '파트너 영업 교육 자료 제작', '영업팀 대상 2회 교육', 'percent', 'proposed', current_date + 3, current_date + 35, 3);
+  insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, due_date)
+    values (T, L, m_jung, 'plan', g2, '파트너 채널 확대 — 하위 과제 계획 세워 주세요', '제안서 이후 단계까지 포함해서요', current_date + 3);
+  insert into work_item_allocations (item_id, user_id, team_id, share_pct) values
     (t1, m_kim, T, 40), (t1, m_han, T, 30), (t2, m_kim, T, 20), (t3, m_jung, T, 15), (t4, m_lee, T, 20),
     (t5, m_choi, T, 30), (t6, m_jung, T, 45), (t6, m_park, T, 10), (t7, m_park, T, 30);
 
-  insert into metrics (team_id, goal_id, name, unit, target, period_start, period_end, cumulative)
+  insert into metrics (team_id, item_id, name, unit, target, period_start, period_end, cumulative)
     values (T, g2, '파트너 계약 금액', '억', 20, (v_month - interval '3 months')::date, (v_month + interval '2 months')::date, true) returning id into mt;
+  insert into work_items (team_id, parent_id, owner_id, title, measure, num_target, unit, metric_id, sort)
+    values (T, g2, m_lee, '파트너 계약 금액', 'number', 20, '억', mt, 4);
   insert into metric_values (metric_id, team_id, period, value) values
     (mt, T, (v_month - interval '3 months')::date, 3.4), (mt, T, (v_month - interval '2 months')::date, 3.6), (mt, T, (v_month - interval '1 months')::date, 4.2);
   insert into metric_pipeline (metric_id, team_id, label, amount, probability, expected_close) values
@@ -131,7 +160,7 @@ begin
     (T, L, '교육 예산 확인', current_date + 4, L);
 
   -- 결과물: 김도현 기획서 v1~v3 (리뷰 중)
-  insert into submissions (team_id, author_id, task_id, title, status, created_at) values (T, m_kim, t1, '신제품 진입 기획서', 'in_review', now() - interval '30 days') returning id into sub;
+  insert into submissions (team_id, author_id, item_id, title, status, created_at) values (T, m_kim, t1, '신제품 진입 기획서', 'in_review', now() - interval '30 days') returning id into sub;
   insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
     (sub, T, 1, E'1. 시장 분석\n국내 시장 규모 1.2조, 연 8% 성장.\n\n2. 가격 전략 — 프리미엄\n경쟁사 대비 20% 높은 가격으로 브랜드 포지셔닝.', '초안', m_kim, now() - interval '30 days'),
     (sub, T, 2, E'1. 시장 분석\n국내 시장 규모 1.2조, 연 8% 성장. 주요 경쟁사 3곳.\n\n2. 가격 전략 — 프리미엄\n브랜드 인지 조사 결과 반영 예정.\n\n3. 진입 시나리오\n파일럿 2곳.', '진입 시나리오 추가', m_kim, now() - interval '16 days');
@@ -143,7 +172,7 @@ begin
   insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at, parent_id)
     select sub, ver, T, m_kim, '다음 주 사용자 인터뷰로 보강하겠습니다.', now() - interval '3 days', id from review_comments where submission_id = sub limit 1;
 
-  insert into submissions (team_id, author_id, task_id, title, status) values (T, m_choi, t5, '온보딩 개선안', 'in_review') returning id into sub;
+  insert into submissions (team_id, author_id, item_id, title, status) values (T, m_choi, t5, '온보딩 개선안', 'in_review') returning id into sub;
   insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by) values
     (sub, T, 1, E'온보딩 개선안\n1. 현황: 신규 입사자 독립 수행까지 평균 3개월\n2. 개선: 버디 제도, 4주 과제 설계', '초안', m_choi),
     (sub, T, 2, E'온보딩 개선안\n1. 현황: 신규 입사자 독립 수행까지 평균 3개월 (최근 5명 기준)\n2. 개선: 버디 제도, 4주 과제 설계, 2주차 1:1\n3. 측정: 6주차 독립 수행률', '측정 지표 추가', m_choi);

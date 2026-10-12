@@ -87,3 +87,62 @@ select pg_temp.as_user(:'B'); set role authenticated;
 select count(*) = 0 as outsider_no_cards from knowhow_cards;
 reset role;
 select 'knowhow' = any(features) as knowhow_in_free from plans where id = 'free';
+
+-- ===== 0008 목표·과제 자유 구조 =====
+select pg_temp.as_user(:'L'); set role authenticated;
+insert into work_items (team_id, owner_id, title, start_date, due_date) values (:'team', :'L', '파트너 채널 확대', current_date - 10, current_date + 60) returning id as g \gset
+insert into team_requests (team_id, to_id, kind, item_id, title) values (:'team', :'A', 'plan', :'g', '하위 과제 세워 주세요');
+select needs_plan as goal_needs_plan from work_items where id = :'g';
+reset role;
+
+select pg_temp.as_user(:'A'); set role authenticated;
+select count(*) = 1 as member_got_request_notice from notifications where kind = 'request';
+insert into work_items (team_id, parent_id, owner_id, title, measure, status, start_date, due_date)
+  values (:'team', :'g', :'A', '제안서 작성', 'percent', 'active', current_date, current_date + 20) returning id as it \gset
+select status = 'proposed' as member_item_forced_proposed, baselined_at is null as no_baseline_yet from work_items where id = :'it';
+do $$ begin
+  update work_items set status = 'active' where title = '제안서 작성';
+  raise exception 'should fail';
+exception when others then raise notice 'ok member cannot approve: %', sqlerrm; end $$;
+select needs_plan = false as plan_request_cleared from work_items where parent_id is null and title = '파트너 채널 확대';
+reset role;
+
+select pg_temp.as_user(:'L'); set role authenticated;
+select count(*) >= 1 as leader_got_proposal from notifications where kind = 'item.proposed';
+update work_items set status = 'changes_requested' where id = :'it';
+insert into work_item_comments (item_id, team_id, kind, body) values (:'it', :'team', 'changes', '마감을 2주 당겨 주세요');
+reset role;
+
+select pg_temp.as_user(:'A'); set role authenticated;
+update work_items set due_date = current_date + 14, status = 'changes_requested' where id = :'it';
+select status = 'proposed' as resubmitted from work_items where id = :'it';
+reset role;
+
+select pg_temp.as_user(:'L'); set role authenticated;
+update work_items set status = 'active' where id = :'it';
+select base_due = current_date + 14 as baseline_on_approval from work_items where id = :'it';
+select count(*) = 1 as feedback_is_evidence from evidence where source = 'leader_note' and subject_user_id = :'A' and summary like '제안서 작성%';
+reset role;
+
+select pg_temp.as_user(:'A'); set role authenticated;
+update work_items set due_date = current_date + 30, change_reason = '고객 일정' where id = :'it';
+update work_items set progress = 50 where id = :'it';
+select replan_count = 1 as replan_counted from work_items where id = :'it';
+select reason = '고객 일정' as replan_reason from work_item_events where item_id = :'it' and kind = 'replan';
+reset role;
+
+select pg_temp.as_user(:'L'); set role authenticated;
+select progress = 50 as parent_rollup from work_items where id = :'g';
+select count(*) = 1 as leader_got_replan_notice from notifications where kind = 'item.replan';
+select count(*) >= 1 as outlook_has_goal from public.goal_outlook(:'team');
+select count(*) >= 1 as schedule_rows from public.item_schedule(:'team');
+reset role;
+
+select pg_temp.as_user(:'B'); set role authenticated;
+select count(*) = 0 as outsider_no_items from work_items;
+reset role;
+
+-- 과금 v2: 체험 30일, 체험 종료 후 AI 잠금
+select (trial_ends_at - now()) > interval '29 days' as trial_30d from subscriptions where owner_id = :'L';
+update subscriptions set current_period_end = now() - interval '1 day', trial_ends_at = now() - interval '1 day' where owner_id = :'L';
+select not public.team_has_feature(:'team', 'ai_core') as ai_locked_after_trial, public.team_has_feature(:'team', 'goals') as goals_still_free;

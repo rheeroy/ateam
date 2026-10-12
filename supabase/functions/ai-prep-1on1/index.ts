@@ -67,6 +67,13 @@ serve(async (req) => {
     .eq('team_id', oo.team_id).eq('subject_id', oo.member_id).gte('occurred_at', since.slice(0, 10)).limit(5);
   for (const o of obs ?? []) book.add('observation', o.id, `관찰 메모 ${fmtDate(o.occurred_at)}`, `[${o.kind}] ${o.body}`);
 
+  // 담당 목표·과제 (계획 대비)
+  const { data: its } = await admin.from('work_items').select('id, title, status, progress, due_date, base_due, replan_count, needs_plan')
+    .eq('team_id', oo.team_id).eq('owner_id', oo.member_id).in('status', ['proposed', 'changes_requested', 'active', 'blocked']).limit(15);
+  const ST: Record<string, string> = { proposed: '팀장 검토 대기', changes_requested: '수정 요청됨', active: '진행', blocked: '막힘' };
+  for (const it of its ?? []) {
+    book.add('task', it.id, `담당 항목 · ${it.title}`, `${ST[it.status] ?? it.status}, 진척 ${it.progress}%, 마감 ${it.due_date ?? '-'}${it.base_due && it.due_date && it.base_due !== it.due_date ? ` (처음 계획 ${it.base_due}, 변경 ${it.replan_count}회)` : ''}${it.needs_plan ? ', 하위 계획 요청 중' : ''}`);
+  }
   await addKnowhow(book, oo.team_id, 'prep');
   const prompt = `팀원: ${member.full_name}\n면담 일시: ${oo.scheduled_at}\n\n${book.knowhowText()}\n\n${book.text('기록')}`;
   const { output } = await runAi({

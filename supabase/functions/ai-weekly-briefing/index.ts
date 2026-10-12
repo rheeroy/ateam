@@ -39,10 +39,10 @@ async function briefTeam(teamId: string, createdBy: string | null) {
       `${v.note} ${(rv?.content as { summary?: string })?.summary ?? ''}`);
   }
 
-  const { data: tasks } = await admin.from('tasks').select('id, title, status, progress, due_date, owner_id')
-    .eq('team_id', teamId).in('status', ['in_progress', 'blocked']);
+  const { data: tasks } = await admin.from('work_items').select('id, title, status, progress, due_date, owner_id, base_due, replan_count')
+    .eq('team_id', teamId).in('status', ['active', 'blocked']).not('parent_id', 'is', null).neq('measure', 'check').limit(40);
   for (const t of tasks ?? []) {
-    book.add('task', t.id, `과제 ${t.title}`, `상태 ${t.status}, 진척 ${t.progress}%, 마감 ${t.due_date ?? '-'}, 담당 ${nameOf.get(t.owner_id) ?? '-'}`);
+    book.add('task', t.id, `과제 ${t.title}`, `상태 ${t.status === 'blocked' ? '막힘' : '진행'}, 진척 ${t.progress}%, 마감 ${t.due_date ?? '-'}${t.base_due && t.due_date && t.base_due !== t.due_date ? ` (처음 계획 ${t.base_due}, 변경 ${t.replan_count}회)` : ''}, 담당 ${nameOf.get(t.owner_id) ?? '-'}`);
   }
 
   const { data: radar } = await admin.rpc('care_radar', { p_team: teamId });

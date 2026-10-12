@@ -25,7 +25,7 @@ function serve(handler) {
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      const known = msg.match(/(INSUFFICIENT_CREDITS|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
       if (known) return json({ error: known[1], message: msg }, known[1] === "forbidden" ? 403 : 402);
       console.error(e);
       return json({ error: "INTERNAL", message: msg }, 500);
@@ -134,12 +134,29 @@ function parseJson(text) {
 }
 
 // functions/_shared/gateway.ts
+var CORE = [
+  "briefing",
+  "one_on_one_prep",
+  "review",
+  "weekly_report",
+  "insight_daily",
+  "insight_weekly",
+  "insight_monthly",
+  "plan_edit",
+  "self_check"
+];
 var CREDITS = {
-  one_on_one_prep: 1,
-  review: 3,
-  briefing: 2,
-  weekly_report: 2,
+  one_on_one_prep: 0,
+  review: 0,
+  briefing: 0,
+  weekly_report: 0,
+  insight_daily: 0,
+  insight_weekly: 0,
+  insight_monthly: 0,
+  plan_edit: 0,
+  self_check: 0,
   evaluation_draft: 5,
+  plan_draft: 2,
   forecast_note: 1,
   strategy_check: 1,
   scenario_note: 1
@@ -185,8 +202,10 @@ ${ls.join("\n")}` : "";
     return this.items.reduce((acc, i) => (acc[i.type] = (acc[i.type] ?? 0) + 1, acc), {});
   }
 };
-async function addKnowhow(book, teamId, feature, limitChars = 2600) {
-  const { data } = await admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]).order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
+async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+  if (onlyShared) qb = qb.eq("shared", true);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
   let used = 0, n = 0;
   for (const c of data ?? []) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
@@ -216,12 +235,25 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
+  if (!(data?.features ?? []).includes("ai_premium")) throw new HttpError(402, "AI_LOCKED", "AI \uAE30\uB2A5\uC740 Pro\uC5D0\uC11C \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
   const left = (data?.monthly_remaining ?? 0) + (data?.topup_remaining ?? 0);
   if (left < need) throw new HttpError(402, "INSUFFICIENT_CREDITS", `\uD06C\uB808\uB527\uC774 \uBD80\uC871\uD569\uB2C8\uB2E4 (\uD544\uC694 ${need}, \uB0A8\uC74C ${left})`);
 }
+async function assertCore(teamId) {
+  const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
+  if (error) throw error;
+  if (!(data?.features ?? []).includes("ai_core")) throw new HttpError(402, "AI_LOCKED", "AI \uAE30\uB2A5\uC740 Pro\uC5D0\uC11C \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
+  if ((data?.core_used ?? 0) >= (data?.core_cap ?? 0)) throw new HttpError(429, "CORE_LIMIT", "\uC774\uBC88 \uB2EC AI \uAE30\uBCF8 \uC0AC\uC6A9\uB7C9\uC744 \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4");
+}
+async function assertAccess(teamId, kind, credits) {
+  const need = credits ?? CREDITS[kind];
+  if (CORE.includes(kind) && !need) return assertCore(teamId);
+  return assertCredits(teamId, need);
+}
 async function runAi(job) {
   const credits = job.credits ?? CREDITS[job.kind];
-  await assertCredits(job.teamId, credits);
+  const core = CORE.includes(job.kind) && !credits;
+  await assertAccess(job.teamId, job.kind, credits);
   const res = await callClaude({
     model: job.model,
     system: `${BASE_RULES}
@@ -251,7 +283,15 @@ ${job.system}`,
     created_by: job.createdBy
   }).select().single();
   if (error) throw error;
-  const { error: cErr } = await admin.rpc("consume_credits", {
+  const { error: cErr } = core ? await admin.rpc("consume_core", {
+    p_team: job.teamId,
+    p_kind: job.kind,
+    p_ai_output: row.id,
+    p_model: res.model,
+    p_in: res.inputTokens,
+    p_out: res.outputTokens,
+    p_cost: res.costUsd
+  }) : await admin.rpc("consume_credits", {
     p_team: job.teamId,
     p_credits: credits,
     p_kind: job.kind,
@@ -307,9 +347,10 @@ serve(async (req) => {
     book.add("checkin", c.id, `\uCCB4\uD06C\uC778 ${nameOf.get(c.user_id)}`, `\uD55C \uC77C: ${c.did} / \uB9C9\uD798: ${c.blocked || "\uC5C6\uC74C"} / \uB2E4\uC74C \uC8FC: ${c.next}`);
   }
   const missing = (members ?? []).filter((m) => m.role === "member" && !(checkins ?? []).some((c) => c.user_id === m.user_id)).map((m) => nameOf.get(m.user_id));
-  const { data: tasks } = await admin.from("tasks").select("id, title, status, progress, due_date, owner_id, goal_id").eq("team_id", body.team_id).in("status", ["in_progress", "blocked", "done"]).gte("updated_at", new Date(Date.now() - 21 * 864e5).toISOString());
+  const { data: tasks } = await admin.from("work_items").select("id, title, status, progress, due_date, owner_id, base_due, replan_count, measure").eq("team_id", body.team_id).in("status", ["active", "blocked", "done"]).not("parent_id", "is", null).gte("updated_at", new Date(Date.now() - 21 * 864e5).toISOString()).limit(50);
+  const ST = { active: "\uC9C4\uD589", blocked: "\uB9C9\uD798", done: "\uC644\uB8CC" };
   for (const t of tasks ?? []) {
-    book.add("task", t.id, `\uACFC\uC81C ${t.title}`, `\uC0C1\uD0DC ${t.status}, \uC9C4\uCC99 ${t.progress}%, \uB9C8\uAC10 ${t.due_date ?? "-"}, \uB2F4\uB2F9 ${nameOf.get(t.owner_id) ?? "-"}`);
+    book.add("task", t.id, `\uACFC\uC81C ${t.title}`, `\uC0C1\uD0DC ${ST[t.status] ?? t.status}, \uC9C4\uCC99 ${t.progress}%, \uB9C8\uAC10 ${t.due_date ?? "-"}${t.base_due && t.due_date && t.base_due !== t.due_date ? ` (\uCC98\uC74C \uACC4\uD68D ${t.base_due})` : ""}, \uB2F4\uB2F9 ${nameOf.get(t.owner_id) ?? "-"}`);
   }
   const { data: oos } = await admin.from("one_on_ones").select("id, member_id, scheduled_at, shared_notes").eq("team_id", body.team_id).eq("status", "done").gte("scheduled_at", week).lte("scheduled_at", `${weekEnd}T23:59:59Z`);
   for (const o of oos ?? []) book.add("one_on_one", o.id, `1:1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);

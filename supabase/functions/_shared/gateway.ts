@@ -5,17 +5,18 @@ import { callClaude, parseJson, type Block } from './anthropic.ts';
 
 export type AiKind =
   | 'briefing' | 'one_on_one_prep' | 'review' | 'weekly_report'
-  | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note';
+  | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note'
+  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check';
 
+/** 코어 AI: 구독에 포함 (크레딧 차감 없음, 요금제별 공정 사용 한도만) */
+export const CORE: AiKind[] = ['briefing', 'one_on_one_prep', 'review', 'weekly_report',
+  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check'];
+
+/** 프리미엄 AI: 크레딧 차감 */
 export const CREDITS: Record<AiKind, number> = {
-  one_on_one_prep: 1,
-  review: 3,
-  briefing: 2,
-  weekly_report: 2,
-  evaluation_draft: 5,
-  forecast_note: 1,
-  strategy_check: 1,
-  scenario_note: 1,
+  one_on_one_prep: 0, review: 0, briefing: 0, weekly_report: 0,
+  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0,
+  evaluation_draft: 5, plan_draft: 2, forecast_note: 1, strategy_check: 1, scenario_note: 1,
 };
 
 export interface Source {
@@ -65,14 +66,15 @@ export class SourceBook {
   }
 }
 
-export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario';
+export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario' | 'plan';
 
 /** 팀장이 켜 둔 노하우 카드 중 이 기능에 해당하는 것을 근거책에 싣는다 (고정 카드 우선, 글자 수 상한) */
-export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 2600): Promise<number> {
-  const { data } = await admin.from('knowhow_cards')
+export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 2600, onlyShared = false): Promise<number> {
+  let qb = admin.from('knowhow_cards')
     .select('id, kind, title, body, rules, pinned, updated_at')
-    .eq('team_id', teamId).eq('active', true).contains('applies_to', [feature])
-    .order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(30);
+    .eq('team_id', teamId).eq('active', true).contains('applies_to', [feature]);
+  if (onlyShared) qb = qb.eq('shared', true);
+  const { data } = await qb.order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(30);
   let used = 0, n = 0;
   for (const c of data ?? []) {
     const rules = Array.isArray(c.rules) ? (c.rules as string[]).filter(Boolean) : [];
@@ -127,13 +129,29 @@ export interface AiJob {
 export async function assertCredits(teamId: string, need: number) {
   const { data, error } = await admin.rpc('credit_status', { p_team: teamId });
   if (error) throw error;
+  if (!(data?.features ?? []).includes('ai_premium')) throw new HttpError(402, 'AI_LOCKED', 'AI 기능은 Pro에서 쓸 수 있습니다');
   const left = (data?.monthly_remaining ?? 0) + (data?.topup_remaining ?? 0);
   if (left < need) throw new HttpError(402, 'INSUFFICIENT_CREDITS', `크레딧이 부족합니다 (필요 ${need}, 남음 ${left})`);
 }
 
+/** 코어 AI 사용 가능 여부 (요금제·공정 사용 한도) */
+export async function assertCore(teamId: string) {
+  const { data, error } = await admin.rpc('credit_status', { p_team: teamId });
+  if (error) throw error;
+  if (!(data?.features ?? []).includes('ai_core')) throw new HttpError(402, 'AI_LOCKED', 'AI 기능은 Pro에서 쓸 수 있습니다');
+  if ((data?.core_used ?? 0) >= (data?.core_cap ?? 0)) throw new HttpError(429, 'CORE_LIMIT', '이번 달 AI 기본 사용량을 모두 썼습니다');
+}
+
+export async function assertAccess(teamId: string, kind: AiKind, credits?: number) {
+  const need = credits ?? CREDITS[kind];
+  if (CORE.includes(kind) && !need) return assertCore(teamId);
+  return assertCredits(teamId, need);
+}
+
 export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unknown>; parsed: T }> {
   const credits = job.credits ?? CREDITS[job.kind];
-  await assertCredits(job.teamId, credits);
+  const core = CORE.includes(job.kind) && !credits;
+  await assertAccess(job.teamId, job.kind, credits);
 
   const res = await callClaude({
     model: job.model,
@@ -168,16 +186,21 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
     .single();
   if (error) throw error;
 
-  const { error: cErr } = await admin.rpc('consume_credits', {
-    p_team: job.teamId,
-    p_credits: credits,
-    p_kind: job.kind,
-    p_ai_output: row.id,
-    p_model: res.model,
-    p_in: res.inputTokens,
-    p_out: res.outputTokens,
-    p_cost: res.costUsd,
-  });
+  const { error: cErr } = core
+    ? await admin.rpc('consume_core', {
+      p_team: job.teamId, p_kind: job.kind, p_ai_output: row.id,
+      p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd,
+    })
+    : await admin.rpc('consume_credits', {
+      p_team: job.teamId,
+      p_credits: credits,
+      p_kind: job.kind,
+      p_ai_output: row.id,
+      p_model: res.model,
+      p_in: res.inputTokens,
+      p_out: res.outputTokens,
+      p_cost: res.costUsd,
+    });
   if (cErr) console.error('consume_credits failed', cErr);
 
   const kh = job.book.citedStrict(parsed).filter((x) => x.type === 'knowhow' && x.id).map((x) => x.id);
