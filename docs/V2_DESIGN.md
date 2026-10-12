@@ -37,4 +37,10 @@
 
 ## 6. 배포 (Supabase 웹 대시보드)
 - 새 프로젝트: `01_schema.sql` → 함수 10개 → (선택) `02_schedules.sql`
-- 기존 프로젝트: `04_upgrade_v2.sql` → `05_schedules_v2.sql` → 새 함수 `ai-insights`, `ai-plan` 배포 → 기존 함수 8개 코드 교체
+- 기존 프로젝트: `04_upgrade_v2.sql` → `05_schedules_v2.sql` → 새 함수 `ai-insights`, `ai-plan` 배포 → 기존 함수 8개 코드 교체 → (데모) `06_demo_accounts.sql`
+
+## 7. 데모 계정
+- `supabase/demo_accounts.sql`(대시보드 `06_demo_accounts.sql`)을 SQL Editor에서 Run → 고정 데모 계정 7개(팀장 `leader@demo.ateam`, 팀원 jung·park·lee·kim·han·choi `@demo.ateam`, 공통 비밀번호)와 6개월치 '전략기획팀 (데모)' 기록 생성. 다시 Run하면 초기화
+- 팀원별 체험 시나리오: 정우성(계획 세우기 요청 → AI 초안) · 박서연(공유 요청 → 캡처·링크) · 이정규(이번 주 체크인 미제출) · 김도현(리뷰 중 기획서 새 버전, 오늘 1:1) · 한수진(진척 요청) · 최민아
+- 팀장·팀원 동시 확인은 시크릿 창. 데이터 본문은 `seed_demo_team()` 하나로, 로컬 `seed.sql`도 같은 함수를 씀
+- `teams.is_demo`: 팀 수 한도 제외, 예약 AI 인사이트는 만든 뒤 14일만
