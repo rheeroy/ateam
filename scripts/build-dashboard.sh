@@ -18,4 +18,6 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 # 04·05: v2 업그레이드 — 이미 01을 실행한 프로젝트용 (목표·과제 자유 구조, 요청·알림, 과금 v2 / AI 인사이트 예약)
 { echo "-- ATEAM v2 업그레이드 — 예전 01_schema.sql 을 이미 실행한 프로젝트에서 한 번 Run (새 프로젝트는 01에 포함되어 있으니 건너뜀)"; echo "-- 기존 전략 목표·과제·마일스톤 데이터는 새 구조(work_items)로 옮겨집니다."; echo; cat migrations/20261013000008_work_items.sql; } > dashboard/04_upgrade_v2.sql
 { echo "-- ATEAM v2 — AI 인사이트 예약 (02_schedules.sql 을 이미 실행한 프로젝트에서 한 번 Run)"; echo; cat migrations/20261013000009_insight_schedules.sql; } > dashboard/05_schedules_v2.sql
+# 06: 데모 팀 (팀원 체험) — 04를 이미 실행한 프로젝트용
+{ echo "-- ATEAM 데모 팀 — 팀원이 있는 가상 팀 + 팀원 계정 체험. 04_upgrade_v2.sql 다음에 한 번 Run (새 프로젝트는 01에 포함)"; echo; cat migrations/20261014000010_demo.sql; } > dashboard/06_demo.sql
 echo "done: supabase/dashboard"
