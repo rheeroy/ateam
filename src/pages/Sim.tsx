@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Save, Scale } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
-import type { AiOutput, Forecast, GoalOutlook, Metric, Scenario, Task } from '../lib/types';
-import { BASE_INPUT, keyPerson, sensitivity, simulate, taskHours, type Allocation, type SimBase, type SimInput } from '../lib/sim';
+import type { AiOutput, Forecast, GoalOutlook, Metric, Scenario, WorkItem } from '../lib/types';
+import { BASE_INPUT, keyPerson, sensitivity, simulate, taskHours, tasksFromItems, type Allocation, type SimBase, type SimInput } from '../lib/sim';
 import { cx, num, sign } from '../lib/format';
 import { Button, Card, Empty, PageHeader, Spinner, inputCls, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
@@ -15,14 +15,14 @@ import { Upsell } from './Perf';
 function useSimBase(teamId: string) {
   const { members } = useTeam();
   const goals = useQuery({ queryKey: ['goal-outlook', teamId], queryFn: () => q<GoalOutlook[]>(supabase.rpc('goal_outlook', { p_team: teamId })) });
-  const tasks = useQuery({ queryKey: ['tasks', teamId, 'active'], queryFn: () => q<Task[]>(supabase.from('tasks').select('*').eq('team_id', teamId).in('status', ['planned', 'in_progress', 'blocked'])) });
-  const alloc = useQuery({ queryKey: ['alloc', teamId], queryFn: () => q<Allocation[]>(supabase.from('task_allocations').select('task_id, user_id, share_pct').eq('team_id', teamId)) });
+  const tasks = useQuery({ queryKey: ['items', teamId, 'sim'], queryFn: async () => tasksFromItems(await q<WorkItem[]>(supabase.from('work_items').select('*').eq('team_id', teamId).neq('status', 'dropped'))) });
+  const alloc = useQuery({ queryKey: ['alloc', teamId], queryFn: async () => (await q<{ item_id: string; user_id: string; share_pct: number }[]>(supabase.from('work_item_allocations').select('item_id, user_id, share_pct').eq('team_id', teamId))).map((a): Allocation => ({ task_id: a.item_id, user_id: a.user_id, share_pct: a.share_pct })) });
   const metric = useQuery({ queryKey: ['metrics', teamId, 'primary'], queryFn: async () => (await q<Metric[]>(supabase.from('metrics').select('*').eq('team_id', teamId).not('target', 'is', null).order('created_at').limit(1)))[0] ?? null });
   const fc = useQuery({ queryKey: ['forecast', metric.data?.id], enabled: !!metric.data, queryFn: () => q<Forecast>(supabase.rpc('metric_forecast', { p_metric: metric.data!.id })) });
   const loading = goals.isLoading || tasks.isLoading || alloc.isLoading || metric.isLoading || (!!metric.data && fc.isLoading);
   const base: SimBase | null = loading ? null : {
     goals: goals.data ?? [], tasks: tasks.data ?? [], allocations: alloc.data ?? [], members,
-    forecast: fc.data ?? null, metricGoalId: metric.data?.goal_id ?? null,
+    forecast: fc.data ?? null, metricGoalId: metric.data?.item_id ?? null,
   };
   return { base, loading };
 }
@@ -93,7 +93,7 @@ export default function Sim() {
   if (loading || !base || !res) return <Spinner />;
   if (!base.goals.length) return (
     <section><PageHeader title="What-if 시뮬레이션" />
-      <Card><Empty title="전략 목표와 과제가 먼저 필요합니다" action={<Link to="/strategy"><Button>팀 전략으로</Button></Link>}>목표·과제·주당 공수가 있어야 인력·일정 변화의 효과를 계산할 수 있습니다.</Empty></Card>
+      <Card><Empty title="전략 목표와 과제가 먼저 필요합니다" action={<Link to="/goals"><Button>목표·과제로</Button></Link>}>목표·과제·주당 공수가 있어야 인력·일정 변화의 효과를 계산할 수 있습니다.</Empty></Card>
     </section>
   );
 

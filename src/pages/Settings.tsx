@@ -10,14 +10,18 @@ import { PasswordForm } from '../components/PasswordForm';
 import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
 const FEATURE_LABEL: Record<string, string> = {
-  checkin: '주간 체크인', one_on_one: '1:1 노트·액션아이템', review_room: '리뷰룸', weekly_report: '주간보고 초안', briefing: '월요일 팀 브리핑',
-  prep: '1:1 준비 노트', ai_review: 'AI 1차 검토', perf_map: '팀 성과 지도', forecast: '실적 전망', strategy: '팀 전략·포트폴리오',
-  simulation: 'What-if 시뮬레이션', evaluation: '근거 기반 평가 초안', insight: 'AI 인사이트 레벨', care_radar: '케어 레이더',
-  knowhow: '내 노하우 (AI가 내 기준으로 일함)', integrations: '캘린더·메신저 연동 (예정)', multi_team: '겸직 팀장 (최대 3팀)', priority_model: '상위 모델 우선 배정',
+  checkin: '주간 체크인', one_on_one: '1:1 노트·액션아이템', review_room: '공유·리뷰 (문서·링크·캡처·숫자)', goals: '목표·과제 (팀원 계획·승인·계획 대비)',
+  requests: '팀원에게 요청', knowhow: '내 노하우 저장', signals_basic: '관리 영역 현황 + 급한 신호 2건',
+  signals: '자동 감지 신호 전체', ai_core: '기본 AI 무제한급: 일·주·월 인사이트, 1차 검토, 1:1 준비, 주간보고, 셀프 점검, 말로 계획 수정',
+  ai_premium: '프리미엄 AI (크레딧): 평가 초안, 계획서 초안, 노하우 정리, 전망·시나리오 해석',
+  perf_map: '팀 성과 지도', forecast: '실적 전망', strategy: '팀 전략·포트폴리오', simulation: 'What-if 시뮬레이션', evaluation: '근거 기반 평가 초안',
+  insight: 'AI 인사이트 레벨', care_radar: '케어 레이더', integrations: '캘린더·메신저 연동 (예정)', multi_team: '겸직 팀장 (최대 3팀)', priority_model: '상위 모델 우선 배정',
+  weekly_report: '주간보고 초안', briefing: '팀 브리핑', prep: '1:1 준비 노트', ai_review: 'AI 1차 검토',
 };
 const KIND_LABEL: Record<string, string> = {
   briefing: '팀 브리핑', one_on_one_prep: '1:1 준비 노트', review: '1차 검토', weekly_report: '주간보고', evaluation_draft: '평가 초안',
   forecast_note: '전망 해석', strategy_check: '전략 점검', scenario_note: '시나리오 해석', knowhow_ingest: '노하우 정리',
+  insight_daily: '일간 인사이트', insight_weekly: '주간 인사이트', insight_monthly: '월간 인사이트', plan_draft: '계획서 초안', plan_edit: '말로 계획 수정', self_check: '팀원 셀프 점검',
 };
 
 // 토스페이먼츠 v2 SDK (자동결제 카드 등록)
@@ -47,7 +51,7 @@ function Billing() {
     enabled: !!profile,
   });
   const payments = useQuery({ queryKey: ['payments'], queryFn: () => q<{ id: string; order_name: string; amount_krw: number; status: string; paid_at: string | null; created_at: string; receipt_url: string | null }[]>(supabase.from('payments').select('*').order('created_at', { ascending: false }).limit(12)) });
-  const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').order('created_at', { ascending: false }).limit(15)) });
+  const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').neq('reason', 'core_usage').order('created_at', { ascending: false }).limit(15)) });
 
   const done = () => { refresh(); qc.invalidateQueries({ queryKey: ['subscription'] }); qc.invalidateQueries({ queryKey: ['payments'] }); qc.invalidateQueries({ queryKey: ['ledger'] }); };
   const subscribe = useMutation({
@@ -98,6 +102,7 @@ function Billing() {
             <div>
               <div className="text-xs text-slate-500">현재 요금제</div>
               <div className="mt-1 text-2xl font-bold">{credits.plan_name} {credits.status === 'trialing' && <Pill tone="amber">체험 중 · {fmtDate(credits.trial_ends_at)}까지</Pill>}</div>
+              {credits.plan_id === 'free' && <p className="text-sm text-slate-600 mt-1">{credits.trial_expired ? '30일 체험이 끝났습니다. ' : ''}체크인·1:1·공유·목표 관리는 계속 무료이고, 기록도 그대로 쌓입니다. AI 해석과 초안은 Pro에서 열립니다.</p>}
               {s && s.plan_id !== 'free' && credits.status !== 'trialing' && (
                 <div className="text-sm text-slate-500 mt-1">{s.billing_cycle === 'year' ? '연간' : '월간'} · 다음 결제 {fmtDate(s.current_period_end)}{s.card_last4 && ` · ${s.card_company ?? '카드'} ****${s.card_last4}`}
                   {s.cancel_at_period_end && <Pill tone="rose" className="ml-2">기간 끝나면 해지</Pill>}</div>
@@ -109,15 +114,24 @@ function Billing() {
               </Button>
             )}
           </div>
-          <div className="mt-5">
-            <div className="flex justify-between text-sm"><span>이번 달 AI 크레딧</span><span className="font-mono num"><b>{total}</b> 남음 · 월 {credits.monthly_credits}</span></div>
-            <div className="mt-2"><Bar value={(credits.monthly_remaining / Math.max(1, credits.monthly_credits)) * 100} tone="violet" h="h-2" /></div>
-            <div className="mt-1 text-xs text-slate-500">{fmtDate(credits.period_end)}에 다시 채워집니다{credits.topup_remaining > 0 && ` · 추가 구매분 ${credits.topup_remaining} (소멸 없음)`}</div>
-          </div>
+          {credits.plan_id !== 'free' && (
+            <div className="mt-5 grid sm:grid-cols-2 gap-5">
+              <div>
+                <div className="flex justify-between text-sm"><span>기본 AI 사용</span><span className="font-mono num">{credits.core_used ?? 0} / {credits.core_cap ?? '-'}회</span></div>
+                <div className="mt-2"><Bar value={((credits.core_used ?? 0) / Math.max(1, credits.core_cap ?? 1)) * 100} tone="indigo" h="h-2" /></div>
+                <div className="mt-1 text-xs text-slate-500">구독에 포함 · 크레딧 차감 없음 · 보통 팀은 한도의 1/4도 쓰지 않습니다</div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm"><span>프리미엄 크레딧</span><span className="font-mono num"><b>{total}</b> 남음 · 월 {credits.monthly_credits}</span></div>
+                <div className="mt-2"><Bar value={(credits.monthly_remaining / Math.max(1, credits.monthly_credits)) * 100} tone="violet" h="h-2" /></div>
+                <div className="mt-1 text-xs text-slate-500">평가 초안 5 · 계획서 초안 2 · 노하우 정리 2 · 해석 1 · {fmtDate(credits.period_end)}에 다시 채워집니다{credits.topup_remaining > 0 && ` · 추가분 ${credits.topup_remaining}`}</div>
+              </div>
+            </div>
+          )}
         </Card>
         <Card className="p-5">
-          <div className="font-semibold">추가 크레딧</div>
-          <p className="text-xs text-slate-500 mt-1">월 제공량을 다 쓰면 추가분에서 차감됩니다. 등록된 카드로 바로 결제됩니다.</p>
+          <div className="font-semibold">프리미엄 크레딧 추가</div>
+          <p className="text-xs text-slate-500 mt-1">평가 시즌처럼 프리미엄 AI를 많이 쓰는 달에만 필요합니다. 등록된 카드로 바로 결제되고 소멸하지 않습니다.</p>
           <div className="mt-4 space-y-2">
             {[['100', 6900], ['300', 19900]].map(([n, p]) => (
               <Button key={n} variant="secondary" className="w-full justify-between" loading={subscribe.isPending && subscribe.variables?.pack === n}
@@ -145,9 +159,9 @@ function Billing() {
               <div className="flex items-center justify-between"><div className="font-bold text-lg">{p.name}</div>{p.id === 'pro' && <Pill tone="indigo">추천</Pill>}</div>
               <div className="mt-2"><span className="text-2xl font-bold">{price === 0 ? '무료' : won(price)}</span>{price > 0 && <span className="text-sm text-slate-500"> / {cycle === 'year' ? '년' : '월'} · VAT 별도</span>}</div>
               {cycle === 'year' && price > 0 && <div className="text-xs text-slate-500">월 {won(Math.round(price / 12))} 꼴</div>}
-              <div className="mt-3 text-sm text-slate-600">팀원 {p.max_members}명 · AI {p.monthly_credits} 크레딧/월{p.max_teams > 1 && ` · 팀 ${p.max_teams}개`}</div>
+              <div className="mt-3 text-sm text-slate-600">팀원 {p.max_members}명{p.monthly_credits > 0 ? ` · 프리미엄 ${p.monthly_credits} 크레딧/월` : ' · AI 없음'}{p.max_teams > 1 && ` · 팀 ${p.max_teams}개`}</div>
               <ul className="mt-4 space-y-1.5 text-sm flex-1">
-                {p.features.map((f) => <li key={f} className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />{FEATURE_LABEL[f] ?? f}</li>)}
+                {p.features.filter((f) => !(p.id !== 'free' && f === 'signals_basic')).map((f) => <li key={f} className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />{FEATURE_LABEL[f] ?? f}</li>)}
               </ul>
               <div className="mt-5">
                 {p.id === 'free' ? <Button variant="ghost" disabled className="w-full">{credits.plan_id === 'free' ? '현재 요금제' : '기본'}</Button>

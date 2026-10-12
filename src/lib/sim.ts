@@ -2,7 +2,17 @@
 // ⑭ 용량 모델: 과제별 주당 시간 = Σ(배분율 × 사람별 가용 시간) 또는 예상 공수
 // 목표 달성 확률: logit(p') = logit(p) + 1.6·ln(시간 비율) − 0.35·지연 주수
 // 실적 지표: 남은 실적 × (1+수요 변화) × 시간 비율^0.7 × 지연 계수
-import type { Forecast, GoalOutlook, Task, TeamMember } from './types';
+import type { Forecast, GoalOutlook, TeamMember, WorkItem } from './types';
+
+/** 시뮬레이션용 과제: 최상위(목표) 아래의 진행 항목. goal_id = 최상위 항목 */
+export interface Task { id: string; title: string; goal_id: string | null; owner_id: string | null; priority: number; mission_contribution: number; est_hours_per_week: number | null }
+
+export function tasksFromItems(items: WorkItem[]): Task[] {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const root = (i: WorkItem) => { let c = i; while (c.parent_id && byId.get(c.parent_id)) c = byId.get(c.parent_id)!; return c.id; };
+  return items.filter((i) => i.parent_id && ['active', 'blocked'].includes(i.status) && i.measure !== 'check')
+    .map((i) => ({ id: i.id, title: i.title, goal_id: root(i), owner_id: i.owner_id, priority: i.priority, mission_contribution: i.contribution, est_hours_per_week: i.est_hours_per_week }));
+}
 
 export interface Allocation { task_id: string; user_id: string; share_pct: number }
 export interface SimBase {

@@ -90,7 +90,7 @@ export default function Login() {
             <li><b className="text-white">덜 괴로운 평가 시즌</b> <span className="text-slate-400">— 1년 내내 쌓인 근거로 평가 초안을 씁니다</span></li>
           </ul>
         </div>
-        <p className="text-xs text-slate-500">팀장 1명 구독 · 팀원은 무료 초대 · 첫 14일은 Pro 무료</p>
+        <p className="text-xs text-slate-500">팀장 1명 구독 · 팀원은 무료 초대 · 첫 30일은 Pro 무료</p>
       </div>
 
       <div className="flex items-center justify-center p-6">

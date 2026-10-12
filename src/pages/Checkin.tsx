@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, FileUp, MessageSquare } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
-import type { ActionItem, Checkin as C, Task } from '../lib/types';
+import type { ActionItem, Checkin as C } from '../lib/types';
+import { MyProgress } from '../components/goals/MyProgress';
 import { cx, fmtDate, mondayOf, weekLabel, weekRangeLabel } from '../lib/format';
 import { LeaderGuide } from '../components/LeaderGuide';
 import { Button, Card, CardHead, Field, PageHeader, inputCls, useToast } from '../components/ui';
@@ -30,10 +31,6 @@ export default function Checkin() {
     if (mine) { setDid(mine.did); setBlocked(mine.blocked); setNext(mine.next); setCond(mine.condition); }
   }, [mine]);
 
-  const tasks = useQuery({
-    queryKey: ['my-tasks', team.id, uid, 'owned'],
-    queryFn: () => q<Task[]>(supabase.from('tasks').select('*').eq('team_id', team.id).eq('owner_id', uid).in('status', ['planned', 'in_progress', 'blocked'])),
-  });
   const items = useQuery({
     queryKey: ['my-actions', team.id, uid],
     queryFn: () => q<ActionItem[]>(supabase.from('action_items').select('*').eq('team_id', team.id).eq('owner_id', uid).is('done_at', null).order('due_date')),
@@ -54,12 +51,6 @@ export default function Checkin() {
     onSuccess: () => { toast('체크인을 보냈습니다'); qc.invalidateQueries({ queryKey: ['checkins'] }); },
     onError: (e) => toast(errorText(e)),
   });
-  const progress = useMutation({
-    mutationFn: (p: { id: string; progress: number }) => q(supabase.from('tasks').update({ progress: p.progress, status: p.progress >= 100 ? 'done' : 'in_progress' }).eq('id', p.id)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-tasks'] }),
-    onError: (e) => toast(errorText(e)),
-  });
-
   return (
     <section>
       <div className="grid lg:grid-cols-5 gap-6 items-start">
@@ -87,22 +78,7 @@ export default function Checkin() {
         </div>
 
         <div className="lg:col-span-2 space-y-5">
-          {!!tasks.data?.length && (
-            <Card>
-              <CardHead title="내 과제" right="진척을 바로 고칠 수 있습니다" />
-              <ul className="p-5 space-y-4 text-sm">
-                {tasks.data.map((t) => (
-                  <li key={t.id}>
-                    <div className="flex justify-between"><span>{t.title}</span><span className="font-mono num text-slate-500">{t.progress}%</span></div>
-                    <input type="range" min={0} max={100} step={5} defaultValue={t.progress} aria-label={`${t.title} 진척률`}
-                      onMouseUp={(e) => progress.mutate({ id: t.id, progress: Number((e.target as HTMLInputElement).value) })}
-                      onTouchEnd={(e) => progress.mutate({ id: t.id, progress: Number((e.target as HTMLInputElement).value) })}
-                      className="w-full accent-indigo-600" />
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
+          <MyProgress title="내 목표·과제 진척" />
           {!!feedback.data?.length && (
             <Card>
               <CardHead title="최근 받은 피드백" />

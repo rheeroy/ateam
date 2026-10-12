@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
-import type { Goal, Metric, MetricValue, Pipeline } from '../lib/types';
+import type { Metric, MetricValue, Pipeline, WorkItem } from '../lib/types';
 import { ymd } from '../lib/format';
 import { Button, ErrorBox, Field, Modal, inputCls, useToast } from './ui';
 
@@ -21,12 +21,12 @@ export function NewMetricModal({ open, onClose, onCreated }: { open: boolean; on
   const now = new Date();
   const qStart = ymd(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 - 3, 1));
   const qEnd = ymd(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 2, 1));
-  const [f, setF] = useState({ name: '', unit: '억', target: '', period_start: qStart, period_end: qEnd, goal_id: '', cumulative: true });
-  const goals = useQuery({ queryKey: ['goals', team.id], enabled: open, queryFn: () => q<Goal[]>(supabase.from('strategic_goals').select('*').eq('team_id', team.id).eq('archived', false).order('sort')) });
+  const [f, setF] = useState({ name: '', unit: '억', target: '', period_start: qStart, period_end: qEnd, item_id: '', cumulative: true });
+  const goals = useQuery({ queryKey: ['items', team.id, 'roots'], enabled: open, queryFn: () => q<WorkItem[]>(supabase.from('work_items').select('*').eq('team_id', team.id).is('parent_id', null).not('status', 'in', '(dropped,proposed,changes_requested)').order('sort')) });
   const create = useMutation({
     mutationFn: () => q<Metric>(supabase.from('metrics').insert({
       team_id: team.id, name: f.name, unit: f.unit, target: f.target === '' ? null : Number(f.target),
-      period_start: f.period_start, period_end: f.period_end, goal_id: f.goal_id || null, cumulative: f.cumulative,
+      period_start: f.period_start, period_end: f.period_end, item_id: f.item_id || null, cumulative: f.cumulative,
     }).select().single()),
     onSuccess: (m) => { qc.invalidateQueries({ queryKey: ['metrics'] }); onClose(); onCreated?.(m.id); },
   });
@@ -43,7 +43,7 @@ export function NewMetricModal({ open, onClose, onCreated }: { open: boolean; on
           <Field label="마감 월"><input type="month" className={inputCls} value={f.period_end.slice(0, 7)} onChange={(e) => setF({ ...f, period_end: e.target.value + '-01' })} /></Field>
         </div>
         <Field label="연결할 전략 목표" hint="선택">
-          <select className={inputCls} value={f.goal_id} onChange={(e) => setF({ ...f, goal_id: e.target.value })}>
+          <select className={inputCls} value={f.item_id} onChange={(e) => setF({ ...f, item_id: e.target.value })}>
             <option value="">없음</option>{(goals.data ?? []).map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
           </select>
         </Field>

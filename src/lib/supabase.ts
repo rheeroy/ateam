@@ -23,7 +23,10 @@ export class AppError extends Error {
 }
 
 const KNOWN: Record<string, string> = {
-  INSUFFICIENT_CREDITS: '이번 달 AI 크레딧을 다 썼습니다. 설정 > 요금제에서 추가 크레딧을 구매할 수 있습니다.',
+  INSUFFICIENT_CREDITS: '프리미엄 크레딧이 부족합니다. 설정 > 요금제에서 추가할 수 있습니다.',
+  AI_LOCKED: 'AI 기능은 Pro에서 쓸 수 있습니다. 설정 > 요금제에서 시작하세요.',
+  CORE_LIMIT: '이번 달 기본 AI 사용량을 모두 썼습니다. 다음 달에 다시 채워집니다.',
+  NO_REVIEW: '공유·숫자 업데이트는 AI 검토 대상이 아닙니다.',
   PLAN_FEATURE: '현재 요금제에서는 쓸 수 없는 기능입니다.',
   PLAN_LIMIT_MEMBERS: '요금제의 팀원 수 한도에 도달했습니다.',
   PLAN_LIMIT_TEAMS: '요금제에서 만들 수 있는 팀 수를 넘었습니다.',
@@ -36,6 +39,7 @@ const KNOWN: Record<string, string> = {
   AI_NOT_CONFIGURED: 'AI 키가 설정되지 않았습니다 (Supabase secrets: ANTHROPIC_API_KEY).',
   ALREADY_HAS_GOALS: '이미 전략 목표가 있습니다.',
   forbidden: '권한이 없습니다.',
+  '팀장 승인 전에는': '팀장 승인 전에는 진행 상태로 바꿀 수 없습니다.',
 };
 
 export function errorText(e: unknown): string {

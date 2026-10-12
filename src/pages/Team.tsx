@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Link2, Trash2, UserPlus } from 'lucide-react';
+import { Copy, Link2, Send, Trash2, UserPlus } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
-import type { Invitation, TeamMember } from '../lib/types';
-import { fmtDate } from '../lib/format';
+import type { Invitation, TeamMember, TeamRequest } from '../lib/types';
+import { cx, fmtDate, fmtShort } from '../lib/format';
+import { RequestModal, REQUEST_KIND } from '../components/RequestModal';
 import { Avatar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, inputCls, useToast } from '../components/ui';
 
-function MemberRow({ m, isMe }: { m: TeamMember; isMe: boolean }) {
+function MemberRow({ m, isMe, onRequest }: { m: TeamMember; isMe: boolean; onRequest: (id: string) => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [title, setTitle] = useState(m.job_title);
@@ -25,7 +26,8 @@ function MemberRow({ m, isMe }: { m: TeamMember; isMe: boolean }) {
       <td className="px-3 py-3"><input aria-label="주당 가용 시간" type="number" min={0} max={60} className={`${inputCls} w-20`} value={hours} onChange={(e) => setHours(e.target.value)} onBlur={() => Number(hours) !== m.weekly_hours && upd.mutate({ weekly_hours: Number(hours) })} /></td>
       <td className="px-3 py-3"><Pill tone={m.role === 'leader' ? 'indigo' : 'slate'}>{m.role === 'leader' ? '팀장' : '팀원'}</Pill></td>
       <td className="px-3 py-3 text-xs text-slate-500">{fmtDate(m.joined_at)}</td>
-      <td className="px-3 py-3 text-right">
+      <td className="px-3 py-3 text-right whitespace-nowrap">
+        {!isMe && <button className="text-slate-400 hover:text-indigo-600 mr-3" title="요청 보내기" aria-label="요청 보내기" onClick={() => onRequest(m.user_id)}><Send size={15} /></button>}
         {!isMe && m.role === 'member' && (
           <button className="text-slate-400 hover:text-rose-600" title="팀에서 내보내기" onClick={() => { if (confirm(`${m.profiles?.full_name} 님을 팀에서 내보낼까요? 기록은 남습니다.`)) upd.mutate({ status: 'left' }); }}><Trash2 size={15} /></button>
         )}
@@ -66,6 +68,13 @@ export default function TeamPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['invites'] }); qc.invalidateQueries({ queryKey: ['seats'] }); },
   });
   const u = usage.data;
+  const [reqTo, setReqTo] = useState<string | null | undefined>(undefined);
+  const sent = useQuery({
+    queryKey: ['requests', team.id, 'from', uid],
+    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('from_id', uid).order('created_at', { ascending: false }).limit(30)),
+  });
+  const cancel = useMutation({ mutationFn: (id: string) => q(supabase.from('team_requests').update({ status: 'canceled' }).eq('id', id)), onSuccess: () => qc.invalidateQueries({ queryKey: ['requests'] }) });
+  const { nameOf } = useTeam();
 
   return (
     <section>
@@ -81,9 +90,28 @@ export default function TeamPage() {
           <CardHead title="구성원" right={u && <span>팀원 <b className="font-mono">{u.members}</b> / {u.max_members}명 ({credits?.plan_name})</span>} />
           <table className="w-full text-sm min-w-[640px]">
             <thead className="text-xs text-slate-500"><tr><th className="text-left font-normal px-5 py-2">이름</th><th className="text-left font-normal px-3">직무</th><th className="text-left font-normal px-3">주당 가용 시간</th><th className="text-left font-normal px-3">역할</th><th className="text-left font-normal px-3">합류</th><th /></tr></thead>
-            <tbody>{members.map((m) => <MemberRow key={m.user_id} m={m} isMe={m.user_id === uid} />)}</tbody>
+            <tbody>{members.map((m) => <MemberRow key={m.user_id} m={m} isMe={m.user_id === uid} onRequest={(id) => setReqTo(id)} />)}</tbody>
           </table>
           <p className="px-5 py-3 text-xs text-slate-500 border-t border-slate-100">주당 가용 시간은 시뮬레이션의 용량 계산에 쓰입니다. 겸직·단축근무라면 줄여 주세요.</p>
+        </Card>
+        <Card className="lg:col-span-2 lg:row-start-2" id="requests">
+          <CardHead title="보낸 요청" right={<Button size="sm" variant="soft" onClick={() => setReqTo(null)}><Send size={12} />요청 보내기</Button>} />
+          <p className="px-5 pt-3 text-xs text-slate-500">메신저 대신 여기서 부탁하면 팀원 홈에 할 일로 뜨고, 완료되면 알림이 옵니다. 계획 세우기·진척 공유·자료 올리기 요청이 그대로 기록과 인사이트가 됩니다.</p>
+          {!sent.data?.length ? <p className="px-5 py-4 text-sm text-slate-500">아직 보낸 요청이 없습니다.</p> : (
+            <ul className="divide-y divide-slate-100 text-sm mt-2">
+              {sent.data.map((r) => {
+                const late = r.status === 'open' && r.due_date && r.due_date < new Date().toISOString().slice(0, 10);
+                return (
+                  <li key={r.id} className="px-5 py-3 flex items-center gap-3">
+                    <span className="flex-1 min-w-0"><span className="font-medium">{r.title}</span>
+                      <span className="block text-xs text-slate-500">{nameOf(r.to_id)} · {REQUEST_KIND[r.kind].label} · {fmtDate(r.created_at)}{r.due_date && ` · ${fmtShort(r.due_date)}까지`}{r.response && ` · 답: ${r.response}`}</span></span>
+                    <Pill tone={r.status === 'done' ? 'emerald' : r.status === 'canceled' ? 'slate' : late ? 'rose' : 'amber'}>{r.status === 'done' ? '완료' : r.status === 'canceled' ? '취소' : late ? '기한 지남' : '대기'}</Pill>
+                    {r.status === 'open' && <button className={cx('text-xs text-slate-400 hover:text-rose-600')} onClick={() => cancel.mutate(r.id)}>취소</button>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
         <div className="space-y-5">
           <Card className="p-5">
@@ -119,6 +147,7 @@ export default function TeamPage() {
           </Card>
         </div>
       </div>
+      <RequestModal open={reqTo !== undefined} onClose={() => setReqTo(undefined)} toId={reqTo ?? null} />
     </section>
   );
 }

@@ -208,11 +208,11 @@ export function Tornado({ rows, unit = '' }: { rows: { label: string; value: num
   const max = Math.max(0.1, ...rows.map((r) => Math.abs(r.value)));
   return (
     <div className="space-y-2.5 text-xs">
-      {rows.map((r) => {
+      {rows.map((r, ri) => {
         const w = (Math.abs(r.value) / max) * 42;
         const neg = r.value < 0;
         return (
-          <div key={r.label} className="grid grid-cols-[110px_1fr] items-center gap-3">
+          <div key={`${r.label}-${ri}`} className="grid grid-cols-[110px_1fr] items-center gap-3">
             <span className="text-slate-600 text-right truncate" title={r.label}>{r.label}</span>
             <div className="relative h-5">
               <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300" />
@@ -233,10 +233,10 @@ export function Tornado({ rows, unit = '' }: { rows: { label: string; value: num
 export function CompareBars({ rows }: { rows: { label: string; base: number | null; value: number | null }[] }) {
   return (
     <div className="space-y-4 text-sm">
-      {rows.map((r) => {
+      {rows.map((r, ri) => {
         const d = r.base != null && r.value != null ? r.value - r.base : 0;
         return (
-          <div key={r.label}>
+          <div key={`${r.label}-${ri}`}>
             <div className="flex justify-between gap-3">
               <span className="text-slate-700 truncate">{r.label}</span>
               <span className="font-mono num whitespace-nowrap">

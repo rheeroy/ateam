@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, FileUp } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -14,11 +14,13 @@ export const STATUS = {
   in_review: { label: '리뷰 중', tone: 'indigo' as const },
   needs_work: { label: '보완 요청', tone: 'amber' as const },
   approved: { label: '승인', tone: 'emerald' as const },
+  shared: { label: '공유됨', tone: 'slate' as const },
 };
 
 export default function MySubmissions() {
   const { team, uid } = useTeam();
-  const [open, setOpen] = useState(false);
+  const [params] = useSearchParams();
+  const [open, setOpen] = useState(params.get('new') === '1');
   const list = useQuery({
     queryKey: ['subs', team.id, 'mine', uid],
     queryFn: () => q<(Submission & { submission_versions: Pick<SubmissionVersion, 'version'>[] })[]>(
@@ -26,13 +28,13 @@ export default function MySubmissions() {
   });
   return (
     <section>
-      <PageHeader title="내 결과물" sub="보고서·기획서를 올리면 버전별로 쌓이고, 팀장님 코멘트가 여기서 오갑니다"
-        right={<Button onClick={() => setOpen(true)}><FileUp size={15} />결과물 올리기</Button>} />
+      <PageHeader title="공유하기" sub="문서·링크·캡처·숫자 무엇이든 올리면 팀장님께 바로 가고, 피드백이 여기서 오갑니다"
+        right={<Button onClick={() => setOpen(true)}><FileUp size={15} />공유하기</Button>} />
       <div className="grid lg:grid-cols-3 gap-5 items-start">
       <Card className="lg:col-span-2">
         {list.isLoading ? <Spinner /> : !list.data?.length ? (
-          <Empty icon={<FileUp size={18} />} title="아직 올린 결과물이 없습니다" action={<Button onClick={() => setOpen(true)}>첫 결과물 올리기</Button>}>
-            결과물을 내지 않는 직무라면 올리지 않아도 됩니다. 체크인과 1:1만으로도 충분합니다.
+          <Empty icon={<FileUp size={18} />} title="아직 공유한 것이 없습니다" action={<Button onClick={() => setOpen(true)}>공유하기</Button>}>
+            전문 프로그램에서 일한다면 결과 화면 캡처나 링크, 숫자 한 줄이면 충분합니다. 공유할 게 없는 주는 체크인만 해도 됩니다.
           </Empty>
         ) : list.data.map((s) => (
           <Link key={s.id} to={`/reviews/${s.id}`} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 border-t border-slate-100 first:border-t-0">

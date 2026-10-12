@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowUpRight, Copy, Database, Info, Plus, SlidersHorizon
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
-import type { Forecast, Metric, PerfPoint, Task } from '../lib/types';
+import type { Forecast, Metric, PerfPoint, WorkItem } from '../lib/types';
 import { cx, fmtDate, num } from '../lib/format';
 import { Bar, Button, Card, Empty, PageHeader, Spinner, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
@@ -29,7 +29,7 @@ function quadrant(p: PerfPoint) {
 }
 
 function MemberCard({ teamId, p }: { teamId: string; p: PerfPoint }) {
-  const tasks = useQuery({ queryKey: ['tasks', teamId, 'owner', p.user_id], queryFn: () => q<Task[]>(supabase.from('tasks').select('*').eq('team_id', teamId).eq('owner_id', p.user_id).neq('status', 'dropped').order('due_date')) });
+  const tasks = useQuery({ queryKey: ['items', teamId, 'owner', p.user_id], queryFn: () => q<WorkItem[]>(supabase.from('work_items').select('*').eq('team_id', teamId).eq('owner_id', p.user_id).in('status', ['active', 'blocked', 'proposed']).not('parent_id', 'is', null).neq('measure', 'check').order('due_date')) });
   const scores = useQuery({ queryKey: ['scores', teamId, p.user_id], queryFn: () => q<{ score: number; scored_at: string }[]>(supabase.from('judgment_scores').select('score, scored_at').eq('team_id', teamId).eq('user_id', p.user_id).order('scored_at').limit(24)) });
   const comps = useQuery({
     queryKey: ['evidence-comp', teamId, p.user_id],
@@ -57,7 +57,7 @@ function MemberCard({ teamId, p }: { teamId: string; p: PerfPoint }) {
           <div key={t.id}>
             <div className="flex justify-between gap-2"><span className="truncate">{t.title}</span><span className="font-mono num font-semibold">{t.progress}%</span></div>
             <div className="mt-1"><Bar value={t.progress} tone={t.status === 'blocked' ? 'amber' : 'indigo'} /></div>
-            {t.due_date && <div className="text-[11px] text-slate-500 mt-1">마감 {fmtDate(t.due_date)}{t.status === 'blocked' && ' · 막힘'}</div>}
+            {t.due_date && <div className="text-[11px] text-slate-500 mt-1">마감 {fmtDate(t.due_date)}{t.base_due && t.base_due !== t.due_date && <span className="text-amber-700"> (처음 {fmtDate(t.base_due)})</span>}{t.status === 'blocked' && ' · 막힘'}{t.status === 'proposed' && ' · 검토 대기'}</div>}
           </div>
         ))}
       </div>

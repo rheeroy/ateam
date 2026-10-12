@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Award, BookOpen, ChevronDown, ClipboardList, Compass, FileText, FileUp, Home, Layers, LogOut, MessageSquare,
+  Award, BookOpen, ChevronDown, ClipboardList, Compass, FileText, FileUp, Home, Layers, ListTree, LogOut, MessageSquare,
   PenLine, ScatterChart, Settings, SlidersHorizontal, Users,
 } from 'lucide-react';
 import { useSession } from '../state/session';
@@ -11,6 +11,7 @@ import type { InsightLevel } from '../lib/types';
 import { cx } from '../lib/format';
 import { Avatar, Spinner } from './ui';
 import { ProvLegend, useAiMark } from './Prov';
+import { Notifications } from './Notifications';
 
 type Item = { to: string; label: string; icon: typeof Home; badge?: string };
 
@@ -60,6 +61,12 @@ export default function Layout() {
   useEffect(() => { window.scrollTo({ top: 0 }); setMenu(false); }, [loc.pathname]);
 
   const lvl = levelQ.data ? `L${levelQ.data.level}` : undefined;
+  const proposedQ = useQuery({
+    queryKey: ['items', team?.id, 'proposed-count'], enabled: !!team && isLeader, staleTime: 60_000,
+    queryFn: async () => (await supabase.from('work_items').select('id', { count: 'exact', head: true }).eq('team_id', team!.id).eq('status', 'proposed')).count ?? 0,
+  });
+  const proposedN = proposedQ.data ?? 0;
+  const trialDays = credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
@@ -75,8 +82,9 @@ export default function Layout() {
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <div className="hidden md:block px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-400">매일·매주</div>
             <NavItem to="/" label="홈" icon={Home} />
+            <NavItem to="/goals" label="목표·과제" icon={ListTree} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/one-on-ones" label="1:1 면담" icon={MessageSquare} />
-            <NavItem to="/reviews" label="리뷰룸" icon={FileText} />
+            <NavItem to="/reviews" label="공유·리뷰" icon={FileText} />
             <NavItem to="/report" label="주간보고" icon={ClipboardList} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
@@ -91,9 +99,11 @@ export default function Layout() {
           </nav>
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <NavItem to="/" label="내 체크인" icon={PenLine} />
+            <NavItem to="/" label="홈" icon={Home} />
+            <NavItem to="/my/goals" label="내 목표·과제" icon={ListTree} />
+            <NavItem to="/checkin" label="체크인" icon={PenLine} />
+            <NavItem to="/my/submissions" label="공유하기" icon={FileUp} />
             <NavItem to="/my/one-on-ones" label="내 1:1" icon={MessageSquare} />
-            <NavItem to="/my/submissions" label="내 결과물" icon={FileUp} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -111,8 +121,11 @@ export default function Layout() {
             ) : (
               <span className="font-semibold text-slate-800 truncate md:hidden">{team?.name}</span>
             )}
-            {credits?.status === 'trialing' && isLeader && (
-              <NavLink to="/settings" className="hidden sm:inline font-mono text-[10px] tracking-wider text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">Pro 체험 중</NavLink>
+            {trialDays != null && isLeader && (
+              <NavLink to="/settings?tab=billing" className="hidden sm:inline text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">Pro 체험 D-{trialDays}</NavLink>
+            )}
+            {credits?.plan_id === 'free' && isLeader && (
+              <NavLink to="/settings?tab=billing" className="hidden sm:inline text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 shrink-0">Free · AI 잠김</NavLink>
             )}
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -127,11 +140,12 @@ export default function Layout() {
                 <span className="font-mono text-[11px] font-semibold text-violet-700 bg-violet-100/60 rounded px-1.5">{chipCount}</span>
               </button>
             )}
-            {isLeader && credits && (
-              <NavLink to="/settings" className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500" title="이번 달 남은 AI 크레딧">
-                <span className="font-mono font-semibold text-slate-800">{credits.monthly_remaining + credits.topup_remaining}</span> 크레딧
+            {isLeader && credits && credits.plan_id !== 'free' && (
+              <NavLink to="/settings?tab=billing" className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500" title="평가 초안·계획서 초안 등 프리미엄 AI에 쓰는 크레딧 (기본 AI는 구독에 포함)">
+                프리미엄 <span className="font-mono font-semibold text-slate-800">{credits.monthly_remaining + credits.topup_remaining}</span>
               </NavLink>
             )}
+            <Notifications />
             <div className="relative">
               <button onClick={() => setMenu((x) => !x)} className="flex items-center gap-2 text-sm text-slate-600">
                 <Avatar name={profile?.full_name} tone={isLeader ? 'indigo' : 'slate'} size={7} />

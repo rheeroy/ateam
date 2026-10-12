@@ -245,9 +245,14 @@ export default function ReviewDetail() {
             {current.note && <p className="mt-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2"><b>이번 버전</b> · {current.note}</p>}
             {current.mime_type === 'application/pdf' ? (
               fileUrl ? <iframe title="PDF" src={fileUrl} className="mt-5 w-full h-[640px] rounded-lg border border-slate-200" /> : <Spinner />
-            ) : (
-              <div className="mt-5 text-[15px] leading-7 text-slate-800 whitespace-pre-wrap max-h-[640px] overflow-y-auto">{current.extracted_text || '(본문 없음)'}</div>
-            )}
+            ) : (<>
+              {sub.link_url && <a href={sub.link_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-sm text-indigo-700 font-semibold break-all hover:underline">{sub.link_url} ↗</a>}
+              {current.value != null && <div className="mt-4 text-3xl font-bold num">{current.value}</div>}
+              {fileUrl && current.mime_type?.startsWith('image/') && <img src={fileUrl} alt={sub.title} className="mt-4 max-h-[560px] rounded-lg border border-slate-200" />}
+              {(current.extracted_text || (!sub.link_url && current.value == null && !current.mime_type?.startsWith('image/'))) && (
+                <div className="mt-5 text-[15px] leading-7 text-slate-800 whitespace-pre-wrap max-h-[640px] overflow-y-auto">{current.extracted_text || '(본문 없음 — 첨부 파일을 열어 보세요)'}</div>
+              )}
+            </>)}
           </Card>
           {versions.length > 1 && (
             <Card className="p-5">

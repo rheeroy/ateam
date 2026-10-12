@@ -26,6 +26,8 @@ const MySubmissions = lazy(() => import('./pages/MySubmissions'));
 const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Goals = lazy(() => import('./pages/Goals'));
+const MemberHome = lazy(() => import('./pages/MemberHome'));
 
 function NotConfigured() {
   return (
@@ -69,7 +71,9 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
-        <Route index element={isLeader ? <Home /> : <Checkin />} />
+        <Route index element={isLeader ? <Home /> : <MemberHome />} />
+        <Route path="goals" element={L(<Goals mode="leader" />)} />
+        <Route path="my/goals" element={<Goals mode="member" />} />
         <Route path="one-on-ones" element={L(<OneOnOnes />)} />
         <Route path="one-on-ones/:id" element={<OneOnOneDetail />} />
         <Route path="reviews" element={L(<Reviews />)} />
