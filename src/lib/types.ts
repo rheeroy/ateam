@@ -7,7 +7,7 @@ export type AiKind =
 export type AiStatus = 'draft' | 'edited' | 'final' | 'withheld';
 
 export interface Profile { id: string; email: string | null; full_name: string; avatar_url: string | null }
-export interface Team { id: string; name: string; mission: string; parent_link: string; owner_id: string; settings: Record<string, unknown>; created_at: string }
+export interface Team { id: string; name: string; mission: string; parent_link: string; owner_id: string; settings: Record<string, unknown>; created_at: string; is_demo?: boolean }
 export interface TeamMember {
   team_id: string; user_id: string; role: Role; job_title: string; weekly_hours: number;
   status: 'active' | 'left'; joined_at: string; profiles?: Profile;
@@ -102,3 +102,5 @@ export interface KnowhowCard {
   rules: string[]; applies_to: KnowhowFeature[]; keywords: string[]; active: boolean; pinned: boolean; shared: boolean;
   provenance: 'ai' | 'human' | 'human_edit'; use_count: number; last_used_at: string | null; created_at: string; updated_at: string;
 }
+
+export interface DemoAccount { team_id: string; user_id: string; persona: string; email: string; password: string; sort: number }

@@ -26,6 +26,7 @@ const MySubmissions = lazy(() => import('./pages/MySubmissions'));
 const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const DemoLogin = lazy(() => import('./pages/DemoLogin'));
 const Goals = lazy(() => import('./pages/Goals'));
 const MemberHome = lazy(() => import('./pages/MemberHome'));
 
@@ -69,6 +70,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/demo-login" element={<DemoLogin />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <MemberHome />} />

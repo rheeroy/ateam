@@ -7,6 +7,7 @@ import { supabase, q, errorText } from '../lib/supabase';
 import type { Invitation, TeamMember, TeamRequest } from '../lib/types';
 import { cx, fmtDate, fmtShort } from '../lib/format';
 import { RequestModal, REQUEST_KIND } from '../components/RequestModal';
+import { DemoMembers, DemoStart } from '../components/DemoPanel';
 import { Avatar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, inputCls, useToast } from '../components/ui';
 
 function MemberRow({ m, isMe, onRequest }: { m: TeamMember; isMe: boolean; onRequest: (id: string) => void }) {
@@ -85,6 +86,7 @@ export default function TeamPage() {
           <p className="text-sm text-indigo-100 mt-1">초대 링크를 만들어 메신저로 보내면, 팀원이 로그인해서 바로 합류합니다. 합류한 팀원은 주간 체크인부터 시작합니다.</p>
         </div>
       )}
+      <div className="mb-5">{team.is_demo ? <DemoMembers /> : <DemoStart />}</div>
       <div className="grid lg:grid-cols-3 gap-5 items-start">
         <Card className="lg:col-span-2 overflow-x-auto">
           <CardHead title="구성원" right={u && <span>팀원 <b className="font-mono">{u.members}</b> / {u.max_members}명 ({credits?.plan_name})</span>} />

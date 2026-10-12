@@ -5,9 +5,30 @@ const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const isConfigured = Boolean(url && anon);
 
+/**
+ * 데모 팀원 체험 탭: '/demo-login'으로 열린 탭은 로그인 상태를 sessionStorage(이 탭에만)에 둔다.
+ * 그래서 같은 브라우저의 팀장 탭은 로그아웃되지 않고, 탭을 닫으면 체험이 끝난다.
+ */
+export const isMemberTab: boolean = (() => {
+  try {
+    if (window.location.pathname === '/demo-login') sessionStorage.setItem('ateam.tab', 'demo');
+    return sessionStorage.getItem('ateam.tab') === 'demo';
+  } catch { return false; }
+})();
+
 export const supabase = createClient(url ?? 'http://localhost:54321', anon ?? 'public-anon-key', {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  auth: isMemberTab
+    ? { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: window.sessionStorage, storageKey: 'ateam-demo-member' }
+    : { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
+
+/** 체험 탭을 끝내고 원래(팀장) 로그인으로 돌아간다 */
+export async function endMemberTab() {
+  await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+  try { sessionStorage.removeItem('ateam.tab'); sessionStorage.removeItem('ateam.team'); } catch { /* ignore */ }
+  window.close();
+  window.location.href = '/';
+}
 
 /** supabase 응답에서 data를 꺼내고 error면 throw */
 export async function q<T>(p: PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>): Promise<T> {
@@ -37,6 +58,8 @@ const KNOWN: Record<string, string> = {
   NO_GOALS: '전략 목표를 먼저 등록해 주세요.',
   INSUFFICIENT_DATA: '실적이 2개월 이상 쌓여야 해석할 수 있습니다.',
   AI_NOT_CONFIGURED: 'AI 키가 설정되지 않았습니다 (Supabase secrets: ANTHROPIC_API_KEY).',
+  NO_EMAIL: '팀장 계정에 이메일이 없어 데모 팀원을 만들 수 없습니다.',
+  DEMO_USER: '데모 팀원 계정을 만들지 못했습니다. 잠시 후 다시 시도하세요.',
   ALREADY_HAS_GOALS: '이미 전략 목표가 있습니다.',
   forbidden: '권한이 없습니다.',
   '팀장 승인 전에는': '팀장 승인 전에는 진행 상태로 바꿀 수 없습니다.',
