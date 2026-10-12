@@ -6,7 +6,7 @@ import {
   PenLine, ScatterChart, Settings, SlidersHorizontal, Users,
 } from 'lucide-react';
 import { useSession } from '../state/session';
-import { supabase, q, isMemberTab, endMemberTab } from '../lib/supabase';
+import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
 import { cx } from '../lib/format';
 import { Avatar, Spinner } from './ui';
@@ -111,13 +111,6 @@ export default function Layout() {
       </aside>
 
       <main className="flex-1 min-w-0">
-        {isMemberTab && (
-          <div className="bg-violet-600 text-white text-sm px-4 md:px-8 py-2 flex items-center gap-3 flex-wrap">
-            <span className="font-semibold">체험 탭</span>
-            <span className="text-violet-100 flex-1 min-w-0">{profile?.full_name} 님(팀원)으로 보는 중입니다. 팀장 화면은 원래 탭에 그대로 있어요. 올린 것은 팀장 탭에서 바로 확인할 수 있습니다.</span>
-            <button type="button" onClick={() => endMemberTab()} className="text-xs font-semibold bg-white/15 hover:bg-white/25 rounded-lg px-2.5 py-1">체험 끝내기</button>
-          </div>
-        )}
         <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 md:px-8 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-slate-500 min-w-0">
             {memberships.length > 1 ? (
@@ -128,7 +121,7 @@ export default function Layout() {
             ) : (
               <span className="font-semibold text-slate-800 truncate md:hidden">{team?.name}</span>
             )}
-            {team?.is_demo && !isMemberTab && (
+            {team?.is_demo && (
               <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 shrink-0">데모</span>
             )}
             {trialDays != null && isLeader && (
@@ -166,7 +159,7 @@ export default function Layout() {
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-sm z-30">
                   <div className="px-3 py-2 text-xs text-slate-500 truncate">{profile?.email}</div>
                   <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>
-                  <button onClick={() => (isMemberTab ? endMemberTab() : supabase.auth.signOut())} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
+                  <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
                 </div>
               )}
             </div>

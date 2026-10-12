@@ -103,4 +103,3 @@ export interface KnowhowCard {
   provenance: 'ai' | 'human' | 'human_edit'; use_count: number; last_used_at: string | null; created_at: string; updated_at: string;
 }
 
-export interface DemoAccount { team_id: string; user_id: string; persona: string; email: string; password: string; sort: number }

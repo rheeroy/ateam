@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase, q, isMemberTab } from '../lib/supabase';
+import { supabase, q } from '../lib/supabase';
 import type { CreditStatus, Profile, Role, Team, TeamMember } from '../lib/types';
 
 interface Membership extends TeamMember { teams: Team }
@@ -24,15 +24,13 @@ interface Ctx {
 
 const SessionCtx = createContext<Ctx | null>(null);
 const LS_KEY = 'ateam.team';
-// 체험 탭은 팀 선택도 이 탭에만 저장한다
-const teamStore = (): Storage => (isMemberTab ? sessionStorage : localStorage);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [teamId, setTeamIdState] = useState<string | null>(() => {
-    try { return teamStore().getItem(LS_KEY); } catch { return null; }
+    try { return localStorage.getItem(LS_KEY); } catch { return null; }
   });
 
   useEffect(() => {
@@ -94,7 +92,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       hasFeature: (f) => (creditsQ.data ? creditsQ.data.features.includes(f) : true),
       setTeamId: (id) => {
         setTeamIdState(id);
-        try { teamStore().setItem(LS_KEY, id); } catch { /* 저장 불가 환경 */ }
+        try { localStorage.setItem(LS_KEY, id); } catch { /* 저장 불가 환경 */ }
       },
       nameOf: (id) => (id ? names.get(id) ?? '' : ''),
       refresh: () => {

@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { DemoHomeSlot } from '../components/DemoPanel';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -631,7 +630,6 @@ export default function Home() {
     <div>
       <Header signals={feed.filter((x) => x.periods.includes('daily') || x.periods.includes('weekly'))} briefing={brief.data}
         insight={fresh(insight.data, period) ? insight.data : fresh(insightW.data, 'weekly') ? insightW.data : null} loading={ins.isLoading} onMemo={() => openMemo()} />
-      <DemoHomeSlot />
       <QuickStart teamId={team.id} />
 
       <Section n="01" title="관리 영역 현황" desc="영역을 누르면 그 영역의 신호만 아래에 모아 봅니다">
