@@ -6,6 +6,7 @@ import App from './App';
 import { SessionProvider } from './state/session';
 import { ToastProvider } from './components/ui';
 import { AiMarkProvider } from './components/Prov';
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import './index.css';
 
 const qc = new QueryClient({
