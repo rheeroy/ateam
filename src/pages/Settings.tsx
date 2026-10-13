@@ -7,7 +7,6 @@ import { supabase, q, invoke, errorText } from '../lib/supabase';
 import type { Plan } from '../lib/types';
 import { cx, fmtDate, won } from '../lib/format';
 import { PasswordForm } from '../components/PasswordForm';
-import TeamPage from './Team';
 import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
 const FEATURE_LABEL: Record<string, string> = {
@@ -263,19 +262,19 @@ function PasswordSettings() {
   );
 }
 
-type Tab = 'profile' | 'team' | 'members' | 'billing';
+type Tab = 'profile' | 'team' | 'billing';
 export default function SettingsPage() {
   const { isLeader } = useTeam();
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as Tab) ?? (isLeader ? 'billing' : 'profile');
   const items: { id: Tab; label: string }[] = isLeader
-    ? [{ id: 'billing', label: '요금제·크레딧' }, { id: 'members', label: '구성원·초대' }, { id: 'team', label: '팀 설정' }, { id: 'profile', label: '내 정보' }]
+    ? [{ id: 'billing', label: '요금제·크레딧' }, { id: 'team', label: '팀 설정' }, { id: 'profile', label: '내 정보' }]
     : [{ id: 'profile', label: '내 정보' }];
   return (
     <section>
       <PageHeader title="설정" />
       <div className="mb-5"><Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={items} /></div>
-      {tab === 'billing' && isLeader ? <Billing /> : tab === 'members' && isLeader ? <TeamPage embedded section="members" /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings /><PasswordSettings /></div>}
+      {tab === 'billing' && isLeader ? <Billing /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings /><PasswordSettings /></div>}
     </section>
   );
 }

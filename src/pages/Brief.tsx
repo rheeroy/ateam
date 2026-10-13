@@ -23,8 +23,6 @@ export default function Brief() {
   const openMemo = (who: string | null = null) => setMemo({ open: true, who });
   const act = useSignalAct(openMemo);
   if (section === 'perf') return <Navigate to="/goals" replace />;
-  if (section === 'decide') return <Navigate to="/decide" replace />;
-  if (section === 'risk') return <Navigate to="/decide?f=risk" replace />;
   if (section === 'people') return <Navigate to={`/people${period === 'daily' ? '' : `?p=${period}`}`} replace />;
   if (!MAIN_SECTIONS.includes(section as MainSection)) return <Navigate to="/" replace />;
   const sec = section as MainSection;

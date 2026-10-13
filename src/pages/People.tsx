@@ -1,7 +1,7 @@
 // 팀원관리 — 구성원 컨디션 · 1:1 면담 · 육성 · 이탈 신호 · 구성원 설정을 한곳에서
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight, CalendarPlus, CheckCircle2, ChevronRight, HeartPulse, MessageSquare, Send, Sprout, StickyNote, Users } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CalendarPlus, CheckCircle2, ChevronRight, HeartPulse, MessageSquare, Send, Sprout, StickyNote, UserCog, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { cx, daysAgo, fmtShort } from '../lib/format';
@@ -15,13 +15,13 @@ import {
 import OneOnOnes, { ScheduleModal } from './OneOnOnes';
 import TeamPage from './Team';
 
-type Tab = 'board' | '1on1' | 'growth' | 'risk' | 'requests';
+type Tab = 'board' | '1on1' | 'growth' | 'risk' | 'members';
 const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'board', label: '팀원 보드', icon: Users },
   { id: '1on1', label: '1:1 면담', icon: MessageSquare },
   { id: 'growth', label: '육성', icon: Sprout },
   { id: 'risk', label: '이탈·리스크', icon: HeartPulse },
-  { id: 'requests', label: '보낸 요청', icon: Send },
+  { id: 'members', label: '구성원·초대', icon: UserCog },
 ];
 export const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1:1 공백', checkin_missing: '체크인 없음' };
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -94,7 +94,7 @@ export default function People() {
       {tab === '1on1' && <OneOnOnes embedded />}
       {tab === 'growth' && <Growth m={m} onMemo={openMemo} />}
       {tab === 'risk' && <Risk m={m} act={act} />}
-      {tab === 'requests' && <TeamPage embedded section="requests" />}
+      {tab === 'members' && <TeamPage embedded />}
 
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
       <ScheduleModal open={oo.open} onClose={() => setOo({ open: false, who: null })} memberId={oo.who} />
@@ -130,7 +130,7 @@ function Board({ m, ooMap, onMemo, onOo }: { m: HomeModel; ooMap: ReturnType<typ
   const condOf = (uid: string) => k.weekStarts.map((w) => (raw?.checkins ?? []).find((c) => c.user_id === uid && c.week_start === w)?.condition ?? null);
   const sorted = [...members].sort((a, b) => ((care.get(b.user_id)?.length ?? 0) - (care.get(a.user_id)?.length ?? 0)));
   if (m.loading) return <Spinner />;
-  if (!members.length) return <Card className="p-6 text-sm text-slate-500">팀원을 초대하면 팀원별 카드가 생깁니다. <Link to="/settings?tab=members" className="text-indigo-700 font-semibold">초대하기 →</Link></Card>;
+  if (!members.length) return <Card className="p-6 text-sm text-slate-500">팀원을 초대하면 팀원별 카드가 생깁니다. <Link to="/people?tab=members" className="text-indigo-700 font-semibold">초대하기 →</Link></Card>;
   return (
     <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
       {sorted.map((mb) => {

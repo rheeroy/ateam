@@ -3,7 +3,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Award, BookOpen, ChevronDown, ClipboardList, Compass, FileText, FileUp, Home, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, SlidersHorizontal, Users, Gavel } from 'lucide-react';
+  PenLine, ScatterChart, Settings, SlidersHorizontal, Users,
+} from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -84,7 +85,6 @@ export default function Layout() {
             <NavItem to="/goals" label="팀목표" icon={ListTree} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/work" label="업무플랫폼" icon={FileText} />
             <NavItem to="/people" label="팀원관리" icon={Users} />
-            <NavItem to="/decide" label="의사결정" icon={Gavel} />
             <NavItem to="/report" label="주간보고" icon={ClipboardList} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
