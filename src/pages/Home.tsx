@@ -12,7 +12,7 @@ import { supabase, q } from '../lib/supabase';
 import type { OrgNote } from '../lib/types';
 import { cx, daysAgo, fmtDate, fmtTime } from '../lib/format';
 import type { Raw } from '../lib/insights';
-import { isOpenSub, latestAt, useSubmissionsAi } from '../lib/work';
+import { isOpenSub, latestAt, useSubmissionsAi, type AiReview } from '../lib/work';
 import { usePeopleActions } from '../lib/peopleActions';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
@@ -92,24 +92,37 @@ function PrioMini({ p, rank }: { p: Prio; rank: number }) {
 // =====================================================================
 type Tone = 'rose' | 'amber' | undefined;
 interface K { label: string; value: ReactNode; sub?: string; tone?: Tone }
-const TONE = {
-  perf: { bar: 'from-indigo-500 to-sky-400', icon: 'bg-indigo-50 text-indigo-600' },
-  people: { bar: 'from-teal-500 to-emerald-400', icon: 'bg-teal-50 text-teal-600' },
-  decide: { bar: 'from-slate-700 to-slate-500', icon: 'bg-slate-100 text-slate-700' },
-  risk: { bar: 'from-rose-500 to-orange-400', icon: 'bg-rose-50 text-rose-600' },
-  org: { bar: 'from-fuchsia-500 to-violet-400', icon: 'bg-fuchsia-50 text-fuchsia-600' },
-  work: { bar: 'from-sky-500 to-indigo-400', icon: 'bg-sky-50 text-sky-600' },
-} as const;
-function Tile({ tone, icon: Icon, title, status, to, kpis, ai, aiLabel = 'AI', fallback, viz }: {
-  tone: keyof typeof TONE; icon: typeof Target; title: string; status?: { label: string; cls: string } | null; to: string; kpis: K[];
+// 모든 칸은 같은 모양 — 색은 '상태'와 '경고 수치'에만 씁니다
+const GAP_THEMES: [string, RegExp][] = [
+  ['근거·데이터', /근거|데이터|수치|숫자|지표|출처|사례|검증/],
+  ['결론·메시지', /결론|요약|핵심|메시지|목적|의도|주장/],
+  ['일정·리스크', /일정|기한|리스크|위험|대안|변수|가정/],
+  ['실행·책임', /실행|담당|책임|다음 ?단계|계획|후속|오너/],
+  ['이해관계자', /고객|이해관계|합의|협의|설득|보고 대상/],
+];
+function workPattern(rs: AiReview[]): string | null {
+  if (!rs.length) return null;
+  const avg = rs.reduce((a, r) => a + (r.depth_score ?? 0), 0) / rs.length;
+  const cnt = new Map<string, number>();
+  for (const r of rs) for (const g of r.gaps ?? []) {
+    const t = `${g.section} ${g.text}`;
+    const hit = GAP_THEMES.find(([, re]) => re.test(t));
+    if (hit) cnt.set(hit[0], (cnt.get(hit[0]) ?? 0) + 1);
+  }
+  const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0];
+  const lvl = avg >= 3 ? '결과물 품질은 안정적입니다' : avg >= 2.2 ? '결과물이 실행 수준에서 멈추고 판단까지 가지 못합니다' : '결과물의 판단 깊이가 얕습니다';
+  const why = top && top[1] >= 2 ? ` — 보완점이 '${top[0]}'에 반복되는 건 개인 실수보다 팀의 작성 기준이 비어 있다는 뜻입니다`
+    : top ? ` — 보완점은 '${top[0]}' 쪽에 몰려 있습니다` : '';
+  return `${lvl}${why} (AI 판단 깊이 평균 ${avg.toFixed(1)}/4 · ${rs.length}건).`;
+}
+function Tile({ icon: Icon, title, status, to, kpis, ai, aiLabel = 'AI', fallback, viz }: {
+  icon: typeof Target; title: string; status?: { label: string; cls: string } | null; to: string; kpis: K[];
   ai?: string | null; aiLabel?: string; fallback?: string | null; viz?: ReactNode;
 }) {
-  const t = TONE[tone];
   return (
     <Link to={to} className="group relative rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-md hover:ring-slate-900/[0.12] transition-all overflow-hidden flex flex-col">
-      <span aria-hidden className={cx('absolute inset-x-0 top-0 h-1 bg-gradient-to-r', t.bar)} />
       <div className="px-4 pt-3.5 flex items-center gap-2">
-        <span className={cx('w-7 h-7 rounded-lg flex items-center justify-center', t.icon)}><Icon size={15} /></span>
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600 group-hover:bg-slate-900 group-hover:text-white transition-colors"><Icon size={15} /></span>
         <span className="font-bold tracking-tight">{title}</span>
         {status && <span className={cx('text-[10px] font-semibold border rounded-full px-1.5 py-px', status.cls)}>{status.label}</span>}
         <span className="ml-auto text-slate-300 group-hover:text-slate-600"><ChevronRight size={16} /></span>
@@ -126,7 +139,7 @@ function Tile({ tone, icon: Icon, title, status, to, kpis, ai, aiLabel = 'AI', f
       {viz && <div className="px-4 mt-1">{viz}</div>}
       <div className="mt-auto px-3 pb-3 pt-2.5">
         {ai ? (
-          <div className="rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-2.5 py-2"><p className="text-xs leading-relaxed text-slate-700 line-clamp-2">
+          <div className="rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-2.5 py-2"><p title={strip(ai)} className="text-xs leading-relaxed text-slate-700 line-clamp-3">
             <Sparkles size={11} className="inline align-[-1px] text-violet-700 mr-0.5" /><span className="font-semibold text-violet-700 mr-1">{aiLabel}</span>{strip(ai)}</p></div>
         ) : (
           <div className="rounded-lg bg-slate-50 px-2.5 py-2"><p className="text-xs leading-relaxed text-slate-500 line-clamp-2">{fallback ?? '특별히 짚을 신호가 없습니다.'}</p></div>
@@ -140,7 +153,7 @@ function Tiles({ m }: { m: HomeModel }) {
   const { team } = useTeam();
   const k = m.k;
   const st = (s: MainSection) => (m.loading ? null : STATUS_META[m.status[s]]);
-  const topAi = (s: MainSection) => m.ai[s].summary || m.ai[s].items[0]?.title || null;
+  const topAi = (s: MainSection) => m.ai[s].summary || null;
   const sig = (s: 'perf' | 'people' | 'org') => m.by(s).filter((x) => x.type !== 'data')[0]?.title;
   // 사람
   const pi = usePeopleIndex(m);
@@ -158,7 +171,7 @@ function Tiles({ m }: { m: HomeModel }) {
   const waiting = open.filter((s) => s.status === 'in_review');
   const old = waiting.filter((s) => daysAgo(latestAt(s)) >= 3);
   const reviewed = waiting.filter((s) => s.review);
-  const needs = [...reviewed].sort((a, b) => (b.review!.gaps?.length ?? 0) - (a.review!.gaps?.length ?? 0))[0];
+  const pattern = workPattern((subs.data ?? []).filter((s) => s.review && daysAgo(latestAt(s)) <= 60).map((s) => s.review!));
   // 성과
   const goals = m.raw?.goals ?? [];
   const avgProg = goals.length ? Math.round(goals.reduce((a, g) => a + g.progress, 0) / goals.length) : null;
@@ -167,43 +180,43 @@ function Tiles({ m }: { m: HomeModel }) {
 
   return (
     <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-      <Tile tone="perf" icon={Target} title="팀 성과" status={st('perf')} to="/goals"
+      <Tile icon={Target} title="팀 성과" status={st('perf')} to="/goals"
         kpis={[
           { label: '최저 달성 가능성', value: k.goalLow, sub: `목표 ${k.goals}개`, tone: k.goalLowTone },
           { label: '평균 진척', value: avgProg != null ? `${avgProg}%` : '—', sub: k.onPlan !== '—' ? `계획대로 ${k.onPlan}` : undefined },
           { label: '막힘 · 지연', value: `${k.blocked}·${k.delayed}`, sub: '건', tone: k.blocked + k.delayed ? 'amber' : undefined },
         ]}
         ai={topAi('perf')} fallback={sig('perf') ? `자동 감지 · ${sig('perf')}` : null} />
-      <Tile tone="people" icon={Users} title="팀원관리" status={st('people')} to="/people"
+      <Tile icon={Users} title="팀원관리" status={st('people')} to="/people"
         kpis={[
           { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem}` },
           { label: '이탈 가능성', value: `${high}·${mid}`, sub: '높음·주의', tone: high ? 'rose' : mid ? 'amber' : undefined },
           { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
         ]}
-        viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="teal" w={300} h={18} />}
-        ai={pa.out?.content.summary ?? topAi('people')} aiLabel={pa.out ? '이번 주 액션' : 'AI'} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
-      <Tile tone="decide" icon={Gavel} title="의사결정" status={st('decide')} to="/decide"
+        viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="slate" w={300} h={18} />}
+        ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
+      <Tile icon={Gavel} title="의사결정" status={st('decide')} to="/decide"
         kpis={[
           { label: '결정할 것', value: pr.length, sub: '성과에 걸린 것' },
           { label: '검토 중', value: reviewing, sub: '보드' },
           { label: '회고 대기', value: k.decisionsDue, sub: k.hitRate != null ? `적중률 ${k.hitRate}%` : '결과 기록', tone: k.decisionsDue ? 'amber' : undefined },
         ]}
         ai={topAi('decide')} fallback={pr[0] ? `1순위 · ${pr[0].title}` : null} />
-      <Tile tone="risk" icon={AlertTriangle} title="리스크" status={st('risk')} to="/decide?f=risk"
+      <Tile icon={AlertTriangle} title="리스크" status={st('risk')} to="/decide?f=risk"
         kpis={[
           { label: '지금 확인', value: m.bigRisks.length, sub: '가장 급한 단계', tone: m.bigRisks.length ? 'rose' : undefined },
           { label: '주의', value: m.riskList.length - m.bigRisks.length, sub: '커지기 전', tone: m.riskList.length - m.bigRisks.length ? 'amber' : undefined },
           { label: '성과·사람·조직', value: areas.join('·'), sub: '영역별' },
         ]}
         ai={topAi('risk')} fallback={m.riskList[0] ? `자동 감지 · ${m.riskList[0].title}` : null} />
-      <Tile tone="work" icon={Briefcase} title="업무플랫폼" status={null} to="/work"
+      <Tile icon={Briefcase} title="업무플랫폼" status={null} to="/work"
         kpis={[
           { label: '열린 업무', value: open.length, sub: '팀 전체' },
           { label: '리뷰 대기', value: waiting.length, sub: old.length ? `3일 넘게 ${old.length}` : '오래된 것 없음', tone: old.length ? 'amber' : undefined },
           { label: 'AI 검토 완료', value: `${reviewed.length}/${waiting.length}`, sub: '리뷰 대기 중' },
         ]}
-        ai={needs ? `'${needs.title}' — ${needs.review!.summary}` : null} aiLabel="AI 1차 검토" fallback={waiting.length ? '리뷰 대기 결과물을 열면 AI가 먼저 읽고 정리합니다.' : '리뷰를 기다리는 결과물이 없습니다.'} />
-      <Tile tone="org" icon={Building2} title="조직·전사" status={st('org')} to="/brief/org"
+        ai={pattern} fallback={waiting.length ? '리뷰 대기 결과물을 열면 AI가 먼저 읽고 정리합니다.' : '리뷰를 기다리는 결과물이 없습니다.'} />
+      <Tile icon={Building2} title="조직·전사" status={st('org')} to="/brief/org"
         kpis={[
           { label: '위에서 온 것', value: m.orgSt.feed.length, sub: '열린 소식' },
           { label: '영향 확인', value: `${m.orgSt.analyzed}/${m.orgSt.feed.length}`, sub: 'AI 분석', tone: m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined },
