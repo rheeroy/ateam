@@ -83,7 +83,7 @@ export default function Report() {
         <ProvBlock rail className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 md:p-8 text-[15px] leading-7">
           {rep.isLoading ? <Spinner /> : !r || !view ? (
             <Empty icon={<ClipboardList size={18} />} title="이번 주 초안이 아직 없습니다"
-              action={<Button loading={gen.isPending} onClick={() => gen.mutate({ team_id: team.id, week_start: week, leader_notes: notes })}>초안 만들기 · 2 크레딧</Button>}>
+              action={<Button loading={gen.isPending} onClick={() => gen.mutate({ team_id: team.id, week_start: week, leader_notes: notes })}>초안 만들기 · 구독 포함</Button>}>
               팀원 체크인, 과제 현황, 1:1 기록과 오른쪽의 내 메모를 읽고 상위 조직장에게 보낼 보고서 초안을 씁니다. 팀원이 아직 없어도 메모 몇 줄이면 됩니다.
             </Empty>
           ) : (

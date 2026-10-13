@@ -34,7 +34,7 @@ function PrepPanel({ oo, onAddQuestion }: { oo: OneOnOne; onAddQuestion: (q: str
       </div>
       {prep.isLoading ? <Spinner /> : !p ? (
         <Empty icon={<Sparkles size={18} />} title="면담 전 2분 요약"
-          action={<Button loading={gen.isPending} onClick={() => gen.mutate({ one_on_one_id: oo.id })}>준비 노트 만들기 · 1 크레딧</Button>}>
+          action={<Button loading={gen.isPending} onClick={() => gen.mutate({ one_on_one_id: oo.id })}>준비 노트 만들기 · 구독 포함</Button>}>
           지난 1:1 이후의 체크인, 남은 약속, 최근 결과물을 읽고 오늘 물어볼 질문을 정리합니다.
         </Empty>
       ) : (

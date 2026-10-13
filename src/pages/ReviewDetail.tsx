@@ -47,8 +47,8 @@ function AiReview({ teamId, version, onToComments }: { teamId: string; version: 
       </div>
       {rv.isLoading ? <Spinner /> : !r ? (
         <Empty icon={<Sparkles size={18} />} title="아직 1차 검토가 없습니다"
-          action={<Button loading={gen.isPending} onClick={() => gen.mutate({ version_id: version.id })}>지금 검토하기 · 3 크레딧</Button>}>
-          팀원이 올릴 때 자동으로 시작되지만, 크레딧이 부족했거나 오류가 났다면 여기서 다시 요청할 수 있습니다.
+          action={<Button loading={gen.isPending} onClick={() => gen.mutate({ version_id: version.id })}>지금 검토하기 · 구독 포함</Button>}>
+          팀원이 올릴 때 자동으로 시작되지만, 이번 달 기본 AI 사용량을 다 썼거나 오류가 났다면 여기서 다시 요청할 수 있습니다.
         </Empty>
       ) : (
         <>

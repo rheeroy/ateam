@@ -133,19 +133,19 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
     { k: 'old', s: oldest, label: '가장 오래 기다린 것', why: (s) => `${daysAgo(s.latest?.created_at ?? s.created_at)}일째 대기` },
   ];
   return (
-    <AiBand title="AI 미리 검토 · 업무플랫폼" right={<span className="text-[11px] text-violet-100">리뷰 대기 {waiting.length}건 중 AI 검토 완료 {reviewed.length}건</span>}>
-      {loading ? <p className="text-sm text-violet-100">불러오는 중…</p> : !waiting.length ? (
-        <p className="text-sm text-violet-50">리뷰를 기다리는 결과물이 없습니다. 팀원이 올리면 AI가 먼저 읽고 강점·보완점·물어볼 질문을 정리해 둡니다.</p>
+    <AiBand title="AI 미리 검토 · 업무플랫폼" right={<span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 중 AI 검토 완료 {reviewed.length}건</span>}>
+      {loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !waiting.length ? (
+        <p className="text-sm text-slate-600">리뷰를 기다리는 결과물이 없습니다. 팀원이 올리면 AI가 먼저 읽고 강점·보완점·물어볼 질문을 정리해 둡니다.</p>
       ) : (
         <>
           <p className="text-[15px] font-semibold leading-snug">{reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 아래 순서로 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다. 열면 1차 검토를 만들 수 있습니다.'}</p>
           <div className="mt-3 grid md:grid-cols-3 gap-2">
             {cards.filter((c, i) => c.s && !cards.slice(0, i).some((x) => x.s?.id === c.s!.id)).map((c) => (
-              <Link key={c.k} to={`/work/${c.s!.id}`} className="block rounded-xl bg-white/[0.08] ring-1 ring-white/15 p-3 hover:bg-white/[0.14]">
-                <div className="text-[10px] font-semibold text-violet-200">{c.label}</div>
+              <Link key={c.k} to={`/work/${c.s!.id}`} className="block rounded-xl bg-white ring-1 ring-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 hover:ring-violet-300 hover:shadow-sm">
+                <div className="text-[10px] font-semibold text-slate-400">{c.label}</div>
                 <div className="mt-1 text-sm font-semibold truncate">{c.s!.title}</div>
-                <div className="mt-0.5 text-xs text-violet-100/85">{c.why(c.s!)}</div>
-                {c.s!.review?.questions?.[0] && <div className="mt-1.5 text-xs text-white line-clamp-2">Q. {c.s!.review.questions[0]}</div>}
+                <div className="mt-0.5 text-xs text-slate-600">{c.why(c.s!)}</div>
+                {c.s!.review?.questions?.[0] && <div className="mt-1.5 text-xs text-slate-800 line-clamp-2">Q. {c.s!.review.questions[0]}</div>}
               </Link>
             ))}
           </div>

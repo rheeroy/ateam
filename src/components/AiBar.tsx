@@ -26,12 +26,11 @@ export function AiChip({ label = 'AI', tone = 'soft', className, title }: { labe
 /** AI 띠 껍데기 — 내용은 자유롭게 (업무플랫폼처럼 AI 검토 결과를 모아 보여줄 때) */
 export function AiBand({ title, right, children, className }: { title: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cx('relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-indigo-700 to-indigo-800 text-white shadow-[0_10px_30px_-18px_rgba(79,70,229,0.8)]', className)}>
-      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_90%_-10%,rgba(255,255,255,0.18),transparent_45%)]" />
+    <section className={cx('relative overflow-hidden rounded-2xl bg-gradient-to-b from-violet-50 via-white to-white text-slate-900 ring-1 ring-violet-200/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)]', className)}>
       <div className="relative p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-7 h-7 rounded-lg bg-white/15 ring-1 ring-white/25 flex items-center justify-center"><Sparkles size={14} /></span>
-          <span className="text-[11px] font-bold tracking-wide text-violet-100">{title}</span>
+          <span className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center shadow-sm"><Sparkles size={14} /></span>
+          <span className="text-xs font-bold tracking-tight text-violet-800">{title}</span>
           <div className="ml-auto flex items-center gap-1.5">{right}</div>
         </div>
         <div className="mt-2.5">{children}</div>
@@ -70,13 +69,13 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
   const right = (
     <>
       {avail.length > 1 && (
-        <span className="hidden sm:inline-flex rounded-lg bg-white/10 p-0.5">
-          {avail.map((p) => <button key={p} onClick={() => setPick(p)} className={cx('text-[11px] px-2 py-0.5 rounded-md', p === period ? 'bg-white text-indigo-800 font-semibold' : 'text-violet-100 hover:text-white')}>{P_LABEL[p]}</button>)}
+        <span className="hidden sm:inline-flex rounded-lg bg-slate-100 p-0.5">
+          {avail.map((p) => <button key={p} onClick={() => setPick(p)} className={cx('text-[11px] px-2 py-0.5 rounded-md', p === period ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-500 hover:text-slate-900')}>{P_LABEL[p]}</button>)}
         </span>
       )}
-      {out && <span className="text-[10px] text-violet-200/80 hidden md:inline">{fmtDate(out.created_at)}</span>}
+      {out && <span className="text-[10px] text-slate-400 hidden md:inline">{fmtDate(out.created_at)}</span>}
       {ai && <button disabled={gen.isPending} onClick={() => gen.mutate({ team_id: team.id, period })}
-        className="text-[11px] font-semibold rounded-lg bg-white/15 hover:bg-white/25 px-2 py-1 inline-flex items-center gap-1 disabled:opacity-60">
+        className="text-[11px] font-semibold rounded-lg bg-white ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 px-2 py-1 inline-flex items-center gap-1 disabled:opacity-60">
         <RefreshCw size={11} className={gen.isPending ? 'animate-spin' : ''} />{gen.isPending ? '만드는 중…' : out ? '다시' : '지금 만들기'}</button>}
     </>
   );
@@ -85,9 +84,9 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
     <AiBand title={`AI 인사이트 · ${label}${out ? ` · ${P_LABEL[period]}` : ''}`} right={right}>
       {!ai ? (
         <div className="text-sm flex items-center gap-2 flex-wrap"><Lock size={14} />AI 해석은 Pro에서 열립니다.
-          <Link to="/settings?tab=billing" className="text-xs font-semibold rounded-lg bg-white text-indigo-800 px-2.5 py-1">Pro 시작하기</Link></div>
-      ) : s.loading ? <p className="text-sm text-violet-100">불러오는 중…</p> : !out ? (
-        <p className="text-sm text-violet-50">{emptyHint ?? '아직 해석이 없습니다.'} '지금 만들기'를 누르면 30초 안에 팀 기록을 엮어 정리합니다.</p>
+          <Link to="/settings?tab=billing" className="text-xs font-semibold rounded-lg bg-indigo-600 text-white px-2.5 py-1">Pro 시작하기</Link></div>
+      ) : s.loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !out ? (
+        <p className="text-sm text-slate-600">{emptyHint ?? '아직 해석이 없습니다.'} '지금 만들기'를 누르면 30초 안에 팀 기록을 엮어 정리합니다.</p>
       ) : (
         <>
           {sec?.summary && !filter && <p className="text-[15px] font-semibold leading-snug">{strip(sec.summary)}</p>}
@@ -97,9 +96,9 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
               {shown.map((it, i) => <AiItemCard key={i} it={it} />)}
             </div>
           )}
-          {!shown.length && filter && <p className="text-sm text-violet-100">{emptyHint ?? '이 대상에 대한 AI 해석은 아직 없습니다.'}</p>}
+          {!shown.length && filter && <p className="text-sm text-slate-500">{emptyHint ?? '이 대상에 대한 AI 해석은 아직 없습니다.'}</p>}
           {items.length > n && (
-            <button onClick={() => setAll((v) => !v)} className="mt-2 text-[11px] text-violet-100 hover:text-white inline-flex items-center gap-0.5">
+            <button onClick={() => setAll((v) => !v)} className="mt-2 text-[11px] text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5">
               {all ? '접기' : `${items.length - n}건 더 보기`}<ChevronDown size={12} className={all ? 'rotate-180' : ''} /></button>
           )}
         </>
@@ -114,14 +113,14 @@ function AiItemCard({ it }: { it: InsightItem }) {
   const body = (
     <>
       <div className="flex items-center gap-1.5 text-[10px]">
-        <span className={cx('w-1.5 h-1.5 rounded-full', meta.dot)} /><span className="font-semibold text-violet-100">{meta.label}</span>
+        <span className={cx('w-1.5 h-1.5 rounded-full', meta.dot)} /><span className="font-semibold text-slate-500">{meta.label}</span>
         {it.severity >= 3 && <span className="rounded bg-rose-500/90 text-white px-1 font-semibold">지금 확인</span>}
       </div>
       <div className="mt-1 text-sm font-semibold leading-snug">{strip(it.title)}</div>
-      {it.body && <div className="mt-0.5 text-xs text-violet-100/85 leading-relaxed line-clamp-2">{strip(it.body)}</div>}
-      {it.action && <div className="mt-1.5 text-xs font-semibold text-white inline-flex items-center gap-0.5">→ {strip(it.action)}{to && <ChevronRight size={12} />}</div>}
+      {it.body && <div className="mt-0.5 text-xs text-slate-600 leading-relaxed line-clamp-2">{strip(it.body)}</div>}
+      {it.action && <div className="mt-1.5 text-xs font-semibold text-violet-700 inline-flex items-center gap-0.5">→ {strip(it.action)}{to && <ChevronRight size={12} />}</div>}
     </>
   );
-  const cls = 'block rounded-xl bg-white/[0.08] ring-1 ring-white/15 p-3 text-left';
-  return to ? <Link to={to} className={cx(cls, 'hover:bg-white/[0.14]')}>{body}</Link> : <div className={cls}>{body}</div>;
+  const cls = 'block rounded-xl bg-white ring-1 ring-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-3 text-left';
+  return to ? <Link to={to} className={cx(cls, 'hover:ring-violet-300 hover:shadow-sm')}>{body}</Link> : <div className={cls}>{body}</div>;
 }
