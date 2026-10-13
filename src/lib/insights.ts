@@ -22,7 +22,10 @@ export const toRawMembers = (members: TeamMember[]): RawMember[] =>
 export function useHomeInsights(teamId: string, uid: string, members: TeamMember[], minEvidence: number) {
   return useQuery({
     queryKey: ['home-insights', teamId, uid, members.length],
-    queryFn: async () => analyze(await loadRaw(supabase, teamId, uid, minEvidence), toRawMembers(members)),
+    queryFn: async () => {
+      const raw = await loadRaw(supabase, teamId, uid, minEvidence);
+      return { ...analyze(raw, toRawMembers(members)), raw };
+    },
     staleTime: 60_000,
   });
 }

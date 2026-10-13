@@ -28,6 +28,7 @@ const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Goals = lazy(() => import('./pages/Goals'));
 const MemberHome = lazy(() => import('./pages/MemberHome'));
+const Brief = lazy(() => import('./pages/Brief'));
 
 function NotConfigured() {
   return (
@@ -84,6 +85,7 @@ export default function App() {
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <MemberHome />} />
+        <Route path="brief/:section" element={L(<Brief />)} />
         <Route path="goals" element={L(<Goals mode="leader" />)} />
         <Route path="my/goals" element={<Goals mode="member" />} />
         <Route path="one-on-ones" element={L(<OneOnOnes />)} />
