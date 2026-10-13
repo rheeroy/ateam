@@ -23,14 +23,43 @@ export function AiChip({ label = 'AI', tone = 'soft', className, title }: { labe
   );
 }
 
-/** AI 띠 껍데기 — 내용은 자유롭게 (업무플랫폼처럼 AI 검토 결과를 모아 보여줄 때) */
-export function AiBand({ title, right, children, className }: { title: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
+export type Cadence = 'daily' | 'weekly' | 'monthly' | 'live';
+const CAD_LABEL: Record<Cadence, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', live: 'Live' };
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+const md = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
+/** 기간 표기: Daily 10.13(화) · Weekly 10.12 – 10.18 · Monthly 2026.10 */
+export function periodRange(c: Cadence, start?: string | null): string {
+  if (c === 'live') return '지금 기준';
+  const d = start ? new Date(start.slice(0, 10) + 'T00:00:00') : new Date();
+  if (c === 'daily') return `${md(d)}(${DOW[d.getDay()]})`;
+  if (c === 'weekly') { const e = new Date(d); e.setDate(d.getDate() + 6); return `${md(d)} – ${md(e)}`; }
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** AI 띠 껍데기 — 왼쪽 'Core AI Insight' 라벨(기간 표기) + 오른쪽 내용 */
+export function AiBand({ title, right, children, className, cadence, start }: {
+  title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; cadence?: Cadence; start?: string | null;
+}) {
   return (
-    <section className={cx('relative overflow-hidden rounded-2xl bg-gradient-to-b from-violet-50 via-white to-white text-slate-900 ring-1 ring-violet-200/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)]', className)}>
-      <div className="relative p-4 sm:p-5">
+    <section className={cx('relative overflow-hidden rounded-2xl bg-white text-slate-900 ring-1 ring-violet-200 shadow-[0_6px_20px_-12px_rgba(91,33,182,0.35)] flex flex-col md:flex-row', className)}>
+      <aside className="shrink-0 md:w-36 bg-gradient-to-br from-violet-700 via-violet-700 to-indigo-800 text-white px-4 py-3 md:py-5 flex md:flex-col items-center md:items-start gap-3 md:gap-4">
+        <div className="flex md:flex-col items-center md:items-start gap-2">
+          <span className="w-8 h-8 rounded-lg bg-white/15 ring-1 ring-white/25 flex items-center justify-center"><Sparkles size={15} /></span>
+          <div className="leading-[1.05]">
+            <div className="text-[17px] font-extrabold tracking-tight">Core<sup className="ml-0.5 text-[10px] font-bold text-violet-200 align-super">AI</sup></div>
+            <div className="text-[17px] font-extrabold tracking-tight">Insight</div>
+          </div>
+        </div>
+        {cadence && (
+          <div className="ml-auto md:ml-0 flex md:flex-col items-center md:items-start gap-1.5 md:gap-1">
+            <span className="rounded-md bg-white text-violet-800 px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider uppercase">{CAD_LABEL[cadence]}</span>
+            <span className="text-[11px] font-semibold text-violet-100 num">{periodRange(cadence, start)}</span>
+          </div>
+        )}
+      </aside>
+      <div className="flex-1 min-w-0 p-4 sm:p-5 bg-gradient-to-b from-violet-50/70 to-white">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center shadow-sm"><Sparkles size={14} /></span>
-          <span className="text-xs font-bold tracking-tight text-violet-800">{title}</span>
+          <span className="text-sm font-bold tracking-tight text-slate-900">{title}</span>
           <div className="ml-auto flex items-center gap-1.5">{right}</div>
         </div>
         <div className="mt-2.5">{children}</div>
@@ -81,7 +110,7 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
   );
 
   return (
-    <AiBand title={`AI 인사이트 · ${label}${out ? ` · ${P_LABEL[period]}` : ''}`} right={right}>
+    <AiBand title={label} right={right} cadence={period} start={out?.period_start}>
       {!ai ? (
         <div className="text-sm flex items-center gap-2 flex-wrap"><Lock size={14} />AI 해석은 Pro에서 열립니다.
           <Link to="/settings?tab=billing" className="text-xs font-semibold rounded-lg bg-indigo-600 text-white px-2.5 py-1">Pro 시작하기</Link></div>

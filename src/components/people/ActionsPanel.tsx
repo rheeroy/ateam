@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Award, CalendarPlus, Check, ChevronDown, MessageCircleQuestion, RefreshCw, Send, SkipForward, StickyNote, Undo2 } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { useGenerate } from '../../lib/hooks';
-import { cx, fmtDate, fmtShort } from '../../lib/format';
+import { cx, fmtDate } from '../../lib/format';
 import { ACTION_META, actionKey, useActionStatus, usePeopleActions, useSendPraise, type PeopleAction } from '../../lib/peopleActions';
 import { Avatar, Button, Field, Modal, inputCls } from '../ui';
 import { AiBand } from '../AiBar';
@@ -28,9 +28,9 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
   const [modal, setModal] = useState<{ kind: 'oo' | 'memo' | 'req' | 'praise'; a: PeopleAction } | null>(null);
   const done = (a: PeopleAction) => st.set.mutate({ key: keyOf(a), status: 'done' });
 
-  const title = only ? `이번 주 ${nameOf(only)} 님께 할 것` : `이번 주 팀원관리 액션 · ${fmtShort(week)} 주`;
+  const title = only ? `이번 주 ${nameOf(only)} 님께 할 것` : '이번 주 팀원관리 액션';
   return (
-    <AiBand title={ai ? `AI 추천 · ${title}` : `${title} · 자동 추천`}
+    <AiBand title={ai ? title : `${title} · 기록 기반 자동 추천`} cadence="weekly" start={week}
       right={<>
         {!!all.length && <span className="text-[11px] text-slate-500">완료 {closed.length}/{all.length}</span>}
         {hasFeature('ai_core') && !only && (

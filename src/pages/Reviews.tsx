@@ -133,7 +133,7 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
     { k: 'old', s: oldest, label: '가장 오래 기다린 것', why: (s) => `${daysAgo(s.latest?.created_at ?? s.created_at)}일째 대기` },
   ];
   return (
-    <AiBand title="AI 미리 검토 · 업무플랫폼" right={<span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 중 AI 검토 완료 {reviewed.length}건</span>}>
+    <AiBand title="업무플랫폼 · AI 미리 검토" cadence="live" right={<span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 중 AI 검토 완료 {reviewed.length}건</span>}>
       {loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !waiting.length ? (
         <p className="text-sm text-slate-600">리뷰를 기다리는 결과물이 없습니다. 팀원이 올리면 AI가 먼저 읽고 강점·보완점·물어볼 질문을 정리해 둡니다.</p>
       ) : (
