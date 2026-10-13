@@ -401,7 +401,8 @@ export function useHomeModel(period: Period) {
   const allowed = new Set(visible.filter((s) => s.type !== 'data' && sectionOf(s) !== 'todo').slice(0, 2).map((s) => s.id));
   const locked = (id: string) => !full && !allowed.has(id);
 
-  const insight = fresh(insightQ.data, period) ? insightQ.data! : null;
+  // 데모 팀은 미리 넣어 둔 해석을 날짜와 상관없이 보여줌
+  const insight = insightQ.data && (team.is_demo || fresh(insightQ.data, period)) ? insightQ.data : null;
   const ai = sectionsOf(insight?.content);
   const perfRisks = by('perf').filter((s) => s.domain === 'goal' && (s.type === 'risk' || (s.type === 'forecast' && s.severity >= 2)));
   const orgSt = orgStats(org.data, perfRisks);

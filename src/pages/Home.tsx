@@ -316,7 +316,7 @@ function TopPriority({ m, period, setPeriod, onAct }: { m: HomeModel; period: 'd
           <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={19} /></span>
           <div className="flex-1 min-w-[220px]">
             <div className="text-[11px] font-semibold tracking-wide text-violet-300">TOP PRIORITY</div>
-            <p className="text-lg font-semibold leading-snug">{m.loading ? '팀 기록을 살펴보는 중입니다…' : list.length ? `이번에 팀 성과를 가를 결정 ${list.length}가지` : '지금 판단이 필요한 큰 결정은 없습니다'}</p>
+            <p className="text-lg font-semibold leading-snug">{m.loading ? '팀 기록을 살펴보는 중입니다…' : list.length ? '최우선으로 챙겨야 할 것들' : '지금 판단이 필요한 큰 결정은 없습니다'}</p>
           </div>
           <PeriodTabs period={period} setPeriod={setPeriod} dark />
         </div>
@@ -331,7 +331,6 @@ function TopPriority({ m, period, setPeriod, onAct }: { m: HomeModel; period: 'd
         )}
         {!m.loading && more > 0 && <Link to="/brief/decide" className="mt-2 inline-flex items-center gap-0.5 text-xs text-violet-300 hover:text-white">결정할 것 {more}건 더 보기<ChevronRight size={13} /></Link>}
         {!m.loading && !first && <p className="mt-5 text-slate-300 text-sm">성과에 걸린 큰 결정이 보이지 않습니다. 할 일은 오른쪽 아래 '오늘 할 일'에서 확인하세요.</p>}
-        <p className="mt-4 text-[11px] text-slate-500">팀 성과에 걸린 결정만 모읍니다. 리스크는 결정의 근거로 붙고, 단순 할 일은 '오늘 할 일'에 있습니다. {m.insight ? '' : 'AI 해석을 만들면 선택지와 기대 효과까지 정리합니다.'}</p>
       </div>
     </section>
   );
