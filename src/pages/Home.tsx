@@ -196,83 +196,81 @@ function PerfDashboard({ m }: { m: HomeModel }) {
 }
 
 // =====================================================================
-// ② Top Priority — 결정·리스크·할 일·조직을 모두 모아 지금 가장 중요한 것
+// ② Top Priority — 팀 성과를 위한 '결정'만 (단순 할 일 X, 리스크는 근거로)
 // =====================================================================
-interface Prio { key: string; score: number; tag: string; tagCls: string; title: string; why?: string; action?: string; to?: string; signal?: Signal; ai?: boolean }
-const TAG: Record<string, string> = {
-  risk: 'bg-rose-500/20 text-rose-200', decide: 'bg-white/15 text-slate-100', todo: 'bg-violet-500/25 text-violet-200',
-  perf: 'bg-indigo-500/25 text-indigo-200', people: 'bg-teal-500/25 text-teal-200', org: 'bg-fuchsia-500/25 text-fuchsia-200',
-};
-const SEC_TAG: Record<MainSection, string> = { risk: '리스크', decide: '의사결정', perf: '팀 성과', people: '팀원관리', org: '조직·전사' };
+interface Prio { key: string; score: number; kind: string; title: string; why?: string; impact?: string; options?: string[]; evidence: Signal[]; action?: string; to?: string; ai?: boolean }
 const AI_TO: Record<string, string> = { goals: '/goals', team: '/team', reviews: '/reviews', one_on_ones: '/one-on-ones', perf: '/perf', sim: '/sim', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/strategy', org: '/brief/org' };
 
-function usePriorities(m: HomeModel, teamId: string): Prio[] {
-  const { members, nameOf } = useTeam();
-  const pr = usePromises(teamId).data ?? [];
-  const rv = useReviewQueue(teamId).data ?? [];
-  const oo = useWeekOneOnOnes(teamId).data ?? [];
-  const today = todayYmd();
-  const out: Prio[] = [];
-  // AI가 고른 것 (섹션별 해석의 급한 항목)
-  if (m.insight) for (const sec of ['risk', 'decide', 'perf', 'people', 'org'] as MainSection[]) {
-    for (const it of m.ai[sec].items) {
-      if (it.severity < 2 && it.type !== 'risk') continue;
-      out.push({ key: `ai-${sec}-${it.title}`, score: (it.severity >= 3 ? 100 : 80) + (sec === 'decide' ? 3 : sec === 'risk' ? 2 : 0), tag: SEC_TAG[sec], tagCls: TAG[sec],
-        title: it.title, why: stripTags(it.body), action: it.action, to: it.link ? AI_TO[it.link] : briefLink(sec, 'daily'), ai: true });
-    }
-  }
-  // 규칙: 큰 리스크
-  for (const s of m.bigRisks) out.push({ key: s.id, score: 95, tag: '리스크', tagCls: TAG.risk, title: s.title, why: s.detail, action: s.action?.label, signal: s });
-  // 할 일: 상위 요청 마감 임박 · 지난 약속 · 오래 기다린 리뷰/계획 · 오늘 1:1
-  for (const n of m.orgSt.upcoming.filter((n) => n.kind === 'request' && dDay(n.event_date!) <= 3)) {
-    const dd = dDay(n.event_date!);
-    out.push({ key: `req-${n.id}`, score: dd < 0 ? 92 : 88, tag: '할 일', tagCls: TAG.todo, title: `상위 요청 '${n.title}' ${dd < 0 ? `${-dd}일 지남` : dd === 0 ? '오늘 마감' : `D-${dd}`}`, why: n.source ? `${n.source} 요청` : undefined, action: '조직·전사에서 보기', to: '/brief/org' });
-  }
-  const late = pr.filter((a) => a.due_date && a.due_date < today);
-  if (late.length) out.push({ key: 'promise-late', score: 84, tag: '할 일', tagCls: TAG.todo, title: `팀원에게 한 약속 ${late.length}건이 기한을 넘겼습니다`, why: late.slice(0, 2).map((a) => a.title).join(' · '), action: '오늘 할 일에서 처리', to: '#today' });
-  const ooToday = oo.filter((o) => isToday(o.scheduled_at) && new Date(o.scheduled_at).getTime() > Date.now() - 3600000);
-  if (ooToday.length) out.push({ key: 'oo-today', score: 72, tag: '할 일', tagCls: TAG.todo, title: `오늘 1:1 ${ooToday.map((o) => `${nameOf(o.member_id)} ${fmtTime(o.scheduled_at)}`).join(', ')}`, why: '준비 노트를 미리 만들어 두면 15분이 줄어듭니다', action: '1:1 준비', to: `/one-on-ones/${ooToday[0].id}` });
-  const oldRv = rv.filter((r) => daysAgo(r.v?.created_at ?? r.s.created_at) >= 3);
-  if (oldRv.length) out.push({ key: 'rv-old', score: 66, tag: '할 일', tagCls: TAG.todo, title: `3일 넘게 리뷰를 기다리는 결과물 ${oldRv.length}건`, why: oldRv.slice(0, 2).map((r) => r.s.title).join(' · '), action: '리뷰하기', to: '/reviews' });
-  // 의사결정
-  for (const g of m.lowGoals) out.push({ key: `goal-${g.goal_id}`, score: 78, tag: '의사결정', tagCls: TAG.decide, title: `'${g.title}' 목표 조정 또는 지원 결정 (달성 가능성 ${g.probability}%)`, action: '무엇을 바꾸면 되는지 시뮬레이션', to: '/sim' });
-  for (const n of m.orgSt.high) out.push({ key: `org-${n.id}`, score: 74, tag: '의사결정', tagCls: TAG.decide, title: `전사 방침 대응: ${n.title}`, why: m.org.data?.impactOf.get(n.id)?.content.summary, action: '영향 보기', to: '/brief/org' });
-  // AI와 같은 사람·같은 목표를 말하는 규칙 항목은 뺀다
+function usePriorities(m: HomeModel): Prio[] {
+  const { members } = useTeam();
   const names = members.map((x) => x.profiles?.full_name).filter(Boolean) as string[];
-  const goalTitles = (m.raw?.goals ?? []).map((g) => g.title);
-  const aiText = out.filter((p) => p.ai).map((p) => p.title + ' ' + (p.why ?? '')).join(' ');
-  const dup = (p: Prio) => !p.ai && (names.some((n) => p.title.includes(n) && aiText.includes(n)) || goalTitles.some((g) => p.title.includes(g) && aiText.includes(g.slice(0, 6))));
-  const seen = new Set<string>();
-  return out.filter((p) => !dup(p)).sort((a, b) => b.score - a.score).filter((p) => (seen.has(p.title) ? false : (seen.add(p.title), true))).slice(0, 5);
+  const goals = m.raw?.goals ?? [];
+  const items = m.raw?.items ?? [];
+  // 근거 찾기: 같은 사람·같은 목표(또는 그 하위 과제)를 말하는 리스크 신호
+  const tokens = (t: string) => t.split(/[\s·,()'"‘’]+/).filter((w) => w.length >= 2 && !/^(목표|과제|확대|성공|관리|운영|개선|정책|확정)$/.test(w));
+  const evidenceFor = (text: string, goalId?: string) => {
+    const hitGoals = goals.filter((g) => g.goal_id === goalId || tokens(g.title).some((w) => text.includes(w)));
+    const kids = items.filter((i) => hitGoals.some((g) => i.parent_id === g.goal_id)).map((i) => i.title);
+    const keys = [...names.filter((n) => text.includes(n)), ...hitGoals.map((g) => g.title), ...kids];
+    return m.riskList.filter((s) => keys.some((k) => (s.title + (s.detail ?? '')).includes(k))).slice(0, 3);
+  };
+  const decideText = m.insight ? m.ai.decide.items.map((it) => `${it.title} ${it.body} ${it.impact ?? ''}`).join(' ') : '';
+  const overlaps = (t: string) => !!decideText && tokens(t).some((w) => w.length >= 3 && decideText.includes(w));
+  const TASKY = /D-\d|제출|마감|기한|리뷰|1:1|약속|결과 기록/;
+  const out: Prio[] = [];
+  // 1) AI의 의사결정 섹션 — 가장 높은 레벨
+  if (m.insight) {
+    m.ai.decide.items.forEach((it, i) => {
+      if (TASKY.test(it.title)) return;
+      out.push({ key: `ai-d-${i}`, score: 200 + it.severity * 10 - i, kind: '결정', title: it.title, why: stripTags(it.body), impact: it.impact ? stripTags(it.impact) : undefined,
+        options: it.options, evidence: evidenceFor(`${it.title} ${it.body} ${it.action ?? ''} ${it.impact ?? ''}`), action: it.action, to: it.link ? AI_TO[it.link] : '/brief/decide', ai: true });
+    });
+    // 성과·조직 해석 중 판단이 필요한 것 (방향 전환급) — 의사결정과 같은 사안을 말하는 진단, 기한·제출 같은 할 일은 뺀다
+    (['perf', 'org'] as const).forEach((sec) => m.ai[sec].items.filter((it) => it.severity >= 2 && it.action && !overlaps(it.title) && !TASKY.test(it.title)).forEach((it, i) => {
+      out.push({ key: `ai-${sec}-${i}`, score: 120 + it.severity * 10 - i, kind: sec === 'perf' ? '성과 판단' : '방침 대응', title: it.title, why: stripTags(it.body),
+        evidence: evidenceFor(`${it.title} ${it.body} ${it.action ?? ''}`), action: it.action, to: it.link ? AI_TO[it.link] : briefLink(sec, 'daily'), ai: true });
+    }));
+  }
+  // 2) 규칙 기반 — 성과에 직접 걸리는 결정
+  for (const g of m.lowGoals) out.push({ key: `goal-${g.goal_id}`, score: 170 - (g.probability ?? 0), kind: '목표 결정',
+    title: `'${g.title}' 목표를 조정할지, 자원을 더 넣어 지킬지`, impact: `달성 가능성 ${g.probability}% · 진척 ${g.progress}%${g.blocked ? ` · 막힌 하위 항목 ${g.blocked}건` : ''}`,
+    options: ['목표 수준을 현실에 맞게 조정', '사람·예산을 더 넣어 목표 유지', '범위를 줄이고 핵심만 지킴'], evidence: evidenceFor(g.title, g.goal_id), action: '무엇을 바꾸면 되는지 시뮬레이션', to: '/sim' });
+  for (const n of m.orgSt.high) {
+    const im = m.org.data?.impactOf.get(n.id)?.content;
+    if (overlaps(`${n.title} ${im?.summary ?? ''}`)) continue;
+    out.push({ key: `org-${n.id}`, score: 150, kind: '방침 대응', title: `'${n.title}'에 맞춰 무엇을 바꿀지`, why: im?.summary ? stripTags(im.summary) : undefined,
+      options: im?.actions?.slice(0, 3).map((a) => a.label), impact: im?.affected?.map((a) => a.title).join(' · ') ? `영향받는 목표: ${im?.affected?.map((a) => a.title).join(' · ')}` : undefined,
+      evidence: [], action: '영향 분석 보기', to: '/brief/org' });
+  }
+  const conc = m.visible.find((s) => s.id.startsWith('exec-conc-'));
+  if (conc) out.push({ key: conc.id, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: '재배분 시뮬레이션', to: '/sim' });
+  const low = m.visible.find((s) => s.id === 'exec-lowvalue');
+  if (low) out.push({ key: low.id, score: 125, kind: '우선순위 결정', title: '기여가 낮은 과제를 줄이고 핵심 목표에 시간을 돌릴지', why: low.title, evidence: [low], action: '시간 배분 보기', to: '/goals?view=table' });
+  const replan = m.visible.find((s) => s.id.startsWith('exec-replan-'));
+  if (replan) out.push({ key: replan.id, score: 110, kind: '계획 결정', title: '반복해서 밀리는 과제의 범위·일정을 다시 정할지', why: replan.detail ?? replan.title, evidence: [replan], action: '계획 대비 보기', to: '/goals?view=timeline' });
+  // AI 결정과 같은 목표를 말하는 규칙 결정은 뺀다
+  const aiText = out.filter((p) => p.ai).map((p) => p.title + (p.why ?? '')).join(' ');
+  const dup = (p: Prio) => !p.ai && goals.some((g) => p.title.includes(g.title) && aiText.includes(g.title.slice(0, 5)));
+  return out.filter((p) => !dup(p)).sort((a, b) => b.score - a.score).slice(0, 4);
+}
+
+function EvidenceChips({ list, onAct, dark }: { list: Signal[]; onAct: (s: Signal) => void; dark?: boolean }) {
+  if (!list.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {list.map((s) => (
+        <button key={s.id} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAct(s); }}
+          className={cx('text-[11px] rounded-full px-2 py-0.5 inline-flex items-center gap-1 max-w-full', dark ? 'bg-white/10 text-slate-200 hover:bg-white/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
+          <span className={cx('w-1.5 h-1.5 rounded-full shrink-0', s.severity >= 3 ? 'bg-rose-400' : 'bg-amber-400')} /><span className="truncate">{s.title}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function TopPriority({ m, period, setPeriod, onAct }: { m: HomeModel; period: 'daily' | 'weekly' | 'monthly'; setPeriod: (p: 'daily' | 'weekly' | 'monthly') => void; onAct: (s: Signal) => void }) {
-  const { team } = useTeam();
-  const list = usePriorities(m, team.id);
-  const headline = m.insight?.content.headline;
-  const go = (p: Prio) => {
-    if (p.signal) return onAct(p.signal);
-    if (p.to === '#today') return window.dispatchEvent(new Event(OPEN_TODAY));
-    if (p.to?.startsWith('#')) return document.getElementById(p.to.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  const Row = ({ p, i, big }: { p: Prio; i: number; big?: boolean }) => {
-    const body = (
-      <>
-        <span className={cx('font-bold num shrink-0 leading-none', big ? 'text-4xl text-white' : 'text-2xl text-white/60')}>{i + 1}</span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 flex-wrap">
-            <span className={cx('text-[10px] font-semibold rounded px-1.5 py-0.5', p.tagCls)}>{p.tag}</span>
-            {p.ai && <span className="text-[10px] font-semibold text-violet-300 inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}
-          </span>
-          <span className={cx('block font-semibold leading-snug mt-1', big ? 'text-lg' : 'text-[15px]')}>{p.title}</span>
-          {p.why && <span className={cx('block text-slate-400 leading-snug mt-0.5', big ? 'text-sm line-clamp-2' : 'text-xs line-clamp-1')}>{p.why}</span>}
-          {p.action && <span className="mt-1.5 inline-flex items-center gap-0.5 text-xs font-semibold text-violet-300 group-hover:text-white">{p.action}<ChevronRight size={12} /></span>}
-        </span>
-      </>
-    );
-    const cls = cx('group flex items-start gap-3 rounded-2xl text-left transition-colors', big ? 'bg-white/[0.08] hover:bg-white/[0.12] ring-1 ring-white/10 p-5' : 'bg-white/[0.04] hover:bg-white/[0.09] ring-1 ring-white/[0.07] p-4');
-    return p.to && !p.to.startsWith('#') && !p.signal ? <Link to={p.to} className={cls}>{body}</Link> : <button onClick={() => go(p)} className={cls}>{body}</button>;
-  };
+  const list = usePriorities(m);
+  const [first, ...rest] = list;
   return (
     <section aria-label="Top Priority" className="relative overflow-hidden rounded-3xl bg-slate-950 text-white">
       <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,58,237,0.45),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(79,70,229,0.25),transparent_50%)]" />
@@ -280,18 +278,57 @@ function TopPriority({ m, period, setPeriod, onAct }: { m: HomeModel; period: 'd
         <div className="flex items-center gap-4 flex-wrap">
           <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={19} /></span>
           <div className="flex-1 min-w-[220px]">
-            <div className="text-[11px] font-semibold tracking-wide text-violet-300">TOP PRIORITY · {PERIOD_LABEL[period]}</div>
-            <p className="text-lg font-semibold leading-snug">{m.loading ? '팀 기록을 살펴보는 중입니다…' : headline ? stripTags(headline) : `지금 가장 중요한 ${list.length}가지`}</p>
+            <div className="text-[11px] font-semibold tracking-wide text-violet-300">TOP PRIORITY</div>
+            <p className="text-lg font-semibold leading-snug">{m.loading ? '팀 기록을 살펴보는 중입니다…' : list.length ? `이번에 팀 성과를 가를 결정 ${list.length}가지` : '지금 판단이 필요한 큰 결정은 없습니다'}</p>
           </div>
           <PeriodTabs period={period} setPeriod={setPeriod} dark />
         </div>
-        {!m.loading && (!list.length ? <p className="mt-5 text-slate-300">지금 급하게 챙길 것이 없습니다. 아래 섹션에서 흐름을 확인해 보세요.</p> : (
+        {!m.loading && first && (
           <div className="mt-5 grid lg:grid-cols-5 gap-3">
-            <div className="lg:col-span-2 grid"><Row p={list[0]} i={0} big /></div>
-            <div className="lg:col-span-3 grid sm:grid-cols-2 gap-3">{list.slice(1).map((p, i) => <Row key={p.key} p={p} i={i + 1} />)}</div>
+            {/* 1순위 결정 — 크게 */}
+            <div className="lg:col-span-3 rounded-2xl bg-white text-slate-900 p-5 sm:p-6 shadow-xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold rounded-full bg-slate-900 text-white px-2.5 py-0.5">1순위 · {first.kind}</span>
+                {first.ai && <span className="text-[11px] font-semibold text-violet-700 inline-flex items-center gap-1"><Sparkles size={11} />AI가 엮은 판단</span>}
+              </div>
+              <h3 className="mt-2.5 text-xl sm:text-[22px] font-bold leading-snug tracking-tight">{first.title}</h3>
+              {first.why && <p className="mt-2 text-sm text-slate-600 leading-relaxed">{first.why}</p>}
+              {first.impact && (
+                <div className="mt-3 rounded-xl bg-indigo-50 ring-1 ring-indigo-100 px-3.5 py-2.5 text-sm"><span className="text-[11px] font-bold text-indigo-700 block">기대 효과 · 걸린 목표</span>{first.impact}</div>
+              )}
+              {!!first.options?.length && (
+                <div className="mt-3">
+                  <div className="text-[11px] font-bold text-slate-500">선택지</div>
+                  <ol className="mt-1.5 grid sm:grid-cols-3 gap-2">
+                    {first.options.slice(0, 3).map((o, i) => (
+                      <li key={i} className="rounded-xl ring-1 ring-slate-200 px-3 py-2 text-sm leading-snug flex gap-2"><span className="font-bold text-indigo-600">{String.fromCharCode(65 + i)}</span><span>{o}</span></li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                <div className="min-w-0 flex-1">{first.evidence.length > 0 && <><div className="text-[11px] font-bold text-slate-500 mb-1">근거</div><EvidenceChips list={first.evidence} onAct={onAct} /></>}</div>
+                {first.to && <Link to={first.to} className="text-sm font-semibold rounded-xl bg-slate-900 text-white px-4 py-2 hover:bg-slate-800 inline-flex items-center justify-center gap-1 shrink-0">{first.action ?? '결정하러 가기'}<ChevronRight size={15} /></Link>}
+              </div>
+            </div>
+            {/* 2~4순위 */}
+            <div className="lg:col-span-2 grid gap-3 content-start">
+              {rest.map((p, i) => (
+                <Link key={p.key} to={p.to ?? '/brief/decide'} className="group rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] ring-1 ring-white/10 p-4 block">
+                  <div className="flex items-center gap-2 text-[11px]"><span className="font-bold text-white/70 num">{i + 2}순위</span><span className="font-semibold rounded bg-white/10 px-1.5 py-0.5 text-slate-200">{p.kind}</span>
+                    {p.ai && <span className="text-violet-300 inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}</div>
+                  <div className="mt-1.5 font-semibold leading-snug">{p.title}</div>
+                  {(p.impact || p.why) && <div className="mt-1 text-xs text-slate-400 line-clamp-2">{p.impact ?? p.why}</div>}
+                  {!!p.options?.length && <ul className="mt-2 space-y-1">{p.options.slice(0, 3).map((o, oi) => <li key={oi} className="text-xs text-slate-300 flex gap-1.5"><b className="text-violet-300">{String.fromCharCode(65 + oi)}</b><span className="line-clamp-1">{o}</span></li>)}</ul>}
+                  {p.evidence.length > 0 && <div className="mt-2"><EvidenceChips list={p.evidence.slice(0, 2)} onAct={onAct} dark /></div>}
+                </Link>
+              ))}
+              {!rest.length && <p className="text-sm text-slate-400 p-2">다른 큰 결정은 없습니다.</p>}
+            </div>
           </div>
-        ))}
-        <p className="relative mt-4 text-[11px] text-slate-500">리스크·의사결정·할 일·조직 소식을 모두 모아 급하고 영향이 큰 순으로 고릅니다. {m.insight ? 'AI 해석과 자동 감지를 함께 씁니다.' : 'AI 해석을 만들면 원인까지 엮어 고릅니다.'}</p>
+        )}
+        {!m.loading && !first && <p className="mt-5 text-slate-300 text-sm">성과에 걸린 큰 결정이 보이지 않습니다. 할 일은 오른쪽 아래 '오늘 할 일'에서 확인하세요.</p>}
+        <p className="mt-4 text-[11px] text-slate-500">팀 성과에 걸린 결정만 모읍니다. 리스크는 결정의 근거로 붙고, 단순 할 일은 '오늘 할 일'에 있습니다. {m.insight ? '' : 'AI 해석을 만들면 선택지와 기대 효과까지 정리합니다.'}</p>
       </div>
     </section>
   );

@@ -289,7 +289,7 @@ export function usePeriod(): [Period, (p: Period) => void] {
 // =====================================================================
 // AI 인사이트 — 섹션별 해석
 // =====================================================================
-export interface InsightItem { type: SignalType; severity: number; title: string; body: string; action?: string; link?: string; domain?: Domain }
+export interface InsightItem { type: SignalType; severity: number; title: string; body: string; action?: string; link?: string; domain?: Domain; options?: string[]; impact?: string }
 export interface SectionAi { summary: string; items: InsightItem[] }
 export interface InsightOut {
   headline: string; watch_next?: string; period?: Period;
@@ -356,6 +356,8 @@ export function SectionAiCard({ teamId, period, section, out, loading }: { teamI
                       {it.severity >= 3 && <span className="text-rose-600 font-semibold">지금 확인</span>}</div>
                     <div className="mt-0.5 font-semibold">{it.title}</div>
                     <p className="text-slate-700 leading-relaxed"><TaggedText text={it.body} sources={out.sources} /></p>
+                    {it.impact && <p className="mt-1 text-xs text-slate-600"><b className="font-semibold text-slate-800">기대 효과</b> · <TaggedText text={it.impact} sources={out.sources} /></p>}
+                    {!!it.options?.length && <ul className="mt-1.5 flex flex-wrap gap-1.5">{it.options.map((o, oi) => <li key={oi} className="text-xs rounded-lg bg-white ring-1 ring-slate-200 px-2 py-1">{String.fromCharCode(65 + oi)}. {o}</li>)}</ul>}
                     {it.action && (
                       <button onClick={() => it.link && AI_LINKS[it.link] && nav(AI_LINKS[it.link])}
                         className={cx('mt-1 text-xs inline-flex items-center gap-1', it.link && AI_LINKS[it.link] ? 'text-indigo-700 font-semibold hover:underline' : 'text-slate-700')}>→ {it.action}</button>
