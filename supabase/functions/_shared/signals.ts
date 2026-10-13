@@ -2,7 +2,10 @@
 // 외부 의존 없이 순수 TypeScript. 숫자는 SQL 모델 값을 그대로 쓰고, 규칙에 걸린 것만 '신호'로 만든다.
 // AI 인사이트는 이 신호들을 '사실'로 받아 엮고 해석한다.
 
-export type Domain = 'goal' | 'exec' | 'people' | 'output' | 'growth';
+export type Domain = 'goal' | 'exec' | 'people' | 'output' | 'growth' | 'org';
+/** 신호가 속하는 홈 섹션: 내가 할 일(대기열) · 의사결정 · 팀 성과 · 사람 · 조직·전사 (리스크 섹션은 여러 섹션의 위험 신호를 모아 보여 준다) */
+export type HomeSection = 'todo' | 'decide' | 'perf' | 'people' | 'org';
+export const SECTION_NAME: Record<HomeSection, string> = { todo: '내가 할 일', decide: '의사결정', perf: '팀 성과', people: '팀원관리', org: '조직·전사' };
 export type SignalType = 'risk' | 'missed' | 'forecast' | 'pattern' | 'good' | 'data';
 export type Period = 'daily' | 'weekly' | 'monthly';
 export type Status = 'good' | 'watch' | 'risk' | 'unknown';
@@ -29,7 +32,18 @@ export const DOMAIN_META: Record<Domain, { name: string; desc: string; period: s
   people: { name: '사람·컨디션', desc: '컨디션 추세, 1:1 간격, 체크인', period: '주간 추세' },
   output: { name: '결과물·리뷰', desc: '리뷰 대기와 재작업 패턴', period: '주간 흐름' },
   growth: { name: '육성·평가', desc: '평가 근거와 성장 신호', period: '월간 궤적' },
+  org: { name: '조직·전사', desc: '상위 방향·요청·전사 일정', period: '수시' },
 };
+
+/** 신호가 홈의 어느 섹션에 들어가는지. 팀장이 처리할 대기열(승인·리뷰·요청·약속·상위 요청 마감)은 '내가 할 일', 돌아볼 결정은 '의사결정' */
+const TODO_IDS = ['exec-proposed-', 'out-aged-', 'req-late-', 'promise-late-', 'org-req-'];
+export function sectionOf(s: Pick<Signal, 'id' | 'domain'>): HomeSection {
+  if (TODO_IDS.some((p) => s.id.startsWith(p))) return 'todo';
+  if (s.id.startsWith('decide-')) return 'decide';
+  if (s.domain === 'goal' || s.domain === 'exec') return 'perf';
+  if (s.domain === 'org') return 'org';
+  return 'people';
+}
 export const TYPE_LABEL: Record<SignalType, string> = {
   risk: '리스크', missed: '놓친 것', forecast: '전망', pattern: '패턴', good: '좋은 신호', data: '데이터 보강',
 };
@@ -60,6 +74,9 @@ export interface Raw {
   recurringLogs: { item_id: string; period: string; done: boolean | null }[];
   latePromises: number;
   minEvidence: number;
+  orgNotes: { id: string; kind: string; title: string; event_date: string | null; status: string; created_at: string }[];
+  orgImpacts: string[]; // 영향 분석이 끝난 메모 id
+  decisionsDue: { id: string; title: string; decided_at: string; review_on: string | null }[];
 }
 
 // ---------- 날짜 (한국 시간 기준) ----------
@@ -83,7 +100,7 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
   const mon = kstMonday();
   const since60 = new Date(Date.now() - 60 * 86400000).toISOString();
   const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
-  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs] = await Promise.all([
+  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs, orgNotes, orgImpacts, decisionsDue] = await Promise.all([
     safe<Raw['goals']>(db.rpc('goal_outlook', { p_team: teamId }), null),
     safe<{ id: string; item_id: string | null }[]>(db.from('metrics').select('id, item_id').eq('team_id', teamId).not('target', 'is', null).order('created_at').limit(4), []),
     safe<RawItem[]>(db.from('work_items').select('id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, base_due, replan_count, recur, needs_plan, updated_at, created_at, est_hours_per_week').eq('team_id', teamId).neq('status', 'dropped'), []),
@@ -99,13 +116,16 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
     safe<Raw['requests']>(db.from('team_requests').select('id, to_id, title, kind, due_date, created_at, status').eq('team_id', teamId).eq('from_id', leaderId).eq('status', 'open'), []),
     safe<{ id: string }[]>(db.from('action_items').select('id').eq('team_id', teamId).eq('owner_id', leaderId).is('done_at', null).lt('due_date', kstToday()), []),
     safe<Raw['recurringLogs']>(db.from('work_item_logs').select('item_id, period, done').eq('team_id', teamId).eq('kind', 'recurring').gte('period', addDaysYmd(kstToday(), -100)), []),
+    safe<Raw['orgNotes']>(db.from('org_notes').select('id, kind, title, event_date, status, created_at').eq('team_id', teamId).eq('status', 'open').order('created_at', { ascending: false }).limit(40), []),
+    safe<{ ref_id: string }[]>(db.from('ai_outputs').select('ref_id').eq('team_id', teamId).eq('kind', 'org_impact').gte('created_at', since60), []),
+    safe<Raw['decisionsDue']>(db.from('decisions').select('id, title, decided_at, review_on').eq('team_id', teamId).is('outcome', null).order('decided_at').limit(20), []),
   ]);
   const forecasts = (await Promise.all(metrics.map(async (m) => {
     const f = await safe<Raw['forecasts'][number] | null>(db.rpc('metric_forecast', { p_metric: m.id }), null);
     return f ? { ...f, item_id: m.item_id } : null;
   }))).filter(Boolean) as Raw['forecasts'];
   return { goals, forecasts, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests,
-    recurringLogs: rlogs, latePromises: late.length, minEvidence };
+    recurringLogs: rlogs, latePromises: late.length, minEvidence, orgNotes, orgImpacts: orgImpacts.map((o) => o.ref_id), decisionsDue };
 }
 
 // ---------- 분석 ----------
@@ -317,6 +337,29 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     .forEach((i) => onTime.set(i.owner_id!, (onTime.get(i.owner_id!) ?? 0) + 1));
   for (const [u, n] of onTime) if (n >= 3 && members.some((m) => m.user_id === u && m.role === 'member')) S.push({ id: `growth-ontime-${u}`, domain: 'growth', type: 'good', severity: 1, periods: M,
     title: `${nameOf(u)}님이 최근 30일 계획한 일 ${n}건을 기한 안에 끝냈습니다`, rule: '최근 30일, 처음 계획한 마감 이전 완료 3건 이상', action: { label: '칭찬 메모 남기기', memo: u } });
+
+
+  // ---------------- 조직·전사 ----------------
+  const org = raw.orgNotes ?? [];
+  const dDay = (d: string) => Math.round((Date.parse(d) - Date.parse(today)) / 86400000);
+  for (const n of org.filter((x) => x.event_date && (x.kind === 'calendar' || x.kind === 'request'))) {
+    const dd = dDay(n.event_date!);
+    if (n.kind === 'request' && dd < 0) S.push({ id: `org-req-late-${n.id}`, domain: 'org', type: 'missed', severity: 2, periods: DW,
+      title: `상위 요청 '${n.title}' 기한이 ${-dd}일 지났습니다`, rule: '상위 요청 메모의 기한 경과, 완료 표시 없음', action: { label: '조직·전사 보기', to: '#org' } });
+    else if (n.kind === 'request' && dd <= 7) S.push({ id: `org-req-soon-${n.id}`, domain: 'org', type: 'forecast', severity: dd <= 2 ? 3 : 2, periods: dd <= 3 ? DW : W,
+      title: `상위 요청 '${n.title}' 마감 D-${dd}`, rule: '상위 요청 메모의 기한 7일 이내', action: { label: '조직·전사 보기', to: '#org' } });
+    else if (n.kind === 'calendar' && dd >= 0 && dd <= 14) S.push({ id: `org-cal-${n.id}`, domain: 'org', type: 'forecast', severity: dd <= 7 ? 2 : 1, periods: dd <= 7 ? DW : WM,
+      title: `전사 일정 '${n.title}' D-${dd}`, rule: '전사 일정 메모 14일 이내', action: { label: '조직·전사 보기', to: '#org' } });
+  }
+  const analyzed = new Set(raw.orgImpacts ?? []);
+  const unread = org.filter((n) => ['strategy', 'exec', 'request', 'peer'].includes(n.kind) && daysSince(n.created_at) <= 14 && !analyzed.has(n.id));
+  if (unread.length) S.push({ id: `org-unread-${unread.length}-${unread[0].id.slice(0, 6)}`, domain: 'org', type: 'missed', severity: 1, periods: WM,
+    title: `우리 팀 영향을 아직 확인하지 않은 위의 소식 ${unread.length}건`, detail: unread.slice(0, 3).map((n) => n.title).join(' · '),
+    rule: '최근 14일 상위 소식 메모 중 영향 분석 없음', action: { label: '영향 보기', to: '#org' } });
+  const decDue = (raw.decisionsDue ?? []).filter((d) => (d.review_on ? d.review_on <= today : daysSince(d.decided_at) >= 30));
+  if (decDue.length) S.push({ id: `decide-review-${decDue.length}`, domain: 'goal', type: 'missed', severity: 1, periods: WM,
+    title: `결과를 돌아볼 시점이 지난 결정 ${decDue.length}건`, detail: decDue.slice(0, 3).map((d) => d.title).join(' · '),
+    rule: '회고일이 지났거나 결정 후 30일이 지났는데 결과 기록 없음', action: { label: '결과 기록하기', to: '/strategy' } });
 
   // ---------------- AI 인사이트 수준 ----------------
   const lv = raw.level;
