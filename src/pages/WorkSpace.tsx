@@ -80,7 +80,7 @@ function Outputs({ teamId, uid }: { teamId: string; uid: string }) {
         </div>
       </div>
       {subs.isLoading ? <Spinner /> : !rows.length ? <p className="px-4 py-5 text-sm text-slate-400">{f === 'open' ? '열린 업무가 없습니다.' : '올린 결과물이 없습니다.'}</p>
-        : <><ListHead />{rows.map((s, i) => <Row key={s.id} s={s} byId={byId} no={i + 1} closable />)}</>}
+        : <><ListHead />{rows.map((s, i) => <Row key={s.id} s={s} byId={byId} no={i + 1} />)}</>}
     </Card>
   );
 }

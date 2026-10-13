@@ -50,7 +50,7 @@ export default function Reviews() {
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', f === id ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300')}>
               {label} <span className="num">{count(id)}</span></button>
           ))}
-        </div> : <span className="text-sm text-slate-500">팀원별로 올라온 업무 — 최신이 위, '완료'하면 카드에서 빠지고 개인 업무 스페이스에는 남습니다</span>}
+        </div> : <span className="text-sm text-slate-500">팀원별로 올라온 업무 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 개인 업무 스페이스에는 남습니다</span>}
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5">
           {([['people', '사람별', Users], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
             <button key={id} onClick={() => set('view', id === 'people' ? null : id)} className={cx('text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1', view === id ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><I size={13} />{label}</button>
@@ -71,9 +71,7 @@ export default function Reviews() {
 // 사람별 박스 — 2단 카드, 누르면 그 사람의 업무 스페이스
 // ---------------------------------------------------------------------
 function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId: Map<string, Node> }) {
-  const { team, uid } = useTeam();
   const members = useTeamMembersOnly();
-  const close = useCloseSubmission(team.id);
   const openOf = (u: string) => rows.filter((s) => s.author_id === u && isOpenSub(s)).sort((a, b) => latestAt(b).localeCompare(latestAt(a)));
   const lastAt = (u: string) => openOf(u)[0] ? latestAt(openOf(u)[0]) : '';
   const sorted = [...members].sort((a, b) => lastAt(b.user_id).localeCompare(lastAt(a.user_id)));
@@ -86,7 +84,7 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
         const name = mb.profiles?.full_name ?? '팀원';
         return (
           <section key={mb.user_id} className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
-            <Link to={`/work/u/${mb.user_id}`} className="px-5 py-3.5 flex items-center gap-3 border-b border-slate-100 group hover:bg-slate-50/70">
+            <Link to={`/work/u/${mb.user_id}`} className="px-5 py-3.5 flex items-center gap-3 border-b border-indigo-100/70 group bg-gradient-to-r from-indigo-50/80 via-sky-50/50 to-white hover:from-indigo-100/70">
               <Avatar name={name} size={9} />
               <span className="min-w-0"><span className="block font-semibold truncate group-hover:text-indigo-700">{name}</span><span className="block text-xs text-slate-500 truncate">{mb.job_title || '직무 미입력'}</span></span>
               <span className={cx('ml-auto text-[11px] font-semibold rounded-full px-2 py-0.5', list.length ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-400')}>열린 업무 {list.length}</span>
@@ -94,10 +92,11 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
             </Link>
             {!list.length ? <p className="px-5 py-5 text-sm text-slate-400">처리할 업무가 없습니다.</p> : (
               <ul className="divide-y divide-slate-100">
-                {list.map((s) => {
+                {list.map((s, i) => {
                   const rq = REQ_TAG[s.request_type] ?? REQ_TAG.approval;
                   return (
-                    <li key={s.id} className="flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50/70">
+                    <li key={s.id} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/70">
+                      <span className="shrink-0 w-6 h-6 rounded-md bg-slate-100 text-slate-500 text-[11px] font-bold num flex items-center justify-center">{i + 1}</span>
                       <Link to={`/work/${s.id}`} className="min-w-0 flex-1 flex items-center gap-2">
                         <span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>
                         <span className="shrink-0 text-[10px] rounded px-1.5 py-0.5 ring-1 ring-slate-200 text-slate-500">{KIND_TAG[s.kind] ?? '문서'}</span>
@@ -105,9 +104,7 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
                         <span className="truncate text-sm">{s.title}</span>
                         {s.latest && s.latest.version > 1 && <span className="shrink-0 font-mono text-[10px] text-indigo-600">v{s.latest.version}</span>}
                       </Link>
-                      <span className="shrink-0 text-[11px] text-slate-400 num w-14 text-right">{relDay(latestAt(s))}</span>
-                      <button onClick={() => close.mutate({ id: s.id, close: true, uid })} title="완료 — 카드에서 빼기 (개인 업무 스페이스에는 남음)"
-                        className="shrink-0 text-[11px] font-semibold rounded-lg px-2 py-1 ring-1 ring-slate-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:ring-emerald-200 inline-flex items-center gap-0.5"><Check size={12} />완료</button>
+                      <span className="shrink-0 text-[11px] text-slate-400 num w-12 text-right">{relDay(latestAt(s))}</span>
                     </li>
                   );
                 })}

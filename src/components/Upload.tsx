@@ -8,10 +8,10 @@ import type { AiOutput, RequestType, ShareKind, Submission, SubmissionVersion, W
 import { cx } from '../lib/format';
 import { Button, ErrorBox, Field, Modal, inputCls, useToast } from './ui';
 
-const FILE_ACCEPT = '.docx,.pdf,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,image/*,application/pdf';
-const IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
+export const FILE_ACCEPT = '.docx,.pdf,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,image/*,application/pdf';
+export const IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
 
-async function readFile(file: File): Promise<{ text: string; mime: string; kind: ShareKind }> {
+export async function readFile(file: File): Promise<{ text: string; mime: string; kind: ShareKind }> {
   if (IMAGE.test(file.type)) return { text: '', mime: file.type, kind: 'image' };
   const n = file.name.toLowerCase();
   if (n.endsWith('.xlsx')) return { text: '', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', kind: 'document' };

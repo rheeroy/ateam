@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+// 업무 상세 — 버전 탭 대신 스크롤 피드: 올린 것(v1, v2…) 사이사이에 댓글, 누르면 오른쪽에 스레드
+//   팀원은 맨 아래에서 바로 새 버전을 올리고(액자식), 모두 댓글로 주고받는다. 팀장은 오른쪽에서 AI 1차 검토를 본다.
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, CheckCircle2, ExternalLink, FileUp, Lock, RotateCcw, Send, Sparkles, Unlock, XCircle } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, X, XCircle } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { supabase, q, errorText } from '../lib/supabase';
+import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import type { ReviewComment, Submission, SubmissionVersion } from '../lib/types';
 import { cx, fmtDate, fmtShort, num } from '../lib/format';
-import { Avatar, Button, Card, Empty, PageHeader, Pill, Spinner, inputCls, useToast } from '../components/ui';
+import { safeName } from '../lib/extract';
+import { KIND_TAG, REQ_TAG, useCloseSubmission } from '../lib/work';
+import { Avatar, Button, Empty, Pill, Spinner, inputCls, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
-import { UploadModal } from '../components/Upload';
+import { FILE_ACCEPT, IMAGE, readFile } from '../components/Upload';
 import { STATUS } from './MySubmissions';
 
 interface Review {
@@ -18,6 +22,7 @@ interface Review {
   questions: string[]; change_from_previous?: string; trend_note?: string;
   criteria_check?: { criterion: string; met: boolean; note: string; tag?: string }[];
 }
+type Panel = { kind: 'ai'; versionId: string } | { kind: 'thread'; commentId: string } | null;
 
 function AiReview({ teamId, version, onToComments }: { teamId: string; version: SubmissionVersion; onToComments: (qs: string[]) => void }) {
   const rv = useLatestAi<Review>(teamId, 'review', { ref_table: 'submission_versions', ref_id: version.id });
@@ -98,7 +103,7 @@ function AiReview({ teamId, version, onToComments }: { teamId: string; version: 
               </span></div>
           </div>
           {!!r.content.questions?.length && (
-            <Button variant="soft" className="mt-3 w-full" onClick={() => onToComments(r.content.questions)}>질문을 코멘트로 옮기기</Button>
+            <Button variant="soft" className="mt-3 w-full" onClick={() => onToComments(r.content.questions)}>질문을 댓글로 남기기</Button>
           )}
         </>
       )}
@@ -106,179 +111,298 @@ function AiReview({ teamId, version, onToComments }: { teamId: string; version: 
   );
 }
 
-function Comments({ sub, versions, current }: { sub: Submission; versions: SubmissionVersion[]; current: SubmissionVersion }) {
-  const { uid, nameOf, team } = useTeam();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [body, setBody] = useState('');
-  const [section, setSection] = useState('');
-  const [replyTo, setReplyTo] = useState<string | null>(null);
-  const list = useQuery({
-    queryKey: ['comments', sub.id],
-    queryFn: () => q<ReviewComment[]>(supabase.from('review_comments').select('*').eq('submission_id', sub.id).order('created_at')),
-  });
-  const add = useMutation({
-    mutationFn: (p: { body: string; section?: string; parent?: string | null }) => q(supabase.from('review_comments').insert({
-      submission_id: sub.id, version_id: current.id, team_id: team.id, author_id: uid,
-      body: p.body, section_ref: p.section || null, parent_id: p.parent ?? null,
-    })),
-    onSuccess: () => { setBody(''); setSection(''); setReplyTo(null); qc.invalidateQueries({ queryKey: ['comments', sub.id] }); },
-    onError: (e) => toast(errorText(e)),
-  });
-  const roots = (list.data ?? []).filter((c) => !c.parent_id);
-  const vnum = (id: string | null) => versions.find((v) => v.id === id)?.version;
+
+function useSignedUrl(path: string | null) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => { setUrl(null); if (path) supabase.storage.from('submissions').createSignedUrl(path, 600).then(({ data }) => setUrl(data?.signedUrl ?? null)); }, [path]);
+  return url;
+}
+
+/** 올린 것 한 건(버전)의 본문 — 길면 접어 둔다 */
+function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionVersion; older?: boolean }) {
+  const url = useSignedUrl(v.file_path);
+  const [open, setOpen] = useState(false);
+  const long = (v.extracted_text ?? '').length > (older ? 160 : 600);
   return (
-    <Card>
-      <div className="px-5 py-4 border-b border-slate-100 font-semibold">코멘트 <span className="text-slate-400 font-normal text-sm">{list.data?.length ?? 0}</span></div>
-      <div className="divide-y divide-slate-100 text-sm max-h-[560px] overflow-y-auto">
-        {!roots.length && <p className="px-5 py-5 text-slate-500">첫 코멘트를 남겨 보세요. 섹션을 지정하면 어느 부분 얘기인지 분명해집니다.</p>}
-        {roots.map((c) => (
-          <div key={c.id}>
-            <div className="px-5 py-4 flex gap-3">
-              <Avatar name={nameOf(c.author_id)} tone={c.author_id === sub.author_id ? 'slate' : 'indigo'} />
-              <div className="flex-1 min-w-0">
-                <div><b>{nameOf(c.author_id)}</b> <span className="text-xs text-slate-400 ml-1">{fmtShort(c.created_at)} · v{vnum(c.version_id)}</span></div>
-                {c.section_ref && <span className="inline-block mt-1 text-[11px] text-indigo-700 border border-indigo-200 rounded px-1.5">{c.section_ref}</span>}
-                <p className="mt-1 text-slate-700 whitespace-pre-wrap">{c.body}</p>
-                <button className="mt-1 text-xs text-slate-400 hover:text-indigo-600" onClick={() => setReplyTo(c.id)}>답글</button>
-              </div>
-            </div>
-            {(list.data ?? []).filter((r) => r.parent_id === c.id).map((r) => (
-              <div key={r.id} className="px-5 py-3 pl-14 bg-slate-50/60 flex gap-3">
-                <Avatar name={nameOf(r.author_id)} tone={r.author_id === sub.author_id ? 'slate' : 'indigo'} size={7} />
-                <div><div><b>{nameOf(r.author_id)}</b> <span className="text-xs text-slate-400 ml-1">{fmtShort(r.created_at)}</span></div><p className="mt-1 text-slate-700 whitespace-pre-wrap">{r.body}</p></div>
-              </div>
-            ))}
-            {replyTo === c.id && (
-              <form className="px-5 py-3 pl-14 bg-slate-50/60 flex gap-2" onSubmit={(e) => { e.preventDefault(); const t = (e.currentTarget.elements.namedItem('reply') as HTMLInputElement).value; if (t.trim()) add.mutate({ body: t, parent: c.id }); }}>
-                <input name="reply" autoFocus className={inputCls} placeholder="답글" />
-                <Button type="submit" size="sm">보내기</Button>
-              </form>
-            )}
-          </div>
-        ))}
-      </div>
-      <form className="p-4 border-t border-slate-100 space-y-2" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate({ body, section }); }}>
-        <div className="flex gap-2">
-          <input aria-label="섹션" className={cx(inputCls, 'w-36')} value={section} onChange={(e) => setSection(e.target.value)} placeholder="섹션 (예: §2)" />
-          <span className="text-xs text-slate-400 self-center">v{current.version}에 남깁니다</span>
+    <div className="mt-3">
+      {url && v.file_name && <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm rounded-lg ring-1 ring-slate-200 px-2.5 py-1.5 hover:bg-slate-50"><Paperclip size={13} className="text-slate-400" />{v.file_name}<ExternalLink size={12} className="text-slate-400" /></a>}
+      {v.mime_type === 'application/pdf' && url && <iframe title="PDF" src={url} className="mt-3 w-full h-[520px] rounded-lg border border-slate-200" />}
+      {url && v.mime_type && IMAGE.test(v.mime_type) && <img src={url} alt={sub.title} className="mt-3 max-h-[480px] rounded-lg border border-slate-200" />}
+      {v.version === 1 && sub.link_url && <a href={sub.link_url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-indigo-700 font-semibold break-all hover:underline">{sub.link_url} ↗</a>}
+      {v.value != null && <div className="mt-2 text-3xl font-bold num">{v.value}</div>}
+      {!!v.extracted_text && (
+        <div className="relative mt-2">
+          <div className={cx('text-[15px] leading-7 text-slate-800 whitespace-pre-wrap', !open && long && (older ? 'max-h-20 overflow-hidden' : 'max-h-60 overflow-hidden'))}>{v.extracted_text}</div>
+          {long && !open && <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />}
+          {long && <button onClick={() => setOpen((x) => !x)} className="relative mt-1 text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5">{open ? '접기' : '전체 보기'}<ChevronDown size={12} className={open ? 'rotate-180' : ''} /></button>}
         </div>
-        <div className="flex gap-2">
-          <textarea aria-label="코멘트" rows={2} className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="코멘트 남기기" />
-          <Button type="submit" className="self-end" loading={add.isPending} title="보내기"><Send size={15} /></Button>
-        </div>
-      </form>
-    </Card>
+      )}
+    </div>
   );
 }
 
 export default function ReviewDetail() {
   const { id } = useParams();
-  const { isLeader, nameOf, uid } = useTeam();
+  const { isLeader, nameOf, uid, team } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
-  const [verId, setVerId] = useState<string | null>(null);
-  const [upload, setUpload] = useState(false);
-
   const subQ = useQuery({ queryKey: ['sub', id], queryFn: () => q<Submission>(supabase.from('submissions').select('*').eq('id', id!).single()) });
   const versQ = useQuery({ queryKey: ['sub', id, 'versions'], queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id!).order('version')) });
-  const scores = useQuery({
-    queryKey: ['sub', id, 'scores'], enabled: isLeader,
-    queryFn: () => q<{ version_id: string; score: number }[]>(supabase.from('judgment_scores').select('version_id, score').eq('submission_id', id!)),
-  });
+  const comQ = useQuery({ queryKey: ['comments', id], queryFn: () => q<ReviewComment[]>(supabase.from('review_comments').select('*').eq('submission_id', id!).order('created_at')) });
   const versions = versQ.data ?? [];
-  const current = useMemo(() => versions.find((v) => v.id === verId) ?? versions[versions.length - 1], [versions, verId]);
-  useEffect(() => { setVerId(null); }, [id]);
-
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
-  useEffect(() => {
-    setFileUrl(null);
-    if (current?.file_path) supabase.storage.from('submissions').createSignedUrl(current.file_path, 600).then(({ data }) => setFileUrl(data?.signedUrl ?? null));
-  }, [current?.file_path]);
-
+  const vIds = versions.map((v) => v.id);
+  const aiQ = useQuery({
+    queryKey: ['ai', team.id, 'review', 'by-sub', id, vIds.length], enabled: isLeader && vIds.length > 0,
+    queryFn: () => q<{ ref_id: string; content: Review }[]>(supabase.from('ai_outputs').select('ref_id, content').eq('team_id', team.id).eq('kind', 'review').eq('ref_table', 'submission_versions').in('ref_id', vIds).order('created_at', { ascending: false })),
+  });
+  const aiOf = (vid: string) => aiQ.data?.find((a) => a.ref_id === vid)?.content;
+  const latest = versions[versions.length - 1];
+  const [panel, setPanel] = useState<Panel>(null);
+  const [target, setTarget] = useState<string | null>(null);
+  const composer = useRef<HTMLDivElement>(null);
+  const close = useCloseSubmission(team.id);
   const setStatus = useMutation({
     mutationFn: (status: 'approved' | 'needs_work') => q(supabase.from('submissions').update({ status }).eq('id', id!)),
     onSuccess: (_d, s) => { toast(s === 'approved' ? '승인했습니다. 근거로 쌓입니다.' : '보완을 요청했습니다.'); qc.invalidateQueries({ queryKey: ['sub', id] }); qc.invalidateQueries({ queryKey: ['subs'] }); qc.invalidateQueries({ queryKey: ['review-queue'] }); },
     onError: (e) => toast(errorText(e)),
   });
   const toComments = useMutation({
-    mutationFn: (qs: string[]) => q(supabase.from('review_comments').insert(qs.map((body) => ({ submission_id: id, version_id: current!.id, team_id: subQ.data!.team_id, author_id: uid, body })))),
-    onSuccess: () => { toast('질문을 코멘트로 옮겼습니다'); qc.invalidateQueries({ queryKey: ['comments', id] }); },
+    mutationFn: (qs: string[]) => q(supabase.from('review_comments').insert(qs.map((body) => ({ submission_id: id, version_id: latest!.id, team_id: team.id, author_id: uid, body })))),
+    onSuccess: () => { toast('질문을 댓글로 옮겼습니다'); qc.invalidateQueries({ queryKey: ['comments', id] }); },
     onError: (e) => toast(errorText(e)),
   });
+  useEffect(() => { setPanel(null); setTarget(null); }, [id]);
 
   if (subQ.isLoading || versQ.isLoading) return <Spinner />;
   const sub = subQ.data;
-  if (!sub || !current) return <Empty title="결과물을 찾을 수 없습니다" />;
+  if (!sub || !latest) return <Empty title="업무를 찾을 수 없습니다" />;
   const isAuthor = sub.author_id === uid;
+  const all = comQ.data ?? [];
+  const roots = all.filter((c) => !c.parent_id);
+  const rootsOf = (v: SubmissionVersion) => roots.filter((c) => (c.version_id ?? latest.id) === v.id);
+  const cur: Panel = panel ?? (isLeader && !isAuthor ? { kind: 'ai', versionId: latest.id } : null);
+  const rq = REQ_TAG[sub.request_type] ?? REQ_TAG.approval;
 
   return (
     <section>
-      <PageHeader
-        back={<Link to={isLeader ? '/work' : '/my/submissions'} className="text-sm text-slate-500 hover:text-slate-800">← 목록으로</Link>}
-        title={sub.title}
-        sub={<>{nameOf(sub.author_id)} · {fmtDate(current.created_at)} 제출 · <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill></>}
-        right={<>
-          <div className="flex gap-1.5 font-mono text-xs">
-            {versions.map((v) => (
-              <button key={v.id} onClick={() => setVerId(v.id)}
-                className={cx('border rounded-lg px-2.5 py-1.5', v.id === current.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500 bg-white')}>
-                v{v.version}{v.id === versions[versions.length - 1].id ? ' · 최신' : ''}
-              </button>
-            ))}
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <Link to={isLeader ? (isAuthor ? '/work' : `/work/u/${sub.author_id}`) : '/my/submissions'} className="text-sm text-slate-500 hover:text-indigo-700">← {isLeader && !isAuthor ? `${nameOf(sub.author_id)} 업무 스페이스` : '목록으로'}</Link>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight flex items-center gap-2 flex-wrap">
+            <span className={cx('text-[11px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>{sub.title}</h1>
+          <p className="mt-1 text-sm text-slate-500 flex items-center gap-2 flex-wrap">{nameOf(sub.author_id)} · 처음 올림 {fmtDate(sub.created_at)} · {KIND_TAG[sub.kind] ?? '문서'} · 버전 {versions.length}개
+            {sub.closed_at ? <span className="text-[11px] font-semibold rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5">완료함</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}</p>
+        </div>
+        {isLeader && !isAuthor && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {sub.request_type !== 'share' && <>
+              <Button variant="secondary" loading={setStatus.isPending && setStatus.variables === 'needs_work'} onClick={() => setStatus.mutate('needs_work')}><RotateCcw size={14} />보완 요청</Button>
+              <Button loading={setStatus.isPending && setStatus.variables === 'approved'} onClick={() => setStatus.mutate('approved')}><CheckCircle2 size={15} />이대로 좋음</Button>
+            </>}
+            {sub.closed_at
+              ? <Button variant="ghost" onClick={() => close.mutate({ id: sub.id, close: false, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Undo2 size={14} />다시 열기</Button>
+              : <Button variant="secondary" onClick={() => close.mutate({ id: sub.id, close: true, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Check size={14} />완료</Button>}
           </div>
-          {isAuthor && <Button variant="secondary" onClick={() => setUpload(true)}><FileUp size={15} />새 버전</Button>}
-          {isLeader && !isAuthor && <>
-            <Button variant="secondary" loading={setStatus.isPending && setStatus.variables === 'needs_work'} onClick={() => setStatus.mutate('needs_work')}><RotateCcw size={14} />보완 요청</Button>
-            <Button loading={setStatus.isPending && setStatus.variables === 'approved'} onClick={() => setStatus.mutate('approved')}><CheckCircle2 size={15} />이대로 좋음</Button>
-          </>}
-        </>}
-      />
-
-      <div className="grid lg:grid-cols-5 gap-5 items-start">
-        <div className="lg:col-span-3 space-y-5">
-          <Card className="p-6 md:p-8">
-            <div className="flex items-start justify-between gap-3">
-              <div className="text-lg font-bold">{sub.title} <span className="font-mono text-sm text-slate-400">v{current.version}</span></div>
-              {fileUrl && <a href={fileUrl} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 inline-flex items-center gap-1 shrink-0">{current.file_name ?? '원본'} <ExternalLink size={13} /></a>}
-            </div>
-            {current.note && <p className="mt-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2"><b>이번 버전</b> · {current.note}</p>}
-            {current.mime_type === 'application/pdf' ? (
-              fileUrl ? <iframe title="PDF" src={fileUrl} className="mt-5 w-full h-[640px] rounded-lg border border-slate-200" /> : <Spinner />
-            ) : (<>
-              {sub.link_url && <a href={sub.link_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-sm text-indigo-700 font-semibold break-all hover:underline">{sub.link_url} ↗</a>}
-              {current.value != null && <div className="mt-4 text-3xl font-bold num">{current.value}</div>}
-              {fileUrl && current.mime_type?.startsWith('image/') && <img src={fileUrl} alt={sub.title} className="mt-4 max-h-[560px] rounded-lg border border-slate-200" />}
-              {(current.extracted_text || (!sub.link_url && current.value == null && !current.mime_type?.startsWith('image/'))) && (
-                <div className="mt-5 text-[15px] leading-7 text-slate-800 whitespace-pre-wrap max-h-[640px] overflow-y-auto">{current.extracted_text || '(본문 없음 — 첨부 파일을 열어 보세요)'}</div>
-              )}
-            </>)}
-          </Card>
-          {versions.length > 1 && (
-            <Card className="p-5">
-              <div className="font-semibold">버전 흐름</div>
-              <ol className="mt-4 relative border-l border-slate-200 ml-2 space-y-4">
-                {versions.map((v) => {
-                  const sc = scores.data?.find((s) => s.version_id === v.id)?.score;
-                  return (
-                    <li key={v.id} className="ml-4">
-                      <span className="absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                      <div className="text-sm"><b className="font-mono">v{v.version}</b> <span className="text-slate-400 text-xs ml-1">{fmtDate(v.created_at)}</span>
-                        {isLeader && sc !== undefined && <span className="ml-2 text-xs text-slate-500">사고의 깊이 <b className="font-mono">{num(sc)}</b></span>}</div>
-                      {v.note && <p className="text-sm text-slate-600">{v.note}</p>}
-                    </li>
-                  );
-                })}
-              </ol>
-            </Card>
-          )}
-        </div>
-        <div className="lg:col-span-2 space-y-5">
-          {isLeader && <AiReview teamId={sub.team_id} version={current} onToComments={(qs) => toComments.mutate(qs)} />}
-          <Comments sub={sub} versions={versions} current={current} />
-        </div>
+        )}
       </div>
-      <UploadModal open={upload} onClose={() => setUpload(false)} submission={sub} onDone={() => setVerId(null)} />
+
+      <div className="mt-5 grid lg:grid-cols-5 gap-5 items-start">
+        {/* 피드 */}
+        <div className="lg:col-span-3">
+          <ol className="relative space-y-4 before:absolute before:left-[19px] before:top-4 before:bottom-4 before:w-px before:bg-slate-200">
+            {versions.map((v) => {
+              const r = isLeader ? aiOf(v.id) : undefined;
+              const cs = rootsOf(v);
+              return (
+                <li key={v.id} className="relative pl-12">
+                  <span className="absolute left-0 top-3"><Avatar name={nameOf(v.created_by)} size={9} /></span>
+                  <article className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                    <div className="px-5 pt-4">
+                      <div className="flex items-center gap-2 text-sm flex-wrap">
+                        <b>{nameOf(v.created_by)}</b>
+                        <span className="font-mono text-[11px] font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{v.version}</span>
+                        <span className="text-slate-400 text-xs">{v.version === 1 ? '올림' : '새 버전'} · {fmtDate(v.created_at)}</span>
+                        {v.id === latest.id && versions.length > 1 && <span className="text-[10px] font-semibold text-indigo-700">최신</span>}
+                        {r && (
+                          <button onClick={() => setPanel({ kind: 'ai', versionId: v.id })} className={cx('ml-auto text-[11px] font-semibold rounded-full px-2 py-0.5 inline-flex items-center gap-1 ring-1',
+                            cur?.kind === 'ai' && cur.versionId === v.id ? 'bg-violet-600 text-white ring-violet-600' : 'bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100')}>
+                            <Sparkles size={11} />AI {num(r.depth_score)}/4 · 1차 검토</button>
+                        )}
+                      </div>
+                      {v.note && <p className="mt-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{v.note}</p>}
+                      <VersionBody sub={sub} v={v} older={v.id !== latest.id} />
+                    </div>
+                    {/* 이 버전에 달린 댓글 */}
+                    <div className="mt-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+                      {cs.map((c) => {
+                        const reps = all.filter((x) => x.parent_id === c.id);
+                        const on = cur?.kind === 'thread' && cur.commentId === c.id;
+                        return (
+                          <button key={c.id} onClick={() => setPanel({ kind: 'thread', commentId: c.id })}
+                            className={cx('w-full text-left px-5 py-2.5 flex gap-2.5 border-b border-slate-100 last:border-b-0 hover:bg-white', on && 'bg-white ring-1 ring-inset ring-violet-300')}>
+                            <Avatar name={nameOf(c.author_id)} tone={c.author_id === sub.author_id ? 'slate' : 'indigo'} size={7} />
+                            <span className="min-w-0 flex-1">
+                              <span className="text-xs"><b>{nameOf(c.author_id)}</b> <span className="text-slate-400">{fmtShort(c.created_at)}</span>
+                                {c.section_ref && <span className="ml-1.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}</span>
+                              <span className="block text-sm text-slate-700 line-clamp-2 whitespace-pre-wrap">{c.body}</span>
+                              {!!reps.length && <span className="mt-0.5 text-[11px] font-semibold text-indigo-700 inline-flex items-center gap-1"><MessageSquare size={11} />답글 {reps.length} · {nameOf(reps[reps.length - 1].author_id)}</span>}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <button onClick={() => { setTarget(v.id); composer.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                        className="w-full text-left px-5 py-2.5 text-xs text-slate-400 hover:text-indigo-700 inline-flex items-center gap-1"><MessageSquare size={12} />v{v.version}에 댓글 달기</button>
+                    </div>
+                  </article>
+                </li>
+              );
+            })}
+            {/* 맨 아래: 댓글 / 새 버전 올리기 */}
+            <li className="relative pl-12" ref={composer as never}>
+              <span className="absolute left-0 top-3"><Avatar name={nameOf(uid)} tone="indigo" size={9} /></span>
+              <Composer sub={sub} versions={versions} target={target ?? latest.id} setTarget={setTarget} canUpload={isAuthor} />
+            </li>
+          </ol>
+        </div>
+
+        {/* 오른쪽: 스레드 / AI 1차 검토 */}
+        <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-4">
+          {cur?.kind === 'thread' ? <Thread sub={sub} versions={versions} comments={all} rootId={cur.commentId} onClose={() => setPanel(null)} />
+            : cur?.kind === 'ai' ? <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === cur.versionId) ?? latest} onToComments={(qs) => toComments.mutate(qs)} />
+            : (
+              <div className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] p-5 text-sm text-slate-500">
+                <div className="font-semibold text-slate-800 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />대화 보기</div>
+                <p className="mt-1.5">왼쪽 댓글을 누르면 여기에 그 대화가 열리고 바로 답글을 달 수 있습니다.{isAuthor && ' 고친 자료는 맨 아래에서 바로 새 버전으로 올리세요 — 이전 버전과 대화가 위에 그대로 남습니다.'}</p>
+              </div>
+            )}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+/** 맨 아래 입력: 댓글, 또는(올린 사람이면) 새 버전 바로 올리기 */
+function Composer({ sub, versions, target, setTarget, canUpload }: { sub: Submission; versions: SubmissionVersion[]; target: string; setTarget: (v: string) => void; canUpload: boolean }) {
+  const { uid, team, hasFeature } = useTeam();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [mode, setMode] = useState<'comment' | 'version'>('comment');
+  const [body, setBody] = useState('');
+  const [section, setSection] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState('');
+  const [text, setText] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const tv = versions.find((v) => v.id === target) ?? versions[versions.length - 1];
+  const add = useMutation({
+    mutationFn: () => q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: tv.id, team_id: team.id, author_id: uid, body, section_ref: section || null })),
+    onSuccess: () => { setBody(''); setSection(''); qc.invalidateQueries({ queryKey: ['comments', sub.id] }); qc.invalidateQueries({ queryKey: ['talk'] }); },
+    onError: (e) => toast(errorText(e)),
+  });
+  const up = useMutation({
+    mutationFn: async () => {
+      if (!file && !text.trim()) throw new Error('파일을 첨부하거나 내용을 써 주세요');
+      let read = { text, mime: 'text/plain' };
+      if (file) read = await readFile(file);
+      const version = Math.max(0, ...versions.map((v) => v.version)) + 1;
+      let path: string | null = null;
+      if (file) {
+        path = `${team.id}/${sub.id}/${version}-${safeName(file.name)}`;
+        const { error } = await supabase.storage.from('submissions').upload(path, file, { contentType: read.mime || file.type, upsert: false });
+        if (error) throw error;
+      }
+      return q<SubmissionVersion>(supabase.from('submission_versions').insert({
+        submission_id: sub.id, team_id: team.id, version, file_path: path, file_name: file?.name ?? null,
+        mime_type: file ? read.mime : 'text/plain', extracted_text: read.text || text, note, created_by: uid,
+      }).select().single());
+    },
+    onSuccess: (ver) => {
+      const reviewable = sub.request_type !== 'share' && sub.kind !== 'number' && sub.kind !== 'note' && hasFeature('ai_core');
+      toast(`v${ver.version}을 올렸습니다.${reviewable ? ' AI가 1차 검토를 시작합니다.' : ''}`);
+      setFile(null); setNote(''); setText(''); setMode('comment');
+      ['subs', 'sub', 'review-queue', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      if (reviewable) invoke('ai-review-submission', { version_id: ver.id }).then(() => qc.invalidateQueries({ queryKey: ['ai'] })).catch(() => {});
+    },
+    onError: (e) => toast(errorText(e)),
+  });
+  return (
+    <div className="rounded-2xl bg-white ring-1 ring-indigo-200 shadow-sm">
+      {canUpload && (
+        <div className="px-4 pt-3 flex gap-1 text-xs">
+          {([['comment', '댓글', MessageSquare], ['version', '새 버전 올리기', FileUp]] as const).map(([k, l, I]) => (
+            <button key={k} onClick={() => setMode(k)} className={cx('px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1', mode === k ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:bg-slate-50')}><I size={13} />{l}</button>
+          ))}
+        </div>
+      )}
+      {mode === 'comment' ? (
+        <form className="p-4 space-y-2" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate(); }}>
+          <textarea aria-label="댓글" rows={2} className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="댓글을 남기세요 — 질문, 의견, 확인 부탁" />
+          <div className="flex items-center gap-2">
+            <select aria-label="버전" value={tv.id} onChange={(e) => setTarget(e.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+              {versions.map((v) => <option key={v.id} value={v.id}>v{v.version}에 남기기</option>)}
+            </select>
+            <input aria-label="섹션" className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-28" value={section} onChange={(e) => setSection(e.target.value)} placeholder="섹션 (선택)" />
+            <Button type="submit" size="sm" className="ml-auto" loading={add.isPending}><Send size={13} />보내기</Button>
+          </div>
+        </form>
+      ) : (
+        <form className="p-4 space-y-2.5" onSubmit={(e) => { e.preventDefault(); up.mutate(); }}>
+          <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <button type="button" onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}
+            className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-indigo-300 px-4 py-4 text-sm text-slate-500 text-center">
+            {file ? <span className="inline-flex items-center gap-1.5 text-slate-800 font-medium"><Paperclip size={14} />{file.name} <span className="text-xs text-slate-400">(바꾸려면 누르기)</span></span>
+              : <span className="inline-flex items-center gap-1.5"><FileUp size={15} />파일을 끌어 놓거나 눌러서 첨부 · 문서·PDF·PPT·캡처</span>}
+          </button>
+          <textarea rows={2} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="또는 본문을 바로 쓰기" />
+          <div className="flex items-center gap-2">
+            <input className={cx(inputCls, 'flex-1')} value={note} onChange={(e) => setNote(e.target.value)} placeholder="이번에 바꾼 점 (예: 피드백 반영해 §2 수정)" />
+            <Button type="submit" loading={up.isPending}><FileUp size={14} />v{Math.max(0, ...versions.map((v) => v.version)) + 1} 올리기</Button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/** 오른쪽 스레드: 댓글 하나와 답글 */
+function Thread({ sub, versions, comments, rootId, onClose }: { sub: Submission; versions: SubmissionVersion[]; comments: ReviewComment[]; rootId: string; onClose: () => void }) {
+  const { uid, team, nameOf } = useTeam();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [body, setBody] = useState('');
+  const root = comments.find((c) => c.id === rootId);
+  const reps = comments.filter((c) => c.parent_id === rootId);
+  const add = useMutation({
+    mutationFn: () => q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: root?.version_id ?? null, team_id: team.id, author_id: uid, body, parent_id: rootId })),
+    onSuccess: () => { setBody(''); qc.invalidateQueries({ queryKey: ['comments', sub.id] }); },
+    onError: (e) => toast(errorText(e)),
+  });
+  if (!root) return null;
+  const vnum = versions.find((v) => v.id === root.version_id)?.version;
+  const Msg = ({ c }: { c: ReviewComment }) => (
+    <div className="flex gap-2.5">
+      <Avatar name={nameOf(c.author_id)} tone={c.author_id === sub.author_id ? 'slate' : 'indigo'} size={8} />
+      <div className="min-w-0 flex-1">
+        <div className="text-xs"><b className="text-sm">{nameOf(c.author_id)}</b> <span className="text-slate-400 ml-1">{fmtDate(c.created_at)}</span></div>
+        {c.section_ref && <span className="inline-block mt-0.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}
+        <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{c.body}</p>
+      </div>
+    </div>
+  );
+  return (
+    <section className="rounded-2xl bg-white ring-1 ring-violet-200 shadow-sm flex flex-col max-h-[calc(100vh-6rem)]">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">대화</span>
+        {vnum && <span className="font-mono text-[10px] rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{vnum}</span>}
+        <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={16} /></button></div>
+      <div className="p-4 space-y-4 overflow-y-auto">
+        <Msg c={root} />
+        {reps.length > 0 && <div className="pl-5 border-l-2 border-slate-100 space-y-4">{reps.map((r) => <Msg key={r.id} c={r} />)}</div>}
+      </div>
+      <form className="p-3 border-t border-slate-100 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate(); }}>
+        <textarea rows={2} autoFocus className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글" />
+        <Button type="submit" className="self-end" loading={add.isPending}><Send size={14} /></Button>
+      </form>
     </section>
   );
 }
