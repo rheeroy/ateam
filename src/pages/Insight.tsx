@@ -16,7 +16,7 @@ const LEVEL_INFO: Record<number, { desc: string; ex: string }> = {
   5: { desc: '이 팀이 어떤 조건에서 성과를 내는지, 팀장 판단이 언제 잘 맞았는지를 봅니다.', ex: '팀장 판단 회고 · 우리 팀 기준 리뷰 · 사람-과제 매칭 제안' },
 };
 const ACTION: [RegExp, string, string][] = [
-  [/체크인/, '팀원에게 주간 체크인을 요청하세요', '/people?tab=members'],
+  [/체크인/, '팀원에게 주간 체크인을 요청하세요', '/people?tab=requests'],
   [/1:1/, '이번 주 1:1을 잡으세요', '/people?tab=1on1'],
   [/판단 근거/, '관찰 메모를 남기거나 결과물을 리뷰하세요', '/'],
   [/리뷰한 결과물/, '리뷰룸에서 코멘트를 남기세요', '/work'],
