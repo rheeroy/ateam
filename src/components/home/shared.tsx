@@ -299,8 +299,9 @@ export interface InsightOut {
 export const INSIGHT_KIND: Record<Period, AiKind> = { daily: 'insight_daily', weekly: 'insight_weekly', monthly: 'insight_monthly' };
 /** 홈 섹션 → 이동할 곳 (팀 성과는 팀목표, 팀원관리는 통합 메뉴, 나머지는 섹션 상세) */
 export const sectionHref = (section: MainSection, period = 'daily') =>
-  section === 'perf' ? '/goals' : `${section === 'people' ? '/people' : `/brief/${section}`}${period === 'daily' ? '' : `?p=${period}`}`;
-export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people?tab=1on1', perf: '/perf', sim: '/sim', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/strategy', org: '/brief/org' };
+  section === 'perf' ? '/goals' : section === 'decide' || section === 'risk' ? `/decide${section === 'risk' ? '?f=risk' : ''}`
+    : `${section === 'people' ? '/people' : `/brief/${section}`}${period === 'daily' ? '' : `?p=${period}`}`;
+export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people', perf: '/perf', sim: '/sim', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/strategy', org: '/brief/org' };
 export const fresh = (o: { created_at: string } | null | undefined, p: Period) => !!o && daysAgo(o.created_at) < (p === 'daily' ? 1 : p === 'weekly' ? 7 : 31);
 
 /** 새 형식(sections)과 예전 형식(items+domain)을 같은 모양으로 */
@@ -837,7 +838,7 @@ export function OrgNoteModal({ teamId, open, onClose }: { teamId: string; open: 
 // =====================================================================
 // 하단 · 시작 가이드 · 관찰 메모
 // =====================================================================
-const MINUTES: Record<string, number> = { briefing: 20, one_on_one_prep: 15, review: 20, weekly_report: 40, evaluation_draft: 60, forecast_note: 10, strategy_check: 30, scenario_note: 20, insight_daily: 10, insight_weekly: 25, insight_monthly: 45, plan_draft: 40, plan_edit: 5, self_check: 0, org_impact: 15 };
+const MINUTES: Record<string, number> = { briefing: 20, one_on_one_prep: 15, review: 20, weekly_report: 40, evaluation_draft: 60, forecast_note: 10, strategy_check: 30, scenario_note: 20, insight_daily: 10, insight_weekly: 25, insight_monthly: 45, plan_draft: 40, plan_edit: 5, self_check: 0, org_impact: 15, people_actions: 30 };
 export function AiStrip({ teamId }: { teamId: string }) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const saved = useQuery({
@@ -889,7 +890,7 @@ export function QuickStart({ teamId }: { teamId: string }) {
   if (hidden || !st.data) return null;
   const steps = [
     { done: st.data.it > 0, title: '목표 세우기', desc: '계획서를 넣으면 AI가 목표·과제 초안을 만듭니다', to: '/goals' },
-    { done: members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/people?tab=members' },
+    { done: members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/settings?tab=members' },
     { done: st.data.org > 0, title: '위에서 온 것 남기기', desc: '전사 방침·임원 관심사를 넣으면 팀 목표와 맞춰 봅니다', to: '/brief/org' },
     { done: st.data.kh > 0, title: '내 노하우 넣기', desc: '원칙·자료를 넣으면 AI가 팀장님 기준으로 일합니다', to: '/knowhow' },
   ];
@@ -940,7 +941,7 @@ export function MemoModal({ teamId, open, preset, onClose }: { teamId: string; o
   });
   return (
     <Modal open={open} onClose={close} title={<span className="inline-flex items-center gap-2"><StickyNote size={16} className="text-indigo-600" />관찰 메모</span>}>
-      {members.length === 0 ? <p className="text-sm text-slate-500">팀원을 초대하면 쓸 수 있습니다. <Link to="/people?tab=members" className="text-indigo-600 font-semibold">초대하기</Link></p> : (
+      {members.length === 0 ? <p className="text-sm text-slate-500">팀원을 초대하면 쓸 수 있습니다. <Link to="/settings?tab=members" className="text-indigo-600 font-semibold">초대하기</Link></p> : (
         <div className="space-y-3">
           <p className="text-sm text-slate-500">10초면 됩니다. 평가 시즌에 근거로 쓰입니다.</p>
           <div className="flex flex-wrap gap-1.5 text-sm">

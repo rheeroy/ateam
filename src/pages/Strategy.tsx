@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, FlaskConical, Link2, Pencil, Plus, Scale, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FlaskConical, Plus, Scale, SlidersHorizontal } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
@@ -11,6 +11,7 @@ import { Bar, Button, Card, CardHead, Empty, Field, Modal, PageHeader, Pill, Spi
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
 import { PortfolioChart } from '../components/charts';
 import { Upsell } from './Perf';
+import { MissionBand } from '../components/goals/MissionBand';
 
 
 function useInval() {
@@ -129,8 +130,6 @@ export default function Strategy() {
   const { team, hasFeature, refresh } = useTeam();
   const inval = useInval();
   const toast = useToast();
-  const [editMission, setEditMission] = useState(false);
-  const [mission, setMission] = useState(team.mission);
   const [goalTitle, setGoalTitle] = useState('');
   const goals = useQuery({ queryKey: ['goal-outlook', team.id], queryFn: () => q<GoalOutlook[]>(supabase.rpc('goal_outlook', { p_team: team.id })) });
   const hyps = useQuery({ queryKey: ['hyps', team.id], queryFn: () => q<Hypothesis[]>(supabase.from('hypotheses').select('*').eq('team_id', team.id).order('created_at')) });
@@ -138,7 +137,6 @@ export default function Strategy() {
   const port = useQuery({ queryKey: ['portfolio', team.id], queryFn: () => q<PortfolioRow[]>(supabase.rpc('task_portfolio', { p_team: team.id })) });
   const check = useLatestAi<Check>(team.id, 'strategy_check');
   const gen = useGenerate('ai-interpret');
-  const saveMission = useMutation({ mutationFn: () => q(supabase.from('teams').update({ mission }).eq('id', team.id)), onSuccess: () => { setEditMission(false); refresh(); } });
   const addGoal = useMutation({
     mutationFn: () => q(supabase.from('work_items').insert({ team_id: team.id, title: goalTitle, measure: 'children', owner_id: team.owner_id, sort: (goals.data?.length ?? 0) * 1000 + 1000 })),
     onSuccess: () => { setGoalTitle(''); inval(); }, onError: (e) => toast(errorText(e)),
@@ -150,14 +148,7 @@ export default function Strategy() {
 
   return (
     <section>
-      <div className="rounded-2xl bg-slate-900 text-white p-6">
-        <div className="flex items-center justify-between"><div className="text-xs font-semibold tracking-wider text-indigo-300">팀 미션</div>
-          {!editMission && <button className="text-slate-400 hover:text-white" onClick={() => setEditMission(true)} title="고치기"><Pencil size={14} /></button>}</div>
-        {editMission ? (
-          <div className="mt-2 flex gap-2"><input className={`${inputCls} text-slate-900`} value={mission} onChange={(e) => setMission(e.target.value)} /><Button onClick={() => saveMission.mutate()}>저장</Button></div>
-        ) : <div className="mt-2 text-xl font-bold leading-snug">{team.mission || '팀 미션을 적어 주세요'}</div>}
-        {team.parent_link && <div className="mt-3 text-sm text-slate-300 inline-flex items-center gap-1.5"><Link2 size={14} />상위 연결 · {team.parent_link}</div>}
-      </div>
+      <MissionBand />
 
       {goals.isLoading ? <Spinner /> : !goals.data?.length ? (
         <Card className="mt-5"><Empty title="전략 목표가 없습니다" action={<div className="flex gap-2 justify-center"><Button variant="secondary" loading={seed.isPending} onClick={() => seed.mutate()}>샘플로 채워 보기</Button></div>}>

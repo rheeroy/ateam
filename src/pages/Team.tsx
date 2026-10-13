@@ -36,7 +36,7 @@ function MemberRow({ m, isMe, onRequest }: { m: TeamMember; isMe: boolean; onReq
   );
 }
 
-export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
+export default function TeamPage({ embedded, section = 'all' }: { embedded?: boolean; section?: 'all' | 'members' | 'requests' } = {}) {
   const { team, members, uid, credits } = useTeam();
   const [params] = useSearchParams();
   const qc = useQueryClient();
@@ -86,15 +86,15 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
         </div>
       )}
       <div className="grid lg:grid-cols-3 gap-5 items-start">
-        <Card className="lg:col-span-2 overflow-x-auto">
+        {section !== 'requests' && <Card className="lg:col-span-2 overflow-x-auto">
           <CardHead title="구성원" right={u && <span>팀원 <b className="font-mono">{u.members}</b> / {u.max_members}명 ({credits?.plan_name})</span>} />
           <table className="w-full text-sm min-w-[640px]">
             <thead className="text-xs text-slate-500"><tr><th className="text-left font-normal px-5 py-2">이름</th><th className="text-left font-normal px-3">직무</th><th className="text-left font-normal px-3">주당 가용 시간</th><th className="text-left font-normal px-3">역할</th><th className="text-left font-normal px-3">합류</th><th /></tr></thead>
             <tbody>{members.map((m) => <MemberRow key={m.user_id} m={m} isMe={m.user_id === uid} onRequest={(id) => setReqTo(id)} />)}</tbody>
           </table>
           <p className="px-5 py-3 text-xs text-slate-500 border-t border-slate-100">주당 가용 시간은 시뮬레이션의 용량 계산에 쓰입니다. 겸직·단축근무라면 줄여 주세요.</p>
-        </Card>
-        <Card className="lg:col-span-2 lg:row-start-2" id="requests">
+        </Card>}
+        {section !== 'members' && <Card className={section === 'requests' ? 'lg:col-span-3' : 'lg:col-span-2 lg:row-start-2'} id="requests">
           <CardHead title="보낸 요청" right={<Button size="sm" variant="soft" onClick={() => setReqTo(null)}><Send size={12} />요청 보내기</Button>} />
           <p className="px-5 pt-3 text-xs text-slate-500">메신저 대신 여기서 부탁하면 팀원 홈에 할 일로 뜨고, 완료되면 알림이 옵니다. 계획 세우기·진척 공유·자료 올리기 요청이 그대로 기록과 인사이트가 됩니다.</p>
           {!sent.data?.length ? <p className="px-5 py-4 text-sm text-slate-500">아직 보낸 요청이 없습니다.</p> : (
@@ -112,8 +112,8 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
               })}
             </ul>
           )}
-        </Card>
-        <div className="space-y-5">
+        </Card>}
+        {section !== 'requests' && <div className="space-y-5">
           <Card className="p-5">
             <div className="font-semibold flex items-center gap-2"><UserPlus size={16} className="text-indigo-600" />초대하기</div>
             <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
@@ -145,7 +145,7 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
               </ul>
             )}
           </Card>
-        </div>
+        </div>}
       </div>
       <RequestModal open={reqTo !== undefined} onClose={() => setReqTo(undefined)} toId={reqTo ?? null} />
     </section>

@@ -10,7 +10,8 @@ import { GAP_TONE, planGap, yearOf } from '../lib/plan';
 import { isRoutine, useSubmissionsAi, type SubRow } from '../lib/work';
 import { cx, fmtShort } from '../lib/format';
 import { Avatar, Card, Empty, Pill, Spinner } from '../components/ui';
-import { AiBar, AiChip } from '../components/AiBar';
+import { AiChip } from '../components/AiBar';
+import { MissionBand } from '../components/goals/MissionBand';
 import { PlanBar } from '../components/goals/PlanBar';
 import { ItemDetail } from '../components/goals/ItemDetail';
 import { PlanDraftModal } from '../components/goals/PlanAI';
@@ -75,41 +76,22 @@ export default function TeamGoals() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><Sparkles size={15} />AI로 계획 만들기</button>}
-          <Link to="/goals/edit" className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정</Link>
+          <Link to={proposed && !past ? '/goals/edit?filter=proposed' : '/goals/edit'} className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정{proposed > 0 && !past && <span className="ml-1 text-[10px] font-bold rounded-full bg-violet-500 px-1.5 py-0.5" title="팀원이 올린 계획 검토 대기">검토 {proposed}</span>}</Link>
         </div>
       </div>
 
-      {proposed > 0 && !past && (
-        <Link to="/goals/edit?filter=proposed" className="flex items-center gap-3 rounded-xl bg-violet-50 ring-1 ring-violet-200 px-4 py-2.5 text-sm hover:bg-violet-100">
-          <span className="font-semibold text-violet-800">팀원이 올린 계획 {proposed}건이 검토를 기다립니다</span><span className="ml-auto text-violet-700 font-semibold inline-flex items-center">검토하기<ChevronRight size={14} /></span></Link>
-      )}
 
-      {!past ? <AiBar section="perf" label="팀목표" /> : (
-        <Card className="p-4 flex items-center gap-3 text-sm bg-slate-50"><History size={16} className="text-slate-500" />{cur.y}년 목표 기록입니다. 일정·진척은 그해 마지막 상태 그대로이고, AI 해석은 올해 목표에만 붙습니다.</Card>
-      )}
+      <MissionBand />
 
-      {/* 요약 + 연도별 기록 */}
-      <div className="grid lg:grid-cols-4 gap-4">
-        <Card className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100">
+      {past && <Card className="p-4 flex items-center gap-3 text-sm bg-slate-50"><History size={16} className="text-slate-500" />{cur.y}년 목표 기록입니다. 일정·진척은 그해 마지막 상태 그대로입니다. 연도는 위 선택에서 바꿉니다.</Card>}
+
+      {/* 요약 */}
+      <Card className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100">
           <Num label={`${levelName(0)}`} value={`${cur.roots.length}개`} sub={past ? `완료 ${cur.done}개` : `하위 항목 ${all.length - cur.roots.length}개`} />
           <Num label="평균 진척" value={cur.avg != null ? `${cur.avg}%` : '—'} sub={!past && avgPlan != null ? `오늘까지 계획 ${avgPlan}%` : past ? '연말 기준' : undefined} tone={!past && cur.avg != null && avgPlan != null && cur.avg - avgPlan <= -8 ? 'amber' : undefined} />
           <Num label="계획보다 늦은 항목" value={`${behind}`} sub={`일정 있는 ${planned.length}건 중`} tone={behind ? 'amber' : undefined} />
           <Num label="최저 달성 가능성" value={minProb != null ? `${minProb}%` : '—'} sub="목표별 전망 모델" tone={minProb != null && minProb < 35 ? 'rose' : undefined} />
-        </Card>
-        <Card className="p-3">
-          <div className="px-1 text-[11px] font-semibold text-slate-500 flex items-center gap-1"><History size={12} />연도별 기록</div>
-          <ul className="mt-1.5 space-y-1">
-            {years.map((x) => (
-              <li key={x.y}><button onClick={() => setParam('year', x.y === nowYear ? null : String(x.y))}
-                className={cx('w-full rounded-lg px-2 py-1.5 text-left text-xs flex items-center gap-2', x.y === cur.y ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
-                <span className="font-semibold num w-11">{x.y}</span>
-                <span className="flex-1 h-1.5 rounded-full bg-slate-100"><span className="block h-1.5 rounded-full bg-indigo-500" style={{ width: `${x.avg ?? 0}%` }} /></span>
-                <span className="num text-slate-500 w-20 text-right">{x.roots.length ? `목표 ${x.roots.length} · ${x.avg}%` : '목표 없음'}</span>
-              </button></li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+      </Card>
 
       {/* 타임라인 */}
       <Card className="overflow-hidden">

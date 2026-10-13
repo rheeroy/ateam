@@ -2,23 +2,23 @@
 import { useState, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Award, CalendarPlus, ChevronRight, FileText, MessageSquare, Send, StickyNote } from 'lucide-react';
+import { ArrowLeft, Award, CalendarPlus, ChevronRight, MessageSquare, Send, StickyNote } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
-import { useItems } from '../lib/items';
 import { useLatestAi } from '../lib/hooks';
 import type { ActionItem } from '../lib/types';
 import { cx, daysAgo, fmtDate, fmtShort, relDay, fmtTime } from '../lib/format';
-import { EVIDENCE_LABEL, useCheckins, useEvidence, useJudgmentScores, useObservations, useOneOnOneMap, trendOf } from '../lib/people';
-import { useSubmissionsAi } from '../lib/work';
-import { Avatar, Card, Pill, Spinner } from '../components/ui';
-import { AiBar, AiChip } from '../components/AiBar';
-import { PlanBar } from '../components/goals/PlanBar';
+import { EVIDENCE_LABEL, useCheckins, useEvidence, useObservations, useOneOnOneMap } from '../lib/people';
+import { Avatar, Card, Spinner } from '../components/ui';
+import { AiChip } from '../components/AiBar';
+import { ActionsPanel } from '../components/people/ActionsPanel';
+import { usePeopleIndex } from '../components/people/usePeopleIndex';
+import { WorkSummary } from '../components/people/WorkSummary';
+import { ruleActions } from '../lib/peopleActions';
 import { RequestModal } from '../components/RequestModal';
-import { MemoModal, Sparkline } from '../components/home/shared';
+import { MemoModal, Sparkline, useHomeModel } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
-import { STATUS as SUB_STATUS } from './MySubmissions';
-import { Delta } from './People';
+import { IndexGrid } from './People';
 
 interface Prep { last_time: string; watch: string; questions: string[]; recent_work: string }
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -54,18 +54,16 @@ export default function PersonDetail() {
         </div>
       </div>
 
-      <AiBar section="people" label={name} filter={(it) => `${it.title} ${it.body}`.includes(name)} n={3}
-        emptyHint={`${name} 님을 직접 짚은 AI 해석은 아직 없습니다. 아래 1:1 준비 노트와 결과물 검토를 확인하세요.`} />
+      <PersonTop uid={id} />
 
       <div className="grid lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2 space-y-4">
+          <WorkSummary uid={id} link />
           <Condition teamId={team.id} uid={id} />
-          <Items teamId={team.id} uid={id} />
-          <Outputs teamId={team.id} uid={id} />
+          <Observations teamId={team.id} uid={id} onNew={() => setMemo(true)} />
         </div>
         <div className="space-y-4">
           <OneOnOneBox teamId={team.id} uid={id} onNew={() => setOo(true)} />
-          <Observations teamId={team.id} uid={id} onNew={() => setMemo(true)} />
           <Ledger teamId={team.id} uid={id} />
         </div>
       </div>
@@ -74,6 +72,25 @@ export default function PersonDetail() {
       <ScheduleModal open={oo} onClose={() => setOo(false)} memberId={id} />
       <RequestModal open={req} onClose={() => setReq(false)} toId={id} />
     </div>
+  );
+}
+
+/** 이번 주 액션 + 표준 지표 */
+function PersonTop({ uid }: { uid: string }) {
+  const m = useHomeModel('weekly');
+  const pi = usePeopleIndex(m);
+  const { members } = useTeam();
+  const ix = pi.idx.get(uid);
+  const fallback = ruleActions(members.filter((x) => x.user_id === uid), pi.idx, m.raw);
+  return (
+    <>
+      <ActionsPanel fallback={fallback} only={uid} compact />
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-2.5"><span className="font-semibold text-sm">주요 지표</span>
+          {ix?.flight.note && <span className="text-xs text-slate-500 truncate">· 이탈 가능성 근거: {ix.flight.note}</span>}</div>
+        {pi.loading ? <Spinner /> : <IndexGrid ix={ix} cols={6} />}
+      </Card>
+    </>
   );
 }
 
@@ -90,7 +107,6 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
   const ci = useCheckins(teamId, uid, 12);
   const rows = ci.data ?? [];
   const pts = rows.map((c) => c.condition);
-  const recent = [...rows].reverse().slice(0, 3);
   const last = [...pts].reverse().find((v) => v != null) ?? null;
   return (
     <Box title="컨디션 · 체크인" right={<span className="text-slate-400">최근 12주</span>}>
@@ -101,66 +117,25 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
             <div className={cx('text-4xl font-bold num', last != null && last <= 2 ? 'text-rose-600' : '')}>{last ?? '—'}<span className="text-base text-slate-400">/5</span></div>
             <Sparkline points={pts} labels={rows.map((c) => fmtShort(c.week_start))} tone={last != null && last <= 2 ? 'rose' : 'teal'} w={200} h={40} />
           </div>
-          <ul className="sm:col-span-3 space-y-2.5">
-            {recent.map((c) => (
-              <li key={c.id} className="text-sm">
-                <div className="text-[11px] text-slate-400">{fmtShort(c.week_start)} 주 · 컨디션 {c.condition ?? '—'}</div>
-                {c.did && <p className="leading-snug line-clamp-2"><b className="text-xs text-slate-500 mr-1">한 일</b>{c.did}</p>}
-                {c.blocked && <p className="leading-snug text-rose-700 line-clamp-2"><b className="text-xs mr-1">막힘</b>{c.blocked}</p>}
-              </li>
-            ))}
-          </ul>
+          <div className="sm:col-span-3">
+            <div className="text-[11px] text-slate-500 mb-1.5">주별 컨디션</div>
+            <div className="flex items-end gap-1.5 h-20">
+              {rows.map((c) => (
+                <div key={c.id} className="flex-1 flex flex-col items-center gap-1" title={`${fmtShort(c.week_start)} 주 · ${c.condition ?? '-'}`}>
+                  <div className={cx('w-full rounded-t', c.condition == null ? 'bg-slate-100' : c.condition <= 2 ? 'bg-rose-400' : c.condition === 3 ? 'bg-amber-300' : 'bg-teal-400')} style={{ height: `${((c.condition ?? 0.3) / 5) * 64}px` }} />
+                  <span className="text-[9px] text-slate-400 num">{fmtShort(c.week_start).replace(/^\d+\//, '')}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400">한 일·막힘 같은 업무 내용은 업무플랫폼의 팀원 스페이스에 있습니다.</p>
+          </div>
         </div>
       )}
     </Box>
   );
 }
 
-function Items({ teamId, uid }: { teamId: string; uid: string }) {
-  const items = useItems(teamId);
-  const mine = (items.data ?? []).filter((n) => n.owner_id === uid && n.status !== 'dropped' && n.status !== 'done');
-  const done = (items.data ?? []).filter((n) => n.owner_id === uid && n.status === 'done').length;
-  return (
-    <Box title="맡은 목표·과제" right={<><span className="text-slate-400">완료 {done}건</span><Link to="/goals" className="text-indigo-700 font-semibold">팀목표 →</Link></>}>
-      {items.isLoading ? <Spinner /> : !mine.length ? <p className="px-4 py-4 text-sm text-slate-400">진행 중인 담당 항목이 없습니다.</p> : (
-        <ul className="divide-y divide-slate-100">
-          {mine.slice(0, 8).map((n) => (
-            <li key={n.id} className="px-4 py-2.5 grid grid-cols-5 gap-3 items-center">
-              <Link to={`/goals?item=${n.id}`} className="col-span-3 text-sm truncate hover:text-indigo-700">{n.title}
-                {n.status === 'blocked' && <span className="ml-1.5 text-[10px] font-semibold text-rose-600">막힘</span>}
-                {n.due_date && <span className="ml-1.5 text-[11px] text-slate-400">~{fmtShort(n.due_date)}</span>}</Link>
-              <div className="col-span-2"><PlanBar item={n} compact /></div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Box>
-  );
-}
 
-function Outputs({ teamId, uid }: { teamId: string; uid: string }) {
-  const subs = useSubmissionsAi(teamId, { authorId: uid });
-  const sc = useJudgmentScores(teamId, uid);
-  const list = (sc.data ?? []).map((s) => Number(s.score));
-  const t = trendOf(list);
-  return (
-    <Box title={<>결과물 <AiChip label="AI 1차 검토" /></>} right={<span className="text-slate-500 num">판단 깊이 {t.now ?? '—'}/4 {t.now != null && t.prev != null && <Delta d={t.now - t.prev} />}</span>}>
-      {subs.isLoading ? <Spinner /> : !subs.data?.length ? <p className="px-4 py-4 text-sm text-slate-400">올린 결과물이 없습니다.</p> : (
-        <ul className="divide-y divide-slate-100">
-          {subs.data.slice(0, 6).map((s) => (
-            <li key={s.id}><Link to={`/work/${s.id}`} className="px-4 py-2.5 flex items-start gap-3 hover:bg-slate-50">
-              <FileText size={15} className="text-slate-400 mt-0.5 shrink-0" />
-              <span className="min-w-0 flex-1"><span className="block text-sm font-medium truncate">{s.title} {s.latest && <span className="font-mono text-[10px] text-indigo-600 bg-indigo-50 rounded px-1">v{s.latest.version}</span>}</span>
-                {s.review && <span className="block text-xs text-slate-500 line-clamp-1"><span className="text-violet-700 font-semibold">AI</span> {s.review.summary}</span>}</span>
-              {s.review && <span className="text-xs font-semibold num text-violet-700 shrink-0">{s.review.depth_score}/4</span>}
-              <Pill tone={SUB_STATUS[s.status].tone}>{SUB_STATUS[s.status].label}</Pill>
-            </Link></li>
-          ))}
-        </ul>
-      )}
-    </Box>
-  );
-}
 
 function OneOnOneBox({ teamId, uid, onNew }: { teamId: string; uid: string; onNew: () => void }) {
   const map = useOneOnOneMap(teamId);

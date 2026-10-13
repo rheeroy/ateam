@@ -246,7 +246,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const lateReq = raw.requests.filter((q) => (q.due_date && q.due_date < today) || daysSince(q.created_at) >= 5);
   if (lateReq.length) S.push({ id: `req-late-${lateReq.length}`, domain: 'exec', type: 'missed', severity: 1, periods: D,
     title: `팀원에게 보낸 요청 ${lateReq.length}건이 아직 답이 없습니다`, detail: lateReq.slice(0, 3).map((q) => `${q.title}(${nameOf(q.to_id)})`).join(' · '),
-    rule: '기한이 지났거나 5일 넘게 열린 요청', action: { label: '요청 보기', to: '/people?tab=members' } });
+    rule: '기한이 지났거나 5일 넘게 열린 요청', action: { label: '요청 보기', to: '/settings?tab=members' } });
 
   const pf = raw.portfolio ?? [];
   const lowShare = pf.filter((r) => r.mission_contribution <= 2).reduce((a, r) => a + (r.share_pct ?? 0), 0);
@@ -280,10 +280,10 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     if (s.type === 'checkin_missing') missing.push(r.full_name);
   }
   if (noOO.length) S.push({ id: `care-oo-${noOO.length}`, domain: 'people', type: 'missed', severity: 2, periods: W,
-    title: `1:1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1:1이 14일 전', action: { label: '1:1 잡기', to: '/people?tab=1on1&new=1' } });
+    title: `1:1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1:1이 14일 전', action: { label: '1:1 잡기', to: '/people?new=1' } });
   const thisMon = kstMonday();
   if (missing.length) S.push({ id: `care-ci-${thisMon}`, domain: 'people', type: 'data', severity: 1, periods: DW,
-    title: `이번 주 체크인을 안 낸 팀원 ${missing.length}명`, detail: `${names(missing)} — 체크인이 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 체크인 없음', action: { label: '체크인 요청 보내기', to: '/people?tab=members' } });
+    title: `이번 주 체크인을 안 낸 팀원 ${missing.length}명`, detail: `${names(missing)} — 체크인이 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 체크인 없음', action: { label: '체크인 요청 보내기', to: '/settings?tab=members' } });
   const condOf = (pred: (w: string) => boolean) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition!);
   const thisWeek = condOf((w) => w >= thisMon);
   const lastMon = addDaysYmd(thisMon, -7);
@@ -323,7 +323,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const silent = mem.filter((m) => !raw.subs.some((s) => s.author_id === m.user_id) && !raw.checkins.some((c) => c.user_id === m.user_id && c.week_start >= addDaysYmd(thisMon, -14)));
   if (nMem >= 2 && silent.length) S.push({ id: `out-silent-${silent.length}`, domain: 'output', type: 'missed', severity: 1, periods: WM,
     title: `2주 넘게 ATEAM에 흔적이 없는 팀원 ${silent.length}명`, detail: `${names(silent.map((m) => m.name))} — 요청을 보내면 팀원 화면에 할 일로 뜹니다.`,
-    rule: '최근 2주 체크인·공유·결과물 0건', action: { label: '요청 보내기', to: '/people?tab=members' } });
+    rule: '최근 2주 체크인·공유·결과물 0건', action: { label: '요청 보내기', to: '/settings?tab=members' } });
 
   // ---------------- 육성·평가 ----------------
   const depth = raw.depth ?? [];

@@ -15,8 +15,8 @@ export const REQUEST_KIND: Record<TeamRequest['kind'], { label: string; example:
   other: { label: '기타', example: '' },
 };
 
-export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other', defaultTitle = '' }: {
-  open: boolean; onClose: () => void; toId?: string | null; itemId?: string | null; defaultKind?: TeamRequest['kind']; defaultTitle?: string;
+export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other', defaultTitle = '', onSent }: {
+  open: boolean; onClose: () => void; toId?: string | null; itemId?: string | null; defaultKind?: TeamRequest['kind']; defaultTitle?: string; onSent?: () => void;
 }) {
   const { team, members, uid } = useTeam();
   const toast = useToast();
@@ -28,7 +28,7 @@ export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other
       team_id: team.id, to_id: f.to, kind: f.kind, item_id: itemId ?? null,
       title: f.title.trim() || REQUEST_KIND[f.kind].example || '요청', body: f.body, due_date: f.due || null,
     })),
-    onSuccess: () => { toast('요청을 보냈습니다. 팀원 화면에 할 일로 뜹니다.'); qc.invalidateQueries({ queryKey: ['requests'] }); qc.invalidateQueries({ queryKey: ['items'] }); onClose(); },
+    onSuccess: () => { toast('요청을 보냈습니다. 팀원 화면에 할 일로 뜹니다.'); qc.invalidateQueries({ queryKey: ['requests'] }); qc.invalidateQueries({ queryKey: ['items'] }); onSent?.(); onClose(); },
     onError: (e) => toast(errorText(e)),
   });
   const targets = members.filter((m) => m.user_id !== uid);

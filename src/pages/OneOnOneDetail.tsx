@@ -163,7 +163,7 @@ export default function OneOnOneDetail() {
   return (
     <section>
       <PageHeader
-        back={<Link to={isLeader ? '/people?tab=1on1' : '/my/one-on-ones'} className="text-sm text-slate-500 hover:text-slate-800">← 목록으로</Link>}
+        back={<Link to={isLeader ? '/people' : '/my/one-on-ones'} className="text-sm text-slate-500 hover:text-slate-800">← 목록으로</Link>}
         title={isLeader ? `${nameOf(o.member_id)} 님과의 1:1` : `${nameOf(o.leader_id)} 팀장님과의 1:1`}
         sub={`${fmtDate(o.scheduled_at, true)} ${fmtTime(o.scheduled_at)} · ${o.duration_min}분`}
         right={o.status === 'done' ? <Pill tone="emerald"><CheckCircle2 size={12} />완료됨</Pill>

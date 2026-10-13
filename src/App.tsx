@@ -30,6 +30,8 @@ const Brief = lazy(() => import('./pages/Brief'));
 const People = lazy(() => import('./pages/People'));
 const PersonDetail = lazy(() => import('./pages/PersonDetail'));
 const TeamGoals = lazy(() => import('./pages/TeamGoals'));
+const Decide = lazy(() => import('./pages/Decide'));
+const WorkSpace = lazy(() => import('./pages/WorkSpace'));
 
 function NotConfigured() {
   return (
@@ -100,10 +102,12 @@ export default function App() {
         <Route path="goals/edit" element={L(<Goals mode="leader" />)} />
         <Route path="my/goals" element={<Goals mode="member" />} />
         <Route path="people" element={L(<People />)} />
+        <Route path="decide" element={L(<Decide />)} />
         <Route path="people/:id" element={L(<PersonDetail />)} />
-        <Route path="one-on-ones" element={<Moved to="/people" extra={{ tab: '1on1' }} />} />
+        <Route path="one-on-ones" element={<Moved to="/people" />} />
         <Route path="one-on-ones/:id" element={<OneOnOneDetail />} />
         <Route path="work" element={L(<Reviews />)} />
+        <Route path="work/u/:id" element={L(<WorkSpace />)} />
         <Route path="work/:id" element={<ReviewDetail />} />
         <Route path="reviews" element={<Moved to="/work" />} />
         <Route path="reviews/:id" element={<ReviewDetail />} />
@@ -114,7 +118,7 @@ export default function App() {
         <Route path="eval" element={L(<Evaluation />)} />
         <Route path="insight" element={L(<Insight />)} />
         <Route path="knowhow" element={L(<Knowhow />)} />
-        <Route path="team" element={<Moved to="/people" extra={{ tab: 'members' }} />} />
+        <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="checkin" element={<Checkin />} />
         <Route path="my/submissions" element={<MySubmissions />} />
