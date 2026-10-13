@@ -268,8 +268,45 @@ function EvidenceChips({ list, onAct, dark }: { list: Signal[]; onAct: (s: Signa
   );
 }
 
+// 결정 카드 — 모두 다크, 1순위만 조금 크고 밝게
+function PrioCard({ p, rank, onAct }: { p: Prio; rank: number; onAct: (s: Signal) => void }) {
+  const top = rank === 1;
+  const sub = p.impact ?? p.why;
+  const ev = p.evidence.filter((e) => e.title !== sub && !(sub ?? '').includes(e.title)).slice(0, 1);
+  return (
+    <div className={cx('rounded-2xl p-4 flex flex-col min-w-0 ring-1',
+      top ? 'bg-gradient-to-br from-violet-500/30 via-indigo-500/15 to-white/[0.04] ring-violet-300/40 sm:col-span-2 lg:col-span-1' : 'bg-white/[0.06] ring-white/10')}>
+      <div className="flex items-center gap-2 text-[11px]">
+        <span className={cx('font-bold num rounded-full px-2 py-0.5', top ? 'bg-white text-slate-900' : 'bg-white/10 text-white/80')}>{rank}순위</span>
+        <span className={cx('font-semibold', top ? 'text-violet-200' : 'text-slate-300')}>{p.kind}</span>
+        {p.ai && <span className="text-violet-300 inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}
+      </div>
+      <div className={cx('mt-2 font-bold leading-snug tracking-tight', top ? 'text-[17px]' : 'text-[15px]')}>{p.title}</div>
+      {sub && <div className={cx('mt-1.5 text-xs leading-relaxed line-clamp-2', top ? 'text-violet-100/80' : 'text-slate-400')}>{p.impact ? <b className="font-semibold text-violet-300 mr-1">효과</b> : null}{sub}</div>}
+      {!!p.options?.length && (
+        <ul className="mt-2.5 space-y-1">
+          {p.options.slice(0, 3).map((o, oi) => (
+            <li key={oi} className={cx('text-xs flex gap-1.5 min-w-0', top ? 'text-white/90' : 'text-slate-300')}><b className="text-violet-300 shrink-0">{String.fromCharCode(65 + oi)}</b><span className="truncate">{o}</span></li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-auto pt-3 flex items-end justify-between gap-2">
+        <div className="min-w-0 flex-1">{ev.length > 0 && <EvidenceChips list={ev} onAct={onAct} dark />}</div>
+        {(p.to || !top) && (
+          <Link to={p.to ?? '/brief/decide'} className={cx('shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold rounded-lg px-2.5 py-1.5',
+            top ? 'bg-white text-slate-900 hover:bg-violet-50' : 'text-slate-300 hover:text-white hover:bg-white/10')}>
+            {top ? (p.action ?? '결정하러 가기') : '보기'}<ChevronRight size={13} />
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TopPriority({ m, period, setPeriod, onAct }: { m: HomeModel; period: 'daily' | 'weekly' | 'monthly'; setPeriod: (p: 'daily' | 'weekly' | 'monthly') => void; onAct: (s: Signal) => void }) {
-  const list = usePriorities(m);
+  const all = usePriorities(m);
+  const list = all.slice(0, 3);
+  const more = all.length - list.length;
   const [first, ...rest] = list;
   return (
     <section aria-label="Top Priority" className="relative overflow-hidden rounded-3xl bg-slate-950 text-white">
@@ -284,49 +321,15 @@ function TopPriority({ m, period, setPeriod, onAct }: { m: HomeModel; period: 'd
           <PeriodTabs period={period} setPeriod={setPeriod} dark />
         </div>
         {!m.loading && first && (
-          <div className="mt-5 grid lg:grid-cols-5 gap-3">
-            {/* 1순위 결정 — 크게 */}
-            <div className="lg:col-span-3 rounded-2xl bg-white text-slate-900 p-5 sm:p-6 shadow-xl">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold rounded-full bg-slate-900 text-white px-2.5 py-0.5">1순위 · {first.kind}</span>
-                {first.ai && <span className="text-[11px] font-semibold text-violet-700 inline-flex items-center gap-1"><Sparkles size={11} />AI가 엮은 판단</span>}
-              </div>
-              <h3 className="mt-2.5 text-xl sm:text-[22px] font-bold leading-snug tracking-tight">{first.title}</h3>
-              {first.why && <p className="mt-2 text-sm text-slate-600 leading-relaxed">{first.why}</p>}
-              {first.impact && (
-                <div className="mt-3 rounded-xl bg-indigo-50 ring-1 ring-indigo-100 px-3.5 py-2.5 text-sm"><span className="text-[11px] font-bold text-indigo-700 block">기대 효과 · 걸린 목표</span>{first.impact}</div>
-              )}
-              {!!first.options?.length && (
-                <div className="mt-3">
-                  <div className="text-[11px] font-bold text-slate-500">선택지</div>
-                  <ol className="mt-1.5 grid sm:grid-cols-3 gap-2">
-                    {first.options.slice(0, 3).map((o, i) => (
-                      <li key={i} className="rounded-xl ring-1 ring-slate-200 px-3 py-2 text-sm leading-snug flex gap-2"><span className="font-bold text-indigo-600">{String.fromCharCode(65 + i)}</span><span>{o}</span></li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-              <div className="mt-3 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-                <div className="min-w-0 flex-1">{first.evidence.length > 0 && <><div className="text-[11px] font-bold text-slate-500 mb-1">근거</div><EvidenceChips list={first.evidence} onAct={onAct} /></>}</div>
-                {first.to && <Link to={first.to} className="text-sm font-semibold rounded-xl bg-slate-900 text-white px-4 py-2 hover:bg-slate-800 inline-flex items-center justify-center gap-1 shrink-0">{first.action ?? '결정하러 가기'}<ChevronRight size={15} /></Link>}
-              </div>
-            </div>
-            {/* 2~4순위 */}
-            <div className="lg:col-span-2 grid gap-3 content-start">
-              {rest.map((p, i) => (
-                <Link key={p.key} to={p.to ?? '/brief/decide'} className="group rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] ring-1 ring-white/10 p-4 block">
-                  <div className="flex items-center gap-2 text-[11px]"><span className="font-bold text-white/70 num">{i + 2}순위</span><span className="font-semibold rounded bg-white/10 px-1.5 py-0.5 text-slate-200">{p.kind}</span>
-                    {p.ai && <span className="text-violet-300 inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}</div>
-                  <div className="mt-1.5 font-semibold leading-snug">{p.title}</div>
-                  {(p.impact || p.why) && <div className="mt-1 text-xs text-slate-400 line-clamp-2">{p.impact ?? p.why}</div>}
-                  {!!p.options?.length && <ul className="mt-2 space-y-1">{p.options.slice(0, 3).map((o, oi) => <li key={oi} className="text-xs text-slate-300 flex gap-1.5"><b className="text-violet-300">{String.fromCharCode(65 + oi)}</b><span className="line-clamp-1">{o}</span></li>)}</ul>}
-                  {p.evidence.length > 0 && <div className="mt-2"><EvidenceChips list={p.evidence.slice(0, 2)} onAct={onAct} dark /></div>}
-                </Link>
-              ))}
-              {!rest.length && <p className="text-sm text-slate-400 p-2">다른 큰 결정은 없습니다.</p>}
-            </div>
+          <div
+            className="mt-5 grid gap-3 sm:grid-cols-2 lg:[grid-template-columns:var(--tp-cols)]"
+            style={{ ['--tp-cols' as string]: `1.35fr repeat(${Math.max(rest.length, 1)}, 1fr)` }}
+          >
+            {[first, ...rest].map((p, i) => <PrioCard key={p.key} p={p} rank={i + 1} onAct={onAct} />)}
+            {!rest.length && <p className="text-sm text-slate-400 p-2 self-center">다른 큰 결정은 없습니다.</p>}
           </div>
         )}
+        {!m.loading && more > 0 && <Link to="/brief/decide" className="mt-2 inline-flex items-center gap-0.5 text-xs text-violet-300 hover:text-white">결정할 것 {more}건 더 보기<ChevronRight size={13} /></Link>}
         {!m.loading && !first && <p className="mt-5 text-slate-300 text-sm">성과에 걸린 큰 결정이 보이지 않습니다. 할 일은 오른쪽 아래 '오늘 할 일'에서 확인하세요.</p>}
         <p className="mt-4 text-[11px] text-slate-500">팀 성과에 걸린 결정만 모읍니다. 리스크는 결정의 근거로 붙고, 단순 할 일은 '오늘 할 일'에 있습니다. {m.insight ? '' : 'AI 해석을 만들면 선택지와 기대 효과까지 정리합니다.'}</p>
       </div>
