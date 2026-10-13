@@ -64,7 +64,7 @@ function GoalCard({ g, hyps, tasks }: { g: GoalOutlook; hyps: Hypothesis[]; task
           <li key={t.id} className="flex justify-between gap-2"><Link className="text-left hover:text-indigo-700 truncate" to={`/goals?item=${t.id}`}>{t.title}{t.status === 'blocked' && <span className="text-rose-600 text-xs"> · 막힘</span>}{t.status === 'proposed' && <span className="text-violet-600 text-xs"> · 검토 대기</span>}</Link><span className="text-slate-500 shrink-0">{nameOf(t.owner_id) || '미정'}</span></li>
         ))}
       </ul>
-      <div className="mt-3 flex items-center justify-between"><Link to={`/goals?item=${g.goal_id}`} className="text-xs text-indigo-700 font-semibold">목표·과제에서 열기 →</Link>
+      <div className="mt-3 flex items-center justify-between"><Link to={`/goals?item=${g.goal_id}`} className="text-xs text-indigo-700 font-semibold">팀목표에서 열기 →</Link>
         <button className="text-[11px] text-slate-400 hover:text-rose-600" onClick={() => { if (confirm('이 목표를 중단 처리할까요?')) archive.mutate(); }}>중단</button></div>
     </Card>
   );

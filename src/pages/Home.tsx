@@ -17,6 +17,7 @@ import { cx, daysAgo, fmtDate, fmtTime } from '../lib/format';
 import { Avatar } from '../components/ui';
 import { ProvChip, kindFromStatus } from '../components/Prov';
 import { PERIOD_LABEL, sectionOf, type Raw, type Signal } from '../lib/insights';
+import { sectionHref } from '../components/home/shared';
 import {
   AiStrip, IMPACT_LEVEL, MemoModal, Meter, ORG_KIND, OrgNoteModal, PeriodTabs, QuickStart, RangeBar, Ring, SECTION_TONE, STATUS_META, Sparkline, MiniColumns,
   dDay, isToday, sevOfPct, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useSignalAct, useWeekOneOnOnes,
@@ -24,7 +25,7 @@ import {
 } from '../components/home/shared';
 
 const stripTags = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
-const briefLink = (section: MainSection, period: string) => `/brief/${section}${period === 'daily' ? '' : `?p=${period}`}`;
+const briefLink = (section: MainSection, period: string) => sectionHref(section, period);
 const AREA_SHORT: Record<string, string> = { perf: '성과', people: '사람', org: '조직', decide: '결정', todo: '할 일' };
 const AREA_DOT: Record<string, string> = { perf: 'bg-indigo-600', people: 'bg-teal-600', org: 'bg-fuchsia-600', decide: 'bg-slate-700', todo: 'bg-slate-400' };
 const STATUS_DOT: Record<string, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500', unknown: 'bg-slate-300' };
@@ -179,9 +180,9 @@ function PerfDashboard({ m }: { m: HomeModel }) {
           graph={<Ring value={k.goalLowNum} tone={sevOfPct(k.goalLowNum)} size={40} label={`가장 낮은 목표 달성 가능성 ${k.goalLow}`} />} />
         <GCard title="목표 평균 진척" value={avgProg != null ? `${avgProg}%` : '—'} sub="최상위 목표 기준" to="/goals"
           graph={<Ring value={avgProg} tone="indigo" size={40} label={`목표 평균 진척 ${avgProg ?? '—'}%`} />} />
-        <GCard title="계획대로 진행" value={k.onPlan} sub="진행 중 항목" to="/goals?view=timeline"
+        <GCard title="계획대로 진행" value={k.onPlan} sub="진행 중 항목" to="/goals"
           graph={k.onPlanNum != null ? <div className="w-14 pb-1"><Meter pct={k.onPlanNum} tone={k.onPlanNum < 70 ? 'amber' : 'indigo'} /></div> : undefined} />
-        <GCard title="막힘 · 지연 예상" value={`${k.blocked} · ${k.delayed}`} tone={k.blocked + k.delayed ? 'amber' : undefined} sub="건" to="/goals?filter=blocked"
+        <GCard title="막힘 · 지연 예상" value={`${k.blocked} · ${k.delayed}`} tone={k.blocked + k.delayed ? 'amber' : undefined} sub="건" to="/goals/edit?filter=blocked"
           graph={<div className="w-10"><MiniColumns values={[k.blocked, k.delayed]} labels={["막힘", "지연 예상"]} h={36} hex="#f59e0b" unit="건" bare /></div>} />
         <GCard title={fc ? `실적 전망 · ${fc.name}` : '실적 전망'} to="/perf"
           value={fc && fc.base != null ? <>{fmt(fc.base)}<span className="text-xs font-semibold text-slate-400 ml-0.5">{fc.unit}</span></> : '—'}
@@ -199,7 +200,7 @@ function PerfDashboard({ m }: { m: HomeModel }) {
 // ② Top Priority — 팀 성과를 위한 '결정'만 (단순 할 일 X, 리스크는 근거로)
 // =====================================================================
 interface Prio { key: string; score: number; kind: string; title: string; why?: string; impact?: string; options?: string[]; evidence: Signal[]; action?: string; to?: string; ai?: boolean }
-const AI_TO: Record<string, string> = { goals: '/goals', team: '/team', reviews: '/reviews', one_on_ones: '/one-on-ones', perf: '/perf', sim: '/sim', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/strategy', org: '/brief/org' };
+const AI_TO: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people?tab=1on1', perf: '/perf', sim: '/sim', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/strategy', org: '/brief/org' };
 
 function usePriorities(m: HomeModel): Prio[] {
   const { members } = useTeam();
@@ -245,9 +246,9 @@ function usePriorities(m: HomeModel): Prio[] {
   const conc = m.visible.find((s) => s.id.startsWith('exec-conc-'));
   if (conc) out.push({ key: conc.id, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: '재배분 시뮬레이션', to: '/sim' });
   const low = m.visible.find((s) => s.id === 'exec-lowvalue');
-  if (low) out.push({ key: low.id, score: 125, kind: '우선순위 결정', title: '기여가 낮은 과제를 줄이고 핵심 목표에 시간을 돌릴지', why: low.title, evidence: [low], action: '시간 배분 보기', to: '/goals?view=table' });
+  if (low) out.push({ key: low.id, score: 125, kind: '우선순위 결정', title: '기여가 낮은 과제를 줄이고 핵심 목표에 시간을 돌릴지', why: low.title, evidence: [low], action: '시간 배분 보기', to: '/goals/edit?view=table' });
   const replan = m.visible.find((s) => s.id.startsWith('exec-replan-'));
-  if (replan) out.push({ key: replan.id, score: 110, kind: '계획 결정', title: '반복해서 밀리는 과제의 범위·일정을 다시 정할지', why: replan.detail ?? replan.title, evidence: [replan], action: '계획 대비 보기', to: '/goals?view=timeline' });
+  if (replan) out.push({ key: replan.id, score: 110, kind: '계획 결정', title: '반복해서 밀리는 과제의 범위·일정을 다시 정할지', why: replan.detail ?? replan.title, evidence: [replan], action: '계획 대비 보기', to: '/goals/edit?view=timeline' });
   // AI 결정과 같은 목표를 말하는 규칙 결정은 뺀다
   const aiText = out.filter((p) => p.ai).map((p) => p.title + (p.why ?? '')).join(' ');
   const dup = (p: Prio) => !p.ai && goals.some((g) => p.title.includes(g.title) && aiText.includes(g.title.slice(0, 5)));
@@ -495,18 +496,18 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
   const proposed = (raw?.items ?? []).filter((i) => i.status === 'proposed').length;
   const upReq = orgNotes.filter((n) => n.status === 'open' && n.kind === 'request' && n.event_date && dDay(n.event_date) <= 7);
   const cols = [
-    { k: '1:1', n: ooUp.length, sub: ooUp.some((o) => isToday(o.scheduled_at)) ? `오늘 ${ooUp.filter((o) => isToday(o.scheduled_at)).length}건` : '이번 주', icon: MessagesSquare, to: '/one-on-ones', alert: false },
-    { k: '리뷰 대기', n: rv.length, sub: rv.length ? (rv.some((r) => r.review) ? 'AI 검토 완료 있음' : 'AI 검토 전') : '없음', icon: FileText, to: '/reviews', alert: rv.some((r) => daysAgo(r.v?.created_at ?? r.s.created_at) >= 3) },
+    { k: '1:1', n: ooUp.length, sub: ooUp.some((o) => isToday(o.scheduled_at)) ? `오늘 ${ooUp.filter((o) => isToday(o.scheduled_at)).length}건` : '이번 주', icon: MessagesSquare, to: '/people?tab=1on1', alert: false },
+    { k: '리뷰 대기', n: rv.length, sub: rv.length ? (rv.some((r) => r.review) ? 'AI 검토 완료 있음' : 'AI 검토 전') : '없음', icon: FileText, to: '/work', alert: rv.some((r) => daysAgo(r.v?.created_at ?? r.s.created_at) >= 3) },
     { k: '내 약속', n: pr.length, sub: late.length ? `기한 지남 ${late.length}` : '기한 내', icon: CheckCircle2, to: '#', alert: late.length > 0 },
   ];
   const extras = [
-    proposed && { k: `팀원 계획 승인 ${proposed}`, to: '/goals?filter=proposed', icon: ListTree },
+    proposed && { k: `팀원 계획 승인 ${proposed}`, to: '/goals/edit?filter=proposed', icon: ListTree },
     upReq.length && { k: `상위 요청 D-${Math.max(0, Math.min(...upReq.map((n) => dDay(n.event_date!))))}`, to: '/brief/org', icon: ArrowUpRight },
-    answered && { k: `팀원 답변 ${answered}`, to: '/team?tab=requests', icon: Inbox },
+    answered && { k: `팀원 답변 ${answered}`, to: '/people?tab=members', icon: Inbox },
   ].filter(Boolean) as { k: string; to: string; icon: typeof Inbox }[];
   const items = [
     ...ooUp.filter((o) => isToday(o.scheduled_at)).map((o) => ({ key: o.id, node: <Link to={`/one-on-ones/${o.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="font-mono text-xs text-teal-700 font-semibold w-11 shrink-0">{fmtTime(o.scheduled_at)}</span><span className="truncate">{nameOf(o.member_id)} 1:1</span></Link> })),
-    ...rv.slice(0, 2).map(({ s }) => ({ key: s.id, node: <Link to={`/reviews/${s.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="text-[11px] text-sky-700 font-semibold w-11 shrink-0">리뷰</span><span className="truncate">{s.title}</span></Link> })),
+    ...rv.slice(0, 2).map(({ s }) => ({ key: s.id, node: <Link to={`/work/${s.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="text-[11px] text-sky-700 font-semibold w-11 shrink-0">리뷰</span><span className="truncate">{s.title}</span></Link> })),
     ...pr.slice(0, 3).map((a) => {
       const isLate = a.due_date && a.due_date < today;
       return { key: a.id, node: (
@@ -590,7 +591,7 @@ function FloatingToday({ teamId, raw, orgNotes }: { teamId: string; raw: Raw | u
 // =====================================================================
 // ④ 팀원관리 — 청록 띠 머리 + 왼쪽 요약 │ 오른쪽 팀원 카드
 // =====================================================================
-function TeamMembers({ m, onMemo }: { m: HomeModel; onMemo: (w: string) => void }) {
+function TeamMembers({ m }: { m: HomeModel }) {
   const [period] = usePeriod();
   const members = useTeamMembersOnly();
   const raw = m.raw;
@@ -612,7 +613,7 @@ function TeamMembers({ m, onMemo }: { m: HomeModel; onMemo: (w: string) => void 
           <div className="text-xs text-teal-50/90">컨디션 · 1:1 · 성장과 평가 근거</div>
         </div>
         <div className="relative flex -space-x-2">
-          {members.slice(0, 6).map((mb) => <span key={mb.user_id} className="rounded-full ring-2 ring-teal-600"><Avatar name={mb.profiles?.full_name} size={7} /></span>)}
+          {members.slice(0, 6).map((mb) => <Link key={mb.user_id} to={`/people/${mb.user_id}`} title={mb.profiles?.full_name} className="rounded-full ring-2 ring-teal-600 hover:z-10"><Avatar name={mb.profiles?.full_name} size={7} /></Link>)}
         </div>
         <Link to={briefLink('people', period)} className="relative text-xs font-semibold rounded-lg bg-white/15 hover:bg-white/25 px-2.5 py-1.5 inline-flex items-center gap-0.5">자세히<ChevronRight size={13} /></Link>
       </div>
@@ -630,7 +631,7 @@ function TeamMembers({ m, onMemo }: { m: HomeModel; onMemo: (w: string) => void 
           <AiInsight m={m} section="people" variant="stack" />
         </div>
         <div className="lg:col-span-3 p-5 sm:p-6">
-          <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-2.5">팀원별 · 챙길 사람 먼저 (누르면 관찰 메모)</div>
+          <div className="text-[11px] font-semibold tracking-wide text-slate-400 mb-2.5">팀원별 · 챙길 사람 먼저 (누르면 팀원 페이지)</div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {!members.length && <p className="text-sm text-slate-400 col-span-full">팀원을 초대하면 팀원별 카드가 생깁니다.</p>}
             {sorted.map((mb) => {
@@ -641,8 +642,8 @@ function TeamMembers({ m, onMemo }: { m: HomeModel; onMemo: (w: string) => void 
               const ring = c == null ? 'ring-slate-200' : c <= 2 ? 'ring-rose-400' : c === 3 ? 'ring-amber-400' : 'ring-emerald-400';
               const alert = flags.length > 0;
               return (
-                <button key={mb.user_id} onClick={() => onMemo(mb.user_id)} title="관찰 메모 남기기"
-                  className={cx('relative text-left rounded-2xl p-3.5 ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md bg-white overflow-hidden', alert ? 'ring-rose-200' : 'ring-slate-900/[0.07]')}>
+                <Link key={mb.user_id} to={`/people/${mb.user_id}`} title="팀원 페이지 열기"
+                  className={cx('relative block text-left rounded-2xl p-3.5 ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md bg-white overflow-hidden', alert ? 'ring-rose-200' : 'ring-slate-900/[0.07]')}>
                   {alert && <span aria-hidden className="absolute left-0 inset-y-0 w-1 bg-rose-400" />}
                   <div className="flex items-center gap-2.5">
                     <span className={cx('rounded-full ring-2 ring-offset-2 shrink-0', ring)}><Avatar name={mb.profiles?.full_name} size={8} /></span>
@@ -655,7 +656,7 @@ function TeamMembers({ m, onMemo }: { m: HomeModel; onMemo: (w: string) => void 
                     {thin && <span className="text-[10px] font-semibold rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-100 px-1.5 py-0.5">근거 부족</span>}
                     {!alert && !thin && <span className="text-[10px] text-emerald-700 font-semibold inline-flex items-center gap-1"><CheckCircle2 size={11} />특이사항 없음</span>}
                   </div>
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -774,7 +775,7 @@ export default function Home() {
         <TopPriority m={m} period={period} setPeriod={setPeriod} onAct={act} />
         <PosRisk m={m} act={act} />
         <DecidePanel m={m} />
-        <TeamMembers m={m} onMemo={(w) => openMemo(w)} />
+        <TeamMembers m={m} />
         <OrgBoard m={m} onAdd={() => setOrgOpen(true)} />
       </div>
 

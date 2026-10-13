@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { useSession } from './state/session';
 import { isConfigured, supabase } from './lib/supabase';
 import Layout from './components/Layout';
@@ -9,7 +9,6 @@ import Invite from './pages/Invite';
 import Onboarding from './pages/Onboarding';
 
 const Home = lazy(() => import('./pages/Home'));
-const OneOnOnes = lazy(() => import('./pages/OneOnOnes'));
 const OneOnOneDetail = lazy(() => import('./pages/OneOnOneDetail'));
 const Reviews = lazy(() => import('./pages/Reviews'));
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'));
@@ -19,7 +18,6 @@ const Strategy = lazy(() => import('./pages/Strategy'));
 const Sim = lazy(() => import('./pages/Sim'));
 const Evaluation = lazy(() => import('./pages/Evaluation'));
 const Insight = lazy(() => import('./pages/Insight'));
-const TeamPage = lazy(() => import('./pages/Team'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Checkin = lazy(() => import('./pages/Checkin'));
 const MySubmissions = lazy(() => import('./pages/MySubmissions'));
@@ -29,6 +27,9 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Goals = lazy(() => import('./pages/Goals'));
 const MemberHome = lazy(() => import('./pages/MemberHome'));
 const Brief = lazy(() => import('./pages/Brief'));
+const People = lazy(() => import('./pages/People'));
+const PersonDetail = lazy(() => import('./pages/PersonDetail'));
+const TeamGoals = lazy(() => import('./pages/TeamGoals'));
 
 function NotConfigured() {
   return (
@@ -67,6 +68,15 @@ function RequireTeam({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** 옛 주소 → 새 메뉴 (쿼리는 이어 붙임) */
+function Moved({ to, extra }: { to: string; extra?: Record<string, string> }) {
+  const [params] = useSearchParams();
+  const p = new URLSearchParams(params);
+  for (const [k, v] of Object.entries(extra ?? {})) if (!p.has(k)) p.set(k, v);
+  const qs = p.toString();
+  return <Navigate to={`${to}${qs ? `?${qs}` : ''}`} replace />;
+}
+
 function LeaderOnly({ children }: { children: ReactNode }) {
   const { isLeader } = useSession();
   return isLeader ? <>{children}</> : <Navigate to="/" replace />;
@@ -86,11 +96,16 @@ export default function App() {
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <MemberHome />} />
         <Route path="brief/:section" element={L(<Brief />)} />
-        <Route path="goals" element={L(<Goals mode="leader" />)} />
+        <Route path="goals" element={L(<TeamGoals />)} />
+        <Route path="goals/edit" element={L(<Goals mode="leader" />)} />
         <Route path="my/goals" element={<Goals mode="member" />} />
-        <Route path="one-on-ones" element={L(<OneOnOnes />)} />
+        <Route path="people" element={L(<People />)} />
+        <Route path="people/:id" element={L(<PersonDetail />)} />
+        <Route path="one-on-ones" element={<Moved to="/people" extra={{ tab: '1on1' }} />} />
         <Route path="one-on-ones/:id" element={<OneOnOneDetail />} />
-        <Route path="reviews" element={L(<Reviews />)} />
+        <Route path="work" element={L(<Reviews />)} />
+        <Route path="work/:id" element={<ReviewDetail />} />
+        <Route path="reviews" element={<Moved to="/work" />} />
         <Route path="reviews/:id" element={<ReviewDetail />} />
         <Route path="report" element={L(<Report />)} />
         <Route path="perf" element={L(<Perf />)} />
@@ -99,7 +114,7 @@ export default function App() {
         <Route path="eval" element={L(<Evaluation />)} />
         <Route path="insight" element={L(<Insight />)} />
         <Route path="knowhow" element={L(<Knowhow />)} />
-        <Route path="team" element={L(<TeamPage />)} />
+        <Route path="team" element={<Moved to="/people" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="checkin" element={<Checkin />} />
         <Route path="my/submissions" element={<MySubmissions />} />

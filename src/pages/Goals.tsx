@@ -1,6 +1,6 @@
 // 목표·과제: 팀장(/goals)과 팀원(/my/goals)이 같은 구조를 다른 권한으로 쓴다
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarRange, ClipboardPaste, ListTree, Settings2, Sparkles, Table2 } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -115,7 +115,8 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
 
   return (
     <section>
-      <PageHeader title={mode === 'member' ? '내 목표·과제' : '목표·과제'}
+      <PageHeader title={mode === 'member' ? '내 목표' : '팀목표 · 수정'}
+        back={mode === 'leader' ? <Link to="/goals" className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link> : undefined}
         sub={mode === 'member' ? '팀장이 맡긴 목표 아래 내 계획을 세우고 진척을 남깁니다. 만든 계획은 팀장 검토 후 진행됩니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 팀원이 세운 계획을 검토하고 계획 대비를 봅니다`}
         right={<>
           <Button variant="soft" onClick={() => setDraft({ open: true, parent: mode === 'member' ? (requests.data?.[0]?.item_id ?? all.find((n) => n.owner_id === uid && !n.parent_id)?.id ?? null) : null })}><Sparkles size={15} />AI로 계획 만들기</Button>

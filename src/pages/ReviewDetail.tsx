@@ -215,7 +215,7 @@ export default function ReviewDetail() {
   return (
     <section>
       <PageHeader
-        back={<Link to={isLeader ? '/reviews' : '/my/submissions'} className="text-sm text-slate-500 hover:text-slate-800">← 목록으로</Link>}
+        back={<Link to={isLeader ? '/work' : '/my/submissions'} className="text-sm text-slate-500 hover:text-slate-800">← 목록으로</Link>}
         title={sub.title}
         sub={<>{nameOf(sub.author_id)} · {fmtDate(current.created_at)} 제출 · <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill></>}
         right={<>

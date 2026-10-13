@@ -77,7 +77,7 @@ function Feedback() {
       ]);
       return [
         ...ic.map((c) => ({ id: c.id, who: c.author_id, body: c.body || (c.kind === 'approve' ? '승인했습니다' : ''), at: c.created_at, title: its.find((x) => x.id === c.item_id)?.title ?? '', to: `/my/goals?item=${c.item_id}`, kind: c.kind })),
-        ...rc.map((c) => ({ id: c.id, who: c.author_id, body: c.body, at: c.created_at, title: subs.find((x) => x.id === c.submission_id)?.title ?? '', to: `/reviews/${c.submission_id}`, kind: 'review' })),
+        ...rc.map((c) => ({ id: c.id, who: c.author_id, body: c.body, at: c.created_at, title: subs.find((x) => x.id === c.submission_id)?.title ?? '', to: `/work/${c.submission_id}`, kind: 'review' })),
       ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
     },
   });

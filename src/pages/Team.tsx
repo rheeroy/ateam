@@ -36,7 +36,7 @@ function MemberRow({ m, isMe, onRequest }: { m: TeamMember; isMe: boolean; onReq
   );
 }
 
-export default function TeamPage() {
+export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
   const { team, members, uid, credits } = useTeam();
   const [params] = useSearchParams();
   const qc = useQueryClient();
@@ -78,7 +78,7 @@ export default function TeamPage() {
 
   return (
     <section>
-      <PageHeader title="팀원" sub={`${team.name} · 팀원은 무료로 초대됩니다`} />
+      {!embedded && <PageHeader title="팀원" sub={`${team.name} · 팀원은 무료로 초대됩니다`} />}
       {params.get('welcome') && (
         <div className="mb-5 rounded-2xl bg-indigo-600 text-white p-5">
           <div className="font-semibold">팀을 만들었습니다. 이제 팀원을 초대하세요.</div>

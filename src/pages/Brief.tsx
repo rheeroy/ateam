@@ -10,7 +10,7 @@ import { TaggedText } from '../components/Prov';
 import { PERIOD_LABEL } from '../lib/insights';
 import {
   GoalBars, IMPACT_LEVEL, Kpi, MAIN_SECTIONS, MemberStrip, MemoModal, OrgDetail, OrgNoteModal, PeriodTabs, SECTION_META, SECTION_TONE, STATUS_META,
-  SectionAiCard, SignalList, dDay, useHomeModel, usePeriod, useSignalAct, type MainSection,
+  SectionAiCard, sectionHref, SignalList, dDay, useHomeModel, usePeriod, useSignalAct, type MainSection,
 } from '../components/home/shared';
 
 export default function Brief() {
@@ -22,6 +22,8 @@ export default function Brief() {
   const [orgOpen, setOrgOpen] = useState(false);
   const openMemo = (who: string | null = null) => setMemo({ open: true, who });
   const act = useSignalAct(openMemo);
+  if (section === 'perf') return <Navigate to="/goals" replace />;
+  if (section === 'people') return <Navigate to={`/people${period === 'daily' ? '' : `?p=${period}`}`} replace />;
   if (!MAIN_SECTIONS.includes(section as MainSection)) return <Navigate to="/" replace />;
   const sec = section as MainSection;
   const meta = SECTION_META[sec];
@@ -52,7 +54,7 @@ export default function Brief() {
         </div>
         <nav className="mt-3 flex gap-1.5 overflow-x-auto" aria-label="섹션">
           {MAIN_SECTIONS.map((s) => (
-            <Link key={s} to={`/brief/${s}${period === 'daily' ? '' : `?p=${period}`}`}
+            <Link key={s} to={sectionHref(s, period)}
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', s === sec ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 hover:border-indigo-300')}>{SECTION_META[s].name}</Link>
           ))}
         </nav>

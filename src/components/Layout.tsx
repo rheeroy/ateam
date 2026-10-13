@@ -82,9 +82,9 @@ export default function Layout() {
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <div className="hidden md:block px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-400">매일·매주</div>
             <NavItem to="/" label="홈" icon={Home} />
-            <NavItem to="/goals" label="목표·과제" icon={ListTree} badge={proposedN ? `${proposedN}` : undefined} />
-            <NavItem to="/one-on-ones" label="1:1 면담" icon={MessageSquare} />
-            <NavItem to="/reviews" label="공유·리뷰" icon={FileText} />
+            <NavItem to="/goals" label="팀목표" icon={ListTree} badge={proposedN ? `${proposedN}` : undefined} />
+            <NavItem to="/work" label="업무플랫폼" icon={FileText} />
+            <NavItem to="/people" label="팀원관리" icon={Users} />
             <NavItem to="/report" label="주간보고" icon={ClipboardList} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
@@ -94,15 +94,14 @@ export default function Layout() {
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
             <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
-            <NavItem to="/team" label="팀원" icon={Users} />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/" label="홈" icon={Home} />
-            <NavItem to="/my/goals" label="내 목표·과제" icon={ListTree} />
+            <NavItem to="/my/goals" label="내 목표" icon={ListTree} />
             <NavItem to="/checkin" label="체크인" icon={PenLine} />
-            <NavItem to="/my/submissions" label="공유하기" icon={FileUp} />
+            <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} />
             <NavItem to="/my/one-on-ones" label="내 1:1" icon={MessageSquare} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />

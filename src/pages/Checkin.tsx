@@ -85,7 +85,7 @@ export default function Checkin() {
               <ul className="p-5 space-y-3 text-sm">
                 {feedback.data.map((f) => (
                   <li key={f.id}>
-                    <Link to={`/reviews/${f.submission_id}`} className="text-xs text-indigo-700">{f.title}{f.section_ref && ` · ${f.section_ref}`}</Link>
+                    <Link to={`/work/${f.submission_id}`} className="text-xs text-indigo-700">{f.title}{f.section_ref && ` · ${f.section_ref}`}</Link>
                     <p className="text-slate-700 mt-0.5">{f.body}</p>
                     <p className="text-[11px] text-slate-400">{nameOf(f.author_id)} · {fmtDate(f.created_at)}</p>
                   </li>

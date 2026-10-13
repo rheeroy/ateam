@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link, useSearchParams } from 'react-router-dom';
+import { EVIDENCE_LABEL } from '../lib/people';
 import { BadgeCheck, CircleDashed, FileText, MessageSquare, PenLine, PenSquare, Sparkles, StickyNote } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -41,7 +43,8 @@ export default function Evaluation() {
   const { team, hasFeature } = useTeam();
   const periods = halves();
   const [period, setPeriod] = useState(periods[0]);
-  const [sel, setSel] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const [sel, setSel] = useState<string | null>(params.get('member'));
   const depth = useQuery({ queryKey: ['depth', team.id], queryFn: () => q<DepthRow[]>(supabase.rpc('member_data_depth', { p_team: team.id })) });
   useEffect(() => { if (!sel && depth.data?.[0]) setSel(depth.data[0].user_id); }, [depth.data, sel]);
   const member = depth.data?.find((d) => d.user_id === sel);
@@ -148,7 +151,16 @@ export default function Evaluation() {
           )}
           {sel && (
             <Card className="p-6">
-              <div className="font-semibold">근거 타임라인 <span className="text-sm font-normal text-slate-400">{period.label}</span></div>
+              <div className="font-semibold flex items-center gap-2 flex-wrap">근거 타임라인 <span className="text-sm font-normal text-slate-400">{period.label}</span>
+                <Link to={`/people/${sel}`} className="ml-auto text-xs text-teal-700 font-semibold">팀원 페이지 →</Link></div>
+              <p className="mt-1 text-xs text-slate-500">일하면서 자동으로 쌓인 근거입니다 — 따로 정리하지 않아도 1:1·리뷰 피드백·결과물·관찰 메모·업무 완료가 여기에 모입니다.</p>
+              {!!ev.data?.length && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {Object.entries(ev.data.reduce<Record<string, number>>((a, e) => ({ ...a, [e.source]: (a[e.source] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]).map(([k, n]) => (
+                    <span key={k} className="text-[11px] rounded-full bg-teal-50 text-teal-800 ring-1 ring-teal-100 px-2 py-0.5">{EVIDENCE_LABEL[k] ?? k} <b className="num">{n}</b></span>
+                  ))}
+                </div>
+              )}
               {!ev.data?.length ? <p className="mt-3 text-sm text-slate-500">이 기간에 쌓인 판단 근거가 없습니다.</p> : (
                 <ul className="mt-4 space-y-3 text-sm">
                   {ev.data.map((e) => {

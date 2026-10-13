@@ -124,7 +124,23 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
     const f = await safe<Raw['forecasts'][number] | null>(db.rpc('metric_forecast', { p_metric: m.id }), null);
     return f ? { ...f, item_id: m.item_id } : null;
   }))).filter(Boolean) as Raw['forecasts'];
-  return { goals, forecasts, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests,
+  // 지난 해에 끝난 목표(연도별 기록)는 올해 판단에서 뺀다 — 목표의 연도 = 시작일(없으면 마감·생성) 연도
+  const thisYear = Number(kstToday().slice(0, 4));
+  const pastIds = new Set<string>();
+  const kids = new Map<string, string[]>();
+  for (const it of items) if (it.parent_id) kids.set(it.parent_id, [...(kids.get(it.parent_id) ?? []), it.id]);
+  for (const it of items) {
+    if (it.parent_id || it.status !== 'done') continue;
+    if (Number((it.start_date ?? it.due_date ?? it.created_at).slice(0, 4)) >= thisYear) continue;
+    const stack = [it.id];
+    while (stack.length) { const id = stack.pop()!; pastIds.add(id); stack.push(...(kids.get(id) ?? [])); }
+  }
+  if (pastIds.size) {
+    const keep = items.filter((it) => !pastIds.has(it.id));
+    items.length = 0; items.push(...keep);
+  }
+  const goalsNow = goals ? goals.filter((g) => !pastIds.has(g.goal_id)) : goals;
+  return { goals: goalsNow, forecasts, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests,
     recurringLogs: rlogs, latePromises: late.length, minEvidence, orgNotes, orgImpacts: orgImpacts.map((o) => o.ref_id), decisionsDue };
 }
 
@@ -195,29 +211,29 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
 
   if (proposed.length) S.push({ id: `exec-proposed-${proposed.length}-${proposed[0].id.slice(0, 6)}`, domain: 'exec', type: 'missed', severity: proposed.some((p) => daysSince(p.updated_at) >= 3) ? 2 : 1, periods: DW,
     title: `팀원이 올린 계획 ${proposed.length}건이 검토를 기다립니다`, detail: proposed.slice(0, 3).map((p) => `${p.title}(${nameOf(p.owner_id)})`).join(' · '),
-    rule: "상태가 '제안'인 항목", action: { label: '검토하기', to: '/goals?filter=proposed' } });
+    rule: "상태가 '제안'인 항목", action: { label: '검토하기', to: '/goals/edit?filter=proposed' } });
   if (overdue.length) S.push({ id: `exec-overdue-${overdue.length}`, domain: 'exec', type: 'risk', severity: overdue.length >= 3 ? 3 : 2, periods: DW,
     title: `기한 지난 항목 ${overdue.length}건`, detail: overdue.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)}, ${t.due_date!.slice(5).replace('-', '/')})`).join(' · '),
-    rule: '마감일이 지났는데 완료되지 않은 항목', action: { label: '항목 보기', to: '/goals?filter=overdue' } });
+    rule: '마감일이 지났는데 완료되지 않은 항목', action: { label: '항목 보기', to: '/goals/edit?filter=overdue' } });
   if (blocked.length) S.push({ id: `exec-blocked-${blocked.map((t) => t.id.slice(0, 4)).join('')}`, domain: 'exec', type: 'risk', severity: 2, periods: DW,
     title: `막힌 항목 ${blocked.length}건 — 팀장이 풀어 줄 수 있는지 확인`, detail: blocked.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(' · '),
-    rule: "상태가 '막힘'", action: { label: '항목 보기', to: '/goals?filter=blocked' } });
+    rule: "상태가 '막힘'", action: { label: '항목 보기', to: '/goals/edit?filter=blocked' } });
   for (const r of delayed.slice(0, 3)) S.push({ id: `exec-delay-${r.item_id}`, domain: 'exec', type: 'forecast', severity: (r.projected_delay ?? 0) >= 14 ? 3 : 2, periods: W,
     title: `'${r.title}' 이 속도면 마감보다 ${r.projected_delay}일 늦어집니다`,
     detail: `최근 3주 진척 속도로 계산한 예상 완료일 ${r.projected_done?.slice(5).replace('-', '/')} (마감 ${r.due_date?.slice(5).replace('-', '/')}) · 담당 ${nameOf(r.owner_id)}`,
     rule: '최근 21일 진척 기록의 기울기로 남은 진척을 나눈 예상 완료일', action: { label: '항목 보기', to: `/goals?item=${r.item_id}` } });
   if (replanned.length) S.push({ id: `exec-replan-${replanned.length}`, domain: 'exec', type: 'pattern', severity: 2, periods: WM,
     title: `계획이 반복해서 밀리는 항목 ${replanned.length}건`, detail: replanned.slice(0, 3).map((r) => `${r.title}(일정 변경 ${r.replan_count}회${r.slip_days ? `, 처음 계획보다 ${r.slip_days}일` : ''})`).join(' · '),
-    rule: '일정 변경 2회 이상 또는 처음 계획 대비 14일 이상 지연', action: { label: '계획 대비 보기', to: '/goals?view=timeline' } });
+    rule: '일정 변경 2회 이상 또는 처음 계획 대비 14일 이상 지연', action: { label: '계획 대비 보기', to: '/goals/edit?view=timeline' } });
   if (stale.length) S.push({ id: `exec-stale-${stale.length}`, domain: 'exec', type: 'missed', severity: 1, periods: W,
     title: `2주 넘게 진척 업데이트가 없는 항목 ${stale.length}건`, detail: stale.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(' · '),
-    rule: '진행 중 항목의 마지막 수정이 14일 전', action: { label: '진척 요청 보내기', to: '/goals?filter=stale' } });
+    rule: '진행 중 항목의 마지막 수정이 14일 전', action: { label: '진척 요청 보내기', to: '/goals/edit?filter=stale' } });
   if (needsPlan.length) S.push({ id: `exec-needsplan-${needsPlan.length}`, domain: 'exec', type: 'missed', severity: 1, periods: W,
     title: `하위 계획을 요청했는데 아직 비어 있는 항목 ${needsPlan.length}건`, detail: needsPlan.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(' · '),
     rule: '계획 요청 후 3일 이상 하위 항목 없음', action: { label: '항목 보기', to: '/goals' } });
   if (changes.length) S.push({ id: `exec-changes-${changes.length}`, domain: 'exec', type: 'missed', severity: 1, periods: W,
     title: `수정 요청 후 5일 넘게 그대로인 계획 ${changes.length}건`, detail: changes.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(' · '),
-    rule: "상태 '수정 요청'으로 5일 경과", action: { label: '항목 보기', to: '/goals?filter=changes' } });
+    rule: "상태 '수정 요청'으로 5일 경과", action: { label: '항목 보기', to: '/goals/edit?filter=changes' } });
   // 정기 업무: 지난 기간 누락
   const recurring = items.filter((i) => i.measure === 'recurring' && i.status === 'active');
   for (const r of recurring) {
@@ -230,13 +246,13 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const lateReq = raw.requests.filter((q) => (q.due_date && q.due_date < today) || daysSince(q.created_at) >= 5);
   if (lateReq.length) S.push({ id: `req-late-${lateReq.length}`, domain: 'exec', type: 'missed', severity: 1, periods: D,
     title: `팀원에게 보낸 요청 ${lateReq.length}건이 아직 답이 없습니다`, detail: lateReq.slice(0, 3).map((q) => `${q.title}(${nameOf(q.to_id)})`).join(' · '),
-    rule: '기한이 지났거나 5일 넘게 열린 요청', action: { label: '요청 보기', to: '/team?tab=requests' } });
+    rule: '기한이 지났거나 5일 넘게 열린 요청', action: { label: '요청 보기', to: '/people?tab=members' } });
 
   const pf = raw.portfolio ?? [];
   const lowShare = pf.filter((r) => r.mission_contribution <= 2).reduce((a, r) => a + (r.share_pct ?? 0), 0);
   if (lowShare >= 25) S.push({ id: 'exec-lowvalue', domain: 'exec', type: 'pattern', severity: 2, periods: M,
     title: `기여도가 낮은 과제에 팀 시간 ${Math.round(lowShare)}%가 들어가고 있습니다`,
-    detail: '기여도 1~2인 과제를 줄이거나 넘기면 핵심 목표에 쓸 시간이 생깁니다.', rule: '시간 포트폴리오: 기여도 ≤ 2 항목의 시간 비중 25% 이상', action: { label: '포트폴리오 보기', to: '/goals?view=table' } });
+    detail: '기여도 1~2인 과제를 줄이거나 넘기면 핵심 목표에 쓸 시간이 생깁니다.', rule: '시간 포트폴리오: 기여도 ≤ 2 항목의 시간 비중 25% 이상', action: { label: '포트폴리오 보기', to: '/goals/edit?view=table' } });
   const byOwner = new Map<string, number>();
   leaves.forEach((t) => t.owner_id && byOwner.set(t.owner_id, (byOwner.get(t.owner_id) ?? 0) + 1));
   const top = [...byOwner.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -249,7 +265,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const noEffort = pf.filter((r) => !r.hours).length;
   if (pf.length >= 3 && noEffort / pf.length > 0.5) S.push({ id: 'exec-effort-data', domain: 'exec', type: 'data', severity: 1, periods: M,
     title: `과제 ${pf.length}건 중 ${noEffort}건에 주당 투입 시간이 없습니다`,
-    detail: '투입 시간을 넣으면 시간 배분·충원 시뮬레이션이 정확해집니다.', rule: '공수 입력률 50% 미만', action: { label: '표에서 입력', to: '/goals?view=table' } });
+    detail: '투입 시간을 넣으면 시간 배분·충원 시뮬레이션이 정확해집니다.', rule: '공수 입력률 50% 미만', action: { label: '표에서 입력', to: '/goals/edit?view=table' } });
 
   // ---------------- 사람·컨디션 ----------------
   const noOO: string[] = []; const missing: string[] = [];
@@ -264,10 +280,10 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     if (s.type === 'checkin_missing') missing.push(r.full_name);
   }
   if (noOO.length) S.push({ id: `care-oo-${noOO.length}`, domain: 'people', type: 'missed', severity: 2, periods: W,
-    title: `1:1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1:1이 14일 전', action: { label: '1:1 잡기', to: '/one-on-ones?new=1' } });
+    title: `1:1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1:1이 14일 전', action: { label: '1:1 잡기', to: '/people?tab=1on1&new=1' } });
   const thisMon = kstMonday();
   if (missing.length) S.push({ id: `care-ci-${thisMon}`, domain: 'people', type: 'data', severity: 1, periods: DW,
-    title: `이번 주 체크인을 안 낸 팀원 ${missing.length}명`, detail: `${names(missing)} — 체크인이 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 체크인 없음', action: { label: '체크인 요청 보내기', to: '/team?tab=requests' } });
+    title: `이번 주 체크인을 안 낸 팀원 ${missing.length}명`, detail: `${names(missing)} — 체크인이 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 체크인 없음', action: { label: '체크인 요청 보내기', to: '/people?tab=members' } });
   const condOf = (pred: (w: string) => boolean) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition!);
   const thisWeek = condOf((w) => w >= thisMon);
   const lastMon = addDaysYmd(thisMon, -7);
@@ -292,7 +308,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const aged = inReview.filter((s) => waitDays(s) >= 3);
   const maxWait = inReview.length ? Math.max(...inReview.map(waitDays)) : 0;
   if (aged.length) S.push({ id: `out-aged-${aged.length}-${maxWait}`, domain: 'output', type: 'missed', severity: maxWait >= 5 ? 2 : 1, periods: DW,
-    title: `3일 넘게 리뷰를 기다리는 결과물 ${aged.length}건 (최장 ${maxWait}일)`, detail: 'AI 1차 검토가 끝난 건부터 보면 빠릅니다.', rule: '마지막 버전 제출 후 3일 경과, 리뷰 중 상태', action: { label: '리뷰하러 가기', to: '/reviews' } });
+    title: `3일 넘게 리뷰를 기다리는 결과물 ${aged.length}건 (최장 ${maxWait}일)`, detail: 'AI 1차 검토가 끝난 건부터 보면 빠릅니다.', rule: '마지막 버전 제출 후 3일 경과, 리뷰 중 상태', action: { label: '리뷰하러 가기', to: '/work' } });
   const byAuthor = new Map<string, number[]>();
   raw.subs.filter((s) => s.status !== 'shared').forEach((s) => { const v = Math.max(1, ...s.submission_versions.map((x) => x.version)); byAuthor.set(s.author_id, [...(byAuthor.get(s.author_id) ?? []), v]); });
   for (const [a, vs] of byAuthor) {
@@ -307,7 +323,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const silent = mem.filter((m) => !raw.subs.some((s) => s.author_id === m.user_id) && !raw.checkins.some((c) => c.user_id === m.user_id && c.week_start >= addDaysYmd(thisMon, -14)));
   if (nMem >= 2 && silent.length) S.push({ id: `out-silent-${silent.length}`, domain: 'output', type: 'missed', severity: 1, periods: WM,
     title: `2주 넘게 ATEAM에 흔적이 없는 팀원 ${silent.length}명`, detail: `${names(silent.map((m) => m.name))} — 요청을 보내면 팀원 화면에 할 일로 뜹니다.`,
-    rule: '최근 2주 체크인·공유·결과물 0건', action: { label: '요청 보내기', to: '/team?tab=requests' } });
+    rule: '최근 2주 체크인·공유·결과물 0건', action: { label: '요청 보내기', to: '/people?tab=members' } });
 
   // ---------------- 육성·평가 ----------------
   const depth = raw.depth ?? [];
@@ -398,11 +414,11 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     { domain: 'people', status: statusOf('people', !nMem),
       kpi: curC != null ? `${curC.toFixed(1)}` : '—', kpiLabel: curC != null ? `팀 컨디션 (5점) · 체크인 ${ciThis || ciLast}/${nMem}명` : '컨디션 기록 없음',
       line: pick('people')?.title ?? (nMem ? '특별히 챙길 신호가 없습니다' : '팀원을 초대하면 컨디션 추세를 봅니다'),
-      confidence: !nMem ? 0 : ciWeeks >= 4 ? 3 : ciWeeks >= 2 ? 2 : 1, confidenceNote: `최근 5주 중 체크인 있는 주 ${ciWeeks}주`, to: '/team', period: DOMAIN_META.people.period },
+      confidence: !nMem ? 0 : ciWeeks >= 4 ? 3 : ciWeeks >= 2 ? 2 : 1, confidenceNote: `최근 5주 중 체크인 있는 주 ${ciWeeks}주`, to: '/people', period: DOMAIN_META.people.period },
     { domain: 'output', status: statusOf('output', !raw.subs.length),
       kpi: `${inReview.length}`, kpiLabel: inReview.length ? `리뷰 대기 · 최장 ${maxWait}일` : '리뷰 대기',
       line: pick('output')?.title ?? (raw.subs.length ? `최근 60일 승인 ${approved}건 · 한 번에 통과 ${firstPass}건 · 공유 ${shared}건` : '결과물이 올라오면 리뷰 흐름을 봅니다'),
-      confidence: raw.subs.length >= 10 ? 3 : raw.subs.length >= 4 ? 2 : raw.subs.length ? 1 : 0, confidenceNote: `최근 60일 결과물·공유 ${raw.subs.length}건`, to: '/reviews', period: DOMAIN_META.output.period },
+      confidence: raw.subs.length >= 10 ? 3 : raw.subs.length >= 4 ? 2 : raw.subs.length ? 1 : 0, confidenceNote: `최근 60일 결과물·공유 ${raw.subs.length}건`, to: '/work', period: DOMAIN_META.output.period },
     { domain: 'growth', status: statusOf('growth', !depth.length),
       kpi: depth.length ? `${depth.length - thin.length}/${depth.length}` : '—', kpiLabel: '평가 근거가 충분한 팀원',
       line: pick('growth')?.title ?? (thin.length ? `근거가 부족한 팀원 ${thin.length}명` : depth.length ? '모든 팀원의 평가 근거가 충분합니다' : '팀원을 초대하면 평가 근거를 모읍니다'),
