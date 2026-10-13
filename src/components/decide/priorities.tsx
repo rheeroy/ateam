@@ -36,13 +36,13 @@ export function useBoard(teamId: string) {
   });
   const map = new Map((q.data ?? []).map((r) => [r.card_key, r]));
   const set = useMutation({
-    mutationFn: async (p: { key: string; title: string; stage: Stage | null; decision_id?: string | null }) => {
+    mutationFn: async (p: { key: string; title: string; stage: Stage | null; decision_id?: string | null; note?: string }) => {
       if (p.stage === null) {
         const { error } = await supabase.from('decision_board').delete().eq('team_id', teamId).eq('card_key', p.key);
         if (error) throw error;
         return;
       }
-      const { error } = await supabase.from('decision_board').upsert({ team_id: teamId, card_key: p.key, title: p.title, stage: p.stage, decision_id: p.decision_id ?? null, updated_at: new Date().toISOString() });
+      const { error } = await supabase.from('decision_board').upsert({ team_id: teamId, card_key: p.key, title: p.title, stage: p.stage, decision_id: p.decision_id ?? null, ...(p.note != null ? { note: p.note } : {}), updated_at: new Date().toISOString() });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['decision-board', teamId] }),
@@ -82,9 +82,12 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
         y: 0.45 + it.severity * 0.1, x: it.severity >= 3 ? 0.75 : 0.5 });
     }));
   }
+  // A·Team의 제안에서 팀장이 보드로 올린 결정
+  for (const r of board.rows.filter((x) => x.card_key.startsWith('advice:')))
+    out.push({ key: r.card_key, score: 195, kind: 'A·Team 제안', title: r.title, why: r.note || undefined, evidence: [], action: '제안 원문 보기', to: '/advisor', ai: true, y: 0.82, x: 0.72 });
   for (const g of m.lowGoals) out.push({ key: `goal:${g.goal_id}`, score: 170 - (g.probability ?? 0), kind: '목표 결정',
     title: `'${g.title}' 목표를 조정할지, 자원을 더 넣어 지킬지`, impact: `달성 가능성 ${g.probability}% · 진척 ${g.progress}%${g.blocked ? ` · 막힌 하위 항목 ${g.blocked}건` : ''}`,
-    options: ['목표 수준을 현실에 맞게 조정', '사람·예산을 더 넣어 목표 유지', '범위를 줄이고 핵심만 지킴'], evidence: evidenceFor(g.title, g.goal_id), action: '무엇을 바꾸면 되는지 시뮬레이션', to: '/sim',
+    options: ['목표 수준을 현실에 맞게 조정', '사람·예산을 더 넣어 목표 유지', '범위를 줄이고 핵심만 지킴'], evidence: evidenceFor(g.title, g.goal_id), action: 'A·Team의 제안 보기', to: '/advisor',
     y: 0.95 - (g.probability ?? 0) / 200, x: 0.78 - (g.probability ?? 0) / 300 });
   for (const n of m.orgSt.high) {
     const im = m.org.data?.impactOf.get(n.id)?.content;
@@ -95,13 +98,13 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
       evidence: [], action: '영향 분석 보기', to: '/brief/org', y: 0.72, x: d != null ? 1 - Math.min(Math.max(d, 0), 60) / 60 : 0.5 });
   }
   const conc = m.visible.find((s) => s.id.startsWith('exec-conc-'));
-  if (conc) out.push({ key: `rule:${conc.id}`, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: '재배분 시뮬레이션', to: '/sim', y: 0.6, x: 0.55 });
+  if (conc) out.push({ key: `rule:${conc.id}`, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: 'A·Team의 제안 보기', to: '/advisor', y: 0.6, x: 0.55 });
   const low = m.visible.find((s) => s.id === 'exec-lowvalue');
   if (low) out.push({ key: `rule:${low.id}`, score: 125, kind: '우선순위 결정', title: '기여가 낮은 과제를 줄이고 핵심 목표에 시간을 돌릴지', why: low.title, evidence: [low], action: '시간 배분 보기', to: '/goals/edit?view=table', y: 0.55, x: 0.35 });
   const replan = m.visible.find((s) => s.id.startsWith('exec-replan-'));
   if (replan) out.push({ key: `rule:${replan.id}`, score: 110, kind: '계획 결정', title: '반복해서 밀리는 과제의 범위·일정을 다시 정할지', why: replan.detail ?? replan.title, evidence: [replan], action: '계획 대비 보기', to: '/goals', y: 0.5, x: 0.6 });
   // 리스크를 결정으로 올린 것
-  for (const r of board.rows.filter((b) => b.stage === 'promoted' || (b.stage === 'reviewing' && b.card_key.startsWith('risk:')))) {
+  for (const r of board.rows.filter((b) => !b.card_key.startsWith('advice:') && (b.stage === 'promoted' || (b.stage === 'reviewing' && b.card_key.startsWith('risk:'))))) {
     const s = m.riskList.find((x) => `risk:${x.id}` === r.card_key);
     out.push({ key: r.card_key, score: 140 + (s?.severity ?? 2) * 5, kind: '리스크 대응', title: `${s?.title ?? r.title} — 어떻게 대응할지`, why: s?.detail, evidence: s ? [s] : [],
       action: s?.action?.label, to: s?.action?.to, y: 0.35 + (s?.severity ?? 2) * 0.15, x: (s?.severity ?? 2) >= 3 ? 0.88 : 0.66 });

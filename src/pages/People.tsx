@@ -5,7 +5,7 @@ import { ArrowDownRight, ArrowUpRight, CalendarPlus, ChevronRight, Send, StickyN
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { cx } from '../lib/format';
-import { LEVEL_CLS, ruleActions, type MemberIndex, type MemberView } from '../lib/peopleActions';
+import { LEVEL_CLS, attnSkew, ruleActions, type MemberIndex, type MemberView } from '../lib/peopleActions';
 import { ActionsPanel } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { Avatar, Card, Spinner } from '../components/ui';
@@ -36,6 +36,8 @@ export default function People() {
   const flightMid = members.filter((mb) => pi.idx.get(mb.user_id)?.flight.level === 'watch').length;
   const ooGap = lv('oo').filter((x) => x === 'risk' || x === 'watch').length;
   const over = lv('load').filter((x) => x === 'risk').length;
+  const attnLow = lv('attn').filter((x) => x === 'risk' || x === 'watch').length;
+  const skew = attnSkew(pi.attn);
   const fallback = useMemo(() => ruleActions(members, pi.idx, m.raw), [members, pi.idx, m.raw]);
 
   return (
@@ -60,10 +62,12 @@ export default function People() {
 
       {/* 팀 지표 */}
       <Card className="overflow-hidden">
-        <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-y md:divide-y-0 divide-slate-100">
+        <div className="grid grid-cols-2 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-slate-100">
           <Stat label="팀 컨디션 (5점)" value={k.cond} sub={`체크인 ${k.ciThis}/${k.nMem}명`} viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="teal" w={84} h={28} />} />
           <Stat label="이탈 가능성" value={`${flightHigh} · ${flightMid}`} tone={flightHigh ? 'rose' : flightMid ? 'amber' : undefined} sub="높음 · 주의 (명)" />
           <Stat label="1:1 2주 넘게 없음" value={ooGap} tone={ooGap ? 'amber' : undefined} sub={`팀원 ${members.length}명 중`} />
+          <Stat label="팀장 관심 부족" value={pi.attn.length ? attnLow : '—'} tone={attnLow ? 'amber' : undefined}
+            sub={skew ? `접점 ${skew.top2}%가 2명에게 몰림` : '최근 4주 · 앱 기록 기준'} />
           <Stat label="업무 과부하" value={over} tone={over ? 'amber' : undefined} sub="가용 시간 110% 초과" />
           <Stat label="평가 근거 충분" value={k.evidenceAll ? `${k.evidenceOk}/${k.evidenceAll}` : '—'} sub="판단 근거 기준 충족" />
         </div>
@@ -102,10 +106,10 @@ function Stat({ label, value, sub, tone, viz }: { label: string; value: ReactNod
 // ---------------------------------------------------------------------
 // 팀원 카드 — 표준 지표 6개 (컨디션 · 이탈 가능성 · 업무 부하 · 성장 · 1:1 · 평가 근거)
 // ---------------------------------------------------------------------
-export function IndexGrid({ ix, cols = 3 }: { ix?: MemberIndex; cols?: 3 | 6 }) {
+export function IndexGrid({ ix, cols = 3 }: { ix?: MemberIndex; cols?: 3 | 6 | 7 }) {
   if (!ix) return null;
   return (
-    <dl className={cx('grid gap-1.5', cols === 6 ? 'grid-cols-3 md:grid-cols-6' : 'grid-cols-3')}>
+    <dl className={cx('grid gap-1.5', cols === 3 ? 'grid-cols-4' : 'grid-cols-4 md:grid-cols-7')}>
       {ix.indices.map((i) => {
         const c = LEVEL_CLS[i.level];
         return (

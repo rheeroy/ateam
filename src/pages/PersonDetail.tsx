@@ -88,7 +88,7 @@ function PersonTop({ uid }: { uid: string }) {
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-2.5"><span className="font-semibold text-sm">주요 지표</span>
           {ix?.flight.note && <span className="text-xs text-slate-500 truncate">· 이탈 가능성 근거: {ix.flight.note}</span>}</div>
-        {pi.loading ? <Spinner /> : <IndexGrid ix={ix} cols={6} />}
+        {pi.loading ? <Spinner /> : <IndexGrid ix={ix} cols={7} />}
       </Card>
     </>
   );

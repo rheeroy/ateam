@@ -1,9 +1,9 @@
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Award, BookOpen, ChevronDown, ClipboardList, Compass, FileText, FileUp, Home, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, SlidersHorizontal, Users, Gavel } from 'lucide-react';
+  Award, BookOpen, ChevronDown, ClipboardList, FileText, FileUp, Home, Layers, ListTree, LogOut, MessageSquare,
+  PenLine, ScatterChart, Settings, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -11,8 +11,9 @@ import { cx } from '../lib/format';
 import { Avatar, Spinner } from './ui';
 import { ProvLegend, useAiMark } from './Prov';
 import { Notifications } from './Notifications';
+import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
 
-type Item = { to: string; label: string; icon: typeof Home; badge?: string };
+type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string };
 
 function NavItem({ to, label, icon: Icon, badge }: Item) {
   return (
@@ -71,9 +72,9 @@ export default function Layout() {
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
       <aside className="md:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:p-4 overflow-x-auto md:overflow-y-auto">
         <div className="hidden md:flex items-center gap-2.5 px-2 pb-4">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-[15px] tracking-tight">A</div>
+          <LogoBlock size={34} />
           <div className="min-w-0">
-            <div className="font-black text-[15px] leading-tight tracking-tight">ATEAM</div>
+            <ATeam className="block text-[16px] text-slate-900" />
             <div className="text-[11px] text-slate-400 truncate">{team?.name}</div>
           </div>
         </div>
@@ -88,8 +89,7 @@ export default function Layout() {
             <NavItem to="/report" label="주간보고" icon={ClipboardList} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
-            <NavItem to="/strategy" label="팀 전략" icon={Compass} />
-            <NavItem to="/sim" label="시뮬레이션" icon={SlidersHorizontal} />
+            <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
             <NavItem to="/eval" label="평가 초안" icon={Award} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />

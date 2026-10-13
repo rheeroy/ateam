@@ -105,14 +105,14 @@ export default function Brief() {
             <div className="border-t border-slate-100 grid md:grid-cols-2 md:divide-x divide-slate-100">
               <div className="px-5 py-3">
                 <div className="text-xs font-semibold text-slate-500">결과를 기록할 결정</div>
-                {due.length ? <ul className="mt-2 space-y-1.5">{due.map((d) => <li key={d.id} className="text-sm"><Link to="/strategy" className="hover:underline">{d.title}</Link></li>)}</ul>
+                {due.length ? <ul className="mt-2 space-y-1.5">{due.map((d) => <li key={d.id} className="text-sm"><Link to="/decide" className="hover:underline">{d.title}</Link></li>)}</ul>
                   : <p className="mt-2 text-sm text-slate-400">없습니다.</p>}
                 <div className="mt-3 text-xs font-semibold text-slate-500">목표 조정을 검토할 것</div>
-                {m.lowGoals.length ? <ul className="mt-2 space-y-1.5">{m.lowGoals.map((g) => <li key={g.goal_id} className="text-sm"><Link to="/sim" className="hover:underline">{g.title}</Link> <span className="text-rose-600 text-xs font-semibold">{g.probability}%</span></li>)}</ul>
+                {m.lowGoals.length ? <ul className="mt-2 space-y-1.5">{m.lowGoals.map((g) => <li key={g.goal_id} className="text-sm"><Link to="/goals" className="hover:underline">{g.title}</Link> <span className="text-rose-600 text-xs font-semibold">{g.probability}%</span></li>)}</ul>
                   : <p className="mt-2 text-sm text-slate-400">없습니다.</p>}
               </div>
               <div className="px-5 py-3">
-                <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-500">최근 결정</span><Link to="/strategy" className="text-xs text-indigo-700 font-semibold">결정 기록하기 →</Link></div>
+                <div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-500">최근 결정</span><Link to="/decide" className="text-xs text-indigo-700 font-semibold">결정 기록하기 →</Link></div>
                 {m.recentDecisions.length ? <ul className="mt-2 space-y-1.5">{m.recentDecisions.map((d) => (
                   <li key={d.id} className="text-sm flex items-center gap-2"><span className={cx('text-[10px] font-semibold rounded px-1.5 py-0.5 w-14 text-center shrink-0', d.outcome_rating === 'hit' ? 'bg-emerald-50 text-emerald-700' : d.outcome_rating === 'partial' ? 'bg-amber-50 text-amber-800' : d.outcome_rating === 'miss' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500')}>{d.outcome_rating === 'hit' ? '적중' : d.outcome_rating === 'partial' ? '부분' : d.outcome_rating === 'miss' ? '빗나감' : '결과 대기'}</span>
                     <span className="truncate flex-1">{d.title}</span><span className="text-[11px] text-slate-400">{d.decided_at.slice(5, 10).replace('-', '/')}</span></li>

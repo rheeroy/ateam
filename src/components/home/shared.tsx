@@ -301,7 +301,7 @@ export const INSIGHT_KIND: Record<Period, AiKind> = { daily: 'insight_daily', we
 export const sectionHref = (section: MainSection, period = 'daily') =>
   section === 'perf' ? '/goals' : section === 'decide' || section === 'risk' ? `/decide${section === 'risk' ? '?f=risk' : ''}`
     : `${section === 'people' ? '/people' : `/brief/${section}`}${period === 'daily' ? '' : `?p=${period}`}`;
-export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people', perf: '/perf', sim: '/sim', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/strategy', org: '/brief/org' };
+export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people', perf: '/perf', sim: '/perf', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/perf', org: '/brief/org' };
 export const fresh = (o: { created_at: string } | null | undefined, p: Period) => !!o && daysAgo(o.created_at) < (p === 'daily' ? 1 : p === 'weekly' ? 7 : 31);
 
 /** 새 형식(sections)과 예전 형식(items+domain)을 같은 모양으로 */
@@ -838,7 +838,7 @@ export function OrgNoteModal({ teamId, open, onClose }: { teamId: string; open: 
 // =====================================================================
 // 하단 · 시작 가이드 · 관찰 메모
 // =====================================================================
-const MINUTES: Record<string, number> = { briefing: 20, one_on_one_prep: 15, review: 20, weekly_report: 40, evaluation_draft: 60, forecast_note: 10, strategy_check: 30, scenario_note: 20, insight_daily: 10, insight_weekly: 25, insight_monthly: 45, plan_draft: 40, plan_edit: 5, self_check: 0, org_impact: 15, people_actions: 30 };
+const MINUTES: Record<string, number> = { briefing: 20, one_on_one_prep: 15, review: 20, weekly_report: 40, evaluation_draft: 60, forecast_note: 10, strategy_check: 30, scenario_note: 20, insight_daily: 10, insight_weekly: 25, insight_monthly: 45, plan_draft: 40, plan_edit: 5, self_check: 0, org_impact: 15, people_actions: 30, advisor_weekly: 60 };
 export function AiStrip({ teamId }: { teamId: string }) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const saved = useQuery({

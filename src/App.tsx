@@ -14,8 +14,7 @@ const Reviews = lazy(() => import('./pages/Reviews'));
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'));
 const Report = lazy(() => import('./pages/Report'));
 const Perf = lazy(() => import('./pages/Perf'));
-const Strategy = lazy(() => import('./pages/Strategy'));
-const Sim = lazy(() => import('./pages/Sim'));
+const Advisor = lazy(() => import('./pages/Advisor'));
 const Evaluation = lazy(() => import('./pages/Evaluation'));
 const Insight = lazy(() => import('./pages/Insight'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
@@ -113,8 +112,9 @@ export default function App() {
         <Route path="reviews/:id" element={<ReviewDetail />} />
         <Route path="report" element={L(<Report />)} />
         <Route path="perf" element={L(<Perf />)} />
-        <Route path="strategy" element={L(<Strategy />)} />
-        <Route path="sim" element={L(<Sim />)} />
+        <Route path="advisor" element={L(<Advisor />)} />
+        <Route path="strategy" element={<Moved to="/perf" />} />
+        <Route path="sim" element={<Moved to="/advisor" />} />
         <Route path="eval" element={L(<Evaluation />)} />
         <Route path="insight" element={L(<Insight />)} />
         <Route path="knowhow" element={L(<Knowhow />)} />

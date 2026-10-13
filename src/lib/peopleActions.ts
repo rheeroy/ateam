@@ -68,6 +68,35 @@ export function useSendPraise(teamId: string) {
 }
 
 // ---------------------------------------------------------------------
+// 팀장 관심(접점) — 최근 28일 1:1(×3) · 리뷰 코멘트 · 관찰·칭찬 · 요청 · 과제 코멘트, 리뷰 응답 시간
+// ---------------------------------------------------------------------
+export interface AttnRow { user_id: string; oo: number; comments: number; obs: number; praise: number; reqs: number; item_comments: number; touch: number; resp_hours: number | null; waiting: number; last_touch: string | null }
+export function useAttention(teamId: string) {
+  return useQuery({
+    queryKey: ['attention', teamId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('leader_attention', { p_team: teamId, p_days: 28 });
+      if (error) return [] as AttnRow[]; // 10_ateam_advice.sql 전: 지수만 비어 보임
+      return (data ?? []).map((r: AttnRow) => ({ ...r, touch: Number(r.touch), resp_hours: r.resp_hours == null ? null : Number(r.resp_hours) })) as AttnRow[];
+    },
+  });
+}
+const median = (a: number[]) => { if (!a.length) return 0; const b = [...a].sort((x, y) => x - y); const h = Math.floor(b.length / 2); return b.length % 2 ? b[h] : (b[h - 1] + b[h]) / 2; };
+export interface AttnCtx { rows: AttnRow[]; median: number; respMedian: number | null }
+export const attnCtx = (rows: AttnRow[]): AttnCtx => {
+  const r = rows.map((x) => x.resp_hours).filter((x): x is number => x != null);
+  return { rows, median: median(rows.map((x) => x.touch)), respMedian: r.length ? median(r) : null };
+};
+/** 팀 차원: 접점이 1~2명에게 몰림 */
+export function attnSkew(rows: AttnRow[]): { top2: number; names: string[] } | null {
+  const tot = rows.reduce((a, r) => a + r.touch, 0);
+  if (rows.length < 4 || tot < 8) return null;
+  const top = [...rows].sort((a, b) => b.touch - a.touch).slice(0, 2);
+  const share = (top[0].touch + top[1].touch) / tot;
+  return share >= 0.5 ? { top2: Math.round(share * 100), names: top.map((t) => t.user_id) } : null;
+}
+
+// ---------------------------------------------------------------------
 // 팀원별 표준 지표
 // ---------------------------------------------------------------------
 export type Level = 'good' | 'watch' | 'risk' | 'none';
@@ -76,7 +105,7 @@ export interface MemberIndex { condition: number | null; flight: { score: number
 
 export function memberIndex(p: {
   member: TeamMember; raw: Raw | undefined; weekStarts: string[]; lastOoAt?: string | null; scores: ScoreRow[]; items: WorkItem[];
-  concerns: number; view?: MemberView;
+  concerns: number; view?: MemberView; attn?: AttnCtx;
 }): MemberIndex {
   const uid = p.member.user_id;
   const series = p.weekStarts.map((w) => (p.raw?.checkins ?? []).find((c) => c.user_id === uid && c.week_start === w)?.condition ?? null);
@@ -105,6 +134,14 @@ export function memberIndex(p: {
   const avg = (a: number[]) => (a.length ? Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10 : null);
   const gNow = avg(sc.slice(-3)), gPrev = avg(sc.slice(-6, -3));
   const dep = (p.raw?.depth ?? []).find((d) => d.user_id === uid);
+  // 팀장 관심: 필요도(신규 · 컨디션 하락 · 이탈 주의 · 막힘 반복 · 과부하)가 높을수록 기대 접점을 높게 잡는다
+  const ar = p.attn?.rows.find((r) => r.user_id === uid);
+  const need = [lv !== 'good', cond != null && cond <= 2, daysAgo(p.member.joined_at) <= 60, flags.has('blocked_repeat'), load != null && load > 110].filter(Boolean).length;
+  const expect = (p.attn?.median || 0) * (need >= 2 ? 1.5 : need === 1 ? 1.2 : 1);
+  const ratio = ar && expect > 0 ? ar.touch / expect : null;
+  const slow = ar?.resp_hours != null && p.attn?.respMedian != null && p.attn.respMedian > 0 && ar.resp_hours >= p.attn.respMedian * 2 && ar.resp_hours >= 48;
+  const attnLv: Level = !ar || ratio == null ? 'none' : ratio < 0.5 && need ? 'risk' : ratio < 0.6 || (ratio < 0.8 && (need || slow)) ? 'watch' : 'good';
+  const rel = ar && p.attn?.median ? Math.round((ar.touch / p.attn.median) * 10) / 10 : null;
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   return {
     condition: cond,
@@ -115,6 +152,8 @@ export function memberIndex(p: {
       { key: 'load', label: '업무 부하', value: load != null ? `${load}%` : '—', sub: `진행 ${mine.length}건 · 주 ${hours}h`, level: load == null ? 'none' : load > 110 ? 'risk' : load > 90 ? 'watch' : 'good', pct: load != null ? Math.min(100, load) : undefined },
       { key: 'growth', label: '성장', value: gNow != null ? `${gNow}/4` : '—', sub: gNow != null && gPrev != null ? `직전 대비 ${sign(Math.round((gNow - gPrev) * 10) / 10)}` : '판단 깊이', level: gNow == null ? 'none' : gPrev != null && gNow - gPrev <= -0.3 ? 'watch' : 'good', pct: gNow != null ? gNow * 25 : undefined },
       { key: 'oo', label: '1:1', value: ooDays == null ? '없음' : ooDays === 0 ? '오늘' : `${ooDays}일 전`, sub: '마지막 면담', level: ooDays == null || ooDays > 21 ? 'risk' : ooDays > 14 ? 'watch' : 'good', pct: ooDays == null ? 100 : Math.min(100, Math.round((ooDays / 28) * 100)) },
+      { key: 'attn', label: '팀장 관심', value: !ar ? '—' : attnLv === 'risk' ? '부족' : attnLv === 'watch' ? '적음' : rel != null && rel >= 1.4 ? '많음' : '보통',
+        sub: !ar ? '앱 기록 기준' : `접점 ${ar.touch} · 팀 평균의 ${rel ?? '-'}배${need ? ' · 필요도↑' : ''}`, level: attnLv, pct: ratio != null ? Math.min(100, Math.round(ratio * 100)) : undefined },
       { key: 'ev', label: '평가 근거', value: dep ? `${dep.judgment_evidence}건` : '—', sub: dep ? (dep.eligible ? '충분' : '부족') : '', level: !dep ? 'none' : dep.eligible ? 'good' : 'watch', pct: dep ? Math.min(100, dep.judgment_evidence * 8) : undefined },
     ],
   };
@@ -130,6 +169,8 @@ export function ruleActions(members: TeamMember[], idx: Map<string, MemberIndex>
     const flags = new Set((raw?.care ?? []).find((c) => c.user_id === m.user_id)?.signals.map((s) => s.type) ?? []);
     if (ix.flight.level === 'risk' || oo.level === 'risk') out.push({ user_id: m.user_id, type: 'one_on_one', urgency: ix.flight.level === 'risk' ? 3 : 2, title: `${name} 님과 1:1`, why: `이탈 가능성 ${ix.flight.label} · 마지막 1:1 ${oo.value}` });
     if (flags.has('blocked_repeat')) out.push({ user_id: m.user_id, type: 'support', urgency: 2, title: `${name} 님 챙기기 — 어려운 점 들어 주기`, why: '막힌 체크인이 반복돼 지쳐 있을 수 있습니다', request: '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.' });
+    const at = ix.indices.find((i) => i.key === 'attn');
+    if (at?.level === 'risk' && oo.level !== 'risk') out.push({ user_id: m.user_id, type: 'one_on_one', urgency: 2, title: `${name} 님에게 시간 더 쓰기`, why: `최근 4주 팀장 접점이 필요도에 비해 적습니다 (${at.sub})`, opener: '요즘 일하면서 제가 더 챙겨 줬으면 하는 게 있어요?' });
     const ev = ix.indices.find((i) => i.key === 'ev')!;
     if (ev.level === 'watch') out.push({ user_id: m.user_id, type: 'observe', urgency: 1, title: `${name} 님 관찰 기록 남기기`, why: `평가 근거 ${ev.value} — 기준에 못 미칩니다` });
   }

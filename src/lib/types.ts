@@ -3,7 +3,7 @@ export type Role = 'leader' | 'member';
 export type AiKind =
   | 'briefing' | 'one_on_one_prep' | 'review' | 'weekly_report'
   | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note'
-  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions';
+  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly';
 export type AiStatus = 'draft' | 'edited' | 'final' | 'withheld';
 
 export interface Profile { id: string; email: string | null; full_name: string; avatar_url: string | null }
