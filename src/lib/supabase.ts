@@ -43,7 +43,9 @@ const KNOWN: Record<string, string> = {
 };
 
 export function errorText(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
+  const msg = e instanceof Error ? e.message
+    : e && typeof e === 'object' && typeof (e as { message?: unknown }).message === 'string' ? (e as { message: string }).message
+    : typeof e === 'string' ? e : '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
   for (const [k, v] of Object.entries(KNOWN)) if (msg.includes(k)) return v;
   return msg;
 }

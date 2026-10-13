@@ -924,7 +924,7 @@ export function QuickStart({ teamId }: { teamId: string }) {
   );
 }
 
-export function MemoModal({ teamId, open, preset, onClose }: { teamId: string; open: boolean; preset: string | null; onClose: () => void }) {
+export function MemoModal({ teamId, open, preset, onClose, onSaved }: { teamId: string; open: boolean; preset: string | null; onClose: () => void; onSaved?: () => void }) {
   const { uid } = useTeam();
   const members = useTeamMembersOnly();
   const toast = useToast();
@@ -936,7 +936,7 @@ export function MemoModal({ teamId, open, preset, onClose }: { teamId: string; o
   const close = () => { setWho(null); onClose(); };
   const save = useMutation({
     mutationFn: () => q(supabase.from('observations').insert({ team_id: teamId, author_id: uid, subject_id: sel, kind, body })),
-    onSuccess: () => { setBody(''); toast('관찰 메모를 저장했습니다. 평가 근거로 쌓입니다.'); qc.invalidateQueries({ queryKey: ['insight'] }); qc.invalidateQueries({ queryKey: ['home-insights'] }); close(); },
+    onSuccess: () => { setBody(''); toast('관찰 메모를 저장했습니다. 평가 근거로 쌓입니다.'); qc.invalidateQueries({ queryKey: ['insight'] }); qc.invalidateQueries({ queryKey: ['home-insights'] }); onSaved?.(); close(); },
     onError: (e) => toast(errorText(e)),
   });
   return (

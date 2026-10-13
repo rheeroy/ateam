@@ -1,5 +1,7 @@
+import { createPortal } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Loader2, X } from 'lucide-react';
+import { errorText } from '../lib/supabase';
 import { cx, initial } from '../lib/format';
 
 // ---------- Button ----------
@@ -78,7 +80,7 @@ export function Empty({ icon, title, children, action }: { icon?: ReactNode; tit
 
 export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
-  return <div className="rounded-lg bg-rose-50 text-rose-800 text-sm px-3 py-2">{error instanceof Error ? error.message : String(error)}</div>;
+  return <div className="rounded-lg bg-rose-50 text-rose-800 text-sm px-3 py-2">{errorText(error)}</div>;
 }
 
 export function Avatar({ name, tone = 'slate', size = 8 }: { name?: string | null; tone?: 'indigo' | 'slate' | 'rose' | 'amber'; size?: 7 | 8 | 9 }) {
@@ -145,8 +147,9 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+  // body 로 띄워서, 어두운 띠(AI 밴드·TOP PRIORITY) 안에서 열어도 글자색·정렬을 물려받지 않게
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-slate-900/40 text-slate-900 text-left font-normal flex items-start sm:items-center justify-center p-4 overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={ref} role="dialog" aria-modal="true" className={cx('bg-white rounded-2xl shadow-xl w-full my-8', wide ? 'max-w-2xl' : 'max-w-md')}>
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="font-semibold">{title}</div>
@@ -154,7 +157,8 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
         </div>
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -57,7 +57,7 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
         </div>
       )}
       {modal?.kind === 'oo' && <ScheduleModal open onClose={() => setModal(null)} memberId={modal.a.user_id} />}
-      {modal?.kind === 'memo' && <MemoModal teamId={team.id} open preset={modal.a.user_id} onClose={() => { done(modal.a); setModal(null); }} />}
+      {modal?.kind === 'memo' && <MemoModal teamId={team.id} open preset={modal.a.user_id} onSaved={() => done(modal.a)} onClose={() => setModal(null)} />}
       {modal?.kind === 'req' && <RequestModal open onClose={() => setModal(null)} toId={modal.a.user_id} defaultKind={modal.a.type === 'push' ? 'progress' : 'other'}
         defaultTitle={strip(modal.a.request || modal.a.title)} onSent={() => done(modal.a)} />}
       {modal?.kind === 'praise' && <PraiseModal a={modal.a} name={nameOf(modal.a.user_id)} onClose={() => setModal(null)} onSent={() => done(modal.a)} />}

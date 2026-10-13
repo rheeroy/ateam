@@ -49,7 +49,7 @@ export function useActionStatus(teamId: string) {
       const r = p.status === null
         ? await supabase.from('people_action_status').delete().eq('team_id', teamId).eq('action_key', p.key)
         : await supabase.from('people_action_status').upsert({ team_id: teamId, action_key: p.key, status: p.status, updated_at: new Date().toISOString() });
-      if (r.error) throw r.error;
+      if (r.error) throw new Error(r.error.message);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['people-action-status', teamId] }),
     onError: (e) => toast(errorText(e).includes('people_action_status') ? '팀원관리 액션 테이블이 아직 없습니다. 08_people_work.sql 을 실행해 주세요.' : errorText(e)),
