@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { EVIDENCE_LABEL } from '../lib/people';
-import { BadgeCheck, CircleDashed, FileText, MessageSquare, PenLine, PenSquare, Sparkles, StickyNote } from 'lucide-react';
+import { BadgeCheck, CircleDashed, FileText, MessageSquare, PenLine, RefreshCw, Sparkles, StickyNote } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useGenerate, useLatestAi, useUpdateAi } from '../lib/hooks';
 import type { DepthRow, SourceRef } from '../lib/types';
 import { cx, fmtShort } from '../lib/format';
-import { Button, Card, Empty, PageHeader, Pill, Spinner, inputCls } from '../components/ui';
+import { Button, Card, Empty, PageHeader, Pill, Spinner } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
 import { Upsell } from './Perf';
 
@@ -119,10 +119,6 @@ export default function Evaluation() {
   });
   const d = draft.data;
   const view: Draft | null = d ? { ...d.content, ...(d.edited_content ?? {}) } : null;
-  const [edit, setEdit] = useState(false);
-  const [overall, setOverall] = useState('');
-  const [coaching, setCoaching] = useState('');
-  useEffect(() => { setOverall(view?.overall ?? ''); setCoaching(view?.coaching ?? ''); setEdit(false); }, [d?.id, d?.edited_at]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hasFeature('evaluation')) return <section><PageHeader title="평가 시뮬레이션" /><Upsell feature="근거 기반 평가 초안" /></section>;
   const run = () => sel && gen.mutate({ team_id: team.id, member_id: sel, period_start: period.start, period_end: period.end });
@@ -154,9 +150,7 @@ export default function Evaluation() {
                 <div className="flex items-center gap-2">
                   {d && <ProvChip kind={kindFromStatus(d.status)} label={d.status === 'withheld' ? '판단 보류' : d.status === 'final' ? '팀장 확정' : d.status === 'edited' ? 'AI 초안 · 팀장 수정' : 'AI 초안'}
                     sources={d.sources} level={d.level} depth={d.depth} note="문장마다 근거 태그를 달았습니다. 근거 없는 문장은 쓰지 않습니다. 예상 등급은 시뮬레이션이고, 최종 등급은 팀장이 정합니다." />}
-                  {d && d.status !== 'withheld' && d.status !== 'final' && (!edit ? <Button size="sm" variant="ghost" onClick={() => setEdit(true)}><PenSquare size={13} />고치기</Button>
-                    : <Button size="sm" onClick={() => { upd.mutate({ id: d.id, edited_content: { ...(d.edited_content ?? {}), overall, coaching } }); setEdit(false); }}>수정본 저장</Button>)}
-                  {d && d.status !== 'withheld' && d.status !== 'final' && <Button size="sm" variant="secondary" onClick={() => upd.mutate({ id: d.id, status: 'final' })}><BadgeCheck size={13} />확정</Button>}
+                  {d && d.status !== 'withheld' && <Button size="sm" variant="secondary" loading={gen.isPending} onClick={run}><RefreshCw size={13} />재생성 · 5 크레딧</Button>}
                 </div>
               </div>
 
@@ -174,12 +168,11 @@ export default function Evaluation() {
                 </div>
               ) : view && (
                 <>
-                  {view.grade?.expected && <GradeCard g={view.grade} final={view.final_grade} sources={d.sources} locked={d.status === 'final'}
+                  {view.grade?.expected && <GradeCard g={view.grade} final={view.final_grade} sources={d.sources} locked={false}
                     onFinal={(x) => upd.mutate({ id: d.id, edited_content: { ...(d.edited_content ?? {}), final_grade: x ?? undefined } })} />}
                   <div className="mt-5">
                     <div className="text-xs font-semibold text-slate-400 mb-1.5">종합 의견</div>
-                    {edit ? <textarea rows={5} className={inputCls} value={overall} onChange={(e) => setOverall(e.target.value)} />
-                      : <p className="text-[15px] leading-7 text-slate-800"><TaggedText text={view.overall ?? ''} sources={d.sources} /></p>}
+                    <p className="text-[15px] leading-7 text-slate-800"><TaggedText text={view.overall ?? ''} sources={d.sources} /></p>
                   </div>
                   <div className="mt-6 grid md:grid-cols-2 gap-4">
                     <div className="rounded-xl border border-slate-200 p-4">
@@ -201,11 +194,10 @@ export default function Evaluation() {
                   )}
                   <div className="mt-5">
                     <div className="text-xs font-semibold text-slate-400 mb-1.5">다음 기간 코칭 제안</div>
-                    {edit ? <textarea rows={2} className={inputCls} value={coaching} onChange={(e) => setCoaching(e.target.value)} /> : <p className="text-sm text-slate-700">{view.coaching}</p>}
+                    <p className="text-sm text-slate-700">{view.coaching}</p>
                   </div>
                   <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                     <p className="text-xs text-slate-500">예상 등급은 근거로 본 시뮬레이션이고, 의견은 기록을 정리한 것입니다. 최종 등급과 보상은 팀장이 직접 판단합니다.</p>
-                    {d.status !== 'final' && <Button size="sm" variant="ghost" loading={gen.isPending} onClick={run}>최신 근거로 다시 만들기</Button>}
                   </div>
                 </>
               )}
