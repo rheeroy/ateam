@@ -27,5 +27,5 @@ export function ATeam({ className }: { className?: string; supCls?: string }) {
 
 /** 메뉴·제목용: ATEAM의 제안 */
 export function ATeamAdvice({ className }: { className?: string; supCls?: string }) {
-  return <span className={cx('inline-flex items-baseline', className)}><span className="font-black tracking-tight">ATEAM</span>의 제안</span>;
+  return <span className={cx('inline-flex items-baseline', className)}><span className="font-extrabold">ATEAM</span>의 제안</span>;
 }

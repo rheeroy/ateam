@@ -2,8 +2,8 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Award, BookOpen, ChevronDown, ClipboardList, FileText, FileUp, Home, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, Users, Gavel } from 'lucide-react';
+  Award, BookOpen, ChevronDown, ClipboardList, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
+  PenLine, ScatterChart, Settings, Target, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -80,9 +80,9 @@ export default function Layout() {
         </div>
         {isLeader ? (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <div className="hidden md:block px-3 pb-1 text-[10px] font-semibold tracking-wider text-slate-400">매일·매주</div>
-            <NavItem to="/" label="홈" icon={Home} />
-            <NavItem to="/goals" label="팀목표" icon={ListTree} badge={proposedN ? `${proposedN}` : undefined} />
+            <NavItem to="/" label="대시보드" icon={LayoutDashboard} />
+            <Group label="팀 워크스페이스" />
+            <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/work" label="업무플랫폼" icon={FileText} />
             <NavItem to="/people" label="팀원관리" icon={Users} />
             <NavItem to="/decide" label="의사결정" icon={Gavel} />
