@@ -19,7 +19,7 @@ import { ATeamAdvice, LogoBlock } from '../components/Brand';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
 import {
-  MemoModal, OrgNoteModal, PeriodTabs, QuickStart, STATUS_META, Sparkline,
+  MemoModal, OrgNoteModal, PeriodTabs, QuickStart, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
   type HomeModel, type MainSection,
 } from '../components/home/shared';
@@ -117,9 +117,29 @@ function workPattern(rs: AiReview[]): string | null {
     : top ? ` — 보완점은 '${top[0]}' 쪽에 몰려 있습니다` : '';
   return `${lvl}${why} (AI 판단 깊이 평균 ${avg.toFixed(1)}/4 · ${rs.length}건).`;
 }
-function Tile({ icon: Icon, title, status, to, kpis, ai, aiLabel = 'AI', fallback, viz }: {
+interface Fact { label: string; meta?: string; tone?: 'rose' | 'amber' | 'emerald' | 'slate' }
+const FACT_DOT = { rose: 'bg-rose-500', amber: 'bg-amber-400', emerald: 'bg-emerald-500', slate: 'bg-slate-300' } as const;
+/** 주요 팩트 3줄 — 데이터가 없어도 3줄 높이를 지켜 칸 크기를 맞춘다 */
+function Facts({ rows, empty }: { rows: Fact[]; empty: string }) {
+  const slots = [0, 1, 2].map((i) => rows[i]);
+  return (
+    <ul className="px-4 mt-3 pt-2.5 border-t border-slate-100 space-y-1">
+      {slots.map((f, i) => (
+        <li key={i} className="h-5 flex items-center gap-2 text-xs min-w-0">
+          {f ? <>
+            <span className={cx('w-1.5 h-1.5 rounded-full shrink-0', FACT_DOT[f.tone ?? 'slate'])} />
+            <span className="truncate text-slate-700" title={f.label}>{f.label}</span>
+            {f.meta && <span className={cx('ml-auto shrink-0 text-[11px] num', f.tone === 'rose' ? 'text-rose-600 font-semibold' : f.tone === 'amber' ? 'text-amber-700 font-semibold' : 'text-slate-400')}>{f.meta}</span>}
+          </> : <span className="text-slate-300">{i === 0 && !rows.length ? empty : '—'}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Tile({ icon: Icon, title, status, to, kpis, facts, empty = '아직 기록이 없습니다', ai, aiLabel = 'AI', fallback }: {
   icon: typeof Target; title: string; status?: { label: string; cls: string } | null; to: string; kpis: K[];
-  ai?: string | null; aiLabel?: string; fallback?: string | null; viz?: ReactNode;
+  facts: Fact[]; empty?: string; ai?: string | null; aiLabel?: string; fallback?: string | null;
 }) {
   return (
     <Link to={to} className="group relative rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-md hover:ring-slate-900/[0.12] transition-all overflow-hidden flex flex-col">
@@ -134,17 +154,17 @@ function Tile({ icon: Icon, title, status, to, kpis, ai, aiLabel = 'AI', fallbac
           <div key={k.label} className="min-w-0">
             <dt className="text-[10px] text-slate-500 truncate">{k.label}</dt>
             <dd className={cx('text-xl font-bold num leading-tight', k.tone === 'rose' && 'text-rose-600', k.tone === 'amber' && 'text-amber-600')}>{k.value}</dd>
-            {k.sub && <dd className="text-[10px] text-slate-400 truncate">{k.sub}</dd>}
+            <dd className="text-[10px] text-slate-400 truncate">{k.sub || '\u00a0'}</dd>
           </div>
         ))}
       </dl>
-      {viz && <div className="px-4 mt-1">{viz}</div>}
+      <Facts rows={facts} empty={empty} />
       <div className="mt-auto px-3 pb-3 pt-2.5">
         {ai ? (
-          <div className="rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-2.5 py-2"><p title={strip(ai)} className="text-xs leading-relaxed text-slate-700 line-clamp-3">
+          <div className="h-[78px] overflow-hidden rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-2.5 py-2"><p title={strip(ai)} className="text-xs leading-relaxed text-slate-700 line-clamp-3">
             <Sparkles size={11} className="inline align-[-1px] text-violet-700 mr-0.5" /><span className="font-semibold text-violet-700 mr-1">{aiLabel}</span>{strip(ai)}</p></div>
         ) : (
-          <div className="rounded-lg bg-slate-50 px-2.5 py-2"><p className="text-xs leading-relaxed text-slate-500 line-clamp-2">{fallback ?? '특별히 짚을 신호가 없습니다.'}</p></div>
+          <div className="h-[78px] overflow-hidden rounded-lg bg-slate-50 px-2.5 py-2"><p className="text-xs leading-relaxed text-slate-500 line-clamp-3">{fallback ?? '특별히 짚을 신호가 없습니다.'}</p></div>
         )}
       </div>
     </Link>
@@ -152,7 +172,7 @@ function Tile({ icon: Icon, title, status, to, kpis, ai, aiLabel = 'AI', fallbac
 }
 
 function Tiles({ m }: { m: HomeModel }) {
-  const { team } = useTeam();
+  const { team, nameOf, members } = useTeam();
   const k = m.k;
   const st = (s: MainSection) => (m.loading ? null : STATUS_META[m.status[s]]);
   const topAi = (s: MainSection) => m.ai[s].summary || null;
@@ -180,24 +200,42 @@ function Tiles({ m }: { m: HomeModel }) {
   const nearest = m.orgSt.nearest;
   const areas = (['perf', 'people', 'org'] as const).map((a) => m.riskList.filter((x) => m.by(a).includes(x)).length);
 
+  // 주요 팩트 3줄
+  const pctTone = (p: number | null | undefined) => (p == null ? 'slate' : p < 35 ? 'rose' : p < 60 ? 'amber' : 'emerald') as Fact['tone'];
+  const fPerf: Fact[] = [...goals].sort((a, b) => (a.probability ?? 101) - (b.probability ?? 101)).slice(0, 3)
+    .map((g) => ({ label: g.title, meta: `진척 ${g.progress}%${g.probability != null ? ` · 가능성 ${g.probability}%` : ''}`, tone: pctTone(g.probability) }));
+  const due = (m.raw?.decisionsDue ?? []).filter((d) => (d.review_on ? d.review_on <= todayYmd() : daysAgo(d.decided_at) >= 30));
+  const fDecide: Fact[] = [
+    ...due.map((d) => ({ label: `회고 · ${d.title}`, meta: `${daysAgo(d.decided_at)}일 전 결정`, tone: 'amber' as const })),
+    ...board.rows.filter((r) => r.stage === 'reviewing' || r.stage === 'promoted').map((r) => ({ label: `${r.stage === 'reviewing' ? '검토 중' : '올림'} · ${r.title}`, meta: `${daysAgo(r.updated_at)}일째`, tone: 'slate' as const })),
+    ...m.recentDecisions.filter((d) => !due.some((x) => x.id === d.id)).map((d) => ({ label: `결정함 · ${d.title}`, meta: `${daysAgo(d.decided_at)}일 전`, tone: (d.outcome_rating === 'hit' ? 'emerald' : 'slate') as Fact['tone'] })),
+  ].slice(0, 3);
+  const AREA = { perf: '성과', people: '사람', org: '조직' } as const;
+  const areaOf = (x: (typeof m.riskList)[number]) => (['perf', 'people', 'org'] as const).find((a) => m.by(a).includes(x));
+  const fRisk: Fact[] = [...m.riskList].sort((a, b) => b.severity - a.severity).slice(0, 3)
+    .map((x) => ({ label: x.title, meta: areaOf(x) ? AREA[areaOf(x)!] : undefined, tone: x.severity >= 3 ? 'rose' : 'amber' }));
+  const fWork: Fact[] = [...waiting].sort((a, b) => latestAt(a).localeCompare(latestAt(b))).slice(0, 3)
+    .map((x) => { const d = daysAgo(latestAt(x)); return { label: x.title, meta: `${nameOf(x.author_id)} · ${d === 0 ? '오늘' : `${d}일째`}`, tone: d >= 3 ? 'amber' : 'slate' }; });
+  const fPeople: Fact[] = members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, ix: pi.idx.get(mb.user_id) })).filter((x) => x.ix)
+    .sort((a, b) => b.ix!.flight.score - a.ix!.flight.score).slice(0, 3).map(({ mb, ix }) => {
+      const bad = ix!.indices.filter((i) => i.level === 'risk' || i.level === 'watch').map((i) => `${i.label} ${i.value}`);
+      return { label: mb.profiles?.full_name ?? '팀원', meta: bad.slice(0, 2).join(' · ') || '특이 없음', tone: ix!.flight.level === 'risk' ? 'rose' : ix!.flight.level === 'watch' ? 'amber' : 'emerald' };
+    });
+  const fOrg: Fact[] = [...m.orgSt.upcoming.filter((n) => dDay(n.event_date!) >= 0), ...m.orgSt.feed.filter((n) => !n.event_date)].slice(0, 3)
+    .map((n) => { const d = n.event_date ? dDay(n.event_date) : null; return { label: n.title, meta: d == null ? '열림' : d === 0 ? '오늘' : `D-${d}`, tone: d != null && d <= 3 ? 'amber' : 'slate' }; });
+
   return (
     <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
       <Tile icon={Target} title="팀 성과" status={st('perf')} to="/goals"
+        facts={fPerf} empty="목표를 세우면 목표별 진척이 보입니다"
         kpis={[
           { label: '최저 달성 가능성', value: k.goalLow, sub: `목표 ${k.goals}개`, tone: k.goalLowTone },
           { label: '평균 진척', value: avgProg != null ? `${avgProg}%` : '—', sub: k.onPlan !== '—' ? `계획대로 ${k.onPlan}` : undefined },
           { label: '막힘 · 지연', value: `${k.blocked}·${k.delayed}`, sub: '건', tone: k.blocked + k.delayed ? 'amber' : undefined },
         ]}
         ai={topAi('perf')} fallback={sig('perf') ? `자동 감지 · ${sig('perf')}` : null} />
-      <Tile icon={Users} title="팀원관리" status={st('people')} to="/people"
-        kpis={[
-          { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem}` },
-          { label: '이탈 가능성', value: `${high}·${mid}`, sub: '높음·주의', tone: high ? 'rose' : mid ? 'amber' : undefined },
-          { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
-        ]}
-        viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="slate" w={300} h={18} />}
-        ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
       <Tile icon={Gavel} title="의사결정" status={st('decide')} to="/decide"
+        facts={fDecide} empty="기록한 결정이 아직 없습니다"
         kpis={[
           { label: '결정할 것', value: pr.length, sub: '성과에 걸린 것' },
           { label: '검토 중', value: reviewing, sub: '보드' },
@@ -205,6 +243,7 @@ function Tiles({ m }: { m: HomeModel }) {
         ]}
         ai={topAi('decide')} fallback={pr[0] ? `1순위 · ${pr[0].title}` : null} />
       <Tile icon={AlertTriangle} title="리스크" status={st('risk')} to="/decide?f=risk"
+        facts={fRisk} empty="지금 짚을 리스크가 없습니다"
         kpis={[
           { label: '지금 확인', value: m.bigRisks.length, sub: '가장 급한 단계', tone: m.bigRisks.length ? 'rose' : undefined },
           { label: '주의', value: m.riskList.length - m.bigRisks.length, sub: '커지기 전', tone: m.riskList.length - m.bigRisks.length ? 'amber' : undefined },
@@ -212,13 +251,23 @@ function Tiles({ m }: { m: HomeModel }) {
         ]}
         ai={topAi('risk')} fallback={m.riskList[0] ? `자동 감지 · ${m.riskList[0].title}` : null} />
       <Tile icon={Briefcase} title="업무플랫폼" status={null} to="/work"
+        facts={fWork} empty="리뷰를 기다리는 결과물이 없습니다"
         kpis={[
           { label: '열린 업무', value: open.length, sub: '팀 전체' },
           { label: '리뷰 대기', value: waiting.length, sub: old.length ? `3일 넘게 ${old.length}` : '오래된 것 없음', tone: old.length ? 'amber' : undefined },
           { label: 'AI 검토 완료', value: `${reviewed.length}/${waiting.length}`, sub: '리뷰 대기 중' },
         ]}
         ai={pattern} fallback={waiting.length ? '리뷰 대기 결과물을 열면 AI가 먼저 읽고 정리합니다.' : '리뷰를 기다리는 결과물이 없습니다.'} />
+      <Tile icon={Users} title="팀원관리" status={st('people')} to="/people"
+        facts={fPeople} empty="팀원을 초대하면 보입니다"
+        kpis={[
+          { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem}` },
+          { label: '이탈 가능성', value: `${high}·${mid}`, sub: '높음·주의', tone: high ? 'rose' : mid ? 'amber' : undefined },
+          { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
+        ]}
+        ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
       <Tile icon={Building2} title="조직·전사" status={st('org')} to="/brief/org"
+        facts={fOrg} empty="위에서 온 소식이 없습니다"
         kpis={[
           { label: '위에서 온 것', value: m.orgSt.feed.length, sub: '열린 소식' },
           { label: '영향 확인', value: `${m.orgSt.analyzed}/${m.orgSt.feed.length}`, sub: 'AI 분석', tone: m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined },
