@@ -44,9 +44,21 @@ export function useExecutives(teamId: string) {
 }
 
 /** 이번 주 브리핑 (데모 팀은 최근 것) */
+const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+/** AI 출력이 일부 빠져 와도 화면이 깨지지 않게 */
+export function normalizeBrief(c: unknown): ExecBriefOut {
+  const o = (c && typeof c === 'object' ? c : {}) as Partial<ExecBriefOut>;
+  return {
+    headline: typeof o.headline === 'string' ? o.headline : '', watch: o.watch,
+    execs: arr<ExecBriefOut['execs'][number]>(o.execs).filter((e) => e && e.name).map((e) => ({ ...e, exec_id: e.exec_id ?? '', questions: arr(e.questions), challenges: arr(e.challenges) })),
+    requests: arr(o.requests), share_first: arr(o.share_first),
+  };
+}
+
 export function useExecBrief(teamId: string, isDemo?: boolean) {
   const qy = useLatestAi<ExecBriefOut>(teamId, 'exec_brief');
-  const out = qy.data as AiOutput<ExecBriefOut> | null | undefined;
+  const raw = qy.data as AiOutput<ExecBriefOut> | null | undefined;
+  const out = raw ? { ...raw, content: normalizeBrief(raw.content) } : raw;
   const week = mondayOf();
   const fresh = !!out && (isDemo || (out.period_start ?? '') >= week);
   return { out: out ?? null, fresh, loading: qy.isLoading };

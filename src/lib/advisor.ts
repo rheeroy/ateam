@@ -45,17 +45,31 @@ export const STATUS_LABEL: Record<AdviceStatus, string> = { adopted: '채택', h
 export const EFFORT_LABEL = { low: '가벼움', mid: '보통', high: '큼' } as const;
 
 /** 이번 주 제안 (데모 팀은 최근 것) + 지난주 제안 */
+const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+/** AI 출력이 일부 빠져 와도(길이 제한 등) 화면이 깨지지 않게 모양을 맞춘다 */
+export function normalizeAdvisor(c: unknown): AdvisorOut {
+  const o = (c && typeof c === 'object' ? c : {}) as Partial<AdvisorOut>;
+  return {
+    headline: typeof o.headline === 'string' ? o.headline : '',
+    focus: o.focus, watch_next: o.watch_next,
+    levers: o.levers && typeof o.levers === 'object' ? o.levers : {},
+    advice: arr<Advice>(o.advice).filter((a) => a && a.title).map((a, i) => ({ ...a, id: a.id || `a${i + 1}`, lever: a.lever || 'exec', urgency: Number(a.urgency) || 1, effort: a.effort || 'mid', route: a.route || 'none', why: a.why || '' })),
+    review: arr<AdviceReview>(o.review).filter((r) => r && r.title),
+  };
+}
+const fix = (o: AiOutput<AdvisorOut> | null | undefined) => (o ? { ...o, content: normalizeAdvisor(o.content) } : o);
+
 export function useAdvisor(teamId: string, isDemo?: boolean) {
   const week = mondayOf();
   const cur = useLatestAi<AdvisorOut>(teamId, 'advisor_weekly');
-  const out = cur.data as AiOutput<AdvisorOut> | null | undefined;
+  const out = fix(cur.data as AiOutput<AdvisorOut> | null | undefined);
   const fresh = !!out && (isDemo || (out.period_start ?? '') >= week);
   const prev = useQuery({
     queryKey: ['ai', teamId, 'advisor_prev', out?.period_start ?? week], enabled: !cur.isLoading,
     queryFn: async () => {
       const { data } = await supabase.from('ai_outputs').select('*').eq('team_id', teamId).eq('kind', 'advisor_weekly').lt('period_start', out?.period_start ?? week)
         .order('period_start', { ascending: false }).limit(1).maybeSingle();
-      return data as AiOutput<AdvisorOut> | null;
+      return fix(data as AiOutput<AdvisorOut> | null) ?? null;
     },
   });
   return { out: fresh ? out! : null, stale: out && !fresh ? out : null, prev: prev.data ?? null, week: fresh && out?.period_start ? out.period_start : week, loading: cur.isLoading };
