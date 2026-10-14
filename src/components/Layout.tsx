@@ -1,9 +1,9 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BookOpen, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, Target, UserCheck, UserRound, Users, Gavel } from 'lucide-react';
+  BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
+  PenLine, ScatterChart, Settings, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -71,13 +71,13 @@ export default function Layout() {
   return (
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
       <aside className="md:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:p-4 overflow-x-auto md:overflow-y-auto">
-        <div className="hidden md:flex items-center gap-2.5 px-2 pb-4">
+        <Link to="/" title="대시보드로" className="hidden md:flex items-center gap-2.5 px-2 pb-4 rounded-lg hover:opacity-80">
           <LogoBlock size={34} />
           <div className="min-w-0">
             <ATeam className="block text-[16px] text-slate-900" />
             <div className="text-[11px] text-slate-400 truncate">{team?.name}</div>
           </div>
-        </div>
+        </Link>
         {isLeader ? (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/" label="대시보드" icon={LayoutDashboard} />
@@ -90,7 +90,7 @@ export default function Layout() {
             <NavItem to="/upward" label="임원 브리핑" icon={UserRound} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
-            <NavItem to="/eval" label="평가 시뮬레이션" icon={UserCheck} />
+            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />

@@ -4,8 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, UserRound, FileText, Gavel,
-  Inbox, ListTree, MessagesSquare, Sparkles, StickyNote, Target, Users, X,
+  AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel,
+  Inbox, ListTree, MessagesSquare, Sparkles, Target, Users, X,
 } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -14,8 +14,6 @@ import { cx, daysAgo, fmtDate, fmtTime } from '../lib/format';
 import type { Raw } from '../lib/insights';
 import { isOpenSub, latestAt, useSubmissionsAi, type AiReview } from '../lib/work';
 import { usePeopleActions } from '../lib/peopleActions';
-import { LEVER_OF, LEVERS, STATE_META, useAdvisor } from '../lib/advisor';
-import { ATeamAdvice, LogoBlock } from '../components/Brand';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
 import {
@@ -26,7 +24,7 @@ import {
 
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
 
-function Header({ onMemo }: { onMemo: () => void }) {
+function Header() {
   const { profile } = useTeam();
   const now = new Date();
   const hello = now.getHours() < 11 ? '좋은 아침입니다' : now.getHours() < 18 ? '안녕하세요' : '오늘도 수고 많으셨습니다';
@@ -35,10 +33,6 @@ function Header({ onMemo }: { onMemo: () => void }) {
       <div className="min-w-0 flex items-baseline gap-3">
         <h1 className="text-xl font-bold tracking-tight">{hello}, {profile?.full_name} 팀장님</h1>
         <span className="text-sm text-slate-500">{fmtDate(now.toISOString(), true)}</span>
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={onMemo} className="text-sm rounded-xl px-3 py-1.5 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><StickyNote size={15} />관찰 메모</button>
-        <Link to="/upward" className="text-sm font-semibold rounded-xl px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><UserRound size={15} />임원 브리핑</Link>
       </div>
     </div>
   );
@@ -388,30 +382,6 @@ function FloatingToday({ teamId, raw, orgNotes }: { teamId: string; raw: Raw | u
 }
 
 
-/** A·Team의 제안 한 줄 — 이번 주 처방 1순위 + 조치 필요 레버 */
-function AdviceStrip() {
-  const { team, hasFeature } = useTeam();
-  const adv = useAdvisor(team.id, team.is_demo);
-  if (!hasFeature('ai_core') || adv.loading) return null;
-  const c = adv.out?.content;
-  const top = c ? [...c.advice].sort((a, b) => b.urgency - a.urgency)[0] : null;
-  const acts = c ? LEVERS.filter((l) => c.levers[l.key]?.state === 'act') : [];
-  return (
-    <Link to="/advisor" className="group flex items-center gap-3 rounded-xl bg-white ring-1 ring-slate-900/[0.07] px-4 py-2.5 hover:ring-slate-900/[0.15] hover:shadow-sm transition-all">
-      <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-slate-900"><LogoBlock size={22} /><ATeamAdvice /></span>
-      {top ? (
-        <>
-          <span className="shrink-0 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600 px-1.5 py-0.5">{LEVER_OF[top.lever]?.label}</span>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{strip(top.title)}</span>
-          <span className="hidden lg:flex items-center gap-1 shrink-0">{acts.map((l) => <span key={l.key} className={cx('text-[10px] font-bold rounded-full px-1.5 py-px ring-1', STATE_META.act.cls)}>{l.label}</span>)}</span>
-          <span className="shrink-0 text-xs text-slate-400">처방 {c!.advice.length}건</span>
-        </>
-      ) : <span className="min-w-0 flex-1 truncate text-sm text-slate-500">이번 주 운영 처방이 아직 없습니다 — 월요일 아침에 자동으로 만들어지고, 지금 받을 수도 있습니다.</span>}
-      <ChevronRight size={16} className="shrink-0 text-slate-300 group-hover:text-slate-600" />
-    </Link>
-  );
-}
-
 export default function Home() {
   const { team } = useTeam();
   const [period, setPeriod] = usePeriod();
@@ -419,9 +389,9 @@ export default function Home() {
   const [memo, setMemo] = useState<{ open: boolean; who: string | null }>({ open: false, who: null });
   return (
     <div className="space-y-3">
-      <Header onMemo={() => setMemo({ open: true, who: null })} />
+      <Header />
       <TopPriority m={m} period={period} setPeriod={setPeriod} />
-      <AdviceStrip />
+      <div className="pt-2 flex items-baseline gap-2"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs text-slate-400">영역별 핵심 지표 · 주요 팩트 · AI 진단</span></div>
       <Tiles m={m} />
       <div className="pt-4"><QuickStart teamId={team.id} /></div>
       <FloatingToday teamId={team.id} raw={m.raw} orgNotes={m.org.data?.notes ?? []} />

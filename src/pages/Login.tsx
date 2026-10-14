@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { Mail } from 'lucide-react';
+import { AlertTriangle, ListChecks, Mail, Sparkles, TrendingUp } from 'lucide-react';
 import { supabase, errorText } from '../lib/supabase';
 import { useSession } from '../state/session';
 import { Button, ErrorBox, inputCls } from '../components/ui';
+import { LogoBlock } from '../components/Brand';
 
 type Mode = 'login' | 'signup' | 'forgot' | 'magic';
 
@@ -77,20 +78,36 @@ export default function Login() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-between bg-slate-900 text-white p-12">
-        <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black">A</div><span className="font-black tracking-tight">ATEAM</span></div>
-        <div>
-          <p className="font-mono text-xs tracking-[.2em] text-indigo-300">팀장을 위한 AI 파트너</p>
-          <h1 className="mt-4 text-4xl font-bold leading-tight">A팀은 팀장이 만듭니다.<br />잡무는 ATEAM이 합니다.</h1>
-          <p className="mt-4 text-slate-300 leading-relaxed">주간보고·1:1 준비·결과물 1차 검토를 AI가 먼저 해 둡니다.<br />팀장님은 판단하고, 사람을 키우는 데 시간을 쓰세요.</p>
-          <ul className="mt-8 space-y-3 text-slate-200 text-[15px]">
-            <li><b className="text-white">내 방식대로 일하는 AI</b> <span className="text-slate-400">— 내 원칙·기준·자료를 넣어 두면 그 기준으로 리뷰하고 씁니다</span></li>
-            <li><b className="text-white">놓치지 않는 팀장</b> <span className="text-slate-400">— 컨디션이 떨어진 팀원, 지난 약속을 먼저 알려 줍니다</span></li>
-            <li><b className="text-white">윗선을 설득하는 숫자</b> <span className="text-slate-400">— 실적 전망과 What-if로 충원·목표 조정 근거를 만듭니다</span></li>
-            <li><b className="text-white">덜 괴로운 평가 시즌</b> <span className="text-slate-400">— 1년 내내 쌓인 근거로 평가 초안을 씁니다</span></li>
-          </ul>
+      <div className="hidden lg:flex flex-col justify-between bg-slate-950 text-white p-12 relative overflow-hidden">
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.25),transparent_45%)]" />
+        <div className="relative flex items-center gap-2.5"><LogoBlock size={32} /><span className="font-black tracking-tight text-lg">ATEAM</span></div>
+        <div className="relative">
+          <p className="text-xs font-semibold tracking-wide text-indigo-300">팀 성과 극대화를 위한 All-in-One 워크스페이스</p>
+          <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">팀장이 매일 여는<br />단 하나의 AI 성과관리 도구</h1>
+          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">목표 관리부터 팀원 케어, 의사결정, 위로 올릴 보고 준비까지 — 팀장이 쓰던 여러 도구를 하나로 묶었습니다.
+            쓰면 쓸수록 AI가 팀을 더 깊이 읽고, 성과를 끝까지 끌어올립니다.</p>
+          <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
+            {[
+              { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['3주째 같은 막힘, 계획보다 밀리는 과제', '컨디션이 꺾이는 팀원과 이탈 신호', '목표 달성 가능성이 떨어지는 순간'] },
+              { t: '모르는 패턴을 찾아줘요', i: Sparkles, c: 'text-violet-300', d: ['지연과 컨디션 하락이 같은 원인일 때', '결과물 보완점이 늘 같은 주제로 반복될 때', '팀장 시간이 몇 사람에게만 쏠릴 때'] },
+              { t: '팀의 미래를 예측해줘요', i: TrendingUp, c: 'text-sky-300', d: ['목표별 달성 가능성과 마감 시점 전망', '분기 실적 전망과 낙관 · 비관 범위', '무엇을 바꾸면 결과가 달라지는지'] },
+              { t: '놓친 것들을 알아서 챙겨줘요', i: ListChecks, c: 'text-emerald-300', d: ['이번 주 내릴 결정, 1:1이 필요한 팀원', '위에서 물어볼 질문과 답할 숫자', '평가 근거와 예상 등급까지 자동으로'] },
+            ].map((x) => (
+              <div key={x.t} className="rounded-xl bg-white/[0.05] ring-1 ring-white/10 p-3.5">
+                <div className="flex items-center gap-1.5"><x.i size={15} className={x.c} /><span className="text-[15px] font-bold">{x.t}</span></div>
+                <ul className="mt-2 space-y-1">{x.d.map((y) => <li key={y} className="text-xs text-slate-400 leading-snug flex gap-1.5"><span className="text-slate-600">·</span>{y}</li>)}</ul>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 max-w-lg border-t border-white/10 pt-4">
+            <div className="text-sm font-semibold text-slate-100">일할수록 쌓이고, 쌓일수록 보입니다</div>
+            <div className="mt-1.5 flex items-center gap-2 text-[11px] font-mono tracking-wider text-indigo-200">
+              <span>WORK</span><span className="text-slate-500">→</span><span>LAYER</span><span className="text-slate-500">→</span><span>INSIGHT</span>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">팀이 여기서 목표를 세우고 결과물을 올리고 1:1을 할수록 기록이 맥락으로 쌓이고, 인사이트는 더 깊고 정확해집니다.</p>
+          </div>
         </div>
-        <p className="text-xs text-slate-500">팀장 1명 구독 · 팀원은 무료 초대 · 첫 30일은 Pro 무료</p>
+        <p className="relative text-xs text-slate-500">팀장 1명 구독 · 팀원은 무료 초대 · 첫 30일은 Pro 무료</p>
       </div>
 
       <div className="flex items-center justify-center p-6">
