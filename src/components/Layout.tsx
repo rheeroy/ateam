@@ -2,8 +2,8 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Award, BookOpen, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, Target, UserRound, Users, Gavel } from 'lucide-react';
+  BookOpen, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
+  PenLine, ScatterChart, Settings, Target, UserCheck, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -91,7 +91,7 @@ export default function Layout() {
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
             <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
-            <NavItem to="/eval" label="평가 초안" icon={Award} />
+            <NavItem to="/eval" label="평가 시뮬레이션" icon={UserCheck} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
             <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
