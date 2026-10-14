@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, ClipboardList, FileText, Gavel,
+  AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, UserRound, FileText, Gavel,
   Inbox, ListTree, MessagesSquare, Sparkles, StickyNote, Target, Users, X,
 } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -19,14 +19,14 @@ import { ATeamAdvice, LogoBlock } from '../components/Brand';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
 import {
-  MemoModal, OrgNoteModal, PeriodTabs, QuickStart, STATUS_META,
+  MemoModal, PeriodTabs, QuickStart, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
   type HomeModel, type MainSection,
 } from '../components/home/shared';
 
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
 
-function Header({ onMemo, onOrg }: { onMemo: () => void; onOrg: () => void }) {
+function Header({ onMemo }: { onMemo: () => void }) {
   const { profile } = useTeam();
   const now = new Date();
   const hello = now.getHours() < 11 ? '좋은 아침입니다' : now.getHours() < 18 ? '안녕하세요' : '오늘도 수고 많으셨습니다';
@@ -38,8 +38,7 @@ function Header({ onMemo, onOrg }: { onMemo: () => void; onOrg: () => void }) {
       </div>
       <div className="flex gap-2 flex-wrap">
         <button onClick={onMemo} className="text-sm rounded-xl px-3 py-1.5 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><StickyNote size={15} />관찰 메모</button>
-        <button onClick={onOrg} className="text-sm rounded-xl px-3 py-1.5 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Building2 size={15} />위에서 온 것</button>
-        <Link to="/report" className="text-sm font-semibold rounded-xl px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><ClipboardList size={15} />주간보고 초안</Link>
+        <Link to="/upward" className="text-sm font-semibold rounded-xl px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><UserRound size={15} />임원 브리핑</Link>
       </div>
     </div>
   );
@@ -266,7 +265,7 @@ function Tiles({ m }: { m: HomeModel }) {
           { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
         ]}
         ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
-      <Tile icon={Building2} title="조직·전사" status={st('org')} to="/brief/org"
+      <Tile icon={Building2} title="조직·전사" status={st('org')} to="/upward"
         facts={fOrg} empty="위에서 온 소식이 없습니다"
         kpis={[
           { label: '위에서 온 것', value: m.orgSt.feed.length, sub: '열린 소식' },
@@ -302,7 +301,7 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
   ];
   const extras = [
     proposed && { k: `팀원 계획 승인 ${proposed}`, to: '/goals/edit?filter=proposed', icon: ListTree },
-    upReq.length && { k: `상위 요청 D-${Math.max(0, Math.min(...upReq.map((n) => dDay(n.event_date!))))}`, to: '/brief/org', icon: ArrowUpRight },
+    upReq.length && { k: `상위 요청 D-${Math.max(0, Math.min(...upReq.map((n) => dDay(n.event_date!))))}`, to: '/upward', icon: ArrowUpRight },
     answered && { k: `팀원 답변 ${answered}`, to: '/settings?tab=members', icon: Inbox },
   ].filter(Boolean) as { k: string; to: string; icon: typeof Inbox }[];
   const items = [
@@ -418,10 +417,9 @@ export default function Home() {
   const [period, setPeriod] = usePeriod();
   const m = useHomeModel(period);
   const [memo, setMemo] = useState<{ open: boolean; who: string | null }>({ open: false, who: null });
-  const [orgOpen, setOrgOpen] = useState(false);
   return (
     <div className="space-y-3">
-      <Header onMemo={() => setMemo({ open: true, who: null })} onOrg={() => setOrgOpen(true)} />
+      <Header onMemo={() => setMemo({ open: true, who: null })} />
       <TopPriority m={m} period={period} setPeriod={setPeriod} />
       <AdviceStrip />
       <Tiles m={m} />
@@ -429,7 +427,6 @@ export default function Home() {
       <FloatingToday teamId={team.id} raw={m.raw} orgNotes={m.org.data?.notes ?? []} />
       <div className="h-12" aria-hidden />
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
-      <OrgNoteModal teamId={team.id} open={orgOpen} onClose={() => setOrgOpen(false)} />
     </div>
   );
 }

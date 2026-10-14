@@ -2,8 +2,8 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Award, BookOpen, ChevronDown, ClipboardList, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, Target, Users, Gavel } from 'lucide-react';
+  Award, BookOpen, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
+  PenLine, ScatterChart, Settings, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -86,7 +86,8 @@ export default function Layout() {
             <NavItem to="/work" label="업무플랫폼" icon={FileText} />
             <NavItem to="/people" label="팀원관리" icon={Users} />
             <NavItem to="/decide" label="의사결정" icon={Gavel} />
-            <NavItem to="/report" label="주간보고" icon={ClipboardList} />
+            <Group label="상향 관리" />
+            <NavItem to="/upward" label="임원 브리핑" icon={UserRound} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
             <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />

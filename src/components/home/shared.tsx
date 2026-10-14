@@ -1,6 +1,7 @@
 // 팀장 홈과 섹션 상세(/brief/:section)가 같이 쓰는 조각
 //   데이터 수집 → 신호 엔진(_shared/signals.ts, 규칙·모델) → AI 인사이트(섹션별 해석) → 홈(엑기스) / 상세(전체)
-import { useMemo, useState, type ReactNode } from 'react';
+import { useExecutives } from '../../lib/upward';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -301,7 +302,7 @@ export const INSIGHT_KIND: Record<Period, AiKind> = { daily: 'insight_daily', we
 export const sectionHref = (section: MainSection, period = 'daily') =>
   section === 'perf' ? '/goals' : section === 'decide' || section === 'risk' ? `/decide${section === 'risk' ? '?f=risk' : ''}`
     : `${section === 'people' ? '/people' : `/brief/${section}`}${period === 'daily' ? '' : `?p=${period}`}`;
-export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people', perf: '/perf', sim: '/perf', knowhow: '/knowhow', report: '/report', eval: '/eval', strategy: '/perf', org: '/brief/org' };
+export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people', perf: '/perf', sim: '/perf', knowhow: '/knowhow', report: '/upward', eval: '/eval', strategy: '/perf', org: '/upward' };
 export const fresh = (o: { created_at: string } | null | undefined, p: Period) => !!o && daysAgo(o.created_at) < (p === 'daily' ? 1 : p === 'weekly' ? 7 : 31);
 
 /** 새 형식(sections)과 예전 형식(items+domain)을 같은 모양으로 */
@@ -474,7 +475,7 @@ export function useSignalAct(openMemo: (who: string | null) => void) {
   return (s: Signal) => {
     if (!s.action) return;
     if (s.action.memo !== undefined) return openMemo(s.action.memo ?? null);
-    if (s.action.to === '#org') return nav('/brief/org');
+    if (s.action.to === '#org') return nav('/upward');
     if (s.action.to?.startsWith('#')) return document.getElementById(s.action.to.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (s.action.to) nav(s.action.to);
   };
@@ -632,7 +633,7 @@ export const IMPACT_LEVEL: Record<OrgImpact['level'], { label: string; cls: stri
 };
 const ACTION_KIND: Record<string, string> = { replan: '계획 조정', report: '보고', discuss: '논의', watch: '지켜보기' };
 
-export function OrgNoteRow({ teamId, note, impact }: { teamId: string; note: OrgNote; impact?: AiOutput<OrgImpact> }) {
+export function OrgNoteRow({ teamId, note, impact, execName }: { teamId: string; note: OrgNote; impact?: AiOutput<OrgImpact>; execName?: string }) {
   const { hasFeature } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -656,6 +657,7 @@ export function OrgNoteRow({ teamId, note, impact }: { teamId: string; note: Org
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
             <span className={cx('font-semibold rounded px-1.5 py-0.5', k.cls)}>{k.label}</span>
+            {execName && <span className="font-semibold rounded px-1.5 py-0.5 bg-slate-900 text-white">{execName}</span>}
             {im && <span className={cx('font-semibold rounded px-1.5 py-0.5', IMPACT_LEVEL[im.level]?.cls)}>{IMPACT_LEVEL[im.level]?.label}</span>}
             {dd != null && <span className={cx('font-semibold', dd < 0 ? 'text-rose-600' : dd <= 7 ? 'text-amber-700' : 'text-slate-500')}>{dd < 0 ? `${-dd}일 지남` : dd === 0 ? '오늘' : `D-${dd}`}</span>}
             <span className="text-slate-400">{note.source ? `${note.source} · ` : ''}{fmtDate(note.created_at)}</span>
@@ -750,7 +752,7 @@ export function OrgDetail({ teamId, data, loading, perfRisks, onAdd }: {
             {st.up.map((x, i) => <li key={i} className="text-sm leading-snug"><span className="block text-[11px] text-slate-400">{x.src}</span>{x.t}</li>)}
           </ul>
         ) : <p className="px-5 py-3 text-sm text-slate-500">지금 위에 올릴 급한 것이 없습니다.</p>}
-        <div className="px-5 pb-3"><Link to="/report" className="text-xs font-semibold text-indigo-700 inline-flex items-center gap-1">주간보고 초안에 담기 <ArrowRight size={12} /></Link></div>
+        <div className="px-5 pb-3"><Link to="/upward" className="text-xs font-semibold text-indigo-700 inline-flex items-center gap-1">임원 브리핑에서 챙기기 <ArrowRight size={12} /></Link></div>
         <div className="px-5 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-500 flex items-center gap-1.5"><CalendarClock size={13} />다가오는 일정·기한</div>
         {st.upcoming.length ? (
           <ul className="px-5 pt-2 pb-4 space-y-1.5">
@@ -771,8 +773,11 @@ export function OrgDetail({ teamId, data, loading, perfRisks, onAdd }: {
   );
 }
 
-export function OrgNoteModal({ teamId, open, onClose }: { teamId: string; open: boolean; onClose: () => void }) {
+export function OrgNoteModal({ teamId, open, onClose, execId: presetExec }: { teamId: string; open: boolean; onClose: () => void; execId?: string | null }) {
   const { uid, hasFeature } = useTeam();
+  const ex = useExecutives(teamId);
+  const [execId, setExecId] = useState<string>(presetExec ?? '');
+  useEffect(() => { if (open) setExecId(presetExec ?? ''); }, [open, presetExec]);
   const toast = useToast();
   const qc = useQueryClient();
   const [kind, setKind] = useState<OrgNoteKind>('strategy');
@@ -786,7 +791,7 @@ export function OrgNoteModal({ teamId, open, onClose }: { teamId: string; open: 
   const reset = () => { setTitle(''); setBody(''); setSource(''); setDate(''); };
   const save = useMutation({
     mutationFn: async () => {
-      const row = await q<OrgNote>(supabase.from('org_notes').insert({ team_id: teamId, author_id: uid, kind, title: title.trim(), body, source, event_date: date || null }).select('*').single());
+      const row = await q<OrgNote>(supabase.from('org_notes').insert({ team_id: teamId, author_id: uid, kind, title: title.trim(), body, source, event_date: date || null, ...(execId ? { exec_id: execId } : {}) }).select('*').single());
       if (ai && analyze && kind !== 'calendar') {
         try { await invoke('ai-org-impact', { team_id: teamId, note_id: row.id }); return 'analyzed'; } catch (e) { return `saved:${errorText(e)}`; }
       }
@@ -796,14 +801,20 @@ export function OrgNoteModal({ teamId, open, onClose }: { teamId: string; open: 
       qc.invalidateQueries({ queryKey: ['org-notes'] }); qc.invalidateQueries({ queryKey: ['home-insights'] }); qc.invalidateQueries({ queryKey: ['credits'] });
       toast(r === 'analyzed' ? '저장하고 우리 팀 영향을 정리했습니다' : r.startsWith('saved:') ? `저장했습니다. 영향 분석은 실패: ${r.slice(6)}` : '저장했습니다');
       reset(); onClose();
-      setTimeout(() => document.getElementById('org')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
     },
     onError: (e) => toast(errorText(e)),
   });
   return (
     <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Building2 size={16} className="text-indigo-600" />위에서 온 것 남기기</span>}>
       <div className="space-y-3">
-        <p className="text-sm text-slate-500">회의에서 들은 말, 공지, 메신저 내용을 그대로 붙여 넣어도 됩니다. 팀장만 봅니다.</p>
+        <p className="text-sm text-slate-500">코멘트·자료·요청·방침을 그대로 붙여 넣어도 됩니다. 팀장만 봅니다.</p>
+        {!!ex.list.length && (
+          <div className="flex items-center gap-1.5 flex-wrap text-xs"><span className="text-slate-500 mr-1">누구에게서</span>
+            {[{ id: '', name: '선택 안 함' }, ...ex.list].map((e) => (
+              <button key={e.id} type="button" onClick={() => setExecId(e.id)} className={cx('rounded-full px-2.5 py-1 ring-1', execId === e.id ? 'bg-slate-900 text-white ring-slate-900' : 'ring-slate-200 text-slate-600 hover:ring-slate-400')}>{e.name}</button>
+            ))}
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {(Object.keys(ORG_KIND) as OrgNoteKind[]).map((k) => (
             <button key={k} type="button" onClick={() => setKind(k)}
@@ -891,7 +902,7 @@ export function QuickStart({ teamId }: { teamId: string }) {
   const steps = [
     { done: st.data.it > 0, title: '목표 세우기', desc: '계획서를 넣으면 AI가 목표·과제 초안을 만듭니다', to: '/goals' },
     { done: members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/settings?tab=members' },
-    { done: st.data.org > 0, title: '위에서 온 것 남기기', desc: '전사 방침·임원 관심사를 넣으면 팀 목표와 맞춰 봅니다', to: '/brief/org' },
+    { done: st.data.org > 0, title: '위에서 온 것 남기기', desc: '전사 방침·임원 관심사를 넣으면 팀 목표와 맞춰 봅니다', to: '/upward' },
     { done: st.data.kh > 0, title: '내 노하우 넣기', desc: '원칙·자료를 넣으면 AI가 팀장님 기준으로 일합니다', to: '/knowhow' },
   ];
   const doneN = steps.filter((x) => x.done).length;

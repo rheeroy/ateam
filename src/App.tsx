@@ -12,7 +12,7 @@ const Home = lazy(() => import('./pages/Home'));
 const OneOnOneDetail = lazy(() => import('./pages/OneOnOneDetail'));
 const Reviews = lazy(() => import('./pages/Reviews'));
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'));
-const Report = lazy(() => import('./pages/Report'));
+const Upward = lazy(() => import('./pages/Upward'));
 const Perf = lazy(() => import('./pages/Perf'));
 const Advisor = lazy(() => import('./pages/Advisor'));
 const Evaluation = lazy(() => import('./pages/Evaluation'));
@@ -96,6 +96,7 @@ export default function App() {
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <MemberHome />} />
+        <Route path="brief/org" element={<Moved to="/upward" />} />
         <Route path="brief/:section" element={L(<Brief />)} />
         <Route path="goals" element={L(<TeamGoals />)} />
         <Route path="goals/edit" element={L(<Goals mode="leader" />)} />
@@ -110,7 +111,8 @@ export default function App() {
         <Route path="work/:id" element={<ReviewDetail />} />
         <Route path="reviews" element={<Moved to="/work" />} />
         <Route path="reviews/:id" element={<ReviewDetail />} />
-        <Route path="report" element={L(<Report />)} />
+        <Route path="upward" element={L(<Upward />)} />
+        <Route path="report" element={<Moved to="/upward" />} />
         <Route path="perf" element={L(<Perf />)} />
         <Route path="advisor" element={L(<Advisor />)} />
         <Route path="strategy" element={<Moved to="/perf" />} />

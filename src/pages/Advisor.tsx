@@ -148,7 +148,7 @@ function AdviceList({ c, week }: { c: AdvisorOut; week: string }) {
       case 'request': return <Button size="sm" onClick={() => setModal({ kind: 'req', a })}><Send size={13} />요청 보내기</Button>;
       case 'one_on_one': return <Button size="sm" onClick={() => setModal({ kind: 'oo', a })}><CalendarPlus size={13} />1:1 잡기</Button>;
       case 'report': return <><Button size="sm" onClick={() => copy(a, '보고 문장을 복사했습니다')} disabled={!a.script}><Megaphone size={13} />보고 문장 복사</Button>
-        <Link to="/report" className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5">주간보고<ArrowRight size={12} /></Link></>;
+        <Link to="/upward" className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5">임원 브리핑<ArrowRight size={12} /></Link></>;
       case 'calendar': return a.script ? <Button size="sm" variant="secondary" onClick={() => copy(a, '공지 문장을 복사했습니다')}><ClipboardCopy size={13} />공지 문장 복사</Button> : null;
       default: return null;
     }

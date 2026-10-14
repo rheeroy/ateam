@@ -95,7 +95,7 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
     const d = n.event_date ? dDay(n.event_date) : null;
     out.push({ key: `org:${n.id}`, score: 150, kind: '방침 대응', title: `'${n.title}'에 맞춰 무엇을 바꿀지`, why: im?.summary ? strip(im.summary) : undefined,
       options: im?.actions?.slice(0, 3).map((a) => a.label), impact: im?.affected?.length ? `영향받는 목표: ${im.affected.map((a) => a.title).join(' · ')}` : undefined,
-      evidence: [], action: '영향 분석 보기', to: '/brief/org', y: 0.72, x: d != null ? 1 - Math.min(Math.max(d, 0), 60) / 60 : 0.5 });
+      evidence: [], action: '영향 분석 보기', to: '/upward', y: 0.72, x: d != null ? 1 - Math.min(Math.max(d, 0), 60) / 60 : 0.5 });
   }
   const conc = m.visible.find((s) => s.id.startsWith('exec-conc-'));
   if (conc) out.push({ key: `rule:${conc.id}`, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: 'A·Team의 제안 보기', to: '/advisor', y: 0.6, x: 0.55 });

@@ -3,7 +3,7 @@ export type Role = 'leader' | 'member';
 export type AiKind =
   | 'briefing' | 'one_on_one_prep' | 'review' | 'weekly_report'
   | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note'
-  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly';
+  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly' | 'exec_brief';
 export type AiStatus = 'draft' | 'edited' | 'final' | 'withheld';
 
 export interface Profile { id: string; email: string | null; full_name: string; avatar_url: string | null }
@@ -105,7 +105,7 @@ export interface KnowhowCard {
 
 
 export type OrgNoteKind = 'strategy' | 'exec' | 'request' | 'peer' | 'calendar' | 'other';
-export interface OrgNote { id: string; team_id: string; author_id: string | null; kind: OrgNoteKind; title: string; body: string; source: string; event_date: string | null; status: 'open' | 'done'; created_at: string; updated_at: string }
+export interface OrgNote { id: string; team_id: string; author_id: string | null; kind: OrgNoteKind; title: string; body: string; source: string; event_date: string | null; status: 'open' | 'done'; exec_id?: string | null; created_at: string; updated_at: string }
 export interface OrgImpact {
   summary: string; level: 'high' | 'medium' | 'low' | 'none';
   affected?: { item_id: string; title: string; how: string }[];

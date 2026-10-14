@@ -127,7 +127,7 @@ export default function Brief() {
                 {m.orgSt.high.map((n) => {
                   const im = m.org.data?.impactOf.get(n.id);
                   return (
-                    <li key={n.id} className="text-sm"><Link to="/brief/org" className="font-semibold hover:text-indigo-700">{n.title}</Link>
+                    <li key={n.id} className="text-sm"><Link to="/upward" className="font-semibold hover:text-indigo-700">{n.title}</Link>
                       <span className={cx('ml-2 text-[11px] font-semibold rounded px-1.5 py-0.5', IMPACT_LEVEL.high.cls)}>{IMPACT_LEVEL.high.label}</span>
                       {im && <p className="text-slate-600 mt-0.5"><TaggedText text={im.content.summary} sources={im.sources} /></p>}</li>
                   );
