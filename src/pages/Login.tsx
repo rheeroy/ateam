@@ -83,7 +83,7 @@ export default function Login() {
         <div className="relative flex items-center gap-2.5"><LogoBlock size={32} /><span className="font-black tracking-tight text-lg">ATEAM</span></div>
         <div className="relative">
           <p className="text-xs font-semibold tracking-wide text-indigo-300">팀 운영의 모든 것을 함께하는 AI 파트너</p>
-          <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">Managing Skill과 Insight로<br />S급 팀장을 만들어줍니다</h1>
+          <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">팀 운영의 마에스트로가<br />S급 팀장을 만들어줍니다</h1>
           <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">목표 관리부터 팀원 케어, 의사결정, 위로 올릴 보고 준비까지 — 팀장이 쓰던 여러 도구를 하나로 묶었습니다.
             쓰면 쓸수록 AI가 팀을 더 깊이 읽고, 성과를 끝까지 끌어올립니다.</p>
           <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
