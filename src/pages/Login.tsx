@@ -82,7 +82,7 @@ export default function Login() {
         <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.25),transparent_45%)]" />
         <div className="relative flex items-center gap-2.5"><LogoBlock size={32} /><span className="font-black tracking-tight text-lg">ATEAM</span></div>
         <div className="relative">
-          <p className="text-xs font-semibold tracking-wide text-indigo-300">팀 운영의 모든 것을 함께하는 AI 파트너</p>
+          <p className="text-xs font-semibold tracking-wide text-indigo-300">팀장 Must-Have AI Solution</p>
           <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">팀 운영의 마에스트로가<br />S급 팀장을 만들어줍니다</h1>
           <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">영혼까지 갈아넣어도 팀 운영은 너무나 벅찹니다.<br /> ATEAM은 성과관리, 팀원관리, 의사결정 모든 것을 한 단계 끌어올려줍니다.</p>
           <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
