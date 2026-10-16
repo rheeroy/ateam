@@ -11,7 +11,7 @@ import { Bar, Button, Card, Empty, Spinner, Tabs, useToast } from '../components
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
 import { ForecastChart, PerfMap, PortfolioChart, Sparkline } from '../components/charts';
 import { MetricDataModal, NewMetricModal } from '../components/MetricEditor';
-import { GoalMapSection } from '../components/perf/GoalMap';
+import { BoxTitle, GoalMapSection, type ForecastScope } from '../components/perf/GoalMap';
 
 export function Upsell({ feature }: { feature: string }) {
   return (
@@ -78,13 +78,15 @@ function MemberCard({ teamId, p }: { teamId: string; p: PerfPoint }) {
   );
 }
 
-function ForecastSection({ teamId }: { teamId: string }) {
+/** 실적 전망 — 목표별 전망 지도에서 고른 목표(또는 목표에 안 묶인 지표)의 sub 패널 */
+function ForecastSection({ teamId, scope }: { teamId: string; scope: ForecastScope }) {
   const [metricId, setMetricId] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
   const metrics = useQuery({ queryKey: ['metrics', teamId], queryFn: () => q<Metric[]>(supabase.from('metrics').select('*').eq('team_id', teamId).order('created_at')) });
-  useEffect(() => { if (!metricId && metrics.data?.[0]) setMetricId(metrics.data[0].id); }, [metrics.data, metricId]);
-  const metric = metrics.data?.find((m) => m.id === metricId) ?? null;
+  const list = (metrics.data ?? []).filter((m) => (scope.kind === 'goal' ? m.item_id === scope.goalId : m.id === scope.metricId));
+  useEffect(() => { if (!list.some((m) => m.id === metricId)) setMetricId(list[0]?.id ?? null); }, [list, metricId]);
+  const metric = list.find((m) => m.id === metricId) ?? null;
   const fc = useQuery({ queryKey: ['forecast', metricId], enabled: !!metricId, queryFn: () => q<Forecast>(supabase.rpc('metric_forecast', { p_metric: metricId })) });
   const note = useLatestAi<{ text: string }>(teamId, 'forecast_note', { ref_table: 'metrics', ref_id: metricId });
   const gen = useGenerate('ai-interpret');
@@ -93,24 +95,24 @@ function ForecastSection({ teamId }: { teamId: string }) {
   const prob = f?.probability ?? null;
 
   return (
-    <ProvBlock kind="calc" className="bg-white rounded-2xl border border-slate-200 p-5">
+    <ProvBlock kind="calc" className="bg-slate-50/80 rounded-xl ring-1 ring-slate-200 p-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="font-semibold">실적 전망 {metric && `· ${metric.name} (${metric.cumulative ? '누적, ' : ''}${metric.unit})`}{' '}
+          <h3 className="text-sm font-semibold text-slate-700">{metric ? `${metric.name} (${metric.cumulative ? '누적, ' : ''}${metric.unit})` : '실적 지표'}{' '}
             {f && !f.insufficient && <ProvChip kind="calc" sources={[`실적 ${f.months_of_data}개월`, `진행 중 딜 ${f.drivers?.pipeline_count ?? 0}건 (확률 가중)`, '월별 변동성으로 범위 계산']}
-              level="L4" depth={Math.min(4, f.months_of_data)} note={`실적이 ${f.months_of_data}개월치입니다. 쌓일수록 범위가 좁아집니다.`} />}</h2>
+              level="L4" depth={Math.min(4, f.months_of_data)} note={`실적이 ${f.months_of_data}개월치입니다. 쌓일수록 범위가 좁아집니다.`} />}</h3>
           <p className="text-xs text-slate-500 mt-0.5">실선은 실적, 점선은 기준 전망, 음영은 비관~낙관 범위(80%)</p>
         </div>
         <div className="flex gap-1.5 text-xs flex-wrap">
-          {(metrics.data ?? []).map((m) => (
-            <button key={m.id} onClick={() => setMetricId(m.id)} className={cx('border rounded-full px-2.5 py-1', m.id === metricId ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200')}>{m.name}</button>
+          {list.length > 1 && list.map((m) => (
+            <button key={m.id} onClick={() => setMetricId(m.id)} className={cx('border rounded-full px-2.5 py-1 bg-white', m.id === metricId ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200')}>{m.name}</button>
           ))}
-          <button onClick={() => setNewOpen(true)} className="border border-dashed border-slate-300 rounded-full px-2.5 py-1 text-slate-500 inline-flex items-center gap-1"><Plus size={12} />지표</button>
+          {scope.kind === 'goal' && !!list.length && <button onClick={() => setNewOpen(true)} className="border border-dashed border-slate-300 rounded-full px-2.5 py-1 text-slate-500 inline-flex items-center gap-1 bg-white"><Plus size={12} />이 목표에 지표 연결</button>}
         </div>
       </div>
-      {!metrics.data?.length ? (
-        <Empty icon={<Database size={18} />} title="실적 지표가 없습니다" action={<Button onClick={() => setNewOpen(true)}>지표 추가</Button>}>
-          매출, 계약액, 리드 수처럼 팀이 책임지는 숫자를 등록하고 월별 실적을 넣으면, 마감 시점의 전망과 목표 달성 확률을 계산합니다.
+      {metrics.isLoading ? <Spinner /> : !list.length ? (
+        <Empty icon={<Database size={18} />} title={scope.kind === 'goal' ? '이 목표에는 실적 지표가 없습니다' : '지표를 찾을 수 없습니다'} action={scope.kind === 'goal' ? <Button onClick={() => setNewOpen(true)}><Plus size={14} />지표 연결</Button> : undefined}>
+          지금 달성 가능성은 하위 과제의 일정·진척으로 계산한 값입니다. 매출, 계약액, 고객 수처럼 숫자로 세는 결과를 연결하고 월별 실적을 넣으면, 마감 시점의 전망과 달성 확률을 실적 기준으로 계산합니다.
         </Empty>
       ) : !f ? <Spinner /> : f.insufficient ? (
         <Empty icon={<Database size={18} />} title="실적이 2개월 이상 쌓여야 전망을 낼 수 있습니다" action={<Button onClick={() => setDataOpen(true)}>실적 입력</Button>}>
@@ -121,8 +123,8 @@ function ForecastSection({ teamId }: { teamId: string }) {
           <div className="lg:col-span-2 overflow-x-auto min-w-0"><ForecastChart fc={f} /></div>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-500">마감 기준 전망</div><div className="text-xl font-bold num mt-0.5">{num(f.base)}{f.unit}</div>{f.target != null && <div className="text-[11px] text-slate-500">목표의 {Math.round(((f.base ?? 0) / f.target) * 100)}%</div>}</div>
-              <div className={cx('rounded-xl p-3', prob == null ? 'bg-slate-50' : prob < 40 ? 'bg-rose-50' : prob < 60 ? 'bg-amber-50' : 'bg-emerald-50')}>
+              <div className="rounded-xl bg-white ring-1 ring-slate-200/70 p-3"><div className="text-xs text-slate-500">마감 기준 전망</div><div className="text-xl font-bold num mt-0.5">{num(f.base)}{f.unit}</div>{f.target != null && <div className="text-[11px] text-slate-500">목표의 {Math.round(((f.base ?? 0) / f.target) * 100)}%</div>}</div>
+              <div className={cx('rounded-xl p-3', prob == null ? 'bg-white ring-1 ring-slate-200/70' : prob < 40 ? 'bg-rose-50' : prob < 60 ? 'bg-amber-50' : 'bg-emerald-50')}>
                 <div className="text-xs text-slate-600">목표 달성 확률</div><div className="text-xl font-bold num mt-0.5">{prob ?? '-'}{prob != null && '%'}</div>
                 {prob != null && prob < 60 && <div className="text-[11px] inline-flex items-center gap-1 text-amber-800"><AlertTriangle size={11} />주의</div>}
               </div>
@@ -157,14 +159,14 @@ function ForecastSection({ teamId }: { teamId: string }) {
           </div>
         </div>
       )}
-      <NewMetricModal open={newOpen} onClose={() => setNewOpen(false)} onCreated={(id) => { setMetricId(id); setDataOpen(true); }} />
+      <NewMetricModal open={newOpen} presetItemId={scope.kind === 'goal' ? scope.goalId : null} onClose={() => setNewOpen(false)} onCreated={(id) => { setMetricId(id); setDataOpen(true); }} />
       {metric && <MetricDataModal metric={metric} open={dataOpen} onClose={() => setDataOpen(false)} />}
     </ProvBlock>
   );
 }
 
 type PerfTab = 'perf' | 'portfolio' | 'people';
-const PERF_TABS: { id: PerfTab; label: string }[] = [{ id: 'perf', label: '성과' }, { id: 'portfolio', label: '포트폴리오' }, { id: 'people', label: '사람별' }];
+const PERF_TABS: { id: PerfTab; label: string }[] = [{ id: 'perf', label: '목표별' }, { id: 'portfolio', label: '과제별' }, { id: 'people', label: '사람별' }];
 
 export default function Perf() {
   const { team, hasFeature } = useTeam();
@@ -182,7 +184,7 @@ export default function Perf() {
         </div>
       </div>
       <Tabs value={tab} onChange={setTab} items={PERF_TABS} />
-      {tab === 'perf' && <><GoalMapSection />{hasFeature('forecast') ? <ForecastSection teamId={team.id} /> : <Upsell feature="실적 전망" />}</>}
+      {tab === 'perf' && <GoalMapSection renderForecast={(sc) => (hasFeature('forecast') ? <ForecastSection key={sc.kind === 'goal' ? sc.goalId : sc.metricId} teamId={team.id} scope={sc} /> : <Upsell feature="실적 전망" />)} />}
       {tab === 'portfolio' && <PortfolioSection teamId={team.id} />}
       {tab === 'people' && (hasFeature('perf_map') ? <PeopleSection /> : <Upsell feature="팀 성과 지도" />)}
     </section>
@@ -197,20 +199,22 @@ function PeopleSection() {
   useEffect(() => { if (!sel && map.data?.length) setSel((map.data.find((p) => !p.withheld) ?? map.data[0]).user_id); }, [map.data, sel]);
   const selected = map.data?.find((p) => p.user_id === sel);
   return (
-    <div className="grid lg:grid-cols-5 gap-5 items-start">
-      <ProvBlock kind="calc" className="lg:col-span-3 min-w-0 bg-white rounded-2xl border border-slate-200 p-5">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h2 className="font-semibold inline-flex items-center gap-2">팀 성과 지도
-            <ProvChip kind="calc" sources={['가로: 담당 과제 진척 + 결과물 승인 비율', '세로: 판단 깊이(리뷰) + 역량 근거의 폭', '이동 화살표: 90일 전 위치 → 지금']} level="L3" depth={3}
-              note="위치는 통계로 계산합니다. AI가 사람에게 점수를 매기지 않습니다." /></h2>
-          <div className="flex items-center gap-4 text-xs text-slate-500"><span>○— 90일 전 → 지금</span><span>◌ 근거 부족</span></div>
-        </div>
-        <div className="mt-3 overflow-x-auto">
-          {map.isLoading ? <Spinner /> : !map.data?.length ? <Empty title="팀원이 없습니다">팀원을 초대하면 위치가 표시됩니다.</Empty> : <PerfMap points={map.data} selected={sel} onSelect={setSel} />}
-        </div>
-        <p className="text-xs text-slate-500 mt-2">위치는 실적·진척(가로)과 판단 깊이·역량 근거(세로)로 계산합니다. 판단 근거가 {String((team.settings?.min_judgment_evidence as number) ?? 8)}건 미만이면 위치를 매기지 않고 판단을 보류합니다.</p>
-      </ProvBlock>
-      <div className="lg:col-span-2">{selected ? <MemberCard teamId={team.id} p={selected} /> : <Card className="p-5 text-sm text-slate-500">지도에서 팀원을 고르세요.</Card>}</div>
+    <div className="grid lg:grid-cols-5 gap-4 items-stretch">
+      <div className="lg:col-span-3 flex flex-col gap-2 min-w-0">
+        <BoxTitle title={<>팀 성과 지도<ProvChip kind="calc" sources={['가로: 담당 과제 진척 + 결과물 승인 비율', '세로: 판단 깊이(리뷰) + 역량 근거의 폭', '이동 화살표: 90일 전 위치 → 지금']} level="L3" depth={3}
+          note="위치는 통계로 계산합니다. AI가 사람에게 점수를 매기지 않습니다." /></>}
+          hint="실적·진척(가로) × 판단 깊이·역량 근거(세로)" right={<span className="text-slate-500">○— 90일 전 → 지금 · ◌ 근거 부족</span>} />
+        <ProvBlock kind="calc" className="flex-1 bg-white rounded-2xl border border-slate-200 p-5">
+          <div className="overflow-x-auto">
+            {map.isLoading ? <Spinner /> : !map.data?.length ? <Empty title="팀원이 없습니다">팀원을 초대하면 위치가 표시됩니다.</Empty> : <PerfMap points={map.data} selected={sel} onSelect={setSel} />}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">판단 근거가 {String((team.settings?.min_judgment_evidence as number) ?? 8)}건 미만이면 위치를 매기지 않고 판단을 보류합니다.</p>
+        </ProvBlock>
+      </div>
+      <div className="lg:col-span-2 flex flex-col gap-2 min-w-0">
+        <BoxTitle title="선택한 팀원" hint="지도에서 고르면 바뀝니다" />
+        <div className="flex-1">{selected ? <MemberCard teamId={team.id} p={selected} /> : <Card className="p-5 text-sm text-slate-500">지도에서 팀원을 고르세요.</Card>}</div>
+      </div>
     </div>
   );
 }
@@ -219,13 +223,13 @@ function PeopleSection() {
 function PortfolioSection({ teamId }: { teamId: string }) {
   const port = useQuery({ queryKey: ['portfolio', teamId], queryFn: () => q<PortfolioRow[]>(supabase.rpc('task_portfolio', { p_team: teamId })) });
   return (
-    <ProvBlock kind="calc" className="bg-white rounded-2xl border border-slate-200 p-5">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-semibold inline-flex items-center gap-2">과제 포트폴리오
-          <ProvChip kind="calc" sources={['팀 시간 = 과제별 배분율 × 사람별 주당 가용 시간 (없으면 예상 공수)', '미션 기여도 = 팀장이 매긴 1~5']} level="L4" depth={2} /></h2>
-        <span className="text-xs text-slate-400">미션 기여도 × 팀 시간 투입 — 기여도는 낮은데 시간이 많이 드는 과제가 줄일 후보입니다 · <Link to="/goals/edit" className="text-indigo-700 font-semibold">공수·기여도 고치기</Link></span>
-      </div>
-      <div className="mt-3 overflow-x-auto">{port.isLoading ? <Spinner /> : port.data?.length ? <div className="max-w-3xl mx-auto"><PortfolioChart rows={port.data} /></div> : <p className="text-sm text-slate-500 py-6">진행 중인 과제가 없습니다.</p>}</div>
-    </ProvBlock>
+    <div className="space-y-2">
+      <BoxTitle title={<>과제 포트폴리오<ProvChip kind="calc" sources={['팀 시간 = 과제별 배분율 × 사람별 주당 가용 시간 (없으면 예상 공수)', '미션 기여도 = 팀장이 매긴 1~5']} level="L4" depth={2} /></>}
+        hint="미션 기여도 × 팀 시간 투입 — 기여도는 낮은데 시간이 많이 드는 과제가 줄일 후보입니다"
+        right={<Link to="/goals/edit" className="text-indigo-700 font-semibold">공수·기여도 고치기 →</Link>} />
+      <ProvBlock kind="calc" className="bg-white rounded-2xl border border-slate-200 p-5">
+        <div className="overflow-x-auto">{port.isLoading ? <Spinner /> : port.data?.length ? <div className="max-w-3xl mx-auto"><PortfolioChart rows={port.data} /></div> : <p className="text-sm text-slate-500 py-6">진행 중인 과제가 없습니다.</p>}</div>
+      </ProvBlock>
+    </div>
   );
 }

@@ -1,13 +1,15 @@
 // 팀 성과 › 성과 탭 — 목표별 전망 '계획선 지도'
 //   가로: 기간 경과(%) · 세로: 진척(%) · 대각선 = 계획 속도. 선 아래는 뒤처진 목표, 점 색은 달성 가능성.
 //   오른쪽: 고른 목표의 진척/계획 · 달성 가능성 · 예상 완료, 끌어내리는 것, AI 한 줄
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTeam } from '../../state/session';
 import { supabase, q } from '../../lib/supabase';
 import { useLatestAi } from '../../lib/hooks';
 import { cx } from '../../lib/format';
+import type { Metric } from '../../lib/types';
+import { X } from 'lucide-react';
 import { Card, Spinner } from '../ui';
 import { sectionsOf, type InsightOut } from '../home/shared';
 
@@ -19,8 +21,10 @@ type Tone = 'rose' | 'amber' | 'emerald' | 'slate';
 interface Drag { text: string; who?: string; tone: Tone }
 export interface G {
   id: string; title: string; progress: number; elapsed: number | null; gap: number | null; prob: number | null; tone: Tone;
-  dday: number | null; due: string | null; projected: string | null; lateDays: number | null; owners: string[]; drags: Drag[]; ai?: string;
+  dday: number | null; due: string | null; projected: string | null; lateDays: number | null; owners: string[]; drags: Drag[]; ai?: string; basis: string | null;
 }
+/** 아래 '실적 전망'(sub)에 무엇을 띄울지 — 목표에 연결된 지표들, 또는 목표에 안 묶인 지표 하나 */
+export type ForecastScope = { kind: 'goal'; goalId: string; goalTitle: string } | { kind: 'metric'; metricId: string; metricName: string };
 
 const DAY = 86400000;
 const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
@@ -85,7 +89,7 @@ function useGoalMap() {
       return {
         id: g.id, title: g.title, progress: g.progress, elapsed, gap: elapsed == null ? null : g.progress - elapsed, prob, tone: toneOf(prob),
         dday: g.due_date ? Math.round((dt(g.due_date).getTime() - t0) / DAY) : null, due: g.due_date, projected, lateDays, owners,
-        drags: drags.slice(0, 4), ai: hit ? strip(`${hit.title} — ${hit.body}`) : undefined,
+        drags: drags.slice(0, 4), ai: hit ? strip(`${hit.title} — ${hit.body}`) : undefined, basis: ol?.basis ?? null,
       };
     }).sort((a, b) => (a.prob ?? 101) - (b.prob ?? 101));
   }, [goals.data, kids.data, outlook.data, sched.data, ins.data, nameOf]);
@@ -105,7 +109,7 @@ export function Chart({ rows, sel, onSel }: { rows: G[]; sel: string | null; onS
     const x = px(r.elapsed!), y = py(r.progress);
     const ahead = (r.gap ?? 0) >= 0;
     const w = Math.min(190, r.title.length * 12 + 10);
-    const anchorEnd = ahead ? x - 16 > L + w : x + 16 + w > R;
+    const anchorEnd = ahead ? x - 16 > L + w : x + 16 + w > W - 2;
     let ly = ahead ? y - 26 : y + 22;
     const lx = anchorEnd ? x - 16 : x + 16;
     let moved = false;
@@ -161,10 +165,10 @@ export function Chart({ rows, sel, onSel }: { rows: G[]; sel: string | null; onS
   );
 }
 
-export function Detail({ g }: { g: G }) {
+export function Detail({ g, linked }: { g: G; linked?: boolean }) {
   const st = STATUS[g.tone];
   return (
-    <Card className="p-5 h-full flex flex-col">
+    <Card className={cx('p-5 h-full flex flex-col', linked && 'ring-2 ring-violet-300')}>
       <div className="flex items-center gap-1.5 text-[11px] flex-wrap"><span className={cx('w-2 h-2 rounded-full', st.dot)} /><b className={st.text}>{st.label}</b>
         <span className="text-slate-400">{g.dday != null && `· ${g.dday >= 0 ? `D-${g.dday}` : `마감 ${-g.dday}일 지남`}`}{g.owners.length ? ` · ${g.owners.slice(0, 3).join(' · ')}` : ''}</span></div>
       <div className="mt-1 text-lg font-bold leading-snug tracking-tight">{g.title}</div>
@@ -172,7 +176,8 @@ export function Detail({ g }: { g: G }) {
         <div className="rounded-lg bg-slate-50 py-2"><div className="text-[10px] text-slate-500">진척 / 계획</div>
           <div className="font-bold num">{g.progress}%{g.elapsed != null && <span className="text-slate-400 font-normal text-xs"> / {g.elapsed}%</span>}</div></div>
         <div className={cx('rounded-lg py-2', g.tone === 'rose' ? 'bg-rose-50' : 'bg-slate-50')}><div className="text-[10px] text-slate-500">달성 가능성</div>
-          <div className={cx('font-bold num', st.text)}>{g.prob != null ? `${g.prob}%` : '—'}</div></div>
+          <div className={cx('font-bold num', st.text)}>{g.prob != null ? `${g.prob}%` : '—'}</div>
+          {g.basis && g.basis !== 'insufficient' && <div className="text-[9px] text-slate-500">{g.basis === 'metric' ? '실적 전망 기준' : '일정·진척 기준'}</div>}</div>
         <div className="rounded-lg bg-slate-50 py-2"><div className="text-[10px] text-slate-500">예상 완료</div>
           <div className="font-bold num">{g.projected ? md(g.projected) : '—'}{g.lateDays != null && g.lateDays > 0 && <span className="text-xs text-rose-600"> +{g.lateDays}일</span>}</div></div>
       </div>
@@ -194,36 +199,76 @@ export function Detail({ g }: { g: G }) {
   );
 }
 
-export function GoalMapSection() {
+/** 박스 위 제목 — 굵은 제목 + 회색 설명 (임원 브리핑 · 의사결정과 같은 모양) */
+export function BoxTitle({ title, hint, right, className }: { title: ReactNode; hint?: ReactNode; right?: ReactNode; className?: string }) {
+  return (
+    <div className={cx('flex items-end gap-2 flex-wrap min-w-0', className)}>
+      <span className="text-sm font-bold text-slate-900 inline-flex items-center gap-1.5">{title}</span>
+      {hint && <span className="text-xs text-slate-400">{hint}</span>}
+      {right && <span className="ml-auto text-xs">{right}</span>}
+    </div>
+  );
+}
+
+export function GoalMapSection({ renderForecast }: { renderForecast?: (scope: ForecastScope) => ReactNode }) {
+  const { team } = useTeam();
   const { rows, loading } = useGoalMap();
   const [sel, setSel] = useState<string | null>(null);
-  useEffect(() => { if (!sel && rows.length) setSel(rows[0].id); }, [rows, sel]);
+  const [picked, setPicked] = useState<ForecastScope | null>(null);
+  // 기본 선택은 가장 위험한 목표 — 달성 가능성이 다 들어온 뒤에 정한다
+  useEffect(() => { if (!sel && !loading && rows.length) setSel(rows[0].id); }, [rows, sel, loading]);
   const cur = rows.find((r) => r.id === sel) ?? rows[0];
   const offMap = rows.filter((r) => r.elapsed == null);
   const n = { rose: rows.filter((r) => r.tone === 'rose').length, amber: rows.filter((r) => r.tone === 'amber').length, emerald: rows.filter((r) => r.tone === 'emerald').length };
+  // 목표에 안 묶인 실적 지표 — 지도 아래 칩으로
+  const metrics = useQuery({ queryKey: ['metrics', team.id], queryFn: () => q<Metric[]>(supabase.from('metrics').select('*').eq('team_id', team.id).order('created_at')) });
+  const loose = (metrics.data ?? []).filter((m) => !m.item_id || !rows.some((r) => r.id === m.item_id));
+  const pickGoal = (id: string) => { setSel(id); const r = rows.find((x) => x.id === id); if (r) setPicked({ kind: 'goal', goalId: r.id, goalTitle: r.title }); };
+  const pickedGoal = picked?.kind === 'goal' ? picked.goalId : null;
   return (
-    <div className="space-y-2">
-      <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">목표별 전망</span>
-        <span className="text-xs text-slate-400">대각선이 계획 속도 · 선 아래는 뒤처진 목표 · 점 색은 달성 가능성</span>
-        {!!rows.length && <span className="ml-auto text-xs"><span className="text-rose-600 font-semibold">위험 {n.rose}</span> · <span className="text-amber-700 font-semibold">주의 {n.amber}</span> · <span className="text-emerald-700 font-semibold">순항 {n.emerald}</span></span>}</div>
+    <div className="space-y-4">
       {loading ? <Card className="p-6"><Spinner /></Card> : !rows.length ? (
-        <Card className="p-6 text-sm text-slate-500">진행 중인 목표가 없습니다. <Link to="/goals" className="text-indigo-700 font-semibold">목표 세우기 →</Link></Card>
+        <div className="space-y-2"><BoxTitle title="목표별 전망" />
+          <Card className="p-6 text-sm text-slate-500">진행 중인 목표가 없습니다. <Link to="/goals" className="text-indigo-700 font-semibold">목표 세우기 →</Link></Card></div>
       ) : (
         <div className="grid lg:grid-cols-5 gap-4 items-stretch">
-          <Card className="lg:col-span-3 p-4">
-            <Chart rows={rows} sel={cur?.id ?? null} onSel={setSel} />
-            <div className="flex items-center gap-4 text-[11px] text-slate-500 px-2 flex-wrap">
-              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500" />위험 (35% 미만)</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" />주의 (60% 미만)</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />순항</span>
-              <span className="ml-auto">점을 누르면 오른쪽에 상세</span>
-            </div>
-            {!!offMap.length && (
-              <div className="mt-2 px-2 text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">시작일·마감일이 없어 지도에 못 올린 목표:
-                {offMap.map((r) => <button key={r.id} onClick={() => setSel(r.id)} className={cx('rounded-full px-2 py-0.5', r.id === cur?.id ? 'bg-violet-100 text-violet-800' : 'bg-slate-100 hover:bg-slate-200')}>{r.title}</button>)}</div>
-            )}
-          </Card>
-          <div className="lg:col-span-2">{cur && <Detail g={cur} />}</div>
+          <div className="lg:col-span-3 flex flex-col gap-2 min-w-0">
+            <BoxTitle title="목표별 전망" hint="대각선이 계획 속도 · 선 아래는 뒤처진 목표 · 점 색은 달성 가능성"
+              right={<><span className="text-rose-600 font-semibold">위험 {n.rose}</span> · <span className="text-amber-700 font-semibold">주의 {n.amber}</span> · <span className="text-emerald-700 font-semibold">순항 {n.emerald}</span></>} />
+            <Card className="p-4 flex-1">
+              <Chart rows={rows} sel={pickedGoal ?? cur?.id ?? null} onSel={pickGoal} />
+              <div className="flex items-center gap-4 text-[11px] text-slate-500 px-2 flex-wrap">
+                <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500" />위험 (35% 미만)</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" />주의 (60% 미만)</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />순항</span>
+                <span className="ml-auto">점을 누르면 아래에 실적 전망이 열립니다</span>
+              </div>
+              {!!offMap.length && (
+                <div className="mt-2 px-2 text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">시작일·마감일이 없어 지도에 못 올린 목표:
+                  {offMap.map((r) => <button key={r.id} onClick={() => pickGoal(r.id)} className={cx('rounded-full px-2 py-0.5', r.id === pickedGoal ? 'bg-violet-100 text-violet-800' : 'bg-slate-100 hover:bg-slate-200')}>{r.title}</button>)}</div>
+              )}
+              {!!loose.length && (
+                <div className="mt-2 px-2 text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">목표에 안 묶인 지표:
+                  {loose.map((m) => <button key={m.id} onClick={() => setPicked({ kind: 'metric', metricId: m.id, metricName: m.name })}
+                    className={cx('rounded-full px-2 py-0.5', picked?.kind === 'metric' && picked.metricId === m.id ? 'bg-violet-100 text-violet-800' : 'bg-slate-100 hover:bg-slate-200')}>{m.name}</button>)}</div>
+              )}
+            </Card>
+          </div>
+          <div className="lg:col-span-2 flex flex-col gap-2 min-w-0">
+            <BoxTitle title="선택한 목표" hint="점을 누르면 바뀝니다" />
+            <div className="flex-1">{cur && <Detail g={cur} linked={pickedGoal === cur.id} />}</div>
+          </div>
+        </div>
+      )}
+      {/* sub: 고른 목표(또는 지표)의 실적 전망 — 점을 누르기 전에는 보이지 않음 */}
+      {picked && renderForecast && (
+        <div className="ml-2 sm:ml-6 pl-4 border-l-2 border-violet-200 space-y-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[13px] font-semibold text-slate-700 whitespace-nowrap">↳ {picked.kind === 'goal' ? '선택한 목표의 실적 전망' : '지표 실적 전망'}</span>
+            <span className="text-xs text-slate-400 truncate">{picked.kind === 'goal' ? `${picked.goalTitle} › 연결된 실적 지표` : `${picked.metricName} · 목표에 연결되지 않은 지표`}</span>
+            <button onClick={() => setPicked(null)} className="ml-auto shrink-0 text-xs text-slate-400 hover:text-slate-700 inline-flex items-center gap-0.5"><X size={12} />닫기</button>
+          </div>
+          {renderForecast(picked)}
         </div>
       )}
     </div>

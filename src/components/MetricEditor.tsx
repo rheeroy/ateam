@@ -15,13 +15,15 @@ function months(start: string, end: string) {
   return out;
 }
 
-export function NewMetricModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: (id: string) => void }) {
+export function NewMetricModal({ open, onClose, onCreated, presetItemId }: { open: boolean; onClose: () => void; onCreated?: (id: string) => void; presetItemId?: string | null }) {
   const { team } = useTeam();
   const qc = useQueryClient();
   const now = new Date();
   const qStart = ymd(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 - 3, 1));
   const qEnd = ymd(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 2, 1));
   const [f, setF] = useState({ name: '', unit: '억', target: '', period_start: qStart, period_end: qEnd, item_id: '', cumulative: true });
+  // 목표에서 열면 그 목표에 바로 연결
+  useEffect(() => { if (open) setF((v) => ({ ...v, item_id: presetItemId ?? v.item_id })); }, [open, presetItemId]);
   const goals = useQuery({ queryKey: ['items', team.id, 'roots'], enabled: open, queryFn: () => q<WorkItem[]>(supabase.from('work_items').select('*').eq('team_id', team.id).is('parent_id', null).not('status', 'in', '(dropped,proposed,changes_requested)').order('sort')) });
   const create = useMutation({
     mutationFn: () => q<Metric>(supabase.from('metrics').insert({
