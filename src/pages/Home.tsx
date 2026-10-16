@@ -93,14 +93,14 @@ function DailyBriefing({ m }: { m: HomeModel }) {
   return (
     <section aria-label="Daily Briefing" className="relative overflow-hidden rounded-2xl bg-slate-950 text-white">
       <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,58,237,0.45),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(79,70,229,0.25),transparent_50%)]" />
-      <div className="relative p-4">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="relative">
+        <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-white/[0.06] border-b border-white/10">
           <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
           <span className="text-xs font-bold tracking-wide text-violet-200">DAILY BRIEFING</span>
           <span className="text-base font-bold tracking-tight">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
         </div>
         {!m.loading && !!shown.length && (
-          <ul className="mt-3 grid md:grid-cols-2 gap-x-6 gap-y-1">
+          <ul className="px-4 py-3 bg-black/20 grid md:grid-cols-2 gap-x-6 gap-y-1">
             {shown.map((l) => (
               <li key={l.key}>
                 <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-white/[0.08] min-w-0">

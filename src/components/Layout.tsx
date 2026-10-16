@@ -11,6 +11,9 @@ import { cx } from '../lib/format';
 import { Avatar, Spinner } from './ui';
 import { ProvLegend, useAiMark } from './Prov';
 import { Notifications } from './Notifications';
+import { dDay, useHomeModel, usePeriod } from './home/shared';
+import { usePriorities } from './decide/priorities';
+import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string };
@@ -31,6 +34,44 @@ function NavItem({ to, label, icon: Icon, badge }: Item) {
 const Group = ({ label }: { label: string }) => (
   <div className="hidden md:block px-3 pt-4 pb-1 text-[10px] font-semibold tracking-wider text-slate-400">{label}</div>
 );
+
+/** 메뉴 옆 숫자 = 팀장이 처리해야 할 것 (팀목표: 승인 대기 제안 · 업무플랫폼: 리뷰 대기 · 의사결정: 결정할 것 · 임원 브리핑: D-3 이내 위의 요청) */
+function useLeaderTodo() {
+  const { team } = useSession();
+  const [period] = usePeriod();
+  const m = useHomeModel(period);
+  const pr = usePriorities(m);
+  const subs = useSubmissionsAi(team!.id);
+  return {
+    work: (subs.data ?? []).filter(isOpenSub).filter((x) => x.status === 'in_review').length,
+    decide: m.loading ? 0 : pr.length,
+    upward: m.orgSt.upcoming.filter((n) => n.kind === 'request' && dDay(n.event_date!) >= 0 && dDay(n.event_date!) <= 3).length,
+  };
+}
+function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
+  const todo = useLeaderTodo();
+  return (
+    <>
+            <NavItem to="/" label="대시보드" icon={LayoutDashboard} />
+            <Group label="팀 워크스페이스" />
+            <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
+            <NavItem to="/work" label="업무플랫폼" icon={FileText} badge={todo.work ? `${todo.work}` : undefined} />
+            <NavItem to="/people" label="팀원관리" icon={Users} />
+            <NavItem to="/decide" label="의사결정" icon={Gavel} badge={todo.decide ? `${todo.decide}` : undefined} />
+            <Group label="상향 관리" />
+            <NavItem to="/upward" label="임원 브리핑" icon={UserRound} badge={todo.upward ? `${todo.upward}` : undefined} />
+            <Group label="판단" />
+            <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
+            <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
+            <Group label="인사" />
+            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
+            <div className="hidden md:block h-px bg-slate-100 my-3" />
+            <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
+            <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
+            <NavItem to="/settings" label="설정" icon={Settings} />
+    </>
+  );
+}
 
 export default function Layout() {
   const { team, isLeader, profile, memberships, setTeamId, credits } = useSession();
@@ -80,23 +121,7 @@ export default function Layout() {
         </Link>
         {isLeader ? (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <NavItem to="/" label="대시보드" icon={LayoutDashboard} />
-            <Group label="팀 워크스페이스" />
-            <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
-            <NavItem to="/work" label="업무플랫폼" icon={FileText} />
-            <NavItem to="/people" label="팀원관리" icon={Users} />
-            <NavItem to="/decide" label="의사결정" icon={Gavel} />
-            <Group label="상향 관리" />
-            <NavItem to="/upward" label="임원 브리핑" icon={UserRound} />
-            <Group label="판단" />
-            <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
-            <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
-            <Group label="인사" />
-            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
-            <div className="hidden md:block h-px bg-slate-100 my-3" />
-            <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
-            <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
-            <NavItem to="/settings" label="설정" icon={Settings} />
+            <LeaderNav lvl={lvl} proposedN={proposedN} />
           </nav>
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
