@@ -1,12 +1,12 @@
 // 팀원관리 — 이번 주 AI 액션 추천(가로) + 팀원 보드(표준 지표)
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight, CalendarPlus, ChevronRight, Send, StickyNote, Users } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowDownRight, ArrowUpRight, Award, CalendarPlus, Send, StickyNote, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { cx } from '../lib/format';
-import { LEVEL_CLS, attnSkew, ruleActions, type MemberIndex, type MemberView } from '../lib/peopleActions';
-import { ActionsPanel } from '../components/people/ActionsPanel';
+import { LEVEL_CLS, attnSkew, ruleActions, type Level, type MemberIndex, type MemberView, type PeopleAction } from '../lib/peopleActions';
+import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
@@ -26,6 +26,7 @@ export default function People() {
   const [params, setParams] = useSearchParams();
   const [oo, setOo] = useState<{ open: boolean; who: string | null }>({ open: !!params.get('new'), who: null });
   const [req, setReq] = useState<string | null | undefined>(undefined);
+  const [praise, setPraise] = useState<{ uid: string; name: string } | null>(null);
   const openMemo = (who: string | null = null) => setMemo({ open: true, who });
   const st = m.loading ? null : STATUS_META[m.status.people];
   const members = useTeamMembersOnly();
@@ -73,16 +74,13 @@ export default function People() {
         </div>
       </Card>
 
-      <div className="flex items-center gap-2"><Users size={15} className="text-teal-600" /><span className="font-semibold">팀원 보드</span><span className="text-xs text-slate-400">이탈 가능성 높은 순 · 누르면 상세</span></div>
+      <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">팀원 보드</span><span className="text-xs text-slate-400">챙길 사람부터 · 색은 주의(주황)·위험(빨강)일 때만 · 줄을 누르면 상세</span></div>
 
       {(m.loading ? <Spinner /> : !members.length
         ? <Card className="p-6 text-sm text-slate-500">팀원을 초대하면 팀원별 카드가 생깁니다. <Link to="/settings?tab=members" className="text-indigo-700 font-semibold">초대하기 →</Link></Card>
-        : <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {[...members].sort((a, b) => (pi.idx.get(b.user_id)?.flight.score ?? 0) - (pi.idx.get(a.user_id)?.flight.score ?? 0)).map((mb) => (
-              <MemberCard key={mb.user_id} name={mb.profiles?.full_name ?? '팀원'} job={mb.job_title} uid={mb.user_id} ix={pi.idx.get(mb.user_id)} view={pi.views.get(mb.user_id)}
-                actions={(pi.actions.out?.content.actions ?? fallback).filter((a) => a.user_id === mb.user_id).length} />
-            ))}
-          </div>)}
+        : <MemberTable rows={members.map((mb) => ({ uid: mb.user_id, name: mb.profiles?.full_name ?? '팀원', job: mb.job_title, ix: pi.idx.get(mb.user_id), view: pi.views.get(mb.user_id),
+            actions: (pi.actions.out?.content.actions ?? fallback).filter((a) => a.user_id === mb.user_id).length }))} onPraise={(uid, name) => setPraise({ uid, name })} />)}
+      {praise && <PraiseModal a={{ user_id: praise.uid, type: 'praise' } as PeopleAction} name={praise.name} onClose={() => setPraise(null)} onSent={() => {}} />}
 
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
       <ScheduleModal open={oo.open} onClose={() => { setOo({ open: false, who: null }); if (params.get('new') || params.get('tab')) setParams({}, { replace: true }); }} memberId={oo.who} />
@@ -125,26 +123,77 @@ export function IndexGrid({ ix, cols = 3 }: { ix?: MemberIndex; cols?: 3 | 6 | 7
   );
 }
 
-const WORK: Record<string, { label: string; cls: string }> = { good: { label: '순항', cls: 'bg-emerald-50 text-emerald-700' }, watch: { label: '주의', cls: 'bg-amber-50 text-amber-800' }, support: { label: '지원 필요', cls: 'bg-rose-50 text-rose-700' } };
-function MemberCard({ name, job, uid, ix, view, actions }: { name: string; job: string; uid: string; ix?: MemberIndex; view?: MemberView; actions: number }) {
-  const fl = ix?.flight.level ?? 'none';
+const WORK: Record<string, { label: string; cls: string }> = { good: { label: '순항', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' }, watch: { label: '주의', cls: 'bg-amber-50 text-amber-800 ring-amber-200' }, support: { label: '지원 필요', cls: 'bg-rose-50 text-rose-700 ring-rose-200' } };
+type Row = { uid: string; name: string; job: string; ix?: MemberIndex; view?: MemberView; actions: number };
+type Group = 'care' | 'watch' | 'ok';
+const GROUP: Record<Group, { label: string; dot: string; ring: string }> = {
+  care: { label: '지금 챙길 사람', dot: 'bg-rose-500', ring: 'ring-rose-400' },
+  watch: { label: '지켜볼 사람', dot: 'bg-amber-400', ring: 'ring-amber-400' },
+  ok: { label: '순항', dot: 'bg-emerald-500', ring: 'ring-emerald-400' },
+};
+/** 묶는 기준: 이탈 위험 · 업무 지원 필요 · 위험 지표 2개 이상 → 챙길 사람 / 주의 신호 하나라도 → 지켜볼 사람 / 그 외 순항 */
+function groupOf(r: Row): Group {
+  const lv = (r.ix?.indices ?? []).map((i) => i.level);
+  if (r.ix?.flight.level === 'risk' || r.view?.work_status === 'support' || lv.filter((l) => l === 'risk').length >= 2) return 'care';
+  if (lv.some((l) => l === 'risk' || l === 'watch') || r.view?.work_status === 'watch') return 'watch';
+  return 'ok';
+}
+const sev = (r: Row) => (r.ix?.indices ?? []).reduce((a, i) => a + (i.level === 'risk' ? 3 : i.level === 'watch' ? 1 : 0), 0) + (r.ix?.flight.score ?? 0) / 100;
+const CELL: Record<Level, string> = { risk: 'text-rose-600', watch: 'text-amber-700', good: 'text-slate-800', none: 'text-slate-300' };
+
+/** 팀원 보드 — 한 사람 한 줄, 같은 지표를 세로로 맞춰 사람끼리 비교 */
+function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, name: string) => void }) {
+  const nav = useNavigate();
+  const cols = rows.find((r) => r.ix)?.ix?.indices.map((i) => ({ key: i.key, label: i.label === '이탈 가능성' ? '이탈' : i.label === '업무 부하' ? '부하' : i.label === '평가 근거' ? '근거' : i.label })) ?? [];
+  const groups = (['care', 'watch', 'ok'] as Group[]).map((g) => ({ g, list: rows.filter((r) => groupOf(r) === g).sort((a, b) => sev(b) - sev(a)) })).filter((x) => x.list.length);
   return (
-    <Link to={`/people/${uid}`} className={cx('group rounded-2xl bg-white ring-1 p-4 flex flex-col shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-md hover:-translate-y-0.5 transition-all',
-      fl === 'risk' ? 'ring-rose-200' : 'ring-slate-900/[0.07]')}>
-      <div className="flex items-center gap-3">
-        <span className={cx('rounded-full ring-2 ring-offset-2 shrink-0', fl === 'risk' ? 'ring-rose-400' : fl === 'watch' ? 'ring-amber-400' : 'ring-emerald-400')}><Avatar name={name} size={9} /></span>
-        <span className="min-w-0"><span className="block font-semibold truncate group-hover:text-teal-700">{name}</span><span className="block text-xs text-slate-500 truncate">{job || '직무 미입력'}</span></span>
-        <span className="ml-auto flex flex-col items-end gap-1">
-          {view && <span className={cx('text-[10px] font-semibold rounded-full px-2 py-0.5', WORK[view.work_status]?.cls)}>업무 {WORK[view.work_status]?.label}</span>}
-          {actions > 0 && <span className="text-[10px] font-semibold rounded-full bg-violet-600 text-white px-2 py-0.5">이번 주 액션 {actions}</span>}
-        </span>
-      </div>
-      <div className="mt-3"><IndexGrid ix={ix} /></div>
-      {view?.work_view ? (
-        <p className="mt-2.5 text-xs text-slate-600 leading-relaxed line-clamp-2"><AiChip label="AI 업무 판단" className="mr-1" />{strip(view.work_view)}</p>
-      ) : ix?.flight.note ? <p className="mt-2.5 text-xs text-slate-500">{ix.flight.note}</p> : null}
-      <span className="mt-auto pt-3 text-xs font-semibold text-teal-700 inline-flex items-center gap-0.5 self-end">상세<ChevronRight size={13} /></span>
-    </Link>
+    <Card className="overflow-x-auto">
+      <table className="w-full min-w-[980px]">
+        <thead>
+          <tr className="text-[11px] text-slate-400 bg-slate-50/80">
+            <th className="text-left font-semibold pl-4 py-2.5">팀원</th>
+            <th className="text-left font-semibold px-2">업무</th>
+            {cols.map((c) => <th key={c.key} className="font-semibold px-2 whitespace-nowrap">{c.label}</th>)}
+            <th className="text-left font-semibold px-3">AI 업무 판단</th>
+            <th className="text-right font-semibold pr-4">이번 주</th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map(({ g, list }) => [
+            <tr key={`g-${g}`}><td colSpan={cols.length + 4} className="px-4 pt-4 pb-1.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600"><span className={cx('w-2 h-2 rounded-full', GROUP[g].dot)} />{GROUP[g].label}<span className="font-normal text-slate-400">{list.length}명</span></span></td></tr>,
+            ...list.map((r) => (
+              <tr key={r.uid} onClick={() => nav(`/people/${r.uid}`)} className="border-t border-slate-100 hover:bg-slate-50/70 cursor-pointer">
+                <td className="pl-4 pr-2 py-3">
+                  <Link to={`/people/${r.uid}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2.5 min-w-0">
+                    <span className={cx('rounded-full ring-2 ring-offset-2 shrink-0', GROUP[g].ring)}><Avatar name={r.name} size={9} /></span>
+                    <span className="min-w-0"><span className="block font-semibold text-[14px] truncate hover:text-teal-700">{r.name}</span><span className="block text-[11px] text-slate-500 truncate">{r.job || '직무 미입력'}</span></span>
+                  </Link>
+                </td>
+                <td className="px-2 py-3">{r.view ? <span className={cx('text-[11px] font-semibold rounded-full px-2 py-0.5 ring-1 whitespace-nowrap', WORK[r.view.work_status]?.cls)}>업무 {WORK[r.view.work_status]?.label}</span> : <span className="text-[11px] text-slate-300">—</span>}</td>
+                {cols.map((c) => {
+                  const i = r.ix?.indices.find((x) => x.key === c.key);
+                  return (
+                    <td key={c.key} className="px-2 py-3 text-center" title={i ? `${i.label} ${i.value}${i.sub ? ` · ${i.sub}` : ''}` : undefined}>
+                      {i ? <span className={cx('inline-flex items-center gap-1 text-[13px] font-semibold num whitespace-nowrap', CELL[i.level])}>
+                        {(i.level === 'risk' || i.level === 'watch') && <span className={cx('w-1.5 h-1.5 rounded-full', i.level === 'risk' ? 'bg-rose-500' : 'bg-amber-400')} />}{i.value}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-3 text-xs text-slate-600 leading-snug max-w-[320px]">
+                  {r.view?.work_view ? <span className="line-clamp-2"><AiChip label="AI" className="mr-1" />{strip(r.view.work_view)}</span> : <span className="text-slate-400 line-clamp-2">{r.ix?.flight.note ?? ''}</span>}
+                </td>
+                <td className="pr-4 py-3 text-right whitespace-nowrap">
+                  <button onClick={(e) => { e.stopPropagation(); onPraise(r.uid, r.name); }}
+                    className="text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100 px-2.5 py-1.5 inline-flex items-center gap-1"><Award size={13} />칭찬 배지</button>
+                  {r.actions > 0 && <div className="mt-1 text-[10px] font-semibold text-violet-700">이번 주 액션 {r.actions}</div>}
+                </td>
+              </tr>
+            )),
+          ])}
+        </tbody>
+      </table>
+    </Card>
   );
 }
 
@@ -153,4 +202,3 @@ export function Delta({ d }: { d: number }) {
   if (Math.abs(r) < 0.1) return <span className="text-slate-400">변화 없음</span>;
   return r > 0 ? <span className="text-emerald-700 inline-flex items-center"><ArrowUpRight size={10} />{r}</span> : <span className="text-rose-600 inline-flex items-center"><ArrowDownRight size={10} />{Math.abs(r)}</span>;
 }
-
