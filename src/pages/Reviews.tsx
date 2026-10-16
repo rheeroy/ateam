@@ -50,7 +50,7 @@ export default function Reviews() {
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', f === id ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300')}>
               {label} <span className="num">{count(id)}</span></button>
           ))}
-        </div> : <span className="text-sm text-slate-500">팀원별로 올라온 업무 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 개인 업무 스페이스에는 남습니다</span>}
+        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">팀원별 업무스페이스</span><span className="text-xs text-slate-400 truncate">팀원별로 올라온 업무 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 개인 업무 스페이스에는 남습니다</span></div>}
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5">
           {([['people', '사람별', Users], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
             <button key={id} onClick={() => set('view', id === 'people' ? null : id)} className={cx('text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1', view === id ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><I size={13} />{label}</button>

@@ -86,7 +86,75 @@ function PrioMini({ p, rank }: { p: Prio; rank: number }) {
 // 섹션 칸 — 핵심 지표 3개 + AI 한두 줄
 // =====================================================================
 type Tone = 'rose' | 'amber' | undefined;
-interface K { label: string; value: ReactNode; sub?: string; tone?: Tone }
+interface K { label: string; value: ReactNode; sub?: string; tone?: Tone; subTone?: Tone; viz?: ReactNode; under?: ReactNode }
+
+// ── 칸 안의 작은 그래프 — 숫자 옆 한 줄 높이(28px) 안에서만 그린다. 상세 값은 마우스를 올리면 보인다.
+/** 비율 하나 (x/y, %) — 링 */
+function Ring({ pct, tone, title }: { pct: number | null; tone?: Tone; title?: string }) {
+  const r = 10, c = 2 * Math.PI * r, p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  const col = tone === 'rose' ? 'stroke-rose-500' : tone === 'amber' ? 'stroke-amber-500' : 'stroke-indigo-500';
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" className="shrink-0" role="img" aria-label={title}><title>{title}</title>
+      <circle cx="13" cy="13" r={r} fill="none" strokeWidth="4" className="stroke-slate-200" />
+      {pct != null && p > 0 && <circle cx="13" cy="13" r={r} fill="none" strokeWidth="4" strokeLinecap="round" className={col}
+        strokeDasharray={`${(p / 100) * c} ${c}`} transform="rotate(-90 13 13)" />}
+    </svg>
+  );
+}
+/** 목표별 달성 가능성 분포 — 0~100 트랙 위에 목표 하나당 점 하나 (보조줄 자리에 그린다) */
+function Strip({ items }: { items: { v: number; title: string }[] }) {
+  return (
+    <div className="relative h-[14px] mr-1" role="img" aria-label={`목표별 달성 가능성: ${items.map((x) => `${x.title} ${x.v}%`).join(', ')}`}>
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full flex overflow-hidden">
+        <span className="bg-rose-100" style={{ width: '35%' }} /><span className="bg-amber-100" style={{ width: '25%' }} /><span className="bg-emerald-100 flex-1" />
+      </div>
+      {items.map((it, i) => (
+        <span key={i} title={`${it.title} · 달성 가능성 ${it.v}%`} style={{ left: `calc(${it.v}% - 4px)` }}
+          className={cx('absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ring-2 ring-white', it.v < 35 ? 'bg-rose-500' : it.v < 60 ? 'bg-amber-500' : 'bg-emerald-500')} />
+      ))}
+    </div>
+  );
+}
+/** 몇 개 항목의 건수 비교 — 가로 막대 3줄 (숫자 한 줄 높이 안) */
+function Bars({ items }: { items: { label: string; v: number }[] }) {
+  const max = Math.max(1, ...items.map((x) => x.v));
+  return (
+    <div className="flex-1 min-w-0 flex flex-col justify-center gap-[2px]" role="img" aria-label={items.map((x) => `${x.label} ${x.v}건`).join(', ')}>
+      {items.map((x) => (
+        <div key={x.label} className="flex items-center gap-1 h-2" title={`${x.label} ${x.v}건`}>
+          <span className="w-5 shrink-0 text-[9px] leading-none text-slate-500">{x.label}</span>
+          <span className="flex-1 min-w-0 h-[6px]"><span className={cx('block h-full rounded-r-[3px]', x.v ? 'bg-indigo-400' : 'bg-slate-200')} style={{ width: x.v ? `${(x.v / max) * 100}%` : 2 }} /></span>
+          <span className={cx('w-2.5 shrink-0 text-right text-[9px] leading-none num font-semibold', x.v ? 'text-slate-700' : 'text-slate-300')}>{x.v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+/** 주별 추이 — 스파크라인 (마지막 점 강조) */
+function Spark({ points, labels }: { points: (number | null)[]; labels: string[] }) {
+  const W = 56, H = 24, n = points.length;
+  const vs = points.filter((v): v is number => v != null);
+  const min = Math.max(1, Math.min(...vs) - 0.4), max = Math.min(5, Math.max(...vs) + 0.4);
+  const xy = points.map((v, i) => (v == null ? null : [3 + (i / Math.max(1, n - 1)) * (W - 6), H - 3 - ((v - min) / (max - min)) * (H - 6)] as const));
+  const pts = xy.filter(Boolean) as (readonly [number, number])[];
+  if (pts.length < 2) return null;
+  const last = pts[pts.length - 1];
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="shrink-0" role="img" aria-label="주별 팀 컨디션 추이">
+      <title>{points.map((v, i) => `${labels[i] ?? ''} ${v == null ? '—' : v.toFixed(1)}`).join(' · ')}</title>
+      <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" className="stroke-indigo-400" />
+      <circle cx={last[0]} cy={last[1]} r="3" strokeWidth="1.5" className="fill-indigo-600 stroke-white" />
+    </svg>
+  );
+}
+/** 사람 단위 — 팀원 한 명당 점 하나 */
+function Dots({ items }: { items: { tone: 'rose' | 'amber' | 'slate'; title: string }[] }) {
+  return (
+    <div className="flex flex-wrap gap-[3px] max-w-[66px]" role="img" aria-label={items.map((x) => x.title).join(', ')}>
+      {items.map((x, i) => <span key={i} title={x.title} className={cx('w-2 h-2 rounded-full', x.tone === 'rose' ? 'bg-rose-500' : x.tone === 'amber' ? 'bg-amber-400' : 'bg-slate-200')} />)}
+    </div>
+  );
+}
 // 모든 칸은 같은 모양 — 색은 '상태'와 '경고 수치'에만 씁니다
 const GAP_THEMES: [string, RegExp][] = [
   ['근거·데이터', /근거|데이터|수치|숫자|지표|출처|사례|검증/],
@@ -146,8 +214,11 @@ function Tile({ icon: Icon, title, status, to, kpis, facts, empty = '아직 기�
         {kpis.map((k) => (
           <div key={k.label} className="min-w-0">
             <dt className="text-[10px] text-slate-500 truncate">{k.label}</dt>
-            <dd className={cx('text-xl font-bold num leading-tight', k.tone === 'rose' && 'text-rose-600', k.tone === 'amber' && 'text-amber-600')}>{k.value}</dd>
-            <dd className="text-[10px] text-slate-400 truncate">{k.sub || '\u00a0'}</dd>
+            <dd className="h-7 flex items-center gap-2 min-w-0">
+              {k.value !== '' && <span className={cx('text-xl font-bold num leading-none shrink-0', k.tone === 'rose' && 'text-rose-600', k.tone === 'amber' && 'text-amber-600')}>{k.value}</span>}
+              {k.viz}
+            </dd>
+            {k.under ? <dd>{k.under}</dd> : <dd className={cx('text-[10px] truncate', k.subTone === 'amber' ? 'text-amber-700 font-semibold' : k.subTone === 'rose' ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{k.sub || '\u00a0'}</dd>}
           </div>
         ))}
       </dl>
@@ -222,8 +293,10 @@ function Tiles({ m }: { m: HomeModel }) {
       <Tile icon={Target} title="팀 성과" status={st('perf')} to="/goals"
         facts={fPerf} empty="목표를 세우면 목표별 진척이 보입니다"
         kpis={[
-          { label: '최저 달성 가능성', value: k.goalLow, sub: `목표 ${k.goals}개`, tone: k.goalLowTone },
-          { label: '평균 진척', value: avgProg != null ? `${avgProg}%` : '—', sub: k.onPlan !== '—' ? `계획대로 ${k.onPlan}` : undefined },
+          { label: '최저 달성 가능성', value: k.goalLow, sub: `목표 ${k.goals}개`, tone: k.goalLowTone,
+            under: goals.some((g) => g.probability != null) ? <Strip items={goals.filter((g) => g.probability != null).map((g) => ({ v: g.probability!, title: g.title }))} /> : null },
+          { label: '평균 진척', value: avgProg != null ? `${avgProg}%` : '—', sub: k.onPlan !== '—' ? `계획대로 ${k.onPlan}` : undefined,
+            viz: avgProg != null ? <Ring pct={avgProg} title={`평균 진척 ${avgProg}%`} /> : null },
           { label: '막힘 · 지연', value: `${k.blocked}·${k.delayed}`, sub: '건', tone: k.blocked + k.delayed ? 'amber' : undefined },
         ]}
         ai={topAi('perf')} fallback={sig('perf') ? `자동 감지 · ${sig('perf')}` : null} />
@@ -232,7 +305,8 @@ function Tiles({ m }: { m: HomeModel }) {
         kpis={[
           { label: '결정할 것', value: pr.length, sub: '성과에 걸린 것' },
           { label: '검토 중', value: reviewing, sub: '보드' },
-          { label: '회고 대기', value: k.decisionsDue, sub: k.hitRate != null ? `적중률 ${k.hitRate}%` : '결과 기록', tone: k.decisionsDue ? 'amber' : undefined },
+          { label: '결정 적중률', value: k.hitRate != null ? `${k.hitRate}%` : '—', sub: k.decisionsDue ? `회고 대기 ${k.decisionsDue}` : '회고 대기 없음', subTone: k.decisionsDue ? 'amber' : undefined,
+            viz: k.hitRate != null ? <Ring pct={k.hitRate} title={`결과를 기록한 결정 ${k.rated}개 중 적중률 ${k.hitRate}%`} /> : null },
         ]}
         ai={topAi('decide')} fallback={pr[0] ? `1순위 · ${pr[0].title}` : null} />
       <Tile icon={AlertTriangle} title="리스크" status={st('risk')} to="/decide?f=risk"
@@ -240,7 +314,7 @@ function Tiles({ m }: { m: HomeModel }) {
         kpis={[
           { label: '지금 확인', value: m.bigRisks.length, sub: '가장 급한 단계', tone: m.bigRisks.length ? 'rose' : undefined },
           { label: '주의', value: m.riskList.length - m.bigRisks.length, sub: '커지기 전', tone: m.riskList.length - m.bigRisks.length ? 'amber' : undefined },
-          { label: '성과·사람·조직', value: areas.join('·'), sub: '영역별' },
+          { label: '영역별 리스크', value: '', sub: '\u00a0', viz: <Bars items={[{ label: '성과', v: areas[0] }, { label: '사람', v: areas[1] }, { label: '조직', v: areas[2] }]} /> },
         ]}
         ai={topAi('risk')} fallback={m.riskList[0] ? `자동 감지 · ${m.riskList[0].title}` : null} />
       <Tile icon={Briefcase} title="업무플랫폼" status={null} to="/work"
@@ -248,14 +322,18 @@ function Tiles({ m }: { m: HomeModel }) {
         kpis={[
           { label: '열린 업무', value: open.length, sub: '팀 전체' },
           { label: '리뷰 대기', value: waiting.length, sub: old.length ? `3일 넘게 ${old.length}` : '오래된 것 없음', tone: old.length ? 'amber' : undefined },
-          { label: 'AI 검토 완료', value: `${reviewed.length}/${waiting.length}`, sub: '리뷰 대기 중' },
+          { label: 'AI 검토 완료', value: `${reviewed.length}/${waiting.length}`, sub: '리뷰 대기 중',
+            viz: waiting.length ? <Ring pct={(reviewed.length / waiting.length) * 100} title={`리뷰 대기 ${waiting.length}건 중 AI 검토 ${reviewed.length}건`} /> : null },
         ]}
         ai={pattern} fallback={waiting.length ? '리뷰 대기 결과물을 열면 AI가 먼저 읽고 정리합니다.' : '리뷰를 기다리는 결과물이 없습니다.'} />
       <Tile icon={Users} title="팀원관리" status={st('people')} to="/people"
         facts={fPeople} empty="팀원을 초대하면 보입니다"
         kpis={[
-          { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem}` },
-          { label: '이탈 가능성', value: `${high}·${mid}`, sub: '높음·주의', tone: high ? 'rose' : mid ? 'amber' : undefined },
+          { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem} · 주별 추이`, viz: <Spark points={k.condTrend} labels={k.condWeeks} /> },
+          { label: '이탈 가능성', value: `${high}·${mid}`, sub: '높음·주의 · 팀원별', tone: high ? 'rose' : mid ? 'amber' : undefined,
+            viz: <Dots items={members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, lv: pi.idx.get(mb.user_id)?.flight.level }))
+              .sort((a, b) => (b.lv === 'risk' ? 2 : b.lv === 'watch' ? 1 : 0) - (a.lv === 'risk' ? 2 : a.lv === 'watch' ? 1 : 0))
+              .map(({ mb, lv }) => ({ tone: lv === 'risk' ? 'rose' as const : lv === 'watch' ? 'amber' as const : 'slate' as const, title: `${mb.profiles?.full_name ?? '팀원'} · ${lv === 'risk' ? '높음' : lv === 'watch' ? '주의' : '안정'}` }))} /> },
           { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
         ]}
         ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
@@ -263,7 +341,8 @@ function Tiles({ m }: { m: HomeModel }) {
         facts={fOrg} empty="위에서 온 소식이 없습니다"
         kpis={[
           { label: '위에서 온 것', value: m.orgSt.feed.length, sub: '열린 소식' },
-          { label: '영향 확인', value: `${m.orgSt.analyzed}/${m.orgSt.feed.length}`, sub: 'AI 분석', tone: m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined },
+          { label: '영향 확인', value: `${m.orgSt.analyzed}/${m.orgSt.feed.length}`, sub: 'AI 분석', tone: m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined,
+            viz: m.orgSt.feed.length ? <Ring pct={(m.orgSt.analyzed / m.orgSt.feed.length) * 100} tone={m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined} title={`열린 소식 ${m.orgSt.feed.length}건 중 영향 분석 ${m.orgSt.analyzed}건`} /> : null },
           { label: '다가오는 기한', value: nearest ? (dDay(nearest.event_date!) === 0 ? '오늘' : `D-${dDay(nearest.event_date!)}`) : '—', sub: nearest?.title ?? '없음' },
         ]}
         ai={topAi('org')} fallback={sig('org') ? `자동 감지 · ${sig('org')}` : null} />

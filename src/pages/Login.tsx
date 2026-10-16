@@ -87,10 +87,10 @@ export default function Login() {
           <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">영혼까지 갈아넣어도 팀 운영은 너무나 벅찹니다.<br /> ATEAM은 성과관리, 팀원관리, 의사결정 모든 것을 한 단계 끌어올려줍니다.</p>
           <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
             {[
-              { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['예상하지 못했던 업무 리스크', '컨디션이 꺾이는 팀원과 이탈 신호', '윗 분이 조만간 지적할 문제들'] },
-              { t: '모르는 패턴을 찾아줘요', i: Sparkles, c: 'text-violet-300', d: ['생각못한 부분이 팀성과를 끌어내리고 있을 때', '나도 모르게 몇몇 팀원에게만 시간을 쓰고 있을 때', '일이 밀리는 진짜 이유가 사람에게 있을 때'] },
+              { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['예상하지 못했던 업무 리스크', '컨디션이 꺾이는 팀원과 이탈 신호', '윗분이 조만간 지적할 문제들'] },
+              { t: '모르는 패턴을 찾아줘요', i: Sparkles, c: 'text-violet-300', d: ['생각 못 한 부분이 팀 성과를 끌어내리고 있을 때', '나도 모르게 몇몇 팀원에게만 시간을 쓰고 있을 때', '일이 밀리는 진짜 이유가 사람에게 있을 때'] },
               { t: '팀의 미래를 예측해줘요', i: TrendingUp, c: 'text-sky-300', d: ['목표별 달성 가능성과 마감 시점 전망', '분기 실적 전망과 낙관 · 비관 범위', '무엇을 바꾸면 결과가 달라지는지'] },
-              { t: '놓친 것들을 알아서 챙겨줘요', i: ListChecks, c: 'text-emerald-300', d: ['시급히 의사결정 해줘야 하는 것', '위에서 내려온 요청 중 아직 답하지 않은 것', '차마 신경쓰지 못한 팀원'] },
+              { t: '놓친 것들을 알아서 챙겨줘요', i: ListChecks, c: 'text-emerald-300', d: ['시급히 의사결정 해줘야 하는 것', '위에서 내려온 요청 중 아직 답하지 않은 것', '차마 신경 쓰지 못한 팀원'] },
             ].map((x) => (
               <div key={x.t} className="rounded-xl bg-white/[0.05] ring-1 ring-white/10 p-3.5">
                 <div className="flex items-center gap-1.5"><x.i size={15} className={x.c} /><span className="text-[15px] font-bold">{x.t}</span></div>
