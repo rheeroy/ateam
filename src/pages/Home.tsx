@@ -101,20 +101,6 @@ function Ring({ pct, tone, title }: { pct: number | null; tone?: Tone; title?: s
     </svg>
   );
 }
-/** 목표별 달성 가능성 분포 — 0~100 트랙 위에 목표 하나당 점 하나 (보조줄 자리에 그린다) */
-function Strip({ items }: { items: { v: number; title: string }[] }) {
-  return (
-    <div className="relative h-[14px] mr-1" role="img" aria-label={`목표별 달성 가능성: ${items.map((x) => `${x.title} ${x.v}%`).join(', ')}`}>
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full flex overflow-hidden">
-        <span className="bg-rose-100" style={{ width: '35%' }} /><span className="bg-amber-100" style={{ width: '25%' }} /><span className="bg-emerald-100 flex-1" />
-      </div>
-      {items.map((it, i) => (
-        <span key={i} title={`${it.title} · 달성 가능성 ${it.v}%`} style={{ left: `calc(${it.v}% - 4px)` }}
-          className={cx('absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ring-2 ring-white', it.v < 35 ? 'bg-rose-500' : it.v < 60 ? 'bg-amber-500' : 'bg-emerald-500')} />
-      ))}
-    </div>
-  );
-}
 /** 몇 개 항목의 건수 비교 — 가로 막대 3줄 (숫자 한 줄 높이 안) */
 function Bars({ items }: { items: { label: string; v: number }[] }) {
   const max = Math.max(1, ...items.map((x) => x.v));
@@ -147,12 +133,33 @@ function Spark({ points, labels }: { points: (number | null)[]; labels: string[]
     </svg>
   );
 }
-/** 사람 단위 — 팀원 한 명당 점 하나 */
-function Dots({ items }: { items: { tone: 'rose' | 'amber' | 'slate'; title: string }[] }) {
+/** 사람 단위 — 팀원 한 명당 사람 모양 하나 (높음 빨강 · 주의 주황 · 안정 회색) */
+function People({ items }: { items: { tone: 'rose' | 'amber' | 'slate'; title: string }[] }) {
   return (
-    <div className="flex flex-wrap gap-[3px] max-w-[66px]" role="img" aria-label={items.map((x) => x.title).join(', ')}>
-      {items.map((x, i) => <span key={i} title={x.title} className={cx('w-2 h-2 rounded-full', x.tone === 'rose' ? 'bg-rose-500' : x.tone === 'amber' ? 'bg-amber-400' : 'bg-slate-200')} />)}
+    <div className="flex items-end gap-[2px] h-[14px] overflow-hidden" role="img" aria-label={items.map((x) => x.title).join(', ')}>
+      {items.map((x, i) => (
+        <svg key={i} width="11" height="13" viewBox="0 0 12 14" className={cx('shrink-0', x.tone === 'rose' ? 'fill-rose-500' : x.tone === 'amber' ? 'fill-amber-400' : 'fill-slate-200')}>
+          <title>{x.title}</title><circle cx="6" cy="3.6" r="3" /><path d="M0.8 14 a5.2 5.2 0 0 1 10.4 0 Z" />
+        </svg>
+      ))}
     </div>
+  );
+}
+/** 반원 게이지 — 위험(빨강)·주의(주황)·양호(초록) 구간 위에 바늘 */
+function Gauge({ pct, title }: { pct: number; title: string }) {
+  const W = 40, cx0 = 20, cy0 = 21, r = 16;
+  const pt = (p: number, rr = r) => [cx0 - rr * Math.cos(Math.PI * p), cy0 - rr * Math.sin(Math.PI * p)] as const;
+  const arc = (a: number, b: number) => { const [x1, y1] = pt(a), [x2, y2] = pt(b); return `M${x1} ${y1} A${r} ${r} 0 0 1 ${x2} ${y2}`; };
+  const v = Math.max(0, Math.min(100, pct)) / 100;
+  const [nx, ny] = pt(v, r - 3);
+  return (
+    <svg width={W} height="24" viewBox={`0 0 ${W} 24`} className="shrink-0" role="img" aria-label={title}><title>{title}</title>
+      <path d={arc(0, 0.35)} fill="none" strokeWidth="5" className="stroke-rose-300" />
+      <path d={arc(0.36, 0.6)} fill="none" strokeWidth="5" className="stroke-amber-200" />
+      <path d={arc(0.61, 1)} fill="none" strokeWidth="5" className="stroke-emerald-200" />
+      <line x1={cx0} y1={cy0} x2={nx} y2={ny} strokeWidth="2" strokeLinecap="round" className="stroke-slate-700" />
+      <circle cx={cx0} cy={cy0} r="2.5" className="fill-slate-700" />
+    </svg>
   );
 }
 // 모든 칸은 같은 모양 — 색은 '상태'와 '경고 수치'에만 씁니다
@@ -293,8 +300,8 @@ function Tiles({ m }: { m: HomeModel }) {
       <Tile icon={Target} title="팀 성과" status={st('perf')} to="/goals"
         facts={fPerf} empty="목표를 세우면 목표별 진척이 보입니다"
         kpis={[
-          { label: '최저 달성 가능성', value: k.goalLow, sub: `목표 ${k.goals}개`, tone: k.goalLowTone,
-            under: goals.some((g) => g.probability != null) ? <Strip items={goals.filter((g) => g.probability != null).map((g) => ({ v: g.probability!, title: g.title }))} /> : null },
+          { label: '최저 달성 가능성', value: k.goalLow, sub: `목표 ${k.goals}개 중 가장 낮은 것`, tone: k.goalLowTone,
+            viz: k.goalLowNum != null ? <Gauge pct={k.goalLowNum} title={`가장 낮은 목표 달성 가능성 ${k.goalLowNum}% (35% 미만 위험 · 60% 미만 주의)`} /> : null },
           { label: '평균 진척', value: avgProg != null ? `${avgProg}%` : '—', sub: k.onPlan !== '—' ? `계획대로 ${k.onPlan}` : undefined,
             viz: avgProg != null ? <Ring pct={avgProg} title={`평균 진척 ${avgProg}%`} /> : null },
           { label: '막힘 · 지연', value: `${k.blocked}·${k.delayed}`, sub: '건', tone: k.blocked + k.delayed ? 'amber' : undefined },
@@ -330,10 +337,10 @@ function Tiles({ m }: { m: HomeModel }) {
         facts={fPeople} empty="팀원을 초대하면 보입니다"
         kpis={[
           { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem} · 주별 추이`, viz: <Spark points={k.condTrend} labels={k.condWeeks} /> },
-          { label: '이탈 가능성', value: `${high}·${mid}`, sub: '높음·주의 · 팀원별', tone: high ? 'rose' : mid ? 'amber' : undefined,
-            viz: <Dots items={members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, lv: pi.idx.get(mb.user_id)?.flight.level }))
+          { label: '이탈 가능성', value: <><span className={high ? 'text-rose-600' : 'text-slate-300'}>{high}</span><span className="text-slate-300 text-base mx-0.5">·</span><span className={mid ? 'text-amber-600' : 'text-slate-300'}>{mid}</span></>,
+            under: <People items={members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, lv: pi.idx.get(mb.user_id)?.flight.level }))
               .sort((a, b) => (b.lv === 'risk' ? 2 : b.lv === 'watch' ? 1 : 0) - (a.lv === 'risk' ? 2 : a.lv === 'watch' ? 1 : 0))
-              .map(({ mb, lv }) => ({ tone: lv === 'risk' ? 'rose' as const : lv === 'watch' ? 'amber' as const : 'slate' as const, title: `${mb.profiles?.full_name ?? '팀원'} · ${lv === 'risk' ? '높음' : lv === 'watch' ? '주의' : '안정'}` }))} /> },
+              .map(({ mb, lv }) => ({ tone: lv === 'risk' ? 'rose' as const : lv === 'watch' ? 'amber' as const : 'slate' as const, title: `${mb.profiles?.full_name ?? '팀원'} · ${lv === 'risk' ? '이탈 가능성 높음' : lv === 'watch' ? '주의' : '안정'}` }))} /> },
           { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
         ]}
         ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
