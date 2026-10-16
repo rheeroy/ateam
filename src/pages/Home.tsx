@@ -96,17 +96,17 @@ function DailyBriefing({ m }: { m: HomeModel }) {
       <div className="relative p-4">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
-          <span className="text-[11px] font-bold tracking-wide text-violet-300">DAILY BRIEFING</span>
-          <span className="text-sm font-semibold">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
+          <span className="text-xs font-bold tracking-wide text-violet-200">DAILY BRIEFING</span>
+          <span className="text-base font-bold tracking-tight">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
         </div>
         {!m.loading && !!shown.length && (
           <ul className="mt-3 grid md:grid-cols-2 gap-x-6 gap-y-1">
             {shown.map((l) => (
               <li key={l.key}>
-                <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-white/[0.06] min-w-0">
+                <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-white/[0.08] min-w-0">
                   <span className={cx('w-6 h-6 rounded-md flex items-center justify-center shrink-0',
-                    l.tone === 'rose' ? 'bg-rose-500/20 text-rose-300' : l.tone === 'amber' ? 'bg-amber-400/15 text-amber-300' : l.tone === 'agent' ? 'bg-violet-500/25 text-violet-200' : 'bg-white/10 text-slate-300')}><l.icon size={13} /></span>
-                  <span className="text-[13px] text-slate-300 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-200 group-hover:text-white whitespace-nowrap">{l.go} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
+                    l.tone === 'rose' ? 'bg-rose-500/35 text-rose-100' : l.tone === 'amber' ? 'bg-amber-400/30 text-amber-100' : l.tone === 'agent' ? 'bg-violet-500/40 text-violet-100' : 'bg-white/15 text-slate-100')}><l.icon size={13} /></span>
+                  <span className="text-[13px] text-slate-100 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-200 group-hover:text-white whitespace-nowrap">{l.go} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
                 </Link>
               </li>
             ))}
