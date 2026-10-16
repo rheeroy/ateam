@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowUpRight, Copy, Database, Info, Lightbulb, Plus, Sparkles } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -7,10 +7,11 @@ import { supabase, q } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import type { Forecast, Metric, PerfPoint, PortfolioRow, WorkItem } from '../lib/types';
 import { cx, fmtDate, num } from '../lib/format';
-import { Bar, Button, Card, Empty, PageHeader, Spinner, useToast } from '../components/ui';
+import { Bar, Button, Card, Empty, PageHeader, Spinner, Tabs, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
 import { ForecastChart, PerfMap, PortfolioChart, Sparkline } from '../components/charts';
 import { MetricDataModal, NewMetricModal } from '../components/MetricEditor';
+import { GoalMapSection } from '../components/perf/GoalMap';
 
 export function Upsell({ feature }: { feature: string }) {
   return (
@@ -92,7 +93,7 @@ function ForecastSection({ teamId }: { teamId: string }) {
   const prob = f?.probability ?? null;
 
   return (
-    <ProvBlock kind="calc" className="mt-5 bg-white rounded-2xl border border-slate-200 p-5">
+    <ProvBlock kind="calc" className="bg-white rounded-2xl border border-slate-200 p-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="font-semibold">실적 전망 {metric && `· ${metric.name} (${metric.cumulative ? '누적, ' : ''}${metric.unit})`}{' '}
@@ -162,38 +163,49 @@ function ForecastSection({ teamId }: { teamId: string }) {
   );
 }
 
+type PerfTab = 'perf' | 'portfolio' | 'people';
+const PERF_TABS: { id: PerfTab; label: string }[] = [{ id: 'perf', label: '성과' }, { id: 'portfolio', label: '포트폴리오' }, { id: 'people', label: '사람별' }];
+
 export default function Perf() {
   const { team, hasFeature } = useTeam();
-  const [sel, setSel] = useState<string | null>(null);
-  const map = useQuery({
-    queryKey: ['perf-map', team.id], enabled: hasFeature('perf_map'),
-    queryFn: () => q<PerfPoint[]>(supabase.rpc('team_performance_map', { p_team: team.id })),
-  });
-  useEffect(() => { if (!sel && map.data?.length) setSel((map.data.find((p) => !p.withheld) ?? map.data[0]).user_id); }, [map.data, sel]);
+  const [params, setParams] = useSearchParams();
+  const tab = (PERF_TABS.some((t) => t.id === params.get('tab')) ? params.get('tab') : 'perf') as PerfTab;
+  const setTab = (t: PerfTab) => setParams((p) => { const n = new URLSearchParams(p); if (t === 'perf') n.delete('tab'); else n.set('tab', t); return n; }, { replace: true });
   const now = new Date();
-  if (!hasFeature('perf_map')) return <section><PageHeader title="팀 성과" /><Upsell feature="팀 성과 지도" /></section>;
+  return (
+    <section className="space-y-5">
+      <PageHeader title="팀 성과" sub={`${now.getFullYear()}년 ${Math.floor(now.getMonth() / 3) + 1}분기 · ${fmtDate(now.toISOString())} 기준 · 이대로 가면 어디에 떨어지는지, 시간은 어디에 쓰는지, 사람은 어디쯤인지`} />
+      <Tabs value={tab} onChange={setTab} items={PERF_TABS} />
+      {tab === 'perf' && <><GoalMapSection />{hasFeature('forecast') ? <ForecastSection teamId={team.id} /> : <Upsell feature="실적 전망" />}</>}
+      {tab === 'portfolio' && <PortfolioSection teamId={team.id} />}
+      {tab === 'people' && (hasFeature('perf_map') ? <PeopleSection /> : <Upsell feature="팀 성과 지도" />)}
+    </section>
+  );
+}
+
+/** 사람별 — 팀 성과 지도 + 고른 팀원 카드 */
+function PeopleSection() {
+  const { team } = useTeam();
+  const [sel, setSel] = useState<string | null>(null);
+  const map = useQuery({ queryKey: ['perf-map', team.id], queryFn: () => q<PerfPoint[]>(supabase.rpc('team_performance_map', { p_team: team.id })) });
+  useEffect(() => { if (!sel && map.data?.length) setSel((map.data.find((p) => !p.withheld) ?? map.data[0]).user_id); }, [map.data, sel]);
   const selected = map.data?.find((p) => p.user_id === sel);
   return (
-    <section>
-      <PageHeader title="팀 성과" sub={`${now.getFullYear()}년 ${Math.floor(now.getMonth() / 3) + 1}분기 · ${fmtDate(now.toISOString())} 기준 · 성과 지도 · 과제 포트폴리오 · 실적 전망`} />
-      <div className="grid lg:grid-cols-5 gap-5 items-start">
-        <ProvBlock kind="calc" className="lg:col-span-3 min-w-0 bg-white rounded-2xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="font-semibold inline-flex items-center gap-2">팀 성과 지도
-              <ProvChip kind="calc" sources={['가로: 담당 과제 진척 + 결과물 승인 비율', '세로: 판단 깊이(리뷰) + 역량 근거의 폭', '이동 화살표: 90일 전 위치 → 지금']} level="L3" depth={3}
-                note="위치는 통계로 계산합니다. AI가 사람에게 점수를 매기지 않습니다." /></h2>
-            <div className="flex items-center gap-4 text-xs text-slate-500"><span>○— 90일 전 → 지금</span><span>◌ 근거 부족</span></div>
-          </div>
-          <div className="mt-3 overflow-x-auto">
-            {map.isLoading ? <Spinner /> : !map.data?.length ? <Empty title="팀원이 없습니다">팀원을 초대하면 위치가 표시됩니다.</Empty> : <PerfMap points={map.data} selected={sel} onSelect={setSel} />}
-          </div>
-          <p className="text-xs text-slate-500 mt-2">위치는 실적·진척(가로)과 판단 깊이·역량 근거(세로)로 계산합니다. 판단 근거가 {String((team.settings?.min_judgment_evidence as number) ?? 8)}건 미만이면 위치를 매기지 않고 판단을 보류합니다.</p>
-        </ProvBlock>
-        <div className="lg:col-span-2">{selected ? <MemberCard teamId={team.id} p={selected} /> : <Card className="p-5 text-sm text-slate-500">지도에서 팀원을 고르세요.</Card>}</div>
-      </div>
-      <PortfolioSection teamId={team.id} />
-      {hasFeature('forecast') && <ForecastSection teamId={team.id} />}
-    </section>
+    <div className="grid lg:grid-cols-5 gap-5 items-start">
+      <ProvBlock kind="calc" className="lg:col-span-3 min-w-0 bg-white rounded-2xl border border-slate-200 p-5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="font-semibold inline-flex items-center gap-2">팀 성과 지도
+            <ProvChip kind="calc" sources={['가로: 담당 과제 진척 + 결과물 승인 비율', '세로: 판단 깊이(리뷰) + 역량 근거의 폭', '이동 화살표: 90일 전 위치 → 지금']} level="L3" depth={3}
+              note="위치는 통계로 계산합니다. AI가 사람에게 점수를 매기지 않습니다." /></h2>
+          <div className="flex items-center gap-4 text-xs text-slate-500"><span>○— 90일 전 → 지금</span><span>◌ 근거 부족</span></div>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          {map.isLoading ? <Spinner /> : !map.data?.length ? <Empty title="팀원이 없습니다">팀원을 초대하면 위치가 표시됩니다.</Empty> : <PerfMap points={map.data} selected={sel} onSelect={setSel} />}
+        </div>
+        <p className="text-xs text-slate-500 mt-2">위치는 실적·진척(가로)과 판단 깊이·역량 근거(세로)로 계산합니다. 판단 근거가 {String((team.settings?.min_judgment_evidence as number) ?? 8)}건 미만이면 위치를 매기지 않고 판단을 보류합니다.</p>
+      </ProvBlock>
+      <div className="lg:col-span-2">{selected ? <MemberCard teamId={team.id} p={selected} /> : <Card className="p-5 text-sm text-slate-500">지도에서 팀원을 고르세요.</Card>}</div>
+    </div>
   );
 }
 
@@ -201,7 +213,7 @@ export default function Perf() {
 function PortfolioSection({ teamId }: { teamId: string }) {
   const port = useQuery({ queryKey: ['portfolio', teamId], queryFn: () => q<PortfolioRow[]>(supabase.rpc('task_portfolio', { p_team: teamId })) });
   return (
-    <ProvBlock kind="calc" className="mt-5 bg-white rounded-2xl border border-slate-200 p-5">
+    <ProvBlock kind="calc" className="bg-white rounded-2xl border border-slate-200 p-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-semibold inline-flex items-center gap-2">과제 포트폴리오
           <ProvChip kind="calc" sources={['팀 시간 = 과제별 배분율 × 사람별 주당 가용 시간 (없으면 예상 공수)', '미션 기여도 = 팀장이 매긴 1~5']} level="L4" depth={2} /></h2>
