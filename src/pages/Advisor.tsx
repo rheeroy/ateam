@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, CalendarPlus, Check, ChevronRight, ClipboardCopy, Eye, Gavel, Lock, Megaphone, RefreshCw, Send, Sparkles, Target } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useGenerate } from '../lib/hooks';
-import { cx, fmtDate } from '../lib/format';
+import { cx, daysAgo, fmtDate } from '../lib/format';
 import {
   EFFORT_LABEL, LEVERS, LEVER_OF, STATE_META, STATUS_LABEL, VERDICT, adviceKey, useAdviceStatus, useAdvisor, useSelfCheck,
   type Advice, type AdviceStatus, type AdvisorOut,
@@ -13,8 +13,10 @@ import {
 import { Button, Card, Spinner, useToast } from '../components/ui';
 import { ATeam, ATeamAdvice, LogoBlock } from '../components/Brand';
 import { periodRange } from '../components/AiBar';
-import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
-import { useHomeModel } from '../components/home/shared';
+import { riskCards, useBoard, usePriorities } from '../components/decide/priorities';
+import { dDay, todayYmd, useHomeModel, usePromises } from '../components/home/shared';
+import { usePeopleIndex } from '../components/people/usePeopleIndex';
+import { isOpenSub, latestAt, useSubmissionsAi } from '../lib/work';
 import { RequestModal } from '../components/RequestModal';
 import { ScheduleModal } from './OneOnOnes';
 
@@ -49,14 +51,13 @@ export default function Advisor() {
         </div>
       </div>
 
-      {!ai ? (<><TopPicks />
+      {!ai ? (<><PicksShell><TopPicks c={null} week={week} /></PicksShell>
         <Card className="p-6 text-sm text-slate-600 flex items-center gap-2 flex-wrap"><Lock size={15} />A·Team의 제안은 Pro에서 매주 자동으로 받아 볼 수 있습니다.
           <Link to="/settings?tab=billing" className="text-indigo-700 font-semibold">요금제 보기 →</Link></Card></>
-      ) : adv.loading ? <Spinner /> : !c || (!c.advice.length && !c.headline) ? <><TopPicks /><EmptyState broken={!!c} /></> : (
+      ) : adv.loading ? <Spinner /> : !c || (!c.advice.length && !c.headline) ? <><PicksShell><TopPicks c={null} week={week} /></PicksShell><EmptyState broken={!!c} /></> : (
         <>
           {adv.stale && !adv.out && <p className="text-xs rounded-lg bg-amber-50 text-amber-800 px-3 py-2">지난주({fmtDate(adv.stale.period_start)}) 제안입니다. 이번 주 제안은 월요일 아침에 자동으로 만들어지고, '이번 주 제안 받기'로 지금 받을 수도 있습니다.</p>}
-          <Hero c={c} at={shown!.created_at} />
-          <TopPicks />
+          <Hero c={c} at={shown!.created_at}><TopPicks c={c} week={week} /></Hero>
           <LeverGrid c={c} />
           <div className="grid lg:grid-cols-3 gap-5 items-start">
             <div className="lg:col-span-2"><AdviceList c={c} week={week} /></div>
@@ -71,38 +72,103 @@ export default function Advisor() {
   );
 }
 
-/** 지금 가장 먼저 챙길 것 — 목표·팀원·위에서 온 것·결과물의 경계 없이, 성과에 가장 크게 걸린 결정 3가지 (예전 대시보드 TOP PRIORITY)
- *  주간 처방(아래)이 '이번 주 무엇을 바꿀지'라면, 이건 '지금 무엇부터 결정할지'. 매일 다시 매깁니다. */
-function TopPicks() {
+/** 이번 주 가장 먼저 챙길 것 — 예전 대시보드 TOP PRIORITY.
+ *  결정 · 챙길 것 · 주의 세 종류를 한 순위표에 섞는다(성과 영향 × 시급성 하나의 점수). 종류마다 최소 1개는 들어가게 하고 5개까지.
+ *  주간 처방(아래)이 '이번 주 무엇을 바꿀지'라면, 이건 '지금 무엇부터 손댈지'. 매일 다시 매깁니다. AI를 새로 부르지 않습니다. */
+type PickKind = 'decide' | 'care' | 'watch';
+interface Pick { key: string; kind: PickKind; score: number; title: string; sub?: string; action: string; to?: string; anchor?: string; ai?: boolean }
+const PICK_META: Record<PickKind, { label: string; cls: string }> = {
+  decide: { label: '결정', cls: 'bg-violet-500/30 text-violet-100 ring-violet-300/30' },
+  care: { label: '챙길 것', cls: 'bg-sky-500/25 text-sky-100 ring-sky-300/30' },
+  watch: { label: '주의', cls: 'bg-rose-500/30 text-rose-100 ring-rose-300/30' },
+};
+const norm = (t: string) => t.replace(/\s+/g, '').slice(0, 24);
+
+function usePicks(c: AdvisorOut | null, week: string): { list: Pick[]; more: number; loading: boolean } {
+  const { team, members, nameOf } = useTeam();
   const m = useHomeModel('weekly');
-  const all = usePriorities(m);
-  const list = all.slice(0, 3);
-  if (m.loading || !list.length) return null;
-  return (
-    <section className="space-y-2">
-      <div className="flex items-end gap-2 flex-wrap">
-        <span className="text-sm font-bold text-slate-900">지금 가장 먼저 결정할 것</span>
-        <span className="text-xs text-slate-400">목표 · 팀원 · 위에서 온 것 · 결과물을 가리지 않고 성과에 크게 걸린 순서 · 에이전트가 매일 다시 매깁니다</span>
-        <Link to="/decide" className="ml-auto text-xs font-semibold text-indigo-700 inline-flex items-center">의사결정 보드{all.length > 3 ? ` (+${all.length - 3})` : ''}<ChevronRight size={13} /></Link>
-      </div>
-      <div className="grid md:grid-cols-3 gap-3">{list.map((p, i) => <PickCard key={p.key} p={p} rank={i + 1} />)}</div>
-    </section>
-  );
+  const prio = usePriorities(m);
+  const board = useBoard(team.id);
+  const pi = usePeopleIndex(m);
+  const subs = useSubmissionsAi(team.id);
+  const promises = usePromises(team.id);
+  const st = useAdviceStatus(team.id);
+  const all: Pick[] = [];
+  // 결정
+  for (const p of prio) {
+    const self = !p.to || p.to === '/advisor';
+    all.push({ key: `d:${p.key}`, kind: 'decide', score: p.score, title: p.title, sub: p.impact ?? p.why, ai: p.ai,
+      action: self ? '의사결정 보드에서 결정' : p.action ?? '결정하러 가기', to: self ? '/decide' : p.to });
+  }
+  // 챙길 것 — 위에서 온 기한, 지난 약속, 오래된 리뷰, 1:1 공백
+  for (const n of m.orgSt.upcoming) {
+    const d = dDay(n.event_date!);
+    if (d < 0 || d > 3) continue;
+    all.push({ key: `o:${n.id}`, kind: 'care', score: 192 - d * 12, title: n.title, sub: `${d === 0 ? '오늘' : `D-${d}`} · 위에서 온 ${n.kind === 'request' ? '요청' : '일정'}`, action: '임원 브리핑에서 준비', to: '/upward' });
+  }
+  const today = todayYmd();
+  for (const a of (promises.data ?? []).filter((x) => x.due_date && x.due_date < today).slice(0, 2)) {
+    const late = -dDay(a.due_date!);
+    const who = a.one_on_ones?.member_id;
+    all.push({ key: `p:${a.id}`, kind: 'care', score: 166 + Math.min(late, 10), title: `약속 · ${a.title}`, sub: `${late}일 지남${who ? ` · ${nameOf(who)}님과 한 약속` : ''}`, action: '챙기기', to: who ? `/people/${who}` : '/people' });
+  }
+  const waiting = (subs.data ?? []).filter(isOpenSub).filter((x) => x.status === 'in_review').map((x) => ({ x, d: daysAgo(latestAt(x)) })).filter((r) => r.d >= 3).sort((a, b) => b.d - a.d);
+  for (const { x, d } of waiting.slice(0, 2)) all.push({ key: `r:${x.id}`, kind: 'care', score: 136 + Math.min(d, 10) * 3, title: x.title, sub: `리뷰 ${d}일째 기다리는 중 · ${nameOf(x.author_id)}`, action: '리뷰하기', to: `/work/${x.id}` });
+  for (const mb of members.filter((x) => x.role === 'member')) {
+    const ix = pi.idx.get(mb.user_id);
+    const name = mb.profiles?.full_name ?? '팀원';
+    if (ix?.indices.find((i) => i.key === 'oo')?.level === 'risk') all.push({ key: `oo:${mb.user_id}`, kind: 'care', score: 128, title: `${name}님과 1:1`, sub: '2주 넘게 1:1이 없습니다', action: '1:1 잡기', to: `/people/${mb.user_id}` });
+    // 주의 — 이탈 위험이 높은 팀원
+    if (ix?.flight.level === 'risk') {
+      const bad = ix.indices.filter((i) => i.level === 'risk' || i.level === 'watch').map((i) => `${i.label} ${i.value}`).slice(0, 2).join(' · ');
+      all.push({ key: `f:${mb.user_id}`, kind: 'watch', score: 172, title: `${name} · 이탈 가능성 높음`, sub: bad || ix.flight.note, action: '팀원 보기', to: `/people/${mb.user_id}` });
+    }
+  }
+  // 주의 — 커지는 리스크(아직 결정으로 올리지 않은 것), 이번 주 꼭 해야 할 처방
+  for (const r of riskCards(m, board).filter((x) => x.s.severity >= 3)) all.push({ key: `k:${r.key}`, kind: 'watch', score: 160 + r.s.severity * 5, title: r.s.title, sub: r.s.detail ?? '자동 감지', action: '리스크 보기', to: '/decide?f=risk' });
+  for (const a of (c?.advice ?? []).filter((x) => x.urgency >= 3 && st.map.get(adviceKey(week, x.id)) !== 'done'))
+    all.push({ key: `a:${a.id}`, kind: 'watch', score: 178, title: strip(a.title), sub: `이번 주 꼭 · ${LEVER_OF[a.lever]?.label ?? ''}`, action: '처방 보기', anchor: `advice-${a.id}`, ai: true });
+
+  // 같은 내용은 하나만 (제안을 결정으로 올린 경우 등)
+  const seen = new Set<string>();
+  const uniq = [...all].sort((a, b) => b.score - a.score).filter((p) => { const k = norm(p.title); if (seen.has(k)) return false; seen.add(k); return true; });
+  const picked: Pick[] = [];
+  for (const k of ['decide', 'care', 'watch'] as PickKind[]) { const top = uniq.find((p) => p.kind === k); if (top) picked.push(top); }
+  for (const p of uniq) { if (picked.length >= 5) break; if (!picked.includes(p)) picked.push(p); }
+  return { list: picked.sort((a, b) => b.score - a.score), more: Math.max(0, uniq.length - picked.length), loading: m.loading };
 }
-function PickCard({ p, rank }: { p: Prio; rank: number }) {
-  const top = rank === 1;
-  const self = !p.to || p.to === '/advisor'; // 이 페이지 자신을 가리키면 의사결정 보드로
+
+function TopPicks({ c, week }: { c: AdvisorOut | null; week: string }) {
+  const { list, more, loading } = usePicks(c, week);
+  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return (
-    <Link to={self ? '/decide' : p.to!} className={cx('group rounded-2xl p-4 flex flex-col min-w-0 ring-1 transition-shadow hover:shadow-md', top ? 'bg-gradient-to-br from-indigo-50 to-violet-50 ring-indigo-200' : 'bg-white ring-slate-200')}>
-      <div className="flex items-center gap-1.5 text-[11px]">
-        <span className={cx('font-bold rounded-full px-2 py-0.5', top ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700')}>{rank}순위</span>
-        <span className="text-slate-500 font-semibold">{p.kind}</span>
-        {p.ai && <span className="text-violet-700 font-semibold inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}
+    <div>
+      <div className="flex items-end gap-2 flex-wrap">
+        <span className="text-[15px] font-bold tracking-tight">이번 주 가장 먼저 챙길 것</span>
+        <span className="text-xs text-slate-400">결정 · 챙길 것 · 주의를 한 순위로 · 성과 영향과 시급성 순 · 에이전트가 매일 다시 매깁니다</span>
+        <Link to="/decide" className="ml-auto text-xs font-semibold text-violet-200 hover:text-white inline-flex items-center">의사결정 보드{more ? ` (+${more})` : ''}<ChevronRight size={13} /></Link>
       </div>
-      <div className="mt-2 text-[15px] font-bold leading-snug line-clamp-2">{p.title}</div>
-      {(p.impact || p.why) && <div className="mt-1.5 text-xs text-slate-500 leading-relaxed line-clamp-2">{p.impact ? <b className="text-indigo-700 font-semibold mr-1">효과</b> : null}{p.impact ?? p.why}</div>}
-      <div className="mt-auto pt-3 text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 truncate">{self ? '의사결정 보드에서 결정하기' : p.action ?? '결정하러 가기'}<ChevronRight size={13} /></div>
-    </Link>
+      {loading ? <p className="mt-3 text-sm text-slate-400">팀 기록을 살펴보는 중…</p> : !list.length ? <p className="mt-3 text-sm text-slate-300">지금 따로 챙길 것이 없습니다.</p> : (
+        <ol className="mt-2.5 space-y-1">
+          {list.map((p, i) => {
+            const meta = PICK_META[p.kind];
+            const inner = (<>
+              <span className={cx('w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold num shrink-0', i === 0 ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-200')}>{i + 1}</span>
+              <span className={cx('w-[54px] text-center text-[11px] font-semibold rounded-full py-0.5 ring-1 whitespace-nowrap', meta.cls)}>{meta.label}</span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 min-w-0"><span className="text-[14px] font-semibold text-white truncate">{p.title}</span>{p.ai && <Sparkles size={11} className="shrink-0 text-violet-300" />}</span>
+                {p.sub && <span className="block text-xs text-slate-300 truncate">{strip(p.sub)}</span>}
+              </span>
+              <span className="text-xs font-semibold text-violet-200 group-hover:text-white whitespace-nowrap inline-flex items-center">{p.action}<ChevronRight size={13} /></span>
+            </>);
+            const cls = 'group grid grid-cols-[24px_auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-1.5 -mx-2 hover:bg-white/[0.07]';
+            return <li key={p.key}>{p.anchor
+              ? <a href={`#${p.anchor}`} onClick={(e) => { e.preventDefault(); go(p.anchor!); }} className={cls}>{inner}</a>
+              : <Link to={p.to ?? '/decide'} className={cls}>{inner}</Link>}</li>;
+          })}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -119,7 +185,7 @@ function EmptyState({ broken }: { broken?: boolean }) {
   );
 }
 
-function Hero({ c, at }: { c: AdvisorOut; at: string }) {
+function Hero({ c, at, children }: { c: AdvisorOut; at: string; children?: ReactNode }) {
   const urgent = c.advice.filter((a) => a.urgency >= 3).length;
   const acts = LEVERS.filter((l) => c.levers[l.key]?.state === 'act').length;
   return (
@@ -138,6 +204,17 @@ function Hero({ c, at }: { c: AdvisorOut; at: string }) {
           ))}
         </dl>
       </div>
+      {children && <div className="relative mt-5 pt-4 border-t border-white/10">{children}</div>}
+    </section>
+  );
+}
+
+/** 주간 처방이 없을 때(무료·미생성) '가장 먼저 챙길 것'만 같은 어두운 판에 */
+function PicksShell({ children }: { children: ReactNode }) {
+  return (
+    <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white p-5 sm:p-6">
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_85%_-20%,rgba(129,140,248,0.28),transparent_50%)]" />
+      <div className="relative">{children}</div>
     </section>
   );
 }
@@ -203,7 +280,7 @@ function AdviceList({ c, week }: { c: AdvisorOut; week: string }) {
           const L = LEVER_OF[a.lever] ?? LEVER_OF.exec;
           const s = statusOf(a);
           return (
-            <li key={a.id} className={cx('px-4 py-4 flex gap-3', s === 'done' && 'bg-slate-50/70')}>
+            <li key={a.id} id={`advice-${a.id}`} className={cx('px-4 py-4 flex gap-3 scroll-mt-24', s === 'done' && 'bg-slate-50/70')}>
               <span className="w-7 h-7 rounded-lg bg-slate-900 text-white text-xs font-bold num flex items-center justify-center shrink-0">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
