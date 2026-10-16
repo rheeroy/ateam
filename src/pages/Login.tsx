@@ -84,8 +84,7 @@ export default function Login() {
         <div className="relative">
           <p className="text-xs font-semibold tracking-wide text-indigo-300">팀 운영의 모든 것을 함께하는 AI 파트너</p>
           <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">팀 운영의 마에스트로가<br />S급 팀장을 만들어줍니다</h1>
-          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">목표 관리부터 팀원 케어, 의사결정, 위로 올릴 보고 준비까지 — 팀장이 쓰던 여러 도구를 하나로 묶었습니다.
-            쓰면 쓸수록 AI가 팀을 더 깊이 읽고, 성과를 끝까지 끌어올립니다.</p>
+          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">양손 양발 모든 걸 다 써도 팀 운영은 너무나 벅찹니다. ATEAM은 성과관리, 팀원관리, 의사결정 모든 것을 한 단계 끌어올려주는 내 곁의 파트너입니다.</p>
           <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
             {[
               { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['3주째 같은 막힘, 계획보다 밀리는 과제', '컨디션이 꺾이는 팀원과 이탈 신호', '목표 달성 가능성이 떨어지는 순간'] },
