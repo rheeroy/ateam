@@ -90,8 +90,9 @@ export default function Layout() {
             <NavItem to="/upward" label="임원 브리핑" icon={UserRound} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
-            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
+            <Group label="인사" />
+            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
             <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
