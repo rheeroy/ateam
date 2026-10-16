@@ -1,5 +1,5 @@
 // 의사결정 보드 — 수많은 기록에서 결정이 필요한 것과 지켜볼 리스크를 한 판에
-//   위: 성과 영향 × 시급성 지도 (지금의 지형)  /  아래: 지켜볼 리스크 → 결정 필요 → 검토 중 → 결정함 → 회고 대기 (끝까지 추적)
+//   왼쪽: 지켜볼 리스크 → 결정 필요 → 검토 중 → 결정함 → 회고 대기 (세로, 끝까지 추적)  /  오른쪽: 선택한 카드 상세 + 성과 영향 × 시급성 지도
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -70,30 +70,11 @@ export default function Decide() {
 
       <AiBar section="decide" label="의사결정" />
 
-      {/* 지도 + 선택한 카드 */}
-      <div className="grid lg:grid-cols-5 gap-4 items-stretch">
-        <Card className="lg:col-span-3 p-4">
-          <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
-            <span className="font-semibold text-sm text-slate-800">결정 지도</span>
-            <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full bg-slate-900 text-white text-[9px] flex items-center justify-center font-bold">1</span>결정할 것</span>
-            <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full ring-2 ring-violet-400 bg-slate-900" />AI가 찾은 결정</span>
-            <span className="inline-flex items-center gap-1"><span className="w-3.5 h-3.5 rounded-full bg-rose-100 ring-2 ring-rose-400" />지켜볼 리스크</span>
-            <span className="ml-auto">위치는 AI·규칙이 매긴 성과 영향과 시급성</span>
-          </div>
-          {m.loading ? <Spinner /> : <Matrix active={active} risks={risks} noOf={noOf} sel={cur} onSel={setSel} reviewingKeys={new Set(reviewing.map((p) => p.key))} />}
-        </Card>
-        <Card className="lg:col-span-2 p-5 flex flex-col">
-          {!cur ? <p className="text-sm text-slate-400 m-auto">지금 결정할 것도, 커지는 리스크도 없습니다.</p>
-            : cur.kind === 'prio' ? <PrioDetail p={cur.p} no={noOf.get(cur.p.key) ?? cur.no} stage={stageOf(cur.p.key)} onAct={act}
-              onReview={() => move(cur.p.key, cur.p.title, 'reviewing')} onBack={() => move(cur.p.key, cur.p.title, null)}
-              onWatch={() => move(cur.p.key, cur.p.title, 'watching')} onDismiss={() => move(cur.p.key, cur.p.title, 'dismissed')} onRecord={() => setRec({ open: true, p: cur.p })} />
-            : <RiskDetail s={cur.s} no={cur.no} onAct={act} onPromote={() => move(cur.key, cur.s.title, 'promoted')} onDismiss={() => move(cur.key, cur.s.title, 'dismissed')} />}
-        </Card>
-      </div>
-
-      {/* 칸반 */}
-      <div className="overflow-x-auto -mx-1 px-1">
-        <div className="grid grid-cols-5 gap-3 min-w-[1060px]">
+      {/* 본문: 왼쪽 단계별 보드(세로) · 오른쪽 선택한 카드 + 결정 지도 */}
+      <div className="flex items-center gap-2 flex-wrap"><Gavel size={15} className="text-slate-700" /><span className="font-semibold">의사결정 보드</span>
+        <span className="text-xs text-slate-400">지켜볼 리스크부터 회고까지 단계별로 추적 · 카드를 누르면 오른쪽에 상세와 지도 위치가 보입니다</span></div>
+      <div className="grid lg:grid-cols-12 gap-4 items-start">
+        <div className="lg:col-span-5 space-y-3">
           <Col title="지켜볼 리스크" tone="rose" n={risks.length + watchingPrio.length} hint="결정이 필요해지면 올립니다">
             {risks.map((r, i) => <MiniCard key={r.key} on={cur?.kind === 'risk' && cur.key === r.key} onClick={() => setSel({ kind: 'risk', key: r.key, s: r.s, no: i + 1 })}
               badge={<span className="text-rose-600 font-bold">R{i + 1}</span>} kind={r.s.severity >= 3 ? '지금 확인' : '주의'} title={r.s.title} />)}
@@ -128,6 +109,25 @@ export default function Decide() {
               <div key={d.id} className="rounded-xl bg-slate-50 p-2.5 text-xs flex items-center gap-2"><span className={cx('font-semibold rounded px-1.5 py-0.5', RATING[d.outcome_rating!].cls)}>{RATING[d.outcome_rating!].label}</span><span className="truncate">{d.title}</span></div>
             ))}
           </Col>
+        </div>
+        <div className="lg:col-span-7 space-y-4">
+          <Card className="p-5 flex flex-col">
+            {!cur ? <p className="text-sm text-slate-400 m-auto">지금 결정할 것도, 커지는 리스크도 없습니다.</p>
+              : cur.kind === 'prio' ? <PrioDetail p={cur.p} no={noOf.get(cur.p.key) ?? cur.no} stage={stageOf(cur.p.key)} onAct={act}
+                onReview={() => move(cur.p.key, cur.p.title, 'reviewing')} onBack={() => move(cur.p.key, cur.p.title, null)}
+                onWatch={() => move(cur.p.key, cur.p.title, 'watching')} onDismiss={() => move(cur.p.key, cur.p.title, 'dismissed')} onRecord={() => setRec({ open: true, p: cur.p })} />
+              : <RiskDetail s={cur.s} no={cur.no} onAct={act} onPromote={() => move(cur.key, cur.s.title, 'promoted')} onDismiss={() => move(cur.key, cur.s.title, 'dismissed')} />}
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
+              <span className="font-semibold text-sm text-slate-800">결정 지도</span>
+              <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full bg-slate-900 text-white text-[9px] flex items-center justify-center font-bold">1</span>결정할 것</span>
+              <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full ring-2 ring-violet-400 bg-slate-900" />AI가 찾은 결정</span>
+              <span className="inline-flex items-center gap-1"><span className="w-3.5 h-3.5 rounded-full bg-rose-100 ring-2 ring-rose-400" />지켜볼 리스크</span>
+              <span className="ml-auto">위치는 AI·규칙이 매긴 성과 영향과 시급성</span>
+            </div>
+            {m.loading ? <Spinner /> : <Matrix active={active} risks={risks} noOf={noOf} sel={cur} onSel={setSel} reviewingKeys={new Set(reviewing.map((p) => p.key))} />}
+          </Card>
         </div>
       </div>
 
@@ -247,7 +247,7 @@ function RiskDetail({ s, no, onAct, onPromote, onDismiss }: { s: Signal; no: num
 function Col({ title, n, hint, tone, children }: { title: string; n: number; hint?: string; tone: 'rose' | 'slate' | 'indigo' | 'emerald' | 'amber'; children: ReactNode }) {
   const bar = { rose: 'bg-rose-400', slate: 'bg-slate-800', indigo: 'bg-indigo-500', emerald: 'bg-emerald-500', amber: 'bg-amber-400' }[tone];
   return (
-    <section className="rounded-2xl bg-slate-100/70 p-2.5 flex flex-col min-h-[180px]">
+    <section className="rounded-2xl bg-slate-100/70 p-2.5 flex flex-col">
       <div className="px-1 pb-2">
         <div className="flex items-center gap-2"><span className={cx('w-2 h-2 rounded-full', bar)} /><span className="text-sm font-semibold">{title}</span><span className="ml-auto text-xs text-slate-500 num">{n}</span></div>
         {hint && <div className="text-[10px] text-slate-400 mt-0.5">{hint}</div>}
