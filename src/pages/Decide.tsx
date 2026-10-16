@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, Grid2x2, Plus, RotateCcw, ScanSearch, Sparkles, X } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { Decision } from '../lib/types';
@@ -71,10 +71,11 @@ export default function Decide() {
       <AiBar section="decide" label="의사결정" />
 
       {/* 본문: 왼쪽 단계별 보드(세로) · 오른쪽 선택한 카드 + 결정 지도 */}
-      <div className="flex items-center gap-2 flex-wrap"><Gavel size={15} className="text-slate-700" /><span className="font-semibold">의사결정 보드</span>
-        <span className="text-xs text-slate-400">지켜볼 리스크부터 회고까지 단계별로 추적 · 카드를 누르면 오른쪽에 상세와 지도 위치가 보입니다</span></div>
-      <div className="grid lg:grid-cols-5 gap-4 items-stretch">
-        <div className="lg:col-span-3 overflow-x-auto -mx-1 px-1"><div className="grid grid-cols-5 gap-2 min-w-[560px] h-full min-h-[600px]">
+      <div className="grid lg:grid-cols-5 gap-5 lg:gap-0 items-stretch">
+        <div className="lg:col-span-3 lg:pr-5 flex flex-col gap-2 min-w-0">
+          <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">의사결정 보드</span>
+            <span className="text-xs text-slate-400">지켜볼 리스크부터 회고까지 단계별로 추적 · 누르면 오른쪽에 상세</span></div>
+          <div className="flex-1 overflow-x-auto -mx-1 px-1"><div className="grid grid-cols-5 gap-2 min-w-[560px] h-full min-h-[600px]">
           <Col title="지켜볼 리스크" tone="rose" n={risks.length + watchingPrio.length} hint="결정이 필요해지면 올립니다">
             {risks.map((r, i) => <MiniCard key={r.key} on={cur?.kind === 'risk' && cur.key === r.key} onClick={() => setSel({ kind: 'risk', key: r.key, s: r.s, no: i + 1 })}
               badge={<span className="text-rose-600 font-bold">R{i + 1}</span>} kind={r.s.severity >= 3 ? '지금 확인' : '주의'} title={r.s.title} />)}
@@ -109,9 +110,10 @@ export default function Decide() {
               <div key={d.id} className="rounded-xl bg-white/70 p-2 text-xs flex items-center gap-1.5"><span className={cx('shrink-0 font-semibold rounded px-1.5 py-0.5', RATING[d.outcome_rating!].cls)}>{RATING[d.outcome_rating!].label}</span><span className="truncate">{d.title}</span></div>
             ))}
           </Col>
-        </div></div>
-        <div className="lg:col-span-2 space-y-2">
-          <BoxTitle icon={ScanSearch} title="선택한 카드" hint="보드나 지도에서 고르면 바뀝니다" />
+          </div></div>
+        </div>
+        <div className="lg:col-span-2 space-y-2 lg:pl-5 lg:border-l lg:border-slate-200 border-t lg:border-t-0 pt-5 lg:pt-0">
+          <BoxTitle title="선택한 카드" hint="보드나 지도에서 고르면 바뀝니다" />
           <Card className="p-5 flex flex-col">
             {!cur ? <p className="text-sm text-slate-400 m-auto">지금 결정할 것도, 커지는 리스크도 없습니다.</p>
               : cur.kind === 'prio' ? <PrioDetail p={cur.p} no={noOf.get(cur.p.key) ?? cur.no} stage={stageOf(cur.p.key)} onAct={act}
@@ -119,7 +121,7 @@ export default function Decide() {
                 onWatch={() => move(cur.p.key, cur.p.title, 'watching')} onDismiss={() => move(cur.p.key, cur.p.title, 'dismissed')} onRecord={() => setRec({ open: true, p: cur.p })} />
               : <RiskDetail s={cur.s} no={cur.no} onAct={act} onPromote={() => move(cur.key, cur.s.title, 'promoted')} onDismiss={() => move(cur.key, cur.s.title, 'dismissed')} />}
           </Card>
-          <BoxTitle icon={Grid2x2} title="결정 지도" hint="AI·규칙이 매긴 성과 영향 × 시급성" className="pt-3" />
+          <BoxTitle title="결정 지도" hint="AI·규칙이 매긴 성과 영향 × 시급성" className="pt-3" />
           <Card className="p-4">
             <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full bg-slate-900 text-white text-[9px] flex items-center justify-center font-bold">1</span>결정할 것</span>
@@ -244,11 +246,11 @@ function RiskDetail({ s, no, onAct, onPromote, onDismiss }: { s: Signal; no: num
   );
 }
 
-function BoxTitle({ icon: Icon, title, hint, className }: { icon: typeof Gavel; title: string; hint?: string; className?: string }) {
+function BoxTitle({ title, hint, className }: { title: string; hint?: string; className?: string }) {
   return (
-    <div className={cx('flex items-center gap-1.5 min-w-0 px-0.5', className)}>
-      <Icon size={14} className="text-slate-500 shrink-0" /><span className="text-sm font-semibold whitespace-nowrap">{title}</span>
-      {hint && <span className="text-[11px] text-slate-400 truncate">{hint}</span>}
+    <div className={cx('flex items-end gap-2 min-w-0', className)}>
+      <span className="text-sm font-bold text-slate-900 whitespace-nowrap">{title}</span>
+      {hint && <span className="text-xs text-slate-400 truncate">{hint}</span>}
     </div>
   );
 }
