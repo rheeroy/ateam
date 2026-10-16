@@ -2,7 +2,7 @@
 //   6개 운영 레버(실행 · 인력 · 사람 · 외부 · 팀장 자신 · 운영 체계)를 빠짐없이 점검하고, 처방은 실행 경로(보드 · 요청 · 1:1 · 보고)로 바로 이어진다
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CalendarPlus, Check, ClipboardCopy, Eye, Gavel, Lock, Megaphone, RefreshCw, Send, Target } from 'lucide-react';
+import { ArrowRight, CalendarPlus, Check, ChevronRight, ClipboardCopy, Eye, Gavel, Lock, Megaphone, RefreshCw, Send, Sparkles, Target } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useGenerate } from '../lib/hooks';
 import { cx, fmtDate } from '../lib/format';
@@ -13,7 +13,8 @@ import {
 import { Button, Card, Spinner, useToast } from '../components/ui';
 import { ATeam, ATeamAdvice, LogoBlock } from '../components/Brand';
 import { periodRange } from '../components/AiBar';
-import { useBoard } from '../components/decide/priorities';
+import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
+import { useHomeModel } from '../components/home/shared';
 import { RequestModal } from '../components/RequestModal';
 import { ScheduleModal } from './OneOnOnes';
 
@@ -48,13 +49,14 @@ export default function Advisor() {
         </div>
       </div>
 
-      {!ai ? (
+      {!ai ? (<><TopPicks />
         <Card className="p-6 text-sm text-slate-600 flex items-center gap-2 flex-wrap"><Lock size={15} />A·Team의 제안은 Pro에서 매주 자동으로 받아 볼 수 있습니다.
-          <Link to="/settings?tab=billing" className="text-indigo-700 font-semibold">요금제 보기 →</Link></Card>
-      ) : adv.loading ? <Spinner /> : !c || (!c.advice.length && !c.headline) ? <EmptyState broken={!!c} /> : (
+          <Link to="/settings?tab=billing" className="text-indigo-700 font-semibold">요금제 보기 →</Link></Card></>
+      ) : adv.loading ? <Spinner /> : !c || (!c.advice.length && !c.headline) ? <><TopPicks /><EmptyState broken={!!c} /></> : (
         <>
           {adv.stale && !adv.out && <p className="text-xs rounded-lg bg-amber-50 text-amber-800 px-3 py-2">지난주({fmtDate(adv.stale.period_start)}) 제안입니다. 이번 주 제안은 월요일 아침에 자동으로 만들어지고, '이번 주 제안 받기'로 지금 받을 수도 있습니다.</p>}
           <Hero c={c} at={shown!.created_at} />
+          <TopPicks />
           <LeverGrid c={c} />
           <div className="grid lg:grid-cols-3 gap-5 items-start">
             <div className="lg:col-span-2"><AdviceList c={c} week={week} /></div>
@@ -66,6 +68,41 @@ export default function Advisor() {
         </>
       )}
     </div>
+  );
+}
+
+/** 지금 가장 먼저 챙길 것 — 목표·팀원·위에서 온 것·결과물의 경계 없이, 성과에 가장 크게 걸린 결정 3가지 (예전 대시보드 TOP PRIORITY)
+ *  주간 처방(아래)이 '이번 주 무엇을 바꿀지'라면, 이건 '지금 무엇부터 결정할지'. 매일 다시 매깁니다. */
+function TopPicks() {
+  const m = useHomeModel('weekly');
+  const all = usePriorities(m);
+  const list = all.slice(0, 3);
+  if (m.loading || !list.length) return null;
+  return (
+    <section className="space-y-2">
+      <div className="flex items-end gap-2 flex-wrap">
+        <span className="text-sm font-bold text-slate-900">지금 가장 먼저 결정할 것</span>
+        <span className="text-xs text-slate-400">목표 · 팀원 · 위에서 온 것 · 결과물을 가리지 않고 성과에 크게 걸린 순서 · 에이전트가 매일 다시 매깁니다</span>
+        <Link to="/decide" className="ml-auto text-xs font-semibold text-indigo-700 inline-flex items-center">의사결정 보드{all.length > 3 ? ` (+${all.length - 3})` : ''}<ChevronRight size={13} /></Link>
+      </div>
+      <div className="grid md:grid-cols-3 gap-3">{list.map((p, i) => <PickCard key={p.key} p={p} rank={i + 1} />)}</div>
+    </section>
+  );
+}
+function PickCard({ p, rank }: { p: Prio; rank: number }) {
+  const top = rank === 1;
+  const self = !p.to || p.to === '/advisor'; // 이 페이지 자신을 가리키면 의사결정 보드로
+  return (
+    <Link to={self ? '/decide' : p.to!} className={cx('group rounded-2xl p-4 flex flex-col min-w-0 ring-1 transition-shadow hover:shadow-md', top ? 'bg-gradient-to-br from-indigo-50 to-violet-50 ring-indigo-200' : 'bg-white ring-slate-200')}>
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <span className={cx('font-bold rounded-full px-2 py-0.5', top ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700')}>{rank}순위</span>
+        <span className="text-slate-500 font-semibold">{p.kind}</span>
+        {p.ai && <span className="text-violet-700 font-semibold inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}
+      </div>
+      <div className="mt-2 text-[15px] font-bold leading-snug line-clamp-2">{p.title}</div>
+      {(p.impact || p.why) && <div className="mt-1.5 text-xs text-slate-500 leading-relaxed line-clamp-2">{p.impact ? <b className="text-indigo-700 font-semibold mr-1">효과</b> : null}{p.impact ?? p.why}</div>}
+      <div className="mt-auto pt-3 text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 truncate">{self ? '의사결정 보드에서 결정하기' : p.action ?? '결정하러 가기'}<ChevronRight size={13} /></div>
+    </Link>
   );
 }
 

@@ -18,7 +18,9 @@ const TITLE: Record<Mode, { h: string; sub: string }> = {
 export default function Login() {
   const { session } = useSession();
   const [params] = useSearchParams();
-  const next = params.get('next') || '/';
+  // 로그인하면 항상 대시보드로. 초대 수락·온보딩처럼 꼭 이어가야 하는 흐름만 원래 주소로 돌려보낸다
+  const nextRaw = params.get('next') || '/';
+  const next = /^\/(invite|onboarding|reset-password)(\/|$|\?)/.test(nextRaw) ? nextRaw : '/';
   const [mode, setMode] = useState<Mode>(params.get('mode') === 'signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

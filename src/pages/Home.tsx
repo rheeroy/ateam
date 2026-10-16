@@ -5,17 +5,20 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel,
-  Inbox, ListTree, MessagesSquare, Sparkles, Target, Users, X,
+  Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, Target, UserRound, Users, X,
 } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { OrgNote } from '../lib/types';
-import { cx, daysAgo, fmtDate, fmtTime } from '../lib/format';
+import { cx, daysAgo, fmtDate, fmtTime, mondayOf } from '../lib/format';
 import type { Raw } from '../lib/insights';
 import { isOpenSub, latestAt, useSubmissionsAi, type AiReview } from '../lib/work';
 import { usePeopleActions } from '../lib/peopleActions';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
-import { useBoard, usePriorities, type Prio } from '../components/decide/priorities';
+import { useBoard, usePriorities } from '../components/decide/priorities';
+import { useAdvisor } from '../lib/advisor';
+import { useLatestAi } from '../lib/hooks';
+import { LogoMark } from '../components/Brand';
 import {
   MemoModal, PeriodTabs, QuickStart, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
@@ -43,42 +46,74 @@ function Header() {
 // =====================================================================
 
 // =====================================================================
-// TOP PRIORITY — 최상단, 낮게
+// DAILY BRIEFING — 최상단. 에이전트가 무엇을 만들고 갱신했는지, 어느 메뉴로 가면 되는지만 짧게.
+//   (예전 TOP PRIORITY의 '최우선 3가지'는 ATEAM의 제안 페이지로 옮겼습니다)
 // =====================================================================
-function TopPriority({ m, period, setPeriod }: { m: HomeModel; period: 'daily' | 'weekly' | 'monthly'; setPeriod: (p: 'daily' | 'weekly' | 'monthly') => void }) {
-  const all = usePriorities(m);
-  const list = all.slice(0, 3);
+type BTone = 'rose' | 'amber' | 'agent' | 'slate';
+interface BLine { key: string; tone: BTone; text: ReactNode; go: string; to: string; icon: typeof Target }
+const B_ORDER: Record<BTone, number> = { rose: 0, agent: 1, amber: 2, slate: 3 };
+const AdvisorIcon = ((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Target;
+
+function useBriefing(m: HomeModel): BLine[] {
+  const { team } = useTeam();
+  const k = m.k;
+  const pr = usePriorities(m);
+  const pi = usePeopleIndex(m);
+  const pa = usePeopleActions(team.id, team.is_demo);
+  const adv = useAdvisor(team.id, team.is_demo);
+  const brief = useLatestAi<{ briefs?: unknown[] }>(team.id, 'exec_brief');
+  const subs = useSubmissionsAi(team.id);
+  const idx = [...pi.idx.values()];
+  const high = idx.filter((x) => x.flight.level === 'risk').length, mid = idx.filter((x) => x.flight.level === 'watch').length;
+  const ooGap = idx.filter((x) => ['watch', 'risk'].includes(x.indices.find((i) => i.key === 'oo')?.level ?? '')).length;
+  const waiting = (subs.data ?? []).filter(isOpenSub).filter((s) => s.status === 'in_review');
+  const reviewed = waiting.filter((s) => s.review).length, old = waiting.filter((s) => daysAgo(latestAt(s)) >= 3).length;
+  const briefFresh = !!brief.data && (team.is_demo || (brief.data.period_start ?? '') >= mondayOf());
+  const nearest = m.orgSt.nearest ? dDay(m.orgSt.nearest.event_date!) : null;
+  const n = (v: number, unit: string) => <b className="text-white num">{v}{unit}</b>;
+  const out: BLine[] = [];
+  if (m.lowGoals.length) out.push({ key: 'low', tone: 'rose', icon: ScatterChart, text: <>달성이 어려워 보이는 목표가 {n(m.lowGoals.length, '개')} 있어요.</>, go: '팀 성과를', to: '/perf' });
+  if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
+  if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
+  if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Gavel, text: <>에이전트가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
+  if (adv.out?.content.advice.length) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <>에이전트가 이번 주 운영 제안 {n(adv.out.content.advice.length, '개')}를 만들었어요.</>, go: 'ATEAM의 제안을', to: '/advisor' });
+  if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <>에이전트가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
+  if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <>에이전트가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
+  else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });
+  if (briefFresh) out.push({ key: 'brief', tone: 'agent', icon: UserRound, text: <>에이전트가 이번 주 임원 브리핑을 업데이트했어요{nearest != null && nearest <= 7 ? <> · 가장 가까운 기한 {n(nearest, '')}일 남음</> : null}.</>, go: '임원 브리핑을', to: '/upward' });
+  else if (m.orgSt.feed.length) out.push({ key: 'org', tone: nearest != null && nearest <= 3 ? 'amber' : 'slate', icon: UserRound, text: <>위에서 내려온 소식 {n(m.orgSt.feed.length, '건')}이 열려 있어요.</>, go: '임원 브리핑을', to: '/upward' });
+  if (ooGap) out.push({ key: 'oo', tone: 'amber', icon: Users, text: <>2주 넘게 1:1을 못 한 팀원이 {n(ooGap, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
+  if (k.decisionsDue) out.push({ key: 'due', tone: 'slate', icon: Gavel, text: <>결과를 기록할 결정이 {n(k.decisionsDue, '건')} 있어요.</>, go: '의사결정을', to: '/decide' });
+  return out.sort((a, b) => B_ORDER[a.tone] - B_ORDER[b.tone]);
+}
+
+function DailyBriefing({ m }: { m: HomeModel }) {
+  const lines = useBriefing(m);
+  const shown = lines.slice(0, 6);
   return (
-    <section aria-label="Top Priority" className="relative overflow-hidden rounded-2xl bg-slate-950 text-white">
+    <section aria-label="Daily Briefing" className="relative overflow-hidden rounded-2xl bg-slate-950 text-white">
       <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,58,237,0.45),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(79,70,229,0.25),transparent_50%)]" />
       <div className="relative p-4">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
-          <span className="text-[11px] font-bold tracking-wide text-violet-300">TOP PRIORITY</span>
-          <span className="text-sm font-semibold">{m.loading ? '팀 기록을 살펴보는 중…' : list.length ? '최우선으로 챙겨야 할 것들' : '지금 판단이 필요한 큰 결정은 없습니다'}</span>
-          {all.length > 3 && <Link to="/decide" className="text-xs text-violet-300 hover:text-white inline-flex items-center">+{all.length - 3} 의사결정 보드<ChevronRight size={12} /></Link>}
-          <span className="ml-auto"><PeriodTabs period={period} setPeriod={setPeriod} dark /></span>
+          <span className="text-[11px] font-bold tracking-wide text-violet-300">DAILY BRIEFING</span>
+          <span className="text-sm font-semibold">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
         </div>
-        {!m.loading && !!list.length && (
-          <div className="mt-3 grid md:grid-cols-3 gap-2.5">{list.map((p, i) => <PrioMini key={p.key} p={p} rank={i + 1} />)}</div>
+        {!m.loading && !!shown.length && (
+          <ul className="mt-3 grid md:grid-cols-2 gap-x-6 gap-y-1">
+            {shown.map((l) => (
+              <li key={l.key}>
+                <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-white/[0.06] min-w-0">
+                  <span className={cx('w-6 h-6 rounded-md flex items-center justify-center shrink-0',
+                    l.tone === 'rose' ? 'bg-rose-500/20 text-rose-300' : l.tone === 'amber' ? 'bg-amber-400/15 text-amber-300' : l.tone === 'agent' ? 'bg-violet-500/25 text-violet-200' : 'bg-white/10 text-slate-300')}><l.icon size={13} /></span>
+                  <span className="text-[13px] text-slate-300 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-200 group-hover:text-white whitespace-nowrap">{l.go} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </section>
-  );
-}
-function PrioMini({ p, rank }: { p: Prio; rank: number }) {
-  const top = rank === 1;
-  return (
-    <Link to={p.to ?? '/decide'} className={cx('group rounded-xl p-3 ring-1 flex flex-col min-w-0 transition-colors', top ? 'bg-gradient-to-br from-violet-500/30 to-indigo-500/10 ring-violet-300/40 hover:from-violet-500/40' : 'bg-white/[0.06] ring-white/10 hover:bg-white/[0.1]')}>
-      <div className="flex items-center gap-1.5 text-[10px]">
-        <span className={cx('font-bold rounded-full px-1.5 py-px', top ? 'bg-white text-slate-900' : 'bg-white/10 text-white/80')}>{rank}순위</span>
-        <span className="text-slate-300 font-semibold">{p.kind}</span>
-        {p.ai && <span className="text-violet-300 inline-flex items-center gap-0.5"><Sparkles size={9} />AI</span>}
-      </div>
-      <div className="mt-1.5 text-[14px] font-bold leading-snug line-clamp-2">{p.title}</div>
-      {(p.impact || p.why) && <div className="mt-1 text-[11px] text-slate-400 line-clamp-1">{p.impact ? <b className="text-violet-300 font-semibold mr-1">효과</b> : null}{p.impact ?? p.why}</div>}
-      <div className="mt-auto pt-2 text-[11px] font-semibold text-violet-200 group-hover:text-white inline-flex items-center gap-0.5 truncate">{p.action ?? '결정하러 가기'}<ChevronRight size={12} /></div>
-    </Link>
   );
 }
 
@@ -476,8 +511,9 @@ export default function Home() {
   return (
     <div className="space-y-3">
       <Header />
-      <TopPriority m={m} period={period} setPeriod={setPeriod} />
-      <div className="pt-2 flex items-baseline gap-2"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs text-slate-400">영역별 핵심 지표 · 주요 팩트 · AI 진단</span></div>
+      <DailyBriefing m={m} />
+      <div className="pt-2 flex items-center gap-2 flex-wrap"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs text-slate-400">영역별 핵심 지표 · 주요 팩트 · AI 진단</span>
+        <span className="ml-auto"><PeriodTabs period={period} setPeriod={setPeriod} /></span></div>
       <Tiles m={m} />
       <div className="pt-4"><QuickStart teamId={team.id} /></div>
       <FloatingToday teamId={team.id} raw={m.raw} orgNotes={m.org.data?.notes ?? []} />
