@@ -115,7 +115,7 @@ export function Chart({ rows, sel, onSel }: { rows: G[]; sel: string | null; onS
       if (!boxes.some((b) => b.x1 < bx.x2 && bx.x1 < b.x2 && b.y1 < bx.y2 && bx.y1 < b.y2)) { boxes.push(bx); break; }
       ly += ahead ? -32 : 32;
     }
-    return { r, x, y, lx, ly: Math.max(T + 12, Math.min(B - 18, ly)), anchor: anchorEnd ? 'end' : 'start', moved };
+    return { r, x, y, lx, ly: Math.max(T + 12, Math.min(B - 18, ly)), anchor: (anchorEnd ? 'end' : 'start') as 'end' | 'start', moved };
   });
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="목표별 계획선 지도: 가로 기간 경과, 세로 진척">
