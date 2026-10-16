@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowUpRight, Copy, Database, Info, Lightbulb, Plus, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Copy, Database, Info, Lightbulb, Plus, ScatterChart, Sparkles } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import type { Forecast, Metric, PerfPoint, PortfolioRow, WorkItem } from '../lib/types';
 import { cx, fmtDate, num } from '../lib/format';
-import { Bar, Button, Card, Empty, PageHeader, Spinner, Tabs, useToast } from '../components/ui';
+import { Bar, Button, Card, Empty, Spinner, Tabs, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
 import { ForecastChart, PerfMap, PortfolioChart, Sparkline } from '../components/charts';
 import { MetricDataModal, NewMetricModal } from '../components/MetricEditor';
@@ -174,7 +174,13 @@ export default function Perf() {
   const now = new Date();
   return (
     <section className="space-y-5">
-      <PageHeader title="팀 성과" sub={`${now.getFullYear()}년 ${Math.floor(now.getMonth() / 3) + 1}분기 · ${fmtDate(now.toISOString())} 기준 · 이대로 가면 어디에 떨어지는지, 시간은 어디에 쓰는지, 사람은 어디쯤인지`} />
+      <div className="flex items-center gap-3">
+        <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-sm shrink-0"><ScatterChart size={20} /></span>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight">팀 성과</h1>
+          <p className="text-sm text-slate-500">{`${now.getFullYear()}년 ${Math.floor(now.getMonth() / 3) + 1}분기 · ${fmtDate(now.toISOString())} 기준 · 이대로 가면 어디에 떨어지는지, 시간은 어디에 쓰는지, 사람은 어디쯤인지`}</p>
+        </div>
+      </div>
       <Tabs value={tab} onChange={setTab} items={PERF_TABS} />
       {tab === 'perf' && <><GoalMapSection />{hasFeature('forecast') ? <ForecastSection teamId={team.id} /> : <Upsell feature="실적 전망" />}</>}
       {tab === 'portfolio' && <PortfolioSection teamId={team.id} />}
