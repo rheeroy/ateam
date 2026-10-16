@@ -31,6 +31,7 @@ const PersonDetail = lazy(() => import('./pages/PersonDetail'));
 const TeamGoals = lazy(() => import('./pages/TeamGoals'));
 const Decide = lazy(() => import('./pages/Decide'));
 const WorkSpace = lazy(() => import('./pages/WorkSpace'));
+const Notes = lazy(() => import('./pages/Notes'));
 
 function NotConfigured() {
   return (
@@ -120,6 +121,7 @@ export default function App() {
         <Route path="eval" element={L(<Evaluation />)} />
         <Route path="insight" element={L(<Insight />)} />
         <Route path="knowhow" element={L(<Knowhow />)} />
+        <Route path="notes" element={L(<Notes />)} />
         <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="checkin" element={<Checkin />} />

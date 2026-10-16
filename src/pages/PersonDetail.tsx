@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Award, CalendarPlus, ChevronRight, MessageSquare, Send, StickyNote } from 'lucide-react';
+import { NotesBox } from '../components/notes/Notes';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useLatestAi } from '../lib/hooks';
@@ -63,6 +64,7 @@ export default function PersonDetail() {
           <Observations teamId={team.id} uid={id} onNew={() => setMemo(true)} />
         </div>
         <div className="space-y-4">
+          <NotesBox anchor={{ type: 'member', id, label: name }} />
           <OneOnOneBox teamId={team.id} uid={id} onNew={() => setOo(true)} />
           <Ledger teamId={team.id} uid={id} />
         </div>

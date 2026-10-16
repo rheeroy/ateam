@@ -4,6 +4,7 @@ import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, weekLabel, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { PREP } from '../_shared/prompts/index.ts';
+import { NOTE_RULE, addLeaderNotes } from '../_shared/notes.ts';
 
 serve(async (req) => {
   const { one_on_one_id } = await readJson<{ one_on_one_id: string }>(req);
@@ -66,6 +67,8 @@ serve(async (req) => {
     .from('observations').select('id, kind, body, occurred_at')
     .eq('team_id', oo.team_id).eq('subject_id', oo.member_id).gte('occurred_at', since.slice(0, 10)).limit(5);
   for (const o of obs ?? []) book.add('observation', o.id, `관찰 메모 ${fmtDate(o.occurred_at)}`, `[${o.kind}] ${o.body}`);
+  // 팀장 개인 메모 — 이 팀원(또는 이 1:1)에 붙이고 AI 참고를 허용한 것
+  await addLeaderNotes(book, oo.team_id, oo.leader_id, { types: ['member', 'one_on_one'], ids: [oo.member_id, oo.id], limit: 6, nameOf: () => member.full_name });
 
   // 담당 목표·과제 (계획 대비)
   const { data: its } = await admin.from('work_items').select('id, title, status, progress, due_date, base_due, replan_count, needs_plan')
@@ -80,7 +83,7 @@ serve(async (req) => {
     teamId: oo.team_id,
     kind: 'one_on_one_prep',
     model: MODEL_SMART,
-    system: PREP,
+    system: PREP + NOTE_RULE,
     content: [{ type: 'text', text: prompt }],
     book,
     depth: depthOf(book.size, [3, 6, 10]),

@@ -12,6 +12,7 @@ import { cx, daysAgo, fmtDate, fmtShort } from '../lib/format';
 import { Button, Card, Field, Modal, Spinner, inputCls, useToast } from '../components/ui';
 import { AiBar } from '../components/AiBar';
 import { EvidenceChips, riskCards, useBoard, usePriorities, type Prio } from '../components/decide/priorities';
+import { NotesToggle } from '../components/notes/Notes';
 import { MemoModal, PeriodTabs, STATUS_META, todayYmd, useHomeModel, usePeriod, useSignalAct } from '../components/home/shared';
 
 type Sel = { kind: 'prio'; p: Prio; no: number } | { kind: 'risk'; key: string; s: Signal; no: number } | null;
@@ -215,6 +216,7 @@ function PrioDetail({ p, no, stage, onAct, onReview, onBack, onWatch, onDismiss,
         <ol className="mt-2.5 space-y-1.5">{p.options.slice(0, 3).map((o, i) => <li key={i} className="text-sm rounded-lg ring-1 ring-slate-200 px-2.5 py-1.5 flex gap-2"><b className="text-indigo-600">{String.fromCharCode(65 + i)}</b>{o}</li>)}</ol>
       )}
       {p.evidence.length > 0 && <div className="mt-2.5"><div className="text-[11px] font-bold text-slate-500 mb-1">근거</div><EvidenceChips list={p.evidence} onAct={onAct} /></div>}
+      <NotesToggle key={p.key} anchor={{ type: 'decision', id: p.key, label: p.title }} className="mt-3" />
       <div className="mt-auto pt-4 flex items-center gap-1.5 flex-wrap">
         <Button size="sm" onClick={onRecord}><Check size={13} />결정 기록</Button>
         {stage === 'reviewing' || stage === 'watching' ? <Button size="sm" variant="secondary" onClick={onBack}><RotateCcw size={13} />결정 필요로</Button>
@@ -237,6 +239,7 @@ function RiskDetail({ s, no, onAct, onPromote, onDismiss }: { s: Signal; no: num
       <h3 className="mt-2 text-lg font-bold leading-snug tracking-tight">{s.title}</h3>
       {s.detail && <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">{s.detail}</p>}
       <p className="mt-2.5 text-xs text-slate-500 rounded-lg bg-slate-50 px-3 py-2">자동 감지 · {s.rule}</p>
+      <NotesToggle key={s.id} anchor={{ type: 'decision', id: `risk:${s.id}`, label: s.title }} className="mt-3" />
       <div className="mt-auto pt-4 flex items-center gap-1.5 flex-wrap">
         <Button size="sm" onClick={onPromote}><ArrowUpRight size={13} />결정으로 올리기</Button>
         <Button size="sm" variant="ghost" onClick={onDismiss}><X size={13} />빼기</Button>

@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, Target, UserRound, Users, Gavel } from 'lucide-react';
+  PenLine, ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -14,6 +14,8 @@ import { Notifications } from './Notifications';
 import { dDay, useHomeModel, usePeriod } from './home/shared';
 import { usePriorities } from './decide/priorities';
 import { isOpenSub, useSubmissionsAi } from '../lib/work';
+import { QuickNote } from './notes/Notes';
+import { openQuickNote } from '../lib/notes';
 import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string };
@@ -66,6 +68,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <Group label="인사" />
             <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
+            <NavItem to="/notes" label="내 메모 모아보기" icon={StickyNote} />
             <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
             <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
             <NavItem to="/settings" label="설정" icon={Settings} />
@@ -174,6 +177,11 @@ export default function Layout() {
                 프리미엄 <span className="font-mono font-semibold text-slate-800">{credits.monthly_remaining + credits.topup_remaining}</span>
               </NavLink>
             )}
+            {isLeader && (
+              <button onClick={() => openQuickNote()} title="내 메모 — 지금 보던 화면에 붙여 둡니다"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100">
+                <StickyNote size={14} /><span className="hidden sm:inline">메모</span></button>
+            )}
             <Notifications />
             <div className="relative">
               <button onClick={() => setMenu((x) => !x)} className="flex items-center gap-2 text-sm text-slate-600">
@@ -195,6 +203,7 @@ export default function Layout() {
           <Suspense fallback={<Spinner />}><Outlet /></Suspense>
         </div>
       </main>
+      {isLeader && <QuickNote />}
       <ProvLegend />
     </div>
   );

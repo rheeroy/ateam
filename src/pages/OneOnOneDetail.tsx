@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { NotesBox } from '../components/notes/Notes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, ListChecks, Lock, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -196,6 +197,7 @@ export default function OneOnOneDetail() {
             )}
           </Card>
           <ActionItems oo={o} />
+          {isLeader && <NotesBox anchor={{ type: 'member', id: o.member_id, label: nameOf(o.member_id) }} title={`${nameOf(o.member_id)} 님에 대한 내 메모`} />}
         </div>
       </div>
     </section>

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel,
-  Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, Target, UserRound, Users, X,
+  Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X,
 } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -19,6 +19,7 @@ import { useBoard, usePriorities } from '../components/decide/priorities';
 import { useAdvisor } from '../lib/advisor';
 import { useLatestAi } from '../lib/hooks';
 import { LogoMark } from '../components/Brand';
+import { useNotes } from '../lib/notes';
 import {
   MemoModal, PeriodTabs, QuickStart, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
@@ -63,6 +64,8 @@ function useBriefing(m: HomeModel): BLine[] {
   const adv = useAdvisor(team.id, team.is_demo);
   const brief = useLatestAi<{ briefs?: unknown[] }>(team.id, 'exec_brief');
   const subs = useSubmissionsAi(team.id);
+  const notes = useNotes();
+  const { nameOf } = useTeam();
   const idx = [...pi.idx.values()];
   const high = idx.filter((x) => x.flight.level === 'risk').length, mid = idx.filter((x) => x.flight.level === 'watch').length;
   const ooGap = idx.filter((x) => ['watch', 'risk'].includes(x.indices.find((i) => i.key === 'oo')?.level ?? '')).length;
@@ -84,6 +87,14 @@ function useBriefing(m: HomeModel): BLine[] {
   else if (m.orgSt.feed.length) out.push({ key: 'org', tone: nearest != null && nearest <= 3 ? 'amber' : 'slate', icon: UserRound, text: <>위에서 내려온 소식 {n(m.orgSt.feed.length, '건')}이 열려 있어요.</>, go: '임원 브리핑을', to: '/upward' });
   if (ooGap) out.push({ key: 'oo', tone: 'amber', icon: Users, text: <>2주 넘게 1:1을 못 한 팀원이 {n(ooGap, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
   if (k.decisionsDue) out.push({ key: 'due', tone: 'slate', icon: Gavel, text: <>결과를 기록할 결정이 {n(k.decisionsDue, '건')} 있어요.</>, go: '의사결정을', to: '/decide' });
+  // 내 메모 — 남은 할 일, 한 사람에게 쌓인 메모
+  const live = (notes.data ?? []).filter((x) => !(x.kind === 'todo' && x.done));
+  const todos = live.filter((x) => x.kind === 'todo').length;
+  if (todos) out.push({ key: 'todo', tone: 'slate', icon: StickyNote, text: <>내 메모의 할 일 {n(todos, '개')}가 남아 있어요.</>, go: '내 메모 모아보기를', to: '/notes' });
+  const per = new Map<string, number>();
+  for (const x of live) if (x.anchor_type === 'member' && x.anchor_id) per.set(x.anchor_id, (per.get(x.anchor_id) ?? 0) + 1);
+  const top = [...per.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (top && top[1] >= 2) out.push({ key: 'mnote', tone: 'slate', icon: StickyNote, text: <>{nameOf(top[0])} 님에 대한 메모가 {n(top[1], '개')} 쌓였어요. 다음 1:1 전에 보세요.</>, go: '팀원 상세를', to: `/people/${top[0]}` });
   return out.sort((a, b) => B_ORDER[a.tone] - B_ORDER[b.tone]);
 }
 

@@ -935,14 +935,16 @@ export function QuickStart({ teamId }: { teamId: string }) {
   );
 }
 
-export function MemoModal({ teamId, open, preset, onClose, onSaved }: { teamId: string; open: boolean; preset: string | null; onClose: () => void; onSaved?: () => void }) {
+export function MemoModal({ teamId, open, preset, onClose, onSaved, initialBody }: { teamId: string; open: boolean; preset: string | null; onClose: () => void; onSaved?: () => void; initialBody?: string }) {
   const { uid } = useTeam();
   const members = useTeamMembersOnly();
   const toast = useToast();
   const qc = useQueryClient();
   const [who, setWho] = useState<string | null>(null);
   const [kind, setKind] = useState<'praise' | 'concern' | 'note'>('praise');
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState(initialBody ?? '');
+  // 내 메모에서 '관찰 메모로 옮기기'로 열면 그 글을 미리 채운다
+  useEffect(() => { if (open && initialBody) { setBody(initialBody); setKind('note'); } }, [open, initialBody]);
   const sel = who ?? preset ?? members[0]?.user_id;
   const close = () => { setWho(null); onClose(); };
   const save = useMutation({

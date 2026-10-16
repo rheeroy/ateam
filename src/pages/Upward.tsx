@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CalendarClock, ClipboardCopy, Lock, MessageCircleQuestion, Pencil, Plus, RefreshCw, Send, Trash2, UserRound } from 'lucide-react';
+import { NotesToggle } from '../components/notes/Notes';
 import { useTeam } from '../state/session';
 import { useGenerate } from '../lib/hooks';
 import { cx, fmtDate } from '../lib/format';
@@ -179,6 +180,7 @@ function ExecList({ teamId, onNote }: { teamId: string; onNote: (id: string) => 
             </div>
             {!!e.style_tags.length && <div className="mt-2 flex flex-wrap gap-1">{e.style_tags.map((t) => <span key={t} className="text-[10px] rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">{t}</span>)}</div>}
             {e.interests && <p className="mt-1.5 text-xs text-slate-600 line-clamp-2"><b className="mr-1 text-slate-500">관심사</b>{e.interests}</p>}
+            <NotesToggle anchor={{ type: 'exec', id: e.id, label: `${e.name}${e.title ? ` ${e.title}` : ''}` }} className="mt-2" />
           </li>
         ))}</ul>
       )}

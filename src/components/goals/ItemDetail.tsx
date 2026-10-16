@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, History, MessageSquare, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { NotesBox } from '../notes/Notes';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { Hypothesis, ItemMeasure, ItemStatus, Metric, Submission, WorkItem, WorkItemComment, WorkItemEvent, WorkItemLog } from '../../lib/types';
@@ -277,6 +278,9 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           <section><h3 className="text-sm font-semibold">연결된 결과물·공유</h3>
             <ul className="mt-2 space-y-1 text-sm">{subs.data.map((s) => <li key={s.id}><Link className="text-indigo-700 hover:underline" to={`/work/${s.id}`}>{s.title}</Link> <span className="text-xs text-slate-400">{fmtDate(s.updated_at)}</span></li>)}</ul></section>
         )}
+
+        {/* 팀장 전용 메모 (팀원에게 보이지 않음) */}
+        {isLeader && <NotesBox anchor={{ type: 'item', id: item.id, label: item.title }} />}
 
         {/* 대화·피드백 */}
         <section>
