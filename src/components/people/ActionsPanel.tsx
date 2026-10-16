@@ -25,6 +25,9 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
   const open = all.filter((a) => !st.map.get(keyOf(a))).sort((a, b) => b.urgency - a.urgency);
   const closed = all.filter((a) => st.map.get(keyOf(a)));
   const [showClosed, setShowClosed] = useState(false);
+  // 3개 넘으면 나머지는 접어 둔다
+  const [more, setMore] = useState(false);
+  const shown = more ? open : open.slice(0, 3);
   const [modal, setModal] = useState<{ kind: 'oo' | 'memo' | 'req' | 'praise'; a: PeopleAction } | null>(null);
   const done = (a: PeopleAction) => st.set.mutate({ key: keyOf(a), status: 'done' });
 
@@ -43,8 +46,12 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
         : <p className="text-sm text-slate-600">{pa.stale ? '지난주 추천입니다. ' : ''}아직 이번 주 AI 추천이 없어 기록에서 바로 보이는 것만 골랐습니다. 'AI로 이번 주 추천 받기'를 누르면 명분과 함께 1:1 · 칭찬 · 육성 · 독려까지 정리합니다.</p>)}
       {!open.length ? <p className={cx('text-sm text-slate-500', !only && 'mt-2')}>{all.length ? '이번 주 추천 액션을 모두 처리했습니다.' : '지금 추천할 액션이 없습니다.'}</p> : (
         <ol className={cx('rounded-xl bg-white text-slate-900 divide-y divide-slate-100 overflow-hidden ring-1 ring-slate-200', !only && 'mt-3')}>
-          {open.map((a, i) => <Card no={i + 1} key={keyOf(a)} a={a} ai={ai} name={nameOf(a.user_id)} onDo={(kind) => setModal({ kind, a })} onDone={() => done(a)} onSkip={() => st.set.mutate({ key: keyOf(a), status: 'skipped' })} />)}
+          {shown.map((a, i) => <Card no={i + 1} key={keyOf(a)} a={a} ai={ai} name={nameOf(a.user_id)} onDo={(kind) => setModal({ kind, a })} onDone={() => done(a)} onSkip={() => st.set.mutate({ key: keyOf(a), status: 'skipped' })} />)}
         </ol>
+      )}
+      {open.length > 3 && (
+        <button onClick={() => setMore((v) => !v)} className="mt-2 w-full text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg bg-white/70 ring-1 ring-slate-200 py-1.5 inline-flex items-center justify-center gap-1">
+          {more ? '접기' : `나머지 ${open.length - 3}개 더 보기`}<ChevronDown size={13} className={more ? 'rotate-180' : ''} /></button>
       )}
       {!!closed.length && (
         <div className="mt-2.5">
