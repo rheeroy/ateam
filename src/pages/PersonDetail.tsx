@@ -1,8 +1,8 @@
 // 팀원 한 사람 페이지 — 컨디션 · 1:1 · 맡은 일 · 결과물 · 관찰 · 근거 원장
 import { useState, type ReactNode } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Award, CalendarPlus, ChevronRight, MessageSquare, Send, StickyNote } from 'lucide-react';
+import { ArrowLeft, Award, CalendarPlus, ChevronRight, HeartHandshake, MessageSquare, Scale, Send, Sprout, StickyNote } from 'lucide-react';
 import { NotesBox } from '../components/notes/Notes';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -12,10 +12,10 @@ import { cx, daysAgo, fmtDate, fmtShort, relDay, fmtTime } from '../lib/format';
 import { EVIDENCE_LABEL, useCheckins, useEvidence, useObservations, useOneOnOneMap } from '../lib/people';
 import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
-import { ActionsPanel } from '../components/people/ActionsPanel';
+import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { WorkSummary } from '../components/people/WorkSummary';
-import { ruleActions } from '../lib/peopleActions';
+import { ACTION_META, ruleActions, type PeopleAction } from '../lib/peopleActions';
 import { RequestModal } from '../components/RequestModal';
 import { MemoModal, Sparkline, useHomeModel } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
@@ -31,7 +31,9 @@ export default function PersonDetail() {
   const mb = members.find((x) => x.user_id === id);
   const [memo, setMemo] = useState(false);
   const [oo, setOo] = useState(false);
-  const [req, setReq] = useState(false);
+  const [req, setReq] = useState<{ kind: 'plan' | 'progress' | 'share' | 'meeting' | 'other'; title: string } | null>(null);
+  const [praise, setPraise] = useState(false);
+  const nav = useNavigate();
   if (!mb || !id) return <Navigate to="/people" replace />;
   const name = mb.profiles?.full_name ?? '팀원';
   return (
@@ -47,11 +49,24 @@ export default function PersonDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => setMemo(true)} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><StickyNote size={15} />관찰 메모</button>
-            <button onClick={() => setReq(true)} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Send size={15} />요청</button>
-            <Link to={`/eval?member=${id}`} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Award size={15} />평가 초안</Link>
-            <button onClick={() => setOo(true)} className="text-sm rounded-xl px-3 py-2 bg-teal-600 text-white hover:bg-teal-700 inline-flex items-center gap-1.5"><CalendarPlus size={15} />1:1 잡기</button>
+            <button onClick={() => setReq({ kind: 'other', title: '' })} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Send size={15} />요청</button>
+            <Link to={`/eval?member=${id}`} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Award size={15} />평가 시뮬레이션</Link>
           </div>
+        </div>
+        {/* 모든 액션 — 팀원관리 액션 종류 7가지를 바로 */}
+        <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] font-semibold text-slate-400 mr-1">액션</span>
+          {([
+            ['one_on_one', CalendarPlus, () => setOo(true)],
+            ['praise', Award, () => setPraise(true)],
+            ['observe', StickyNote, () => setMemo(true)],
+            ['develop', Sprout, () => setReq({ kind: 'other', title: `${name} 님, 다음에 맡아 볼 성장 과제를 같이 정해 봐요` })],
+            ['push', Send, () => setReq({ kind: 'progress', title: '진행 상황과 막힌 점 공유 부탁해요' })],
+            ['support', HeartHandshake, () => setReq({ kind: 'meeting', title: '요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요' })],
+            ['workload', Scale, () => nav('/goals/edit?view=table')],
+          ] as const).map(([k, I, on]) => (
+            <button key={k} onClick={on} className={cx('text-xs font-semibold rounded-full ring-1 px-3 py-1.5 inline-flex items-center gap-1.5 hover:brightness-95', ACTION_META[k].cls)}><I size={13} />{ACTION_META[k].label}</button>
+          ))}
         </div>
       </div>
 
@@ -72,7 +87,8 @@ export default function PersonDetail() {
 
       <MemoModal teamId={team.id} open={memo} preset={id} onClose={() => setMemo(false)} />
       <ScheduleModal open={oo} onClose={() => setOo(false)} memberId={id} />
-      <RequestModal open={req} onClose={() => setReq(false)} toId={id} />
+      {req && <RequestModal open onClose={() => setReq(null)} toId={id} defaultKind={req.kind} defaultTitle={req.title} />}
+      {praise && <PraiseModal a={{ user_id: id, type: 'praise' } as PeopleAction} name={name} onClose={() => setPraise(false)} onSent={() => {}} />}
     </div>
   );
 }
