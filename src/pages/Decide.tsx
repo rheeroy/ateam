@@ -1,5 +1,5 @@
 // 의사결정 보드 — 수많은 기록에서 결정이 필요한 것과 지켜볼 리스크를 한 판에
-//   왼쪽: 지켜볼 리스크 → 결정 필요 → 검토 중 → 결정함 → 회고 대기 (세로, 끝까지 추적)  /  오른쪽: 선택한 카드 상세 + 성과 영향 × 시급성 지도
+//   왼쪽 60%: 지켜볼 리스크 → 결정 필요 → 검토 중 → 결정함 → 회고 대기 (5단 보드, 세로로 길게)  /  오른쪽 40%: 선택한 카드 상세 + 성과 영향 × 시급성 지도
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -73,8 +73,8 @@ export default function Decide() {
       {/* 본문: 왼쪽 단계별 보드(세로) · 오른쪽 선택한 카드 + 결정 지도 */}
       <div className="flex items-center gap-2 flex-wrap"><Gavel size={15} className="text-slate-700" /><span className="font-semibold">의사결정 보드</span>
         <span className="text-xs text-slate-400">지켜볼 리스크부터 회고까지 단계별로 추적 · 카드를 누르면 오른쪽에 상세와 지도 위치가 보입니다</span></div>
-      <div className="grid lg:grid-cols-12 gap-4 items-start">
-        <div className="lg:col-span-5 space-y-3">
+      <div className="grid lg:grid-cols-5 gap-4 items-stretch">
+        <div className="lg:col-span-3 overflow-x-auto -mx-1 px-1"><div className="grid grid-cols-5 gap-2 min-w-[560px] h-full min-h-[600px]">
           <Col title="지켜볼 리스크" tone="rose" n={risks.length + watchingPrio.length} hint="결정이 필요해지면 올립니다">
             {risks.map((r, i) => <MiniCard key={r.key} on={cur?.kind === 'risk' && cur.key === r.key} onClick={() => setSel({ kind: 'risk', key: r.key, s: r.s, no: i + 1 })}
               badge={<span className="text-rose-600 font-bold">R{i + 1}</span>} kind={r.s.severity >= 3 ? '지금 확인' : '주의'} title={r.s.title} />)}
@@ -90,7 +90,7 @@ export default function Decide() {
           </Col>
           <Col title="결정함" tone="emerald" n={decided.length} hint={hitRate != null ? `판단 적중률 ${hitRate}% (${rated.length}건)` : '기대한 결과와 검증일을 남겨 둡니다'}>
             {decided.slice(0, 8).map((d) => (
-              <div key={d.id} className="rounded-xl bg-white ring-1 ring-slate-200 p-2.5 text-sm">
+              <div key={d.id} className="rounded-xl bg-white ring-1 ring-slate-200 p-2 text-[13px]">
                 <div className="font-medium leading-snug">{d.title}</div>
                 <div className="mt-1 text-[11px] text-slate-500">{fmtShort(d.decided_at)} 결정{d.review_on && ` · ${fmtShort(d.review_on)} 검증`}</div>
                 {d.expected_outcome && <div className="text-[11px] text-slate-500 line-clamp-1">기대: {d.expected_outcome}</div>}
@@ -99,18 +99,18 @@ export default function Decide() {
           </Col>
           <Col title="회고 대기" tone="amber" n={due.length} hint="결과를 기록하면 판단 적중률이 됩니다">
             {due.map((d) => (
-              <button key={d.id} onClick={() => setOutcome(d)} className="w-full text-left rounded-xl bg-white ring-1 ring-amber-200 p-2.5 text-sm hover:ring-amber-400">
+              <button key={d.id} onClick={() => setOutcome(d)} className="w-full text-left rounded-xl bg-white ring-1 ring-amber-200 p-2 text-[13px] hover:ring-amber-400">
                 <div className="font-medium leading-snug">{d.title}</div>
                 <div className="mt-1 text-[11px] text-amber-800 font-semibold">결과 기록하기 →</div>
                 <div className="text-[11px] text-slate-500">{fmtShort(d.decided_at)} 결정 · 기대: {d.expected_outcome || '-'}</div>
               </button>
             ))}
             {rated.slice(0, 3).map((d) => (
-              <div key={d.id} className="rounded-xl bg-slate-50 p-2.5 text-xs flex items-center gap-2"><span className={cx('font-semibold rounded px-1.5 py-0.5', RATING[d.outcome_rating!].cls)}>{RATING[d.outcome_rating!].label}</span><span className="truncate">{d.title}</span></div>
+              <div key={d.id} className="rounded-xl bg-white/70 p-2 text-xs flex items-center gap-1.5"><span className={cx('shrink-0 font-semibold rounded px-1.5 py-0.5', RATING[d.outcome_rating!].cls)}>{RATING[d.outcome_rating!].label}</span><span className="truncate">{d.title}</span></div>
             ))}
           </Col>
-        </div>
-        <div className="lg:col-span-7 space-y-4">
+        </div></div>
+        <div className="lg:col-span-2 space-y-4">
           <Card className="p-5 flex flex-col">
             {!cur ? <p className="text-sm text-slate-400 m-auto">지금 결정할 것도, 커지는 리스크도 없습니다.</p>
               : cur.kind === 'prio' ? <PrioDetail p={cur.p} no={noOf.get(cur.p.key) ?? cur.no} stage={stageOf(cur.p.key)} onAct={act}
@@ -247,10 +247,10 @@ function RiskDetail({ s, no, onAct, onPromote, onDismiss }: { s: Signal; no: num
 function Col({ title, n, hint, tone, children }: { title: string; n: number; hint?: string; tone: 'rose' | 'slate' | 'indigo' | 'emerald' | 'amber'; children: ReactNode }) {
   const bar = { rose: 'bg-rose-400', slate: 'bg-slate-800', indigo: 'bg-indigo-500', emerald: 'bg-emerald-500', amber: 'bg-amber-400' }[tone];
   return (
-    <section className="rounded-2xl bg-slate-100/70 p-2.5 flex flex-col">
+    <section className="rounded-2xl bg-slate-100/70 p-2 flex flex-col h-full">
       <div className="px-1 pb-2">
         <div className="flex items-center gap-2"><span className={cx('w-2 h-2 rounded-full', bar)} /><span className="text-sm font-semibold">{title}</span><span className="ml-auto text-xs text-slate-500 num">{n}</span></div>
-        {hint && <div className="text-[10px] text-slate-400 mt-0.5">{hint}</div>}
+        {hint && <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{hint}</div>}
       </div>
       <div className="space-y-2">{n ? children : <p className="text-xs text-slate-400 px-1">없음</p>}</div>
     </section>
@@ -258,10 +258,10 @@ function Col({ title, n, hint, tone, children }: { title: string; n: number; hin
 }
 function MiniCard({ badge, kind, title, ai, on, onClick }: { badge: ReactNode; kind: string; title: string; ai?: boolean; on?: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={cx('w-full text-left rounded-xl bg-white p-2.5 ring-1 transition-shadow', on ? 'ring-2 ring-violet-500 shadow-md' : 'ring-slate-200 hover:ring-slate-300')}>
+    <button onClick={onClick} className={cx('w-full text-left rounded-xl bg-white p-2 ring-1 transition-shadow', on ? 'ring-2 ring-violet-500 shadow-md' : 'ring-slate-200 hover:ring-slate-300')}>
       <div className="flex items-center gap-1.5 text-[10px] text-slate-500"><span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] text-slate-800">{badge}</span>{kind}
         {ai && <span className="ml-auto text-violet-700 font-semibold inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}</div>
-      <div className="mt-1 text-sm font-medium leading-snug line-clamp-3">{title}</div>
+      <div className="mt-1 text-[13px] font-medium leading-snug line-clamp-4" title={title}>{title}</div>
     </button>
   );
 }
