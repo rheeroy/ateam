@@ -104,7 +104,7 @@ function Card({ no, a, ai, name, onDo, onDone, onSkip }: { no: number; a: People
   );
 }
 
-function PraiseModal({ a, name, onClose, onSent }: { a: PeopleAction; name: string; onClose: () => void; onSent: () => void }) {
+export function PraiseModal({ a, name, onClose, onSent }: { a: PeopleAction; name: string; onClose: () => void; onSent: () => void }) {
   const { team } = useTeam();
   const send = useSendPraise(team.id);
   const [body, setBody] = useState(strip(a.message ?? '') || `${name} 님, `);
