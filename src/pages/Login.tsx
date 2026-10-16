@@ -84,10 +84,10 @@ export default function Login() {
         <div className="relative">
           <p className="text-xs font-semibold tracking-wide text-indigo-300">팀 운영의 모든 것을 함께하는 AI 파트너</p>
           <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">팀 운영의 마에스트로가<br />S급 팀장을 만들어줍니다</h1>
-          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">양손 양발 모든 걸 다 써도 팀 운영은 너무나 벅찹니다. ATEAM은 성과관리, 팀원관리, 의사결정 모든 것을 한 단계 끌어올려주는 내 곁의 파트너입니다.</p>
+          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">양손 양발 모든 걸 다 써도 팀 운영은 너무나 벅찹니다.<br /> ATEAM은 성과관리, 팀원관리, 의사결정 모든 것을 한 단계 끌어올려주는 내 곁의 파트너입니다.</p>
           <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
             {[
-              { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['3주째 같은 막힘, 계획보다 밀리는 과제', '컨디션이 꺾이는 팀원과 이탈 신호', '목표 달성 가능성이 떨어지는 순간'] },
+              { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['예상하지 못했던 업무 리스크', '컨디션이 꺾이는 팀원과 이탈 신호', '윗 분이 지적할 문제들'] },
               { t: '모르는 패턴을 찾아줘요', i: Sparkles, c: 'text-violet-300', d: ['지연과 컨디션 하락이 같은 원인일 때', '결과물 보완점이 늘 같은 주제로 반복될 때', '팀장 시간이 몇 사람에게만 쏠릴 때'] },
               { t: '팀의 미래를 예측해줘요', i: TrendingUp, c: 'text-sky-300', d: ['목표별 달성 가능성과 마감 시점 전망', '분기 실적 전망과 낙관 · 비관 범위', '무엇을 바꾸면 결과가 달라지는지'] },
               { t: '놓친 것들을 알아서 챙겨줘요', i: ListChecks, c: 'text-emerald-300', d: ['이번 주 내릴 결정, 1:1이 필요한 팀원', '위에서 물어볼 질문과 답할 숫자', '평가 근거와 예상 등급까지 자동으로'] },
