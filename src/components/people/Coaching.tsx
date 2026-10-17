@@ -21,12 +21,12 @@ export function CoachCard({ title, body, date, footer, highlight }: { title: str
     <div className={cx('rounded-2xl bg-white ring-1 overflow-hidden', highlight ? 'ring-2 ring-indigo-400 shadow-lg' : 'ring-slate-200 shadow-sm')}>
       <div className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center gap-2">
         <span className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center"><LogoMark size={14} /></span>
-        <span className="font-bold"><span className="font-extrabold">ATEAM</span>의 코칭</span>
+        <span className="font-bold"><span className="font-extrabold">ATEAM</span><sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup>의 코칭</span>
         {date && <span className="ml-auto text-xs text-indigo-100">{fmtDate(date)}</span>}
       </div>
       <div className="p-5">
         <div className="text-[17px] font-bold leading-snug">{title || '제목'}</div>
-        <p className="mt-1 text-sm text-slate-500">ATEAM이 최근 업무 기록을 보고, 다음 리뷰 전에 미리 챙기면 좋을 것을 정리했어요.</p>
+        <p className="mt-1 text-sm text-slate-500">ATEAM AI가 최근 업무 기록을 보고, 다음 리뷰 전에 미리 챙기면 좋을 것을 정리했어요.</p>
         {blocks.map((ls, i) => {
           const [head, ...rest] = ls;
           const isHead = rest.length > 0 && !head.startsWith('·') && head.length <= 14;
@@ -78,19 +78,19 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
       const { error } = await supabase.from('coaching_notes').insert({ team_id: team.id, member_id: memberId, title: f.title.trim(), body: f.body.trim() });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['coaching', team.id] }); toast(`${name} 님에게 'ATEAM의 코칭'을 보냈습니다.`); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['coaching', team.id] }); toast(`${name} 님에게 'ATEAM AI의 코칭'을 보냈습니다.`); onClose(); },
     onError: (e) => toast(missing(e) ? '코칭 테이블이 아직 없습니다. 13_coaching.sql 을 실행해 주세요.' : /COACHING_LIMIT/.test(errorText(e)) ? '한 팀원에게는 7일 동안 2건까지 보낼 수 있습니다.' : errorText(e)),
   });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { gen.mutate(); }, []);
   const last = sent.data?.[0];
   return (
-    <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span>의 코칭 · {name}</span></span>}>
+    <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코칭하기 · {name}</span></span>}>
       <p className="text-sm text-slate-600 leading-relaxed rounded-lg bg-indigo-50/70 px-3 py-2">
-        직접 말하기 껄끄러운 개선점을 ATEAM이 코치처럼 정리해 <b>{name} 님에게 먼저 알려 줍니다.</b> 보내면 팀원 홈에 <b>'ATEAM의 코칭'</b>으로 도착하고, 팀장님 이름은 보이지 않습니다. 평가 근거로는 남지 않습니다.
+        직접 말하기 껄끄러운 개선점을 <b>ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup>의 코칭'</b>으로 도착합니다.
       </p>
       {gen.isPending ? (
-        <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2">ATEAM이 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>
+        <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2">ATEAM AI가 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>
       ) : gen.isError && !f.body ? (
         <div className="mt-4 rounded-lg bg-slate-50 px-4 py-6 text-sm text-slate-600 text-center">{errorText(gen.error)}
           <div className="mt-3"><Button size="sm" variant="secondary" onClick={() => gen.mutate()}><RefreshCw size={13} />다시 만들기</Button></div></div>
