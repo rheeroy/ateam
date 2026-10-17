@@ -91,8 +91,10 @@ serve(async (req) => {
     .or(`team_id.is.null,team_id.eq.${sub.team_id}`).order('sort');
 
   await addKnowhow(book, sub.team_id, 'review');
+  const { data: author } = await admin.from('profiles').select('full_name').eq('id', sub.author_id).maybeSingle();
   const text = [
     `결과물 제목: ${sub.title} (v${ver.version})`,
+    `올린 사람: ${author?.full_name ?? '팀원'} / 요청 종류: ${({ approval: '승인 요청', feedback: '피드백 요청', share: '공유' } as Record<string, string>)[sub.request_type] ?? sub.request_type}`,
     ver.note ? `이번 버전 변경 메모: ${ver.note}` : '',
     `역량 목록: ${(comps ?? []).map((c) => c.name).join(', ')}`,
     `지난 검토 기록 수: ${history?.length ?? 0}`,
@@ -103,7 +105,7 @@ serve(async (req) => {
   ].filter(Boolean).join('\n\n');
   content.push({ type: 'text', text });
 
-  const { output, parsed } = await runAi<{ depth_score: number; quality?: { depth?: { score?: number | null } }; competency_signals?: Record<string, number> }>({
+  const { output, parsed } = await runAi<{ depth_score: number; competency_signals?: Record<string, number> }>({
     teamId: sub.team_id,
     kind: 'review',
     model: MODEL_SMART,
@@ -119,7 +121,7 @@ serve(async (req) => {
     maxTokens: 2200,
   });
 
-  const score = Math.max(1, Math.min(4, Math.round((Number(parsed.quality?.depth?.score ?? parsed.depth_score) || 2) * 2) / 2));
+  const score = Math.max(1, Math.min(4, Math.round((Number(parsed.depth_score) || 2) * 2) / 2));
   await admin.from('judgment_scores').insert({
     team_id: sub.team_id, user_id: sub.author_id, submission_id: sub.id, version_id: ver.id,
     score, competencies: parsed.competency_signals ?? {}, ai_output_id: output.id,

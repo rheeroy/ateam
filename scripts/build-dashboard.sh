@@ -30,5 +30,4 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM 내 메모 (팀장 전용 메모 · 팀원·목표·임원에 붙이기) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261020000016_leader_notes.sql; } > dashboard/12_leader_notes.sql
 { echo "-- ATEAM의 코칭 (팀장이 누르면 AI 초안 → 팀장이 고쳐 보내는 개선 코칭, 보낸 사람 비표시) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/13_coaching.sql
 { echo "-- ATEAM 요청 종류 추가 (성장 제안 · 격려 — 팀원 상세의 육성 · 지원·격려 버튼용) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261022000018_request_kinds.sql; } > dashboard/14_request_kinds.sql
-{ echo "-- ATEAM 업무플랫폼 Core Insight (AI가 리뷰 대기 결과물을 먼저 읽고 한 줄씩 판단) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261023000019_work_brief.sql; } > dashboard/15_work_brief.sql
 echo "done: supabase/dashboard"

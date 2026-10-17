@@ -10,14 +10,14 @@ import { useGenerate, useLatestAi } from '../lib/hooks';
 import type { ReviewComment, Submission, SubmissionVersion } from '../lib/types';
 import { cx, fmtDate, fmtShort, num } from '../lib/format';
 import { safeName } from '../lib/extract';
-import { KIND_TAG, QUALITY_AXES, REQ_TAG, useCloseSubmission, type Quality } from '../lib/work';
+import { KIND_TAG, REQ_TAG, useCloseSubmission } from '../lib/work';
 import { Avatar, Button, Empty, Pill, Spinner, inputCls, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
 import { FILE_ACCEPT, IMAGE, readFile } from '../components/Upload';
 import { STATUS } from './MySubmissions';
 
 interface Review {
-  depth_score: number; summary: string; quality?: Quality;
+  depth_score: number; summary: string; decisions?: string[];
   strengths: { section: string; text: string }[]; gaps: { section: string; text: string }[];
   questions: string[]; change_from_previous?: string; trend_note?: string;
   criteria_check?: { criterion: string; met: boolean; note: string; tag?: string }[];
@@ -52,31 +52,18 @@ function AiReview({ teamId, version, onToComments }: { teamId: string; version: 
         </Empty>
       ) : (
         <>
-          {r.content.quality ? (
-            <div className="mt-4 space-y-2">
-              {QUALITY_AXES.map(({ key, label }) => {
-                const a = r.content.quality?.[key];
-                const sc = a?.score ?? null;
-                return (
-                  <div key={key} title={a?.note}>
-                    <div className="flex items-center gap-3">
-                      <span className="w-20 text-xs text-slate-500 shrink-0">{label}</span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">{sc != null && <div className={cx('h-full rounded-full', sc <= 2 ? 'bg-amber-400' : sc >= 3.5 ? 'bg-emerald-500' : 'bg-indigo-500')} style={{ width: `${(sc / 4) * 100}%` }} />}</div>
-                      <span className="w-10 text-right font-mono text-sm font-semibold num">{sc != null ? num(sc) : '—'}<span className="text-slate-400 text-xs">/4</span></span>
-                    </div>
-                    {a?.note && <p className="ml-[92px] mt-0.5 text-[11px] text-slate-500 leading-snug">{a.note}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mt-4 flex items-center gap-3">
-              <span className="text-xs text-slate-500 shrink-0">고민의 깊이</span>
-              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(r.content.depth_score / 4) * 100}%` }} /></div>
-              <span className="font-mono text-sm font-semibold num">{num(r.content.depth_score)}<span className="text-slate-400">/4</span></span>
+          <div className="mt-4 flex items-center gap-3">
+            <span className="text-xs text-slate-500 shrink-0">고민의 깊이</span>
+            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(r.content.depth_score / 4) * 100}%` }} /></div>
+            <span className="font-mono text-sm font-semibold num">{num(r.content.depth_score)}<span className="text-slate-400">/4</span></span>
+          </div>
+          {r.content.summary && <p className="mt-3 text-sm text-slate-700 leading-relaxed">{r.content.summary}</p>}
+          {!!r.content.decisions?.length && (
+            <div className="mt-3 rounded-lg bg-rose-50/60 ring-1 ring-rose-100 px-3 py-2 text-sm">
+              <div className="text-xs font-semibold text-rose-700 mb-1">팀장님이 정할 것</div>
+              <ul className="space-y-0.5">{r.content.decisions.map((d, i) => <li key={i} className="text-slate-700">· {d}</li>)}</ul>
             </div>
           )}
-          {r.content.summary && <p className="mt-3 text-sm text-slate-700 leading-relaxed">{r.content.summary}</p>}
           {!!r.content.criteria_check?.length ? (
             <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 text-sm">
               <div className="text-xs font-semibold text-indigo-800 mb-1.5 inline-flex items-center gap-1"><BookOpen size={12} />팀장님 기준으로 본 결과</div>

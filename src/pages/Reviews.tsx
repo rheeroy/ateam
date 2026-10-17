@@ -1,13 +1,11 @@
 // 업무플랫폼 — 팀원이 올린 결과물을 목표(없으면 루틴)와 연결해 보고, AI 1차 검토를 미리 보며 피드백
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Briefcase, Check, ChevronDown, ChevronRight, RefreshCw, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquareText, Repeat, Target, Layers } from 'lucide-react';
+import { Briefcase, Check, ChevronDown, ChevronRight, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquareText, Repeat, Target, Layers } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { useLatestAi, useTeamMembersOnly } from '../lib/hooks';
-import { invoke } from '../lib/supabase';
+import { useTeamMembersOnly } from '../lib/hooks';
 import { buildTree, useItems, type Node } from '../lib/items';
-import { KIND_TAG, REQ_TAG, chainOf, isOpenSub, latestAt, useCloseSubmission, useSubmissionsAi, type QualityKey, type SubRow } from '../lib/work';
+import { KIND_TAG, REQ_TAG, chainOf, isOpenSub, latestAt, useCloseSubmission, useSubmissionsAi, type SubRow } from '../lib/work';
 import { cx, daysAgo, fmtDate, relDay } from '../lib/format';
 import { Avatar, Card, Empty, Pill, Spinner } from '../components/ui';
 import { AiBand, AiChip } from '../components/AiBar';
@@ -120,82 +118,52 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
 }
 
 // ---------------------------------------------------------------------
-// Core Insight — AI가 리뷰 대기 결과물을 먼저 읽고 '누구의 무엇이 어때 보이는지' 한 줄씩 (ai-work-brief)
-//   새 결과물·새 검토가 생기면 자동으로 다시 읽는다. AI 결과가 없으면 1차 검토 점수로 같은 톤의 문장을 만든다 (AI 표시 없음)
+// Core Insight — 결과물마다 AI 1차 검토(ai-review-submission)가 남긴 한 줄 판단을 모아 보여 준다 (추가 AI 호출 없음)
+//   예전 검토처럼 한 줄이 없으면 검토 점수로 같은 톤의 문장을 만든다
 // ---------------------------------------------------------------------
-type Tone = 'risk' | 'watch' | 'good' | 'info';
-interface BriefItem { submission_id: string; tone: Tone; text: string; why?: string }
-interface BriefOut { headline?: string; items: BriefItem[] }
-const TONE_DOT: Record<Tone, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500', info: 'bg-slate-400' };
-const ORDER: Record<Tone, number> = { risk: 0, watch: 1, info: 2, good: 3 };
-const stripTag = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
-/** 제목 뒤 조사 — 받침 있으면 '은/이', 없으면 '는/가' */
+type Tone = 'risk' | 'watch' | 'good';
+interface Line { id: string; tone: Tone; text: string; why?: string; rank: number }
+const TONE_DOT: Record<Tone, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
+/** 받침 있으면 앞 조사, 없으면 뒤 조사 */
 function josa(word: string, withB: string, without: string) {
-  const c = word.trim().charCodeAt(word.trim().length - 1);
+  const w = word.trim(); const c = w.charCodeAt(w.length - 1);
   if (c < 0xac00 || c > 0xd7a3) return withB;
   return (c - 0xac00) % 28 ? withB : without;
 }
-function ruleLines(waiting: SubRow[], nameOf: (id: string) => string): BriefItem[] {
-  const out: BriefItem[] = [];
-  for (const s of waiting) {
-    const q = s.review?.quality ?? {};
-    const sc = (k: QualityKey) => q[k]?.score ?? (k === 'depth' ? s.review?.depth_score ?? null : null);
-    const who = `${nameOf(s.author_id)} 님이 올린 '${s.title}'${josa(s.title, '은', '는')}`;
-    const waited = daysAgo(s.latest?.created_at ?? s.created_at);
-    const d = sc('depth'), c = sc('completeness'), l = sc('logic'), cl = sc('clarity'), o = sc('originality');
-    const note = (k: QualityKey) => q[k]?.note ?? s.review?.gaps?.[0]?.text;
-    if (d != null && d <= 2) out.push({ submission_id: s.id, tone: 'risk', text: `${who} 고민의 깊이가 낮아 보입니다`, why: note('depth') });
-    else if (c != null && c <= 2) out.push({ submission_id: s.id, tone: 'risk', text: `${who} 완결성이 낮아 보입니다`, why: note('completeness') });
-    else if (l != null && l <= 2) out.push({ submission_id: s.id, tone: 'watch', text: `${who} 논리가 비어 보입니다`, why: note('logic') });
-    else if (cl != null && cl <= 2) out.push({ submission_id: s.id, tone: 'watch', text: `${who} 전달이 어려워 보입니다`, why: note('clarity') });
-    else if (waited >= 3) out.push({ submission_id: s.id, tone: 'watch', text: `${nameOf(s.author_id)} 님의 '${s.title}'${josa(s.title, '이', '가')} ${waited}일째 기다리고 있습니다` });
-    else if (o != null && o >= 3.5) out.push({ submission_id: s.id, tone: 'good', text: `${who} 새로운 관점이 돋보입니다`, why: q.originality?.note });
-    else if (d != null && d >= 3.5) out.push({ submission_id: s.id, tone: 'good', text: `${who} 바로 인정해도 좋아 보입니다`, why: s.review?.summary });
-  }
-  return out.sort((a, b) => ORDER[a.tone] - ORDER[b.tone]).slice(0, 6);
+function lineOf(s: SubRow, name: string): Line | null {
+  const waited = daysAgo(s.latest?.created_at ?? s.created_at);
+  const r = s.review;
+  const b = r?.brief;
+  if (b?.text) return { id: s.id, tone: b.tone, text: b.text, why: b.why, rank: b.tone === 'risk' ? 0 : b.tone === 'watch' ? 1 : 3 };
+  const who = `${name} 님이 올린 '${s.title}'${josa(s.title, '은', '는')}`;
+  if (r && r.depth_score <= 2) return { id: s.id, tone: 'risk', text: `${who} 고민의 깊이가 낮아 보입니다`, why: r.gaps?.[0]?.text, rank: 0 };
+  if (r && (r.criteria_check ?? []).filter((c) => !c.met).length >= 2) return { id: s.id, tone: 'watch', text: `${who} 완결성이 낮아 보입니다`, why: r.gaps?.[0]?.text, rank: 1 };
+  if (waited >= 3) return { id: s.id, tone: 'watch', text: `${name} 님의 '${s.title}'${josa(s.title, '이', '가')} ${waited}일째 기다리고 있습니다`, rank: 2 };
+  if (r && r.depth_score >= 3.5) return { id: s.id, tone: 'good', text: `${who} 바로 인정해도 좋아 보입니다`, why: r.summary, rank: 3 };
+  return null;
 }
 
 function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
-  const { team, nameOf } = useTeam();
-  const qc = useQueryClient();
-  const brief = useLatestAi<BriefOut>(team.id, 'work_brief');
+  const { nameOf } = useTeam();
   const waiting = rows.filter((s) => s.status === 'in_review');
   const reviewed = waiting.filter((s) => s.review);
-  const changedAt = waiting.reduce((m, s) => [s.latest?.created_at, s.reviewedAt, s.updated_at].reduce<string>((a, b) => (b && b > a ? b : a), m), '');
-  const fresh = !!brief.data && brief.data.created_at > changedAt;
-  const gen = useMutation({
-    mutationFn: (force: boolean) => invoke('ai-work-brief', { team_id: team.id, force }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['ai', team.id, 'work_brief'] }),
-  });
-  const tried = useRef(false);
-  useEffect(() => {
-    if (loading || brief.isLoading || tried.current || !waiting.length || fresh) return;
-    tried.current = true; gen.mutate(false);
-  }, [loading, brief.isLoading, waiting.length, fresh]); // eslint-disable-line react-hooks/exhaustive-deps
-  const ids = new Set(waiting.map((s) => s.id));
-  const ai = fresh ? (brief.data!.content.items ?? []).filter((x) => ids.has(x.submission_id)) : [];
-  const items = ai.length ? ai : ruleLines(waiting, nameOf);
-  const headline = ai.length && brief.data?.content.headline ? stripTag(brief.data.content.headline)
-    : reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 아래 순서로 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다. 열면 1차 검토를 만들 수 있습니다.';
+  const lines = waiting.map((s) => lineOf(s, nameOf(s.author_id))).filter((x): x is Line => !!x).sort((a, b) => a.rank - b.rank).slice(0, 6);
   return (
-    <AiBand title="업무플랫폼 · AI 미리 검토" cadence="live" right={
-      <span className="inline-flex items-center gap-2 text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 · AI 검토 {reviewed.length}건
-        {!!waiting.length && <button onClick={() => gen.mutate(true)} disabled={gen.isPending} className="inline-flex items-center gap-1 rounded-md bg-white ring-1 ring-slate-200 px-2 py-0.5 font-semibold text-slate-600 hover:text-slate-900 disabled:opacity-50"><RefreshCw size={11} className={gen.isPending ? 'animate-spin' : ''} />다시 읽기</button>}
-      </span>}>
+    <AiBand title="업무플랫폼 · AI 미리 검토" cadence="live" right={<span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 중 AI 검토 완료 {reviewed.length}건</span>}>
       {loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !waiting.length ? (
-        <p className="text-sm text-slate-600">리뷰를 기다리는 결과물이 없습니다. 팀원이 올리면 AI가 먼저 읽고 완성도·고민의 깊이·논리성·창의성·전달력을 짚어 둡니다.</p>
+        <p className="text-sm text-slate-600">리뷰를 기다리는 결과물이 없습니다. 팀원이 올리면 AI가 먼저 읽고 완성도·고민의 깊이·논리·전달력을 짚어 둡니다.</p>
       ) : (
         <>
-          <p className="text-[15px] font-semibold leading-snug">{headline}{gen.isPending && <span className="ml-2 text-xs font-normal text-slate-400">AI가 다시 읽는 중…</span>}</p>
-          {!!items.length && (
+          <p className="text-[15px] font-semibold leading-snug">{reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 위에서부터 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다. 열면 1차 검토를 만들 수 있습니다.'}</p>
+          {!!lines.length && (
             <ul className="mt-3 rounded-xl bg-white ring-1 ring-slate-200 divide-y divide-slate-100">
-              {items.map((x, i) => (
-                <li key={x.submission_id + i}>
-                  <Link to={`/work/${x.submission_id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
-                    <span className={cx('mt-[7px] w-2 h-2 rounded-full shrink-0', TONE_DOT[x.tone] ?? TONE_DOT.info)} />
+              {lines.map((x) => (
+                <li key={x.id}>
+                  <Link to={`/work/${x.id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
+                    <span className={cx('mt-[7px] w-2 h-2 rounded-full shrink-0', TONE_DOT[x.tone] ?? 'bg-slate-400')} />
                     <span className="min-w-0 flex-1">
-                      <span className="text-sm text-slate-800">{stripTag(x.text)}</span>
-                      {x.why && <span className="block text-xs text-slate-500 mt-0.5">{stripTag(x.why)}</span>}
+                      <span className="text-sm text-slate-800">{x.text}</span>
+                      {x.why && <span className="block text-xs text-slate-500 mt-0.5">{x.why}</span>}
                     </span>
                     <ChevronRight size={14} className="mt-1 text-slate-300 shrink-0" />
                   </Link>
@@ -203,7 +171,6 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
               ))}
             </ul>
           )}
-          {ai.length ? <p className="mt-1.5 text-[10px] text-slate-400 inline-flex items-center gap-1"><AiChip label="AI" />결과물마다의 1차 검토(완성도·고민의 깊이·논리성·창의성·전달력)를 모아 읽은 판단입니다</p> : null}
         </>
       )}
     </AiBand>
