@@ -31,7 +31,7 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
   const [modal, setModal] = useState<{ kind: 'oo' | 'memo' | 'req' | 'praise'; a: PeopleAction } | null>(null);
   const done = (a: PeopleAction) => st.set.mutate({ key: keyOf(a), status: 'done' });
 
-  const title = only ? `이번 주 ${nameOf(only)} 님께 할 것` : '이번 주 팀원관리 액션';
+  const title = only ? `이번 주 ${nameOf(only)} 님께 하면 좋은 것` : '이번 주 팀원관리 액션';
   return (
     <AiBand title={ai ? title : `${title} · 기록 기반 자동 추천`} cadence="weekly" start={week}
       right={<>
