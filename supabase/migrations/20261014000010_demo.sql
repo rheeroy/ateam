@@ -189,6 +189,28 @@ begin
     (T, m_kim, 'FGI 설계안 초안', current_date + 2, L),
     (T, L, '4분기 광고 예산 재배분 확인', current_date + 4, L);
 
+  -- 팀장 노하우: 일 잘하는 방식 · 좋은 결과물의 기준 (AI 검토 · 코칭 · 1:1 준비 · 보고가 읽는다)
+  begin
+    insert into knowhow_cards (team_id, owner_id, kind, title, body, rules, applies_to, keywords, pinned, shared, provenance, use_count, last_used_at, created_at) values
+      (T, L, 'principle', '결론부터, 한 장으로', '보고는 첫 줄에 결론(무엇을 하자는지, 무엇을 정해 달라는지)을 쓰고 근거는 그 아래에 둔다. 첫 장만 읽어도 판단할 수 있어야 한다.',
+        '["첫 줄에 결론과 요청 사항", "근거는 3개 이내로", "첫 장만 보고 결정할 수 있게"]'::jsonb, '{review,report,briefing}', '{결론,보고,한장}', true, true, 'human', 14, now() - interval '1 day', now() - interval '120 days'),
+      (T, L, 'rubric', '좋은 기획서의 조건', '정보를 모은 것과 기획은 다르다. 내가 무엇을 문제로 보는지, 왜 이 안을 골랐는지가 보여야 한다.',
+        '["문제 정의를 본인 언어로", "대안 2개 이상 비교하고 버린 이유", "리스크와 대응", "다음 행동·담당·일정까지"]'::jsonb, '{review,evaluation}', '{기획서,대안,리스크}', true, true, 'human', 11, now() - interval '2 days', now() - interval '110 days'),
+      (T, L, 'principle', '숫자에는 출처와 비교 기준', '숫자만 있으면 판단이 안 된다. 어디서 나온 숫자인지, 무엇과 비교해 좋은지 나쁜지가 함께 있어야 한다.',
+        '["숫자마다 출처", "지난달·목표 대비로 쓴다", "추정치는 가정을 함께"]'::jsonb, '{review,report}', '{숫자,출처,근거}', false, true, 'human', 9, now() - interval '3 days', now() - interval '100 days'),
+      (T, L, 'rubric', '올리기 전 완성도 점검 3가지', '초안이어도 괜찮지만, 아래 세 가지는 비워 두지 않는다.',
+        '["미정·TBD로 남긴 곳이 없는가", "요청받은 질문에 다 답했는가", "다음 행동과 날짜가 있는가"]'::jsonb, '{review}', '{완성도,점검}', false, true, 'human', 6, now() - interval '4 days', now() - interval '60 days'),
+      (T, L, 'framework', '보고서 기본 구조', '결론 → 배경 → 대안 비교 → 리스크 → 다음 행동 순서. 분량보다 이 순서를 지키는 것이 중요하다.',
+        '["결론 → 배경 → 대안 → 리스크 → 다음 행동"]'::jsonb, '{review,report}', '{구조,양식}', false, true, 'human', 7, now() - interval '6 days', now() - interval '90 days'),
+      (T, L, 'principle', '막히면 이틀 안에 말한다', '혼자 오래 붙들수록 손해다. 막힌 지 이틀이 되면 무엇이 필요한지 한 줄로 공유한다. 도움을 청하는 건 약점이 아니다.',
+        '["막힘은 2일 안에 공유", "무엇이 필요한지 함께 쓴다"]'::jsonb, '{review,prep,briefing}', '{막힘,공유}', false, true, 'human', 5, now() - interval '5 days', now() - interval '80 days'),
+      (T, L, 'coaching', '1:1은 사람 먼저', '1:1 첫 10분은 업무가 아니라 컨디션과 어려움을 묻는다. 해결책보다 먼저 듣고, 약속은 하나만 정한다.',
+        '["첫 10분은 사람 이야기", "약속은 하나만, 날짜와 함께"]'::jsonb, '{prep}', '{1:1,코칭}', false, false, 'human', 8, now() - interval '2 days', now() - interval '70 days'),
+      (T, L, 'context', '하반기 우리 팀 우선순위', '하반기 최우선은 신제품 런칭과 제휴 채널 확대. 전사 비용 15% 절감 방침이 있어, 예산이 드는 안은 CAC 근거를 함께 낸다.',
+        '["런칭·제휴가 최우선", "예산 안에는 CAC 근거"]'::jsonb, '{review,strategy,briefing,prep}', '{우선순위,예산,CAC}', true, false, 'human', 10, now() - interval '1 day', now() - interval '40 days');
+  exception when others then null;
+  end;
+
   -- 결과물: 김도현 기획서 v1~v3 (리뷰 중)
   insert into submissions (team_id, author_id, item_id, title, status, created_at) values (T, m_kim, t1, '하반기 신제품 런칭 캠페인 기획서', 'in_review', now() - interval '30 days') returning id into sub;
   insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
@@ -230,7 +252,20 @@ begin
       E'가격 민감도 분석\n1. 설문 400명: 적정 가격 3.2만~3.8만 원\n2. 4만 원 이상에서 구매 의향 급감(−41%)\n3. 제안: 정가 3.9만 원, 런칭 할인으로 3.3만 원대 체험',
       E'CRM 메시지 개편\n1. 현재 웰컴 메시지 열람률 22% — 업계 평균 35%\n2. 개편: 첫 메시지에 혜택 1개만, 발송 시점 가입 직후 → 다음 날 오전\n3. 4주 뒤 열람률·첫 구매 전환 비교'])[i], (select author_id from submissions where id = sub), now() - (170 - i * 11) * interval '1 day') returning id into ver;
     insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at)
-    values (sub, ver, T, L, '좋습니다. 이대로 진행하죠.', now() - (166 - i * 11) * interval '1 day');
+    values (sub, ver, T, L, (array[
+      '세그먼트 나눈 기준이 분명해서 좋아요. 다음엔 결론(어느 세그먼트부터)을 첫 줄로 올려 주세요.',
+      'CAC 숫자에 출처랑 지난 분기 비교가 있어서 판단이 쉬웠어요. 이대로 진행하죠.',
+      '좋습니다. 다만 성과 지표를 왜 저장·공유로 골랐는지 한 줄 근거가 있으면 더 좋겠어요.',
+      '후보 비교 좋아요. B사 데이터 일정이 불확실하면 대안도 같이 적어 주세요 — 리스크는 미리.',
+      '시사점까지 정리해 줘서 좋아요. 이대로 진행하죠.',
+      '화면 구성 좋아요. 1차 범위 밖은 언제 하는지 다음 행동·날짜까지 적어 주세요.',
+      '좋습니다. 금지 표현 정리가 특히 실용적이에요.',
+      '페르소나 좋아요. 이 근거가 어느 데이터에서 나왔는지 출처를 달아 주세요.',
+      '조건 비교표 좋아요. 추천 이유를 결론 쪽으로 올리면 첫 장만 봐도 판단돼요.',
+      '좋습니다. 일정에 담당자까지 넣어 주면 완성이에요.',
+      '톤 정리 좋아요. 이대로 진행하죠.',
+      '설문 숫자 좋아요. 정가 3.9만 원으로 정한 이유를 대안(3.5만 원)과 비교해서 한 줄 넣어 주세요.',
+      '열람률 기준선 잡은 거 좋아요. 4주 뒤 무엇을 보면 성공인지 목표치까지 적어 주세요.'])[i], now() - (166 - i * 11) * interval '1 day');
     -- 버전 업로드 트리거가 '리뷰 중'으로 돌려놓으므로, 승인은 그 뒤에
     update submissions set status = 'approved' where id = sub;
     update submissions set approved_at = now() - (165 - i * 11) * interval '1 day', updated_at = now() - (165 - i * 11) * interval '1 day' where id = sub;
@@ -395,6 +430,34 @@ begin
         "criteria_check": [{"criterion": "결론부터 쓴다", "met": true, "note": "첫 줄에 개선안을 밝혔습니다."},
                            {"criterion": "대안 비교", "met": false, "note": "다른 개선 방법과 비교가 없습니다."}]
       }$j$::jsonb, '[]'::jsonb, m_choi, now() - interval '1 day');
+    -- 김도현 기획서 v1 · v2 의 AI 검토 (버전마다 검토가 쌓이는 흐름)
+    insert into public.ai_outputs (team_id, kind, subject_user_id, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at)
+    select T, 'review', m_kim, 'submission_versions', sv.id, 'draft', 'leader', 'L1', 1, x.c::jsonb, '[]'::jsonb, m_kim, sv.created_at + interval '5 minutes'
+    from submission_versions sv join submissions s on s.id = sv.submission_id
+    join (values
+      (1, $j${
+        "depth_score": 2.0,
+        "summary": "타깃과 시장 규모는 잡았지만, 정가 런칭을 택한 이유가 '프리미엄 이미지' 한 줄뿐이라 근거가 비어 있습니다. 다른 프로모션 방식과 비교하지 않았고 채널·일정 등 실행 부분이 아직 없습니다.",
+        "brief": {"tone": "risk", "text": "김도현 님이 올린 '하반기 신제품 런칭 캠페인 기획서'는 근거가 비어 보입니다", "why": "정가 런칭 이유가 '프리미엄 이미지' 한 줄뿐"},
+        "decisions": [],
+        "strengths": [{"section": "1. 시장·고객", "text": "타깃과 시장 규모·성장률을 숫자로 먼저 밝혔습니다."}],
+        "gaps": [{"section": "2. 프로모션", "text": "정가 런칭이 인지도가 낮은 지금 맞는지, 할인과 비교한 근거가 없습니다."},
+                 {"section": "전체", "text": "채널·일정 등 실행 계획이 빠져 있어 초안 단계입니다."}],
+        "questions": ["인지도가 낮은 상태에서 정가 런칭이 초기 전환을 막지 않을까요?", "경쟁사들은 런칭 때 어떻게 했나요?"],
+        "change_from_previous": "", "trend_note": "", "criteria_check": []
+      }$j$),
+      (2, $j${
+        "depth_score": 2.0,
+        "summary": "채널 계획과 경쟁사 수가 추가돼 분량은 늘었지만, v1에서 비었던 정가 런칭의 근거는 '조사 결과 반영 예정'으로 미뤄져 고민의 깊이는 그대로입니다.",
+        "brief": {"tone": "watch", "text": "김도현 님이 올린 '하반기 신제품 런칭 캠페인 기획서'는 고민의 깊이가 그대로로 보입니다", "why": "채널 계획은 늘었지만 정가 근거는 '반영 예정'"},
+        "decisions": [],
+        "strengths": [{"section": "3. 채널 계획", "text": "사전 예약 페이지까지 이어지는 채널 흐름을 새로 잡았습니다."}],
+        "gaps": [{"section": "2. 프로모션", "text": "핵심 판단(정가 런칭)의 근거가 아직 '예정'으로 남아 있습니다."}],
+        "questions": ["브랜드 인지도 조사는 언제 나오고, 결과에 따라 프로모션이 바뀔 수 있나요?"],
+        "change_from_previous": "채널 계획(유튜브·인스타그램, 사전 예약 페이지)과 경쟁사 수를 추가했습니다.", "trend_note": "", "criteria_check": []
+      }$j$)
+    ) as x(ver, c) on sv.version = x.ver
+    where s.team_id = T and s.title = '하반기 신제품 런칭 캠페인 기획서';
     select id into o1 from one_on_ones where team_id = T and member_id = m_kim and status = 'scheduled' order by scheduled_at limit 1;
     if o1 is not null then
       insert into public.ai_outputs (team_id, kind, subject_user_id, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at)
