@@ -149,29 +149,28 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
   const reviewed = waiting.filter((s) => s.review);
   const lines = waiting.map((s) => lineOf(s, nameOf(s.author_id))).filter((x): x is Line => !!x).sort((a, b) => a.rank - b.rank).slice(0, 6);
   return (
-    <AiBand title="업무플랫폼 · AI 미리 검토" cadence="live" right={<span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 중 AI 검토 완료 {reviewed.length}건</span>}>
+    <AiBand cadence="live"
+      title={<span className="text-[15px] font-semibold">{!waiting.length ? '리뷰를 기다리는 결과물이 없습니다' : reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 위에서부터 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다'}</span>}
+      right={!!waiting.length && <span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 · AI 검토 {reviewed.length}건</span>}>
       {loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !waiting.length ? (
-        <p className="text-sm text-slate-600">리뷰를 기다리는 결과물이 없습니다. 팀원이 올리면 AI가 먼저 읽고 완성도·고민의 깊이·논리·전달력을 짚어 둡니다.</p>
+        <p className="text-sm text-slate-600">팀원이 올리면 AI가 먼저 읽고 완성도·고민의 깊이·논리·전달력을 짚어 둡니다.</p>
+      ) : !lines.length ? (
+        <p className="text-sm text-slate-600">결과물을 열면 1차 검토를 만들 수 있습니다.</p>
       ) : (
-        <>
-          <p className="text-[15px] font-semibold leading-snug">{reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 위에서부터 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다. 열면 1차 검토를 만들 수 있습니다.'}</p>
-          {!!lines.length && (
-            <ul className="mt-3 rounded-xl bg-white ring-1 ring-slate-200 divide-y divide-slate-100">
-              {lines.map((x) => (
-                <li key={x.id}>
-                  <Link to={`/work/${x.id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
-                    <span className={cx('mt-[7px] w-2 h-2 rounded-full shrink-0', TONE_DOT[x.tone] ?? 'bg-slate-400')} />
-                    <span className="min-w-0 flex-1">
-                      <span className="text-sm text-slate-800">{x.text}</span>
-                      {x.why && <span className="block text-xs text-slate-500 mt-0.5">{x.why}</span>}
-                    </span>
-                    <ChevronRight size={14} className="mt-1 text-slate-300 shrink-0" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+        <ul className="rounded-xl bg-white ring-1 ring-slate-200 divide-y divide-slate-100">
+          {lines.map((x) => (
+            <li key={x.id}>
+              <Link to={`/work/${x.id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
+                <span className={cx('mt-[7px] w-2 h-2 rounded-full shrink-0', TONE_DOT[x.tone] ?? 'bg-slate-400')} />
+                <span className="min-w-0 flex-1">
+                  <span className="text-sm text-slate-800">{x.text}</span>
+                  {x.why && <span className="block text-xs text-slate-500 mt-0.5">{x.why}</span>}
+                </span>
+                <ChevronRight size={14} className="mt-1 text-slate-300 shrink-0" />
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </AiBand>
   );
