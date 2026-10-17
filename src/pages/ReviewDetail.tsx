@@ -8,7 +8,7 @@ import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import type { ReviewComment, Submission, SubmissionVersion } from '../lib/types';
-import { cx, fmtDate, fmtShort, num } from '../lib/format';
+import { cx, fmtDate, fmtShort } from '../lib/format';
 import { safeName } from '../lib/extract';
 import { KIND_TAG, REQ_TAG, useCloseSubmission } from '../lib/work';
 import { Avatar, Button, Empty, Pill, Spinner, inputCls, useToast } from '../components/ui';
@@ -18,13 +18,25 @@ import { STATUS } from './MySubmissions';
 
 interface Review {
   depth_score: number; summary: string; decisions?: string[];
+  brief?: { tone: 'risk' | 'watch' | 'good'; text: string; why?: string };
   strengths: { section: string; text: string }[]; gaps: { section: string; text: string }[];
   questions: string[]; change_from_previous?: string; trend_note?: string;
   criteria_check?: { criterion: string; met: boolean; note: string; tag?: string }[];
 }
 type Panel = { kind: 'ai'; versionId: string } | { kind: 'thread'; commentId: string } | null;
 
-function AiReview({ teamId, version, onToComments }: { teamId: string; version: SubmissionVersion; onToComments: (qs: string[]) => void }) {
+const DOT: Record<string, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
+/** 한 줄 판단에서 '~해 보입니다' 부분만 (버전 흐름용) */
+const shortOf = (r?: Review) => {
+  if (!r) return null;
+  const t = r.brief?.text ?? '';
+  const tail = t.includes("'") ? t.slice(t.lastIndexOf("'") + 1).replace(/^\s*(은|는|이|가|에|에는)\s+/, '') : t;
+  return tail || r.summary?.split(/[.。]/)[0] || '검토됨';
+};
+
+function AiReview({ teamId, version, versions, reviewOf, onPick, onToComments }: {
+  teamId: string; version: SubmissionVersion; versions: SubmissionVersion[]; reviewOf: (vid: string) => Review | undefined; onPick: (vid: string) => void; onToComments: (qs: string[]) => void;
+}) {
   const rv = useLatestAi<Review>(teamId, 'review', { ref_table: 'submission_versions', ref_id: version.id });
   const gen = useGenerate('ai-review-submission');
   const approved = useQuery({
@@ -39,12 +51,30 @@ function AiReview({ teamId, version, onToComments }: { teamId: string; version: 
   return (
     <ProvBlock rail className="bg-white rounded-2xl border border-slate-200 p-5">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 font-semibold">1차 검토
+        <div className="flex items-center gap-2 font-semibold">AI 검토 <span className="font-mono text-xs font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{version.version}</span>
           {r && <ProvChip kind={kindFromStatus(r.status)} label="AI 생성" sources={r.sources} level={r.level} depth={r.depth}
-            note="점수는 참고용 눈금입니다. 판단은 팀장님 코멘트로 남습니다." />}
+            note="올릴 때마다 그 버전을 AI가 먼저 읽은 의견입니다. 판단은 팀장님 코멘트로 남습니다." />}
         </div>
         <span className="text-[11px] text-slate-400 inline-flex items-center gap-1"><Lock size={11} />팀장에게만 보임</span>
       </div>
+      {versions.length > 1 && (
+        <ol className="mt-3 rounded-xl bg-slate-50 ring-1 ring-slate-100 p-1.5 space-y-0.5">
+          {versions.map((v) => {
+            const vr = reviewOf(v.id);
+            const on = v.id === version.id;
+            return (
+              <li key={v.id}>
+                <button onClick={() => onPick(v.id)} className={cx('w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs', on ? 'bg-white ring-1 ring-indigo-200 shadow-sm' : 'hover:bg-white/70')}>
+                  <span className={cx('font-mono font-semibold rounded px-1.5 py-0.5', on ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200')}>v{v.version}</span>
+                  <span className={cx('w-1.5 h-1.5 rounded-full shrink-0', vr?.brief ? DOT[vr.brief.tone] : vr ? 'bg-indigo-300' : 'bg-slate-300')} />
+                  <span className={cx('truncate', vr ? 'text-slate-700' : 'text-slate-400')}>{vr ? shortOf(vr) : 'AI 검토 전'}</span>
+                  <span className="ml-auto shrink-0 text-[10px] text-slate-400">{fmtShort(v.created_at)}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
       {rv.isLoading ? <Spinner /> : !r ? (
         <Empty icon={<Sparkles size={18} />} title="아직 1차 검토가 없습니다"
           action={<Button loading={gen.isPending} onClick={() => gen.mutate({ version_id: version.id })}>지금 검토하기 · 구독 포함</Button>}>
@@ -224,10 +254,10 @@ export default function ReviewDetail() {
                         <span className="font-mono text-[11px] font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{v.version}</span>
                         <span className="text-slate-400 text-xs">{v.version === 1 ? '올림' : '새 버전'} · {fmtDate(v.created_at)}</span>
                         {v.id === latest.id && versions.length > 1 && <span className="text-[10px] font-semibold text-indigo-700">최신</span>}
-                        {r && (
+                        {isLeader && !isAuthor && sub.request_type !== 'share' && sub.kind !== 'number' && (
                           <button onClick={() => setPanel({ kind: 'ai', versionId: v.id })} className={cx('ml-auto text-[11px] font-semibold rounded-full px-2 py-0.5 inline-flex items-center gap-1 ring-1',
-                            cur?.kind === 'ai' && cur.versionId === v.id ? 'bg-violet-600 text-white ring-violet-600' : 'bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100')}>
-                            <Sparkles size={11} />AI {num(r.depth_score)}/4 · 1차 검토</button>
+                            cur?.kind === 'ai' && cur.versionId === v.id ? 'bg-violet-600 text-white ring-violet-600' : r ? 'bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100' : 'bg-white text-slate-400 ring-slate-200 hover:text-slate-600')}>
+                            <Sparkles size={11} />{r ? 'AI 검토' : 'AI 검토 전'}</button>
                         )}
                       </div>
                       {v.note && <p className="mt-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{v.note}</p>}
@@ -269,7 +299,7 @@ export default function ReviewDetail() {
         {/* 오른쪽: 스레드 / AI 1차 검토 */}
         <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-4">
           {cur?.kind === 'thread' ? <Thread sub={sub} versions={versions} comments={all} rootId={cur.commentId} onClose={() => setPanel(null)} />
-            : cur?.kind === 'ai' ? <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === cur.versionId) ?? latest} onToComments={(qs) => toComments.mutate(qs)} />
+            : cur?.kind === 'ai' ? <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === cur.versionId) ?? latest} versions={versions} reviewOf={aiOf} onPick={(vid) => setPanel({ kind: 'ai', versionId: vid })} onToComments={(qs) => toComments.mutate(qs)} />
             : (
               <div className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] p-5 text-sm text-slate-500">
                 <div className="font-semibold text-slate-800 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />대화 보기</div>
