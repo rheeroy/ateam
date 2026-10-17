@@ -6,16 +6,16 @@ import { callClaude, parseJson, type Block } from './anthropic.ts';
 export type AiKind =
   | 'briefing' | 'one_on_one_prep' | 'review' | 'weekly_report'
   | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note'
-  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check';
+  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly' | 'exec_brief' | 'coaching';
 
 /** 코어 AI: 구독에 포함 (크레딧 차감 없음, 요금제별 공정 사용 한도만) */
 export const CORE: AiKind[] = ['briefing', 'one_on_one_prep', 'review', 'weekly_report',
-  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check'];
+  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check', 'org_impact', 'people_actions', 'advisor_weekly', 'exec_brief', 'coaching'];
 
 /** 프리미엄 AI: 크레딧 차감 */
 export const CREDITS: Record<AiKind, number> = {
   one_on_one_prep: 0, review: 0, briefing: 0, weekly_report: 0,
-  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0,
+  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0, org_impact: 0, people_actions: 0, advisor_weekly: 0, exec_brief: 0, coaching: 0,
   evaluation_draft: 5, plan_draft: 2, forecast_note: 1, strategy_check: 1, scenario_note: 1,
 };
 
@@ -124,6 +124,8 @@ export interface AiJob {
   credits?: number;
   /** 모델 출력 외에 함께 저장할 계산값 (예: 체크인 미제출자) */
   extra?: Record<string, unknown>;
+  /** true면 10분 안의 같은 결과를 재사용하지 않고 새로 만든다 */
+  force?: boolean;
 }
 
 export async function assertCredits(teamId: string, need: number) {
@@ -148,10 +150,49 @@ export async function assertAccess(teamId: string, kind: AiKind, credits?: numbe
   return assertCredits(teamId, need);
 }
 
-export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unknown>; parsed: T }> {
+/** 입력이 '대상'으로 정해지는 종류 — 10분 안에 같은 대상을 다시 누르면 AI를 다시 부르지 않고 방금 결과를 돌려준다 */
+const REUSABLE: AiKind[] = ['insight_daily', 'insight_weekly', 'insight_monthly', 'review', 'one_on_one_prep', 'people_actions', 'briefing', 'org_impact', 'advisor_weekly', 'exec_brief'];
+const REUSE_MIN = 10;
+
+const GUARD_MSG: Record<string, [number, string]> = {
+  AI_RATE_HOUR: [429, '잠시 AI 요청이 많았습니다. 한 시간 안에 다시 시도해 주세요.'],
+  AI_RATE_DAY: [429, '오늘 AI 요청이 많았습니다. 내일 다시 시도해 주세요.'],
+  AI_COST_CAP: [429, '이번 달 AI 기본 사용량을 모두 썼습니다. 다음 결제 주기에 다시 열립니다.'],
+  AI_REPEAT: [429, '같은 내용을 오늘 여러 번 다시 만들었습니다. 기록이 더 쌓인 뒤 내일 다시 만들어 주세요.'],
+};
+
+/** AI를 부르기 직전: 시간당·하루 상한, 월 원가 상한, 같은 대상 반복 (SQL ai_guard) */
+async function guard(job: AiJob) {
+  const { error } = await admin.rpc('ai_guard', {
+    p_team: job.teamId, p_kind: job.kind, p_ref: job.refId ?? null, p_period: job.periodStart ?? null, p_subject: job.subjectUserId ?? null,
+  });
+  if (!error) return;
+  const hit = Object.keys(GUARD_MSG).find((k) => error.message?.includes(k));
+  if (hit) throw new HttpError(GUARD_MSG[hit][0], hit, GUARD_MSG[hit][1]);
+  // ai_guard 가 아직 없는 DB(09 미실행)에서는 기존 월 횟수 한도만으로 동작
+  if (/ai_guard|function .* does not exist|PGRST202/i.test(`${error.message} ${error.code}`)) { console.warn('ai_guard missing — run 09_ai_guard.sql'); return; }
+  throw error;
+}
+
+async function recent(job: AiJob) {
+  if (job.force || !REUSABLE.includes(job.kind) || (!job.refId && !job.periodStart)) return null;
+  let qb = admin.from('ai_outputs').select('*').eq('team_id', job.teamId).eq('kind', job.kind).eq('status', 'draft')
+    .gte('created_at', new Date(Date.now() - REUSE_MIN * 60000).toISOString());
+  qb = job.refId ? qb.eq('ref_id', job.refId) : qb.is('ref_id', null);
+  qb = job.periodStart ? qb.eq('period_start', job.periodStart) : qb.is('period_start', null);
+  qb = job.subjectUserId ? qb.eq('subject_user_id', job.subjectUserId) : qb.is('subject_user_id', null);
+  const { data } = await qb.order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
+
+export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unknown>; parsed: T; reused?: boolean }> {
   const credits = job.credits ?? CREDITS[job.kind];
   const core = CORE.includes(job.kind) && !credits;
   await assertAccess(job.teamId, job.kind, credits);
+
+  const again = await recent(job);
+  if (again) return { output: again, parsed: again.content as T, reused: true };
+  await guard(job);
 
   const res = await callClaude({
     model: job.model,
@@ -159,7 +200,14 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
     content: job.content,
     maxTokens: job.maxTokens,
   });
-  const parsed = parseJson<T>(res.text);
+  let parsed: T;
+  try {
+    parsed = parseJson<T>(res.text);
+  } catch (e) {
+    // 실패한 호출도 원가는 남긴다 (횟수 한도엔 안 셈)
+    await admin.rpc('log_ai_error', { p_team: job.teamId, p_kind: job.kind, p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd });
+    throw e;
+  }
 
   const { data: row, error } = await admin
     .from('ai_outputs')

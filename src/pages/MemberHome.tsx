@@ -1,6 +1,6 @@
 import { useState } from 'react';
 // 팀원 홈: 팀장이 부탁한 것 · 내 목표·과제 · 받은 피드백 · 이번 주 체크인
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, CheckCircle2, FileUp, Inbox, MessageSquareQuote, PenLine } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -11,6 +11,7 @@ import { Avatar, Button, Card, CardHead, Pill, useToast } from '../components/ui
 import { MyProgress } from '../components/goals/MyProgress';
 import { LeaderGuide } from '../components/LeaderGuide';
 import { REQUEST_KIND } from '../components/RequestModal';
+import { MyCoaching } from '../components/people/Coaching';
 
 function Requests() {
   const { team, uid, nameOf } = useTeam();
@@ -101,6 +102,7 @@ function Feedback() {
 export default function MemberHome() {
   const { team, uid, profile, nameOf } = useTeam();
   const week = mondayOf();
+  const [params] = useSearchParams();
   const ci = useQuery({ queryKey: ['checkins', team.id, uid, 'this'], queryFn: () => q<Checkin[]>(supabase.from('checkins').select('*').eq('team_id', team.id).eq('user_id', uid).eq('week_start', week)) });
   const oo = useQuery({ queryKey: ['my-oo-next', team.id, uid], queryFn: () => q<OneOnOne[]>(supabase.from('one_on_ones').select('*').eq('team_id', team.id).eq('member_id', uid).eq('status', 'scheduled').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1)) });
   const sent = !!ci.data?.length;
@@ -128,6 +130,7 @@ export default function MemberHome() {
       </div>
       <div className="mt-6 grid lg:grid-cols-5 gap-5 items-start">
         <div className="lg:col-span-3 space-y-5">
+          <MyCoaching focusId={params.get('coach')} />
           <Requests />
           <MyProgress limit={10} />
           <Card className="p-5 text-sm text-slate-600">

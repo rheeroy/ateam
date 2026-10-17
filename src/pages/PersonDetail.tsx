@@ -4,6 +4,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Award, CalendarPlus, ChevronRight, HeartHandshake, MessageSquare, Scale, Send, Sprout, StickyNote } from 'lucide-react';
 import { NotesBox } from '../components/notes/Notes';
+import { CoachModal } from '../components/people/Coaching';
+import { LogoMark } from '../components/Brand';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useLatestAi } from '../lib/hooks';
@@ -33,6 +35,7 @@ export default function PersonDetail() {
   const [oo, setOo] = useState(false);
   const [req, setReq] = useState<{ kind: 'plan' | 'progress' | 'share' | 'meeting' | 'other'; title: string } | null>(null);
   const [praise, setPraise] = useState(false);
+  const [coach, setCoach] = useState(false);
   const nav = useNavigate();
   if (!mb || !id) return <Navigate to="/people" replace />;
   const name = mb.profiles?.full_name ?? '팀원';
@@ -56,6 +59,7 @@ export default function PersonDetail() {
         {/* 모든 액션 — 팀원관리 액션 종류 7가지를 바로 */}
         <div className="mt-3 flex items-center gap-1.5 flex-wrap">
           <span className="text-[11px] font-semibold text-slate-400 mr-1">액션</span>
+          <button onClick={() => setCoach(true)} title="말하기 껄끄러운 개선점을 ATEAM이 코치처럼 대신 알려 줍니다" className="text-xs font-bold rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700"><LogoMark size={12} /><span><span className="font-extrabold">ATEAM</span>의 코칭</span></button>
           {([
             ['one_on_one', CalendarPlus, () => setOo(true)],
             ['praise', Award, () => setPraise(true)],
@@ -88,6 +92,7 @@ export default function PersonDetail() {
       <MemoModal teamId={team.id} open={memo} preset={id} onClose={() => setMemo(false)} />
       <ScheduleModal open={oo} onClose={() => setOo(false)} memberId={id} />
       {req && <RequestModal open onClose={() => setReq(null)} toId={id} defaultKind={req.kind} defaultTitle={req.title} />}
+      {coach && <CoachModal memberId={id} name={name} onClose={() => setCoach(false)} />}
       {praise && <PraiseModal a={{ user_id: id, type: 'praise' } as PeopleAction} name={name} onClose={() => setPraise(false)} onSent={() => {}} />}
     </div>
   );

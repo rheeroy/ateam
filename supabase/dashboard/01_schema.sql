@@ -2530,3 +2530,1030 @@ language sql stable security definer set search_path = public as $$
     and exists (select 1 from events e where e.team_id = t.id and e.created_at > now() - interval '14 days');
 $$;
 revoke all on function public.active_ai_teams() from public, anon, authenticated;
+
+-- >>>>>>>>>> 20261014000010_demo.sql
+-- =====================================================================
+-- 데모 팀: 팀장·팀원 데모 계정으로 로그인해 체험하는 가상 팀
+--   · teams.is_demo — 요금제의 팀 수 한도에서 빠짐, 예약 AI 인사이트는 만든 뒤 14일만
+--   · seed_demo_team() — 약 6개월치 기록을 채움 (SQL Editor·service_role 전용)
+--   · 계정 만들기는 supabase/demo_accounts.sql (대시보드 06_demo_accounts.sql)
+-- =====================================================================
+alter table public.teams add column if not exists is_demo boolean not null default false;
+
+-- 팀 수 한도는 데모 팀을 세지 않는다
+create or replace function public.create_team(p_name text, p_mission text default '', p_job_title text default '')
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_team uuid; v_plan plans; v_owned int;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  if not exists (select 1 from subscriptions where owner_id = auth.uid()) then
+    insert into subscriptions (owner_id, plan_id, status, trial_ends_at, current_period_start, current_period_end)
+    values (auth.uid(), 'pro', 'trialing', now() + interval '30 days', now(), now() + interval '30 days');
+  end if;
+  v_plan := public.effective_plan_for_owner(auth.uid());
+  select count(*) into v_owned from teams where owner_id = auth.uid() and not is_demo;
+  if v_owned >= v_plan.max_teams then
+    raise exception 'PLAN_LIMIT_TEAMS' using errcode = 'P0001', hint = v_plan.max_teams::text;
+  end if;
+  insert into teams (name, mission, owner_id, settings) values (p_name, coalesce(p_mission, ''), auth.uid(),
+    jsonb_build_object('level_names', '["목표","과제","할 일"]'::jsonb, 'member_free_edit', false)) returning id into v_team;
+  insert into team_members (team_id, user_id, role, job_title) values (v_team, auth.uid(), 'leader', coalesce(p_job_title, ''));
+  perform log_event(v_team, 'team.created', 'teams', v_team);
+  return v_team;
+end $$;
+
+-- 예약 인사이트: 데모 팀은 만든 뒤 14일만 (원가)
+create or replace function public.active_ai_teams() returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select t.id from teams t
+  where public.team_has_feature(t.id, 'ai_core')
+    and (not t.is_demo or t.created_at > now() - interval '14 days')
+    and exists (select 1 from events e where e.team_id = t.id and e.created_at > now() - interval '14 days');
+$$;
+revoke all on function public.active_ai_teams() from public, anon, authenticated;
+
+-- 마케팅기획팀. p_members 순서: 김도현(브랜드) · 박서연(퍼포먼스) · 최민아(콘텐츠) · 정우성(제휴) · 이정규(CRM) · 한수진(신규)
+create or replace function public.seed_demo_team(p_team uuid, p_leader uuid, p_members uuid[]) returns void
+language plpgsql security definer set search_path = public as $fn$
+declare
+  L uuid := p_leader;
+  m_kim uuid := p_members[1];
+  m_park uuid := p_members[2];
+  m_choi uuid := p_members[3];
+  m_jung uuid := p_members[4];
+  m_lee uuid := p_members[5];
+  m_han uuid := p_members[6];
+  T uuid := p_team;
+  g1 uuid; g2 uuid; g3 uuid; t1 uuid; t2 uuid; t3 uuid; t4 uuid; t5 uuid; t6 uuid; t7 uuid; mt uuid;
+  sub uuid; ver uuid; oo uuid;
+  wk date; i int; u record; v_month date := date_trunc('month', current_date)::date;
+  this_mon date := date_trunc('week', current_date)::date;
+begin
+  if coalesce(array_length(p_members, 1), 0) <> 6 then raise exception 'seed_demo_team: 팀원 6명이 필요합니다'; end if;
+  if not exists (select 1 from teams where id = T and is_demo and owner_id = L) then raise exception 'seed_demo_team: 데모 팀이 아닙니다'; end if;
+
+  update teams set name = '마케팅기획팀 (데모)', mission = '고객 데이터를 근거로 캠페인을 빠르게 검증해, 신규 고객 획득과 재구매를 함께 늘린다',
+    parent_link = '2026 회사 전략 목표 「신규 고객 30만 명 확보」 · 기여 비중 40%' where id = T;
+  insert into team_members (team_id, user_id, role, job_title, joined_at) values (T, L, 'leader', '팀장', now() - interval '200 days')
+    on conflict (team_id, user_id) do update set role = 'leader', status = 'active', joined_at = now() - interval '200 days';
+  insert into team_members (team_id, user_id, role, job_title, joined_at) values
+    (T, m_kim, 'member', '브랜드 마케팅', now() - interval '190 days'),
+    (T, m_park, 'member', '퍼포먼스 마케팅', now() - interval '190 days'),
+    (T, m_choi, 'member', '콘텐츠 마케팅', now() - interval '180 days'),
+    (T, m_jung, 'member', '제휴 마케팅', now() - interval '180 days'),
+    (T, m_lee, 'member', 'CRM 마케팅', now() - interval '150 days'),
+    (T, m_han, 'member', '마케팅 기획 (신규)', now() - interval '42 days');
+
+  -- 목표·과제 (자유 계층)
+  update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb where id = T;
+  insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
+    values (T, L, '하반기 신제품 런칭 캠페인 성공', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
+  insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
+    values (T, L, '제휴 채널 신규 고객 확대', 'children', 2, current_date - 90, current_date + 70, 5, now() - interval '90 days') returning id into g2;
+  insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
+    values (T, L, '마케팅 운영 효율화', 'children', 3, current_date - 60, current_date + 100, 3, now() - interval '60 days') returning id into g3;
+  insert into hypotheses (team_id, item_id, statement, signal) values
+    (T, g1, '얼리버드 할인으로 사전 예약 전환율 20% 이상', '고객 FGI 12명 중 구매 의향 7명'),
+    (T, g2, 'B사 멤버십 제휴로 연내 신규 고객 8만 명', 'B사 회원 데이터 수급 2주째 지연'),
+    (T, g3, '콘텐츠 제작 리드타임 3주 → 2주', '최근 4건 평균 2.6주');
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g1, '런칭 캠페인 기획', m_kim, 1, 5, 16, 'children', 0, current_date - 45, current_date + 40, 1, now() - interval '45 days') returning id into t1;
+  insert into work_items (team_id, parent_id, owner_id, title, measure, status, due_date, sort) values
+    (T, t1, m_kim, '타깃 고객 정의', 'check', 'done', current_date - 30, 1),
+    (T, t1, m_kim, '경쟁사 캠페인 분석', 'check', 'done', current_date - 10, 2),
+    (T, t1, m_kim, '크리에이티브 시안 3안', 'check', 'active', current_date + 10, 3),
+    (T, t1, m_han, '고객 FGI 12명', 'check', 'active', current_date + 20, 4),
+    (T, t1, m_kim, '임원 보고', 'check', 'active', current_date + 38, 5);
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g1, '런칭 프로모션 정책 확정', m_kim, 1, 4, 8, 'percent', 85, current_date - 60, current_date - 5, 2, now() - interval '60 days') returning id into t2;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, status, start_date, due_date, sort, created_at) values
+    (T, g2, '제휴 프로모션 제안서', m_jung, 1, 5, 6, 'percent', 30, 'blocked', current_date - 30, current_date + 20, 1, now() - interval '30 days') returning id into t3;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g2, '제휴 유입 고객 CRM 연계', m_lee, 2, 4, 6, 'percent', 35, current_date - 40, current_date + 50, 2, now() - interval '40 days') returning id into t4;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g3, '콘텐츠 제작 프로세스 개선', m_choi, 2, 4, 10, 'percent', 66, current_date - 50, current_date + 30, 1, now() - interval '50 days') returning id into t5;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, progress, start_date, due_date, sort, created_at) values
+    (T, g3, '채널별 성과 보고 체계 정비', m_jung, 3, 1, 18, 'percent', 40, current_date - 90, current_date + 60, 2, now() - interval '90 days') returning id into t6;
+  insert into work_items (team_id, parent_id, title, owner_id, priority, contribution, est_hours_per_week, measure, recur, sort, created_at) values
+    (T, g3, '월간 광고 성과 리포트 운영', m_park, 3, 2, 12, 'recurring', 'monthly', 3, now() - interval '120 days') returning id into t7;
+  insert into work_item_logs (item_id, team_id, author_id, kind, period, done) values
+    (t7, T, m_park, 'recurring', (v_month - interval '3 months')::date, true), (t7, T, m_park, 'recurring', (v_month - interval '2 months')::date, true),
+    (t7, T, m_park, 'recurring', (v_month - interval '1 months')::date, false);
+  -- 일정 변경 이력 (재계획 2회)
+  update work_items set due_date = current_date + 5, change_reason = '경쟁사 할인 행사 추가 확인' where id = t2;
+  update work_items set due_date = current_date + 10, change_reason = '임원 일정' where id = t2;
+  -- 진척 기록 (최근 3주 속도)
+  insert into work_item_logs (item_id, team_id, author_id, kind, period, value) values
+    (t3, T, m_jung, 'progress', current_date - 21, 22), (t3, T, m_jung, 'progress', current_date - 14, 26), (t3, T, m_jung, 'progress', current_date - 7, 28),
+    (t4, T, m_lee, 'progress', current_date - 21, 20), (t4, T, m_lee, 'progress', current_date - 14, 27),
+    (t5, T, m_choi, 'progress', current_date - 21, 45), (t5, T, m_choi, 'progress', current_date - 14, 55)
+    on conflict do nothing;
+  -- 팀원이 올린 계획(검토 대기) + 팀장 요청
+  insert into work_items (team_id, parent_id, owner_id, title, note, measure, status, start_date, due_date, sort)
+    values (T, g2, m_lee, '제휴 고객 웰컴 메시지 A/B 테스트', '2개 문구 × 2주, 재방문율 비교', 'percent', 'proposed', current_date + 3, current_date + 35, 3);
+  insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, due_date)
+    values (T, L, m_jung, 'plan', g2, '제휴 채널 신규 고객 확대 — 하위 과제 계획 세워 주세요', '제안서 이후 실행 단계까지 포함해서요', current_date + 3);
+  insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, due_date) values
+    (T, L, m_park, 'share', t7, '광고 성과 대시보드 개편 화면 캡처 공유해 주세요', '지난주 말씀하신 1차 배포 화면이요. 승인까지는 필요 없습니다.', current_date + 2),
+    (T, L, m_han, 'progress', t1, '고객 FGI 진행 상황 업데이트 부탁해요', '몇 명 했는지, 막히는 게 있는지만 짧게요', current_date + 1);
+  insert into work_item_allocations (item_id, user_id, team_id, share_pct) values
+    (t1, m_kim, T, 40), (t1, m_han, T, 30), (t2, m_kim, T, 20), (t3, m_jung, T, 15), (t4, m_lee, T, 20),
+    (t5, m_choi, T, 30), (t6, m_jung, T, 45), (t6, m_park, T, 10), (t7, m_park, T, 30);
+
+  insert into metrics (team_id, item_id, name, unit, target, period_start, period_end, cumulative)
+    values (T, g2, '제휴 채널 신규 고객', '만 명', 20, (v_month - interval '3 months')::date, (v_month + interval '2 months')::date, true) returning id into mt;
+  insert into work_items (team_id, parent_id, owner_id, title, measure, num_target, unit, metric_id, sort)
+    values (T, g2, m_lee, '제휴 채널 신규 고객', 'number', 20, '만 명', mt, 4);
+  insert into metric_values (metric_id, team_id, period, value) values
+    (mt, T, (v_month - interval '3 months')::date, 3.4), (mt, T, (v_month - interval '2 months')::date, 3.6), (mt, T, (v_month - interval '1 months')::date, 4.2);
+  insert into metric_pipeline (metric_id, team_id, label, amount, probability, expected_close) values
+    (mt, T, 'B사 멤버십 제휴', 4, 0.4, v_month + 45), (mt, T, 'C사 카드 프로모션 재계약', 2.5, 0.6, v_month + 30), (mt, T, 'D사 앱 공동 이벤트', 1.5, 0.3, v_month + 50);
+
+  -- 체크인 26주
+  for i in 1..26 loop
+    wk := this_mon - (i * 7);
+    insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
+      (T, m_kim, wk, case when i = 1 then '런칭 캠페인 기획서 v3 제출, FGI 설계 착수' when i = 2 then '프로모션 전략 전면 수정' else '런칭 캠페인 기획·경쟁사 캠페인 분석' end,
+         case when i = 2 then '경쟁사 할인 데이터 확보' else '' end, '고객 FGI 진행', case when i <= 1 then 3 else 4 end),
+      (T, m_park, wk, '광고 성과 대시보드 개선, 월간 리포트 운영', '', '리포트 자동화', 4),
+      (T, m_choi, wk, '콘텐츠 캘린더 운영, 제작 프로세스 개선안 작성', '', '디자인팀 인터뷰', case when i % 5 = 0 then 3 else 4 end),
+      (T, m_jung, wk, case when i <= 2 then '제휴 프로모션 제안서 작성' else '채널 성과 보고 정비, 파트너사 미팅' end,
+         case when i <= 2 then '파트너사 회원 데이터 수급이 안 됨' else '' end, '제안서 마무리', case when i <= 2 then 3 else 4 end);
+    if i <= 20 then
+      insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
+        (T, m_lee, wk, 'CRM 캠페인 운영, 휴면 고객 재활성화 메시지', '', 'CRM 성과 분석', case i when 1 then 2 when 2 then 3 when 3 then 4 else 4 end);
+    end if;
+    if i <= 5 then
+      insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
+        (T, m_han, wk, '온보딩 과제 수행, 런칭 캠페인 리서치 보조', '', '리서치 정리', 4);
+    end if;
+  end loop;
+  -- 이번 주: 이정규만 미제출
+  -- 지난 체크인의 작성 시각을 그 주 금요일로
+  update checkins set created_at = week_start + interval '4 days 17 hours', updated_at = week_start + interval '4 days 17 hours' where team_id = T;
+  insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
+    (T, m_kim, this_mon, '고객 FGI 설계, 임원 보고 장표 보완', '', 'FGI 8명 진행', 3),
+    (T, m_park, this_mon, '리포트 자동화 1차', '', '대시보드 배포', 4),
+    (T, m_choi, this_mon, '제작 프로세스 개선안 v2', '', '디자인팀 피드백 반영', 4),
+    (T, m_jung, this_mon, '제휴 프로모션 제안서 초안', '파트너사 회원 데이터 수급이 안 됨', 'B사 데이터 대체안', 3),
+    (T, m_han, this_mon, '경쟁사 프로모션 조사', '', 'FGI 보조', 4);
+
+  -- 1:1 (격주, 완료)
+  for u in select * from (values (m_kim, 12), (m_park, 11), (m_choi, 10), (m_jung, 9), (m_lee, 5), (m_han, 3)) as x(uid, n) loop
+    for i in 1..u.n loop
+      insert into one_on_ones (team_id, leader_id, member_id, scheduled_at, status, shared_notes, completed_at)
+      values (T, L, u.uid, now() - ((case when u.uid = m_lee then 21 else 7 end) + (i - 1) * 14) * interval '1 day', 'done',
+              case when u.uid = m_kim and i = 1 then '런칭 프로모션을 얼리버드 할인 중심으로 바꾸는 방향에 합의. 2번 가설은 고객 FGI로 검증하기로 함.'
+                   else '진행 상황 공유, 다음 2주 우선순위 확인' end,
+              now() - ((case when u.uid = m_lee then 21 else 7 end) + (i - 1) * 14) * interval '1 day');
+    end loop;
+  end loop;
+  insert into one_on_ones (team_id, leader_id, member_id, scheduled_at) values
+    (T, L, m_kim, date_trunc('day', now()) + interval '14 hours'),
+    (T, L, m_park, date_trunc('week', now()) + interval '3 days 10 hours');
+  insert into action_items (team_id, owner_id, title, due_date, created_by) values
+    (T, L, '경쟁사 캠페인 분석 리포트 공유', current_date - 7, L),
+    (T, m_kim, 'FGI 설계안 초안', current_date + 2, L),
+    (T, L, '4분기 광고 예산 재배분 확인', current_date + 4, L);
+
+  -- 결과물: 김도현 기획서 v1~v3 (리뷰 중)
+  insert into submissions (team_id, author_id, item_id, title, status, created_at) values (T, m_kim, t1, '하반기 신제품 런칭 캠페인 기획서', 'in_review', now() - interval '30 days') returning id into sub;
+  insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+    (sub, T, 1, E'1. 시장·고객\n타깃 2030 직장인, 관련 시장 1.2조 연 8% 성장.\n\n2. 프로모션 — 정가 런칭\n할인 없이 정가로 런칭해 프리미엄 브랜드 이미지를 우선한다.', '초안', m_kim, now() - interval '30 days'),
+    (sub, T, 2, E'1. 시장·고객\n타깃 2030 직장인, 관련 시장 1.2조 연 8% 성장. 주요 경쟁사 3곳.\n\n2. 프로모션 — 정가 런칭\n브랜드 인지도 조사 결과 반영 예정.\n\n3. 채널 계획\n유튜브·인스타그램 중심, 사전 예약 페이지.', '채널 계획 추가', m_kim, now() - interval '16 days');
+  insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+    (sub, T, 3, E'1. 시장·고객\n타깃 2030 직장인, 관련 시장 1.2조 연 8% 성장. 주요 경쟁사 3곳의 점유율 합계 61%.\n\n2. 프로모션 — 얼리버드 할인\n경쟁사 캠페인 재분석 결과, 브랜드 인지도가 낮은 상태에서 정가 런칭은 초기 전환을 막는다고 판단했다. 사전 예약 고객에게 15% 얼리버드 할인을 주고, 런칭 6주 뒤 정가로 전환한다. 버린 대안: 정가 런칭(인지도 부족), 상시 할인(브랜드 훼손).\n\n3. 채널 계획\n유튜브·인스타그램 중심 사전 예약 → 런칭 후 제휴 채널(B사 멤버십) 확대.\n\n4. 가설별 검증 계획\n가설 1: 얼리버드 할인으로 사전 예약 전환율 20% 이상 — 예약 페이지 데이터로 검증\n가설 2: 3040 직장인도 주 고객 — 고객 FGI 12명으로 검증 (데이터 보강 필요)',
+     '프로모션을 얼리버드 할인으로 전면 수정', m_kim, now() - interval '4 days') returning id into ver;
+  insert into review_comments (submission_id, version_id, team_id, author_id, section_ref, body, created_at) values
+    (sub, ver, T, L, '§2 프로모션', '근거가 좋아요. 다만 2번 가설은 데이터가 더 필요해 보입니다.', now() - interval '3 days');
+  insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at, parent_id)
+    select sub, ver, T, m_kim, '다음 주 고객 FGI로 보강하겠습니다.', now() - interval '3 days', id from review_comments where submission_id = sub limit 1;
+
+  insert into submissions (team_id, author_id, item_id, title, status) values (T, m_choi, t5, '콘텐츠 제작 프로세스 개선안', 'in_review') returning id into sub;
+  insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by) values
+    (sub, T, 1, E'콘텐츠 제작 프로세스 개선안\n1. 현황: 콘텐츠 1건 제작 리드타임 평균 3주\n2. 개선: 브리프 템플릿, 디자인팀 주간 고정 슬롯', '초안', m_choi),
+    (sub, T, 2, E'콘텐츠 제작 프로세스 개선안\n1. 현황: 콘텐츠 1건 제작 리드타임 평균 3주 (최근 10건 기준)\n2. 개선: 브리프 템플릿, 디자인팀 주간 고정 슬롯, 중간 리뷰 1회로 축소\n3. 측정: 월 제작 건수, 리드타임', '측정 지표 추가', m_choi);
+
+  -- 지난 결과물 (승인 13건) + 판단 깊이 기록
+  for i in 1..13 loop
+    insert into submissions (team_id, author_id, title, created_at)
+    values (T, (array[m_kim, m_park, m_choi, m_jung, m_kim, m_park, m_choi, m_kim, m_jung, m_park, m_choi, m_kim, m_lee])[i],
+            (array['고객 세그먼트 분석','광고 성과 진단','SNS 채널 운영안','제휴사 후보 리스트','경쟁사 캠페인 동향','광고 성과 대시보드 설계','콘텐츠 가이드라인','고객 페르소나 정의','제휴 조건 비교','리포트 자동화 계획','브랜드 톤앤매너 정리','가격 민감도 분석','CRM 메시지 개편'])[i],
+            now() - (170 - i * 11) * interval '1 day')
+    returning id into sub;
+    insert into submission_versions (submission_id, team_id, version, extracted_text, created_by, created_at)
+    values (sub, T, 1, '(데모 본문)', (select author_id from submissions where id = sub), now() - (170 - i * 11) * interval '1 day') returning id into ver;
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at)
+    values (sub, ver, T, L, '좋습니다. 이대로 진행하죠.', now() - (166 - i * 11) * interval '1 day');
+    -- 버전 업로드 트리거가 '리뷰 중'으로 돌려놓으므로, 승인은 그 뒤에
+    update submissions set status = 'approved' where id = sub;
+    update submissions set approved_at = now() - (165 - i * 11) * interval '1 day', updated_at = now() - (165 - i * 11) * interval '1 day' where id = sub;
+  end loop;
+  insert into judgment_scores (team_id, user_id, score, scored_at) values
+    (T, m_kim, 1.8, now() - interval '150 days'), (T, m_kim, 2.0, now() - interval '110 days'), (T, m_kim, 2.0, now() - interval '80 days'),
+    (T, m_kim, 2.2, now() - interval '50 days'), (T, m_kim, 2.0, now() - interval '30 days'), (T, m_kim, 2.5, now() - interval '4 days'),
+    (T, m_park, 2.5, now() - interval '100 days'), (T, m_park, 2.8, now() - interval '40 days'),
+    (T, m_choi, 2.0, now() - interval '90 days'), (T, m_choi, 2.5, now() - interval '20 days'),
+    (T, m_jung, 2.2, now() - interval '120 days'), (T, m_jung, 2.0, now() - interval '30 days'),
+    (T, m_lee, 1.5, now() - interval '60 days');
+
+  -- 관찰 메모
+  insert into observations (team_id, author_id, subject_id, kind, competency, body, occurred_at) values
+    (T, L, m_kim, 'praise', '커뮤니케이션', '임원 보고에서 프로모션 전략 질문에 근거를 들어 침착하게 답변함', current_date - 6),
+    (T, L, m_kim, 'praise', '문제 정의', '정가 런칭 가정을 스스로 뒤집고 경쟁사 캠페인 재분석을 제안함', current_date - 20),
+    (T, L, m_kim, 'concern', '실행 관리', '마감 전 야근이 반복됨. 일정 분산 필요', current_date - 12),
+    (T, L, m_kim, 'note', '데이터 분석', '시장 분석은 수치 나열에 그치는 경향', current_date - 60),
+    (T, L, m_park, 'praise', '데이터 분석', '광고 지표 정의를 영업팀과 맞춰 정리함', current_date - 15),
+    (T, L, m_park, 'praise', '협업', '다른 팀 데이터 요청을 우선순위 기준으로 조율', current_date - 40),
+    (T, L, m_choi, 'praise', '문제 정의', '제작 지연 문제를 리드타임 지표로 정의', current_date - 25),
+    (T, L, m_jung, 'note', '협업', '파트너사 데이터 수급 지연을 혼자 해결하려 함', current_date - 9),
+    (T, L, m_jung, 'praise', '커뮤니케이션', '파트너 미팅 정리가 명확함', current_date - 45),
+    (T, L, m_lee, 'concern', null, '최근 회의에서 발언이 줄어듦', current_date - 10);
+
+  -- 의사결정 (결과 기록 7건)
+  insert into decisions (team_id, title, rationale, expected_outcome, outcome, outcome_rating, decided_by, decided_at) values
+    (T, '런칭 프로모션을 얼리버드 할인으로 확정', '경쟁사 캠페인 재분석', '사전 예약 전환율 20%', null, null, L, now() - interval '14 days'),
+    (T, 'FGI 대상 8명 → 12명 확대', '2번 가설 데이터 부족', '가설 검증 가능', null, null, L, now() - interval '1 day'),
+    (T, '파일럿 광고 채널 2곳 선정', '타깃 도달률', '6주 내 CPA 목표 달성', '5주 만에 달성', 'hit', L, now() - interval '120 days'),
+    (T, '광고 리포트 자동화 우선 착수', '반복 업무 30%', '주 6시간 절감', '주 5시간 절감', 'hit', L, now() - interval '100 days'),
+    (T, '제휴 후보 5곳으로 압축', '조건 비교', '2곳 협상 진입', '1곳만 진입', 'partial', L, now() - interval '90 days'),
+    (T, '콘텐츠 브리프 템플릿 시범 운영', '제작 지연', '리드타임 3주 → 2.5주', '2.4주', 'hit', L, now() - interval '80 days'),
+    (T, '영업팀 리드 공유 주간 회의 신설', '정보 공유', '리드 전환 +10%', '변화 없음', 'miss', L, now() - interval '70 days'),
+    (T, 'SNS 운영 일부 자동화', '시간 절감', '주 4시간 절감', '주 4시간 절감', 'hit', L, now() - interval '60 days'),
+    (T, '광고 예산 상반기 집중', '신제품 사전 인지', '사전 인지도 30%', '32%', 'hit', L, now() - interval '50 days');
+
+  -- 돌아볼 결정 (결과 기록 시점이 지난 것)
+  update decisions set review_on = current_date - 1 where team_id = T and title = '런칭 프로모션을 얼리버드 할인으로 확정';
+
+  -- 조직·전사: 위에서 온 것 (org_notes 가 있을 때만)
+  if to_regclass('public.org_notes') is not null then
+    execute $q$insert into public.org_notes (team_id, author_id, kind, title, body, source, event_date, created_at) values
+      ($1, $2, 'exec', '본부장 관심사: 제휴 채널 성과와 CAC 개선 속도',
+        E'본부장 주간회의에서 두 번 연속 질문.\n"제휴 채널 신규 고객이 언제 숫자로 보이냐"\n"채널별 CAC 비교표를 다음 보고에 넣어 달라"', '본부장 주간회의', null, now() - interval '6 days'),
+      ($1, $2, 'request', '본부 4분기 마케팅 실행계획 초안 제출', '비용 15% 절감 반영, 채널별 CAC 목표 포함', '경영기획팀', current_date + 6, now() - interval '2 days'),
+      ($1, $2, 'calendar', '하반기 평가 시즌 시작 (자기평가 오픈)', '팀장 평가 의견 작성 기간 2주', 'HR팀 공지', current_date + 34, now() - interval '10 days'),
+      ($1, $2, 'peer', '영업팀 리드 공유 회의 격주 → 월 1회로 변경', '제휴로 들어온 고객 후속 연락이 늦어질 수 있음', '영업팀', null, now() - interval '9 days')$q$
+      using T, L;
+    execute $q$insert into public.org_notes (team_id, author_id, kind, title, body, source, created_at) values
+      ($1, $2, 'strategy', '4분기 전사 방침: 마케팅 비용 15% 절감, 고객 획득 효율(CAC) 중심',
+        E'전사 경영회의 결정 사항\n- 4분기 마케팅 비용 전년 대비 15% 절감\n- 채널 평가 기준을 노출·도달에서 CAC(고객 1명 획득 비용)로 변경\n- CAC가 낮은 채널(제휴 등)에 예산 우선 배정', '전사 경영회의', now() - interval '3 days') returning id$q$
+      into sub using T, L;
+    -- 영향 분석 예시 1건 (ai_kind 'org_impact' 가 같은 실행에서 막 추가된 경우엔 건너뜀)
+    begin
+      execute $q$insert into public.ai_outputs (team_id, kind, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at)
+        values ($1, 'org_impact', 'org_notes', $2, 'draft', 'leader', 'L2', 2, $3, '[]'::jsonb, $4, now() - interval '3 days')$q$
+      using T, sub, jsonb_build_object(
+        'summary', '비용 15% 절감 방침이 런칭 캠페인의 광고 집행 계획과 부딪히고, 제휴 채널 목표에는 힘이 실립니다.',
+        'level', 'high',
+        'affected', jsonb_build_array(
+          jsonb_build_object('item_id', g1, 'title', '하반기 신제품 런칭 캠페인 성공', 'how', '유튜브·인스타그램 광고 비중이 커서 비용 절감의 첫 대상이 될 수 있습니다'),
+          jsonb_build_object('item_id', g2, 'title', '제휴 채널 신규 고객 확대', 'how', 'CAC가 낮은 채널 우선 배정 방침과 맞아 예산을 더 요청할 근거가 됩니다')),
+        'actions', jsonb_build_array(
+          jsonb_build_object('label', '런칭 캠페인 광고 예산을 CAC 기준으로 다시 배분', 'kind', 'replan'),
+          jsonb_build_object('label', '채널별 CAC 비교표를 이번 주간보고에 추가', 'kind', 'report'),
+          jsonb_build_object('label', '정우성 님과 B사 데이터 막힘 해소 일정 확정 — 제휴 채널이 방침의 수혜 영역', 'kind', 'discuss')),
+        'report_line', '전사 비용 절감 방침에 맞춰 런칭 캠페인 광고 예산을 CAC 기준으로 다시 나누고, 제휴 채널 비중을 늘리겠습니다.'), L;
+    exception when others then null;
+    end;
+  end if;
+
+  -- AI 인사이트 예시 (오늘·이번 주·이번 달) — 데모 팀은 날짜가 지나도 이 해석을 보여줌
+  declare c jsonb;
+  begin
+    c := $j${
+      "headline": "실행은 순항과 정체로 갈렸고, 관리는 운영 리듬이 느슨해진 상태입니다 — 외부 의존 하나가 성과와 사람 양쪽의 병목입니다.",
+      "sections": {
+        "risk": {"summary": "리스크가 한 곳으로 몰리는 구조입니다 — 외부 데이터 의존 하나가 목표·일정·담당자 컨디션을 동시에 끌어내리고 있어, 이 의존을 풀지 않으면 다른 조치가 효과를 내기 어렵습니다.", "items": [
+          {"type": "risk", "severity": 3, "title": "제휴 채널: 데이터 막힘 → 제안서 지연 → 달성 가능성 12%", "body": "원인이 하나라 풀리면 세 가지가 같이 풀립니다.", "action": "B사 데이터 대체안 이번 주 확정", "link": "goals"},
+          {"type": "risk", "severity": 2, "title": "이정규 님 이탈 신호", "body": "컨디션 3주 하락과 1:1 공백이 겹칩니다.", "action": "이번 주 1:1", "link": "one_on_ones"}]},
+        "decide": {"summary": "결정이 미뤄지며 비용이 쌓이는 국면입니다 — 목표를 지킬지 조정할지 정하지 않은 채 실행만 이어지고 있어, 이번 주 판단이 분기 결과를 가릅니다.", "items": [
+          {"type": "risk", "severity": 3, "title": "제휴 목표(20만 명)를 조정할지, 데이터 지원을 요청해 지킬지", "body": "제안서 막힘이 목표 전망을 끌어내립니다. 전사 비용 절감 방침상 제휴 채널은 예산 우선 대상이라 지원 요청의 명분이 있습니다.", "action": "이번 주 안에 결정, 정우성 님과 15분", "link": "sim",
+            "options": ["영업본부에 B사 데이터 협조를 공식 요청해 목표 유지", "목표를 16만 명으로 낮추고 런칭 캠페인에 인력 집중", "제안서 범위를 B사 제외 2개사로 줄여 일정 우선"],
+            "impact": "기말 전망 18.6만 명 → 목표 20만 명과의 차이를 메우는 유일한 경로입니다."},
+          {"type": "pattern", "severity": 2, "title": "런칭 캠페인 광고 예산을 CAC 기준으로 다시 나눌지", "body": "전사 비용 15% 절감 방침이 런칭 캠페인 광고 집행과 부딪힙니다.", "action": "4분기 실행계획 초안 전에 결정", "link": "org",
+            "options": ["유튜브 비중을 줄이고 제휴 채널로 이동", "얼리버드 할인 기간을 줄여 비용 확보"],
+            "impact": "런칭 목표(달성 가능성 94%)는 지키면서 제휴 목표에 예산을 돌릴 수 있습니다."},
+          {"type": "pattern", "severity": 2, "title": "보고 체계 정비에 들어가는 팀 시간을 줄일지", "body": "기여도가 낮은 과제에 팀 시간 35%가 들어가고, 그중 정우성 님 몫이 45%입니다.", "action": "다음 주 계획 회의에서 결정", "link": "strategy",
+            "options": ["보고 체계 정비를 다음 분기로 미루고 정우성 님을 제휴에 집중", "박서연 님에게 리포트 운영을 넘겨 시간 분산"],
+            "impact": "정우성 님 시간이 제휴 제안서로 옮겨 가면 막힘 해소 속도가 빨라집니다."}]},
+        "perf": {"summary": "성과는 순항과 정체로 갈려 있습니다 — 문제는 실행력보다 외부에 기대는 과제에 대체 경로가 없는 계획 구조이고, 그 한 축이 팀 전망 평균을 끌어내립니다.", "items": [
+          {"type": "forecast", "severity": 2, "title": "제안서 지연이 제휴 목표 전망의 핵심 원인", "body": "최근 3주 진척 속도가 거의 0입니다.", "action": "B사 데이터 대체안으로 범위 축소", "link": "goals"},
+          {"type": "good", "severity": 1, "title": "런칭 캠페인 달성 가능성 94%", "body": "FGI·랜딩 페이지가 일정대로 갑니다.", "link": "goals"}]},
+        "people": {"summary": "팀원관리가 흔들리는 건 개인 문제보다 운영 리듬 때문입니다 — 1:1 간격이 벌어진 시기에 막힘을 혼자 끌어안는 패턴이 겹쳐 컨디션이 같이 꺾였고, 성장·인정은 일부에게만 몰려 있습니다.", "items": [
+          {"type": "risk", "severity": 3, "title": "이정규 님 3주 연속 컨디션 하락 (4 → 3 → 2)", "body": "1:1이 3주 넘게 없고, CRM 자동화 과제는 혼자 맡고 있습니다. 업무량보다 방향 불확실이 원인일 수 있습니다.", "action": "이번 주 안에 1:1 — 과제 우선순위부터 물어보기", "link": "one_on_ones"},
+          {"type": "risk", "severity": 2, "title": "정우성 님 2주째 같은 문제로 막힘", "body": "본인 힘으로 풀 수 없는 외부 데이터 문제라, 팀장이 위로 올려 줘야 풀립니다.", "action": "영업본부 협조 요청을 대신 올리기", "link": "one_on_ones"},
+          {"type": "good", "severity": 1, "title": "김도현·박서연 님 판단 깊이 상승", "body": "결과물 검토 점수와 결과 지표가 함께 올랐습니다. 지금 인정하면 효과가 큽니다.", "action": "관찰 메모로 남기기", "link": "team"},
+          {"type": "data", "severity": 1, "title": "한수진 님 평가 근거 부족", "body": "입사 6주 차로 결과물·관찰 기록이 적습니다. 평가 시즌(D-33) 전에 근거를 쌓아야 합니다.", "action": "FGI 결과물 리뷰를 근거로 남기기", "link": "reviews"}]},
+        "org": {"summary": "위와의 정렬이 늦어지고 있습니다 — 전사 기준은 비용·고객 획득 효율로 바뀌었는데 팀 계획과 보고는 아직 이전 기준이라, 임원 질문에 답할 근거가 비어 있습니다.", "items": [
+          {"type": "forecast", "severity": 2, "title": "4분기 실행계획 제출 D-6", "body": "비용 15% 절감 반영이 필요합니다.", "action": "런칭 캠페인 예산 재배분안부터 준비", "link": "org"}]}
+      },
+      "watch_next": "다음 주 파트너 데이터가 들어오는지, 이정규 님 컨디션이 반등하는지"
+    }$j$::jsonb;
+    insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
+    select T, k::public.ai_kind, 'draft', 'leader', 'L2', 2,
+           c || jsonb_build_object('period', p), '[]'::jsonb, L, now() - interval '10 minutes', current_date - d, current_date
+    from (values ('insight_daily', 'daily', 0), ('insight_weekly', 'weekly', 6), ('insight_monthly', 'monthly', 30)) v(k, p, d);
+  exception when others then null;
+  end;
+
+  -- 지난해 목표 (팀목표 '연도별 기록' 예시) — 모두 끝난 상태
+  declare py int := extract(year from current_date)::int - 1; pg uuid;
+  begin
+    insert into work_items (team_id, owner_id, title, measure, status, progress, sort, start_date, due_date, base_start, base_due, done_at, contribution, created_at, updated_at)
+      values (T, L, '브랜드 리뉴얼 캠페인 런칭', 'children', 'done', 100, 1, make_date(py, 3, 1), make_date(py, 9, 30), make_date(py, 3, 1), make_date(py, 8, 31), make_date(py, 9, 30), 5, make_date(py, 2, 20), make_date(py, 9, 30)) returning id into pg;
+    insert into work_items (team_id, parent_id, owner_id, title, measure, status, progress, sort, start_date, due_date, base_start, base_due, done_at, created_at, updated_at) values
+      (T, pg, m_kim, '리뉴얼 콘셉트·네이밍', 'check', 'done', 100, 1, make_date(py, 3, 1), make_date(py, 5, 15), make_date(py, 3, 1), make_date(py, 4, 30), make_date(py, 5, 15), make_date(py, 2, 20), make_date(py, 5, 15)),
+      (T, pg, m_choi, '런칭 콘텐츠 20종 제작', 'check', 'done', 100, 2, make_date(py, 5, 1), make_date(py, 8, 31), make_date(py, 5, 1), make_date(py, 8, 15), make_date(py, 8, 31), make_date(py, 2, 20), make_date(py, 8, 31)),
+      (T, pg, m_park, '런칭 광고 집행', 'check', 'done', 100, 3, make_date(py, 8, 1), make_date(py, 9, 30), make_date(py, 8, 1), make_date(py, 8, 31), make_date(py, 9, 30), make_date(py, 2, 20), make_date(py, 9, 30));
+    insert into work_items (team_id, owner_id, title, measure, status, progress, sort, start_date, due_date, base_start, base_due, done_at, contribution, created_at, updated_at)
+      values (T, L, '신규 고객 10만 명 확보', 'children', 'done', 82, 2, make_date(py, 1, 2), make_date(py, 12, 31), make_date(py, 1, 2), make_date(py, 12, 31), make_date(py, 12, 31), 5, make_date(py, 1, 2), make_date(py, 12, 31)) returning id into pg;
+    insert into work_items (team_id, parent_id, owner_id, title, measure, status, progress, sort, start_date, due_date, base_start, base_due, done_at, created_at, updated_at) values
+      (T, pg, m_park, '퍼포먼스 채널 신규 6만 명', 'percent', 'done', 95, 1, make_date(py, 1, 2), make_date(py, 12, 31), make_date(py, 1, 2), make_date(py, 12, 31), make_date(py, 12, 31), make_date(py, 1, 2), make_date(py, 12, 31)),
+      (T, pg, m_jung, '제휴 채널 신규 4만 명', 'percent', 'done', 62, 2, make_date(py, 3, 1), make_date(py, 12, 31), make_date(py, 3, 1), make_date(py, 11, 30), make_date(py, 12, 31), make_date(py, 1, 2), make_date(py, 12, 31));
+  exception when others then null;
+  end;
+
+  -- 업무플랫폼: 리뷰 대기 결과물 2건의 AI 1차 검토 + 다가오는 1:1의 AI 준비 노트
+  declare v1 uuid; v2 uuid; o1 uuid;
+  begin
+    select sv.id into v1 from submission_versions sv join submissions s on s.id = sv.submission_id
+      where s.team_id = T and s.title = '하반기 신제품 런칭 캠페인 기획서' order by sv.version desc limit 1;
+    select sv.id into v2 from submission_versions sv join submissions s on s.id = sv.submission_id
+      where s.team_id = T and s.title = '콘텐츠 제작 프로세스 개선안' order by sv.version desc limit 1;
+    insert into public.ai_outputs (team_id, kind, subject_user_id, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at) values
+      (T, 'review', m_kim, 'submission_versions', v1, 'draft', 'leader', 'L1', 1, $j${
+        "depth_score": 3.0,
+        "summary": "프로모션을 얼리버드 할인으로 바꾼 근거와 버린 대안이 분명합니다. 다만 가설 2(3040 고객)는 검증 데이터가 아직 부족합니다.",
+        "strengths": [{"section": "§2 프로모션", "text": "경쟁사 재분석으로 정가 런칭을 버린 이유와 대안 2개를 비교해 밝혔습니다."},
+                      {"section": "§4 가설", "text": "가설마다 검증 방법(예약 데이터, FGI)을 붙였습니다."}],
+        "gaps": [{"section": "§4 가설 2", "text": "3040 직장인이 주 고객이라는 근거가 FGI 계획뿐이라 아직 주장 수준입니다."},
+                 {"section": "§3 채널", "text": "제휴 채널(B사) 확대가 데이터 수급 지연과 어떻게 맞물리는지 빠져 있습니다."}],
+        "questions": ["얼리버드 15%가 사전 예약 전환율 20%로 이어진다는 근거는?", "B사 데이터가 늦어지면 3단계 채널 계획은 어떻게 바뀌나요?"],
+        "change_from_previous": "정가 런칭에서 얼리버드 할인으로 바꾸고, 버린 대안과 이유를 새로 적었습니다.",
+        "criteria_check": [{"criterion": "결론부터 쓴다", "met": false, "note": "§1 시장 분석으로 시작해 결론이 뒤에 있습니다."},
+                           {"criterion": "대안 비교", "met": true, "note": "§2에서 정가·상시 할인을 비교했습니다."},
+                           {"criterion": "숫자와 출처", "met": true, "note": "시장 규모·점유율에 수치를 달았습니다."}]
+      }$j$::jsonb, '[]'::jsonb, m_kim, now() - interval '4 days'),
+      (T, 'review', m_choi, 'submission_versions', v2, 'draft', 'leader', 'L1', 1, $j${
+        "depth_score": 2.0,
+        "summary": "현황 수치와 측정 지표를 붙여 실행 가능한 안이 됐지만, 개선안이 왜 리드타임을 줄이는지 인과가 약합니다.",
+        "strengths": [{"section": "1. 현황", "text": "최근 10건 기준 리드타임 3주로 기준선을 잡았습니다."}],
+        "gaps": [{"section": "2. 개선", "text": "브리프 템플릿·고정 슬롯이 각각 며칠을 줄이는지 추정이 없습니다."},
+                 {"section": "3. 측정", "text": "목표치(예: 2주)가 없어 성공 여부를 판단하기 어렵습니다."}],
+        "questions": ["세 가지 개선 중 리드타임을 가장 많이 줄이는 건 무엇이라고 보나요?", "디자인팀 고정 슬롯은 디자인팀과 합의됐나요?"],
+        "change_from_previous": "측정 지표(월 제작 건수, 리드타임)를 추가했습니다.",
+        "criteria_check": [{"criterion": "결론부터 쓴다", "met": true, "note": "첫 줄에 개선안을 밝혔습니다."},
+                           {"criterion": "대안 비교", "met": false, "note": "다른 개선 방법과 비교가 없습니다."}]
+      }$j$::jsonb, '[]'::jsonb, m_choi, now() - interval '1 day');
+    select id into o1 from one_on_ones where team_id = T and member_id = m_kim and status = 'scheduled' order by scheduled_at limit 1;
+    if o1 is not null then
+      insert into public.ai_outputs (team_id, kind, subject_user_id, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at)
+      values (T, 'one_on_one_prep', m_kim, 'one_on_ones', o1, 'draft', 'leader', 'L2', 2, $j${
+        "last_time": "런칭 프로모션을 얼리버드 할인 중심으로 바꾸는 방향에 합의했고, 2번 가설은 고객 FGI로 검증하기로 했습니다.",
+        "since": [{"text": "기획서 v3 제출 — 얼리버드 할인으로 전면 수정"}, {"text": "판단 깊이 2.0 → 3.0으로 상승"}],
+        "open_promises": [{"owner": "팀장", "text": "경쟁사 캠페인 분석 리포트 공유", "overdue": true}, {"owner": "팀원", "text": "FGI 설계안 초안", "overdue": false}],
+        "recent_work": "기획서 v3에서 대안 비교와 가설별 검증 계획이 뚜렷해졌습니다.",
+        "watch": "판단 깊이가 눈에 띄게 올랐습니다. 지금 인정하고, FGI 일정이 B사 데이터 지연과 겹치지 않는지 확인하세요.",
+        "questions": ["얼리버드 할인을 결정한 가장 결정적인 근거는 무엇이었나요?", "FGI에서 꼭 확인하고 싶은 것 하나만 꼽는다면?", "제가 먼저 풀어 줘야 할 막힘이 있나요?"]
+      }$j$::jsonb, '[]'::jsonb, L, now() - interval '2 hours');
+    end if;
+  exception when others then null;
+  end;
+
+  -- 팀원관리: 이번 주 AI 액션 추천 + 팀원별 업무 판단
+  begin
+    execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
+      values ($1, 'people_actions', 'draft', 'leader', 'L2', 2, $2, '[]'::jsonb, $3, now() - interval '30 minutes', date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 6)$q$
+    using T, jsonb_build_object(
+      'summary', '이번 주는 이정규 님 1:1과 정우성 님 막힘 해소가 먼저이고, 김도현 님은 지금 인정할 타이밍입니다.',
+      'actions', jsonb_build_array(
+        jsonb_build_object('user_id', m_lee, 'type', 'one_on_one', 'urgency', 3, 'title', '이정규 님과 1:1 — 이번 주 안에',
+          'why', '컨디션이 3주 연속 떨어졌고(4 → 3 → 2) 마지막 1:1이 3주 전입니다.', 'opener', '요즘 일하면서 에너지가 가장 떨어지는 순간이 언제예요?'),
+        jsonb_build_object('user_id', m_jung, 'type', 'support', 'urgency', 3, 'title', '정우성 님 챙기기 — 어려운 점 들어 주기',
+          'why', '2주째 같은 막힘이 체크인에 반복돼 지쳐 있을 수 있습니다.', 'request', '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 제가 도울 수 있는 건 같이 할게요.'),
+        jsonb_build_object('user_id', m_kim, 'type', 'praise', 'urgency', 2, 'title', '김도현 님께 칭찬 배지',
+          'why', '최근 결과물의 판단 깊이가 꾸준히 올랐고(2.0 → 3.0), 대안을 비교하고 근거를 남기는 방식이 자리 잡았습니다.', 'message', '요즘 결과물마다 대안을 따져 보고 근거를 남기는 게 보여서 든든해요. 고마워요!'),
+        jsonb_build_object('user_id', m_han, 'type', 'observe', 'urgency', 2, 'title', '한수진 님 관찰 기록 남기기',
+          'why', '입사 6주 차로 평가 근거가 기준에 못 미칩니다. 이번 주 일하는 모습을 보고 한 줄 남겨 두세요.'),
+        jsonb_build_object('user_id', m_kim, 'type', 'develop', 'urgency', 1, 'title', '김도현 님께 더 큰 역할 제안하기',
+          'why', '판단 깊이가 꾸준히 올라 다음 단계 역할을 이야기할 시점입니다.', 'request', '다음 분기에는 더 넓은 범위를 직접 리드해 보면 좋겠어요. 어떤 걸 맡아 보고 싶은지 이야기해 봐요.'),
+        jsonb_build_object('user_id', m_choi, 'type', 'push', 'urgency', 1, 'title', '최민아 님과 진행 공유 리듬 맞추기',
+          'why', '결과물이 리뷰 단계에 머물러 있고 최근 진행 공유 간격이 길어졌습니다.', 'request', '이번 주부터 금요일마다 진행 상황을 한 줄로 공유해 줄래요? 막히는 게 있으면 같이 봐요.'),
+        jsonb_build_object('user_id', m_park, 'type', 'praise', 'urgency', 1, 'title', '박서연 님께 꾸준함 인정하기',
+          'why', '정기 업무를 빠짐없이 운영하고 결과물이 대부분 한 번에 통과했습니다.', 'message', '매달 빠짐없이 챙겨 주는 꾸준함 덕분에 팀이 숫자를 믿고 움직여요. 고마워요!')),
+      'members', jsonb_build_array(
+        jsonb_build_object('user_id', m_kim, 'work_status', 'good', 'work_view', '런칭 기획이 계획보다 조금 늦지만 결과물 품질이 뚜렷이 올랐습니다. 핵심 과제를 안정적으로 끌고 갑니다.', 'flight_risk', 'low', 'flight_note', '컨디션이 안정적이고 1:1이 꾸준합니다.'),
+        jsonb_build_object('user_id', m_park, 'work_status', 'good', 'work_view', '정기 리포트를 빠짐없이 운영하고 결과물도 한 번에 통과하는 편입니다. 다만 업무가 겹쳐 시간이 빠듯합니다.', 'flight_risk', 'low', 'flight_note', '특이 신호가 없습니다.'),
+        jsonb_build_object('user_id', m_choi, 'work_status', 'good', 'work_view', '프로세스 개선이 계획대로 가고, 개선안에 측정 지표를 붙이는 등 결과물이 나아지고 있습니다.', 'flight_risk', 'low', 'flight_note', '특이 신호가 없습니다.'),
+        jsonb_build_object('user_id', m_jung, 'work_status', 'support', 'work_view', '제안서가 외부 데이터 막힘으로 계획보다 크게 늦고, 보고 체계 정비도 진척이 더딥니다. 본인 역량보다 외부 의존이 원인입니다.', 'flight_risk', 'medium', 'flight_note', '같은 막힘이 2주째 반복되고 일이 몰려 있습니다.'),
+        jsonb_build_object('user_id', m_lee, 'work_status', 'watch', 'work_view', 'CRM 연계 과제가 계획보다 조금 늦지만 큰 이탈은 없습니다. 혼자 맡은 과제라 방향 확인이 필요합니다.', 'flight_risk', 'high', 'flight_note', '컨디션 3주 연속 하락과 1:1 공백이 겹칩니다.'),
+        jsonb_build_object('user_id', m_han, 'work_status', 'good', 'work_view', 'FGI 준비를 일정대로 진행 중이나 아직 올린 결과물이 적어 판단 근거가 얇습니다.', 'flight_risk', 'low', 'flight_note', '신규 입사자로 적응 중입니다.'))
+    ), L;
+  exception when others then null;
+  end;
+
+  -- A·Team의 제안: 이번 주 + 지난주(회고용) + 지난주 제안 상태 + 팀장 셀프 체크
+  begin
+    execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
+      values ($1, 'advisor_weekly', 'draft', 'leader', 'L3', 2, $2, '[]'::jsonb, $3, now() - interval '7 days 20 minutes', date_trunc('week', current_date)::date - 7, date_trunc('week', current_date)::date - 1)$q$
+    using T, $j${"headline": "실행은 순항하지만 사람 관리의 리듬이 느슨해지고 있습니다 — 1:1과 기준 공유로 다시 조이는 주입니다.", "focus": "제휴 목표 — 고객사 데이터 수급이 공식 경로로 요청되지 않았습니다.", "levers": {"exec": {"state": "watch", "note": "제휴 과제가 2주째 같은 막힘입니다."}, "staffing": {"state": "good", "note": "부하는 고른 편입니다."}, "people": {"state": "act", "note": "1:1 간격이 평균 19일로 벌어졌습니다."}, "external": {"state": "watch", "note": "데이터 수급이 비공식 경로에만 의존합니다."}, "self": {"state": "good", "note": "특이 신호 없음."}, "system": {"state": "watch", "note": "결과물 보완점이 같은 주제로 반복됩니다."}}, "advice": [{"id": "a1", "lever": "people", "urgency": 3, "effort": "low", "title": "1:1 간격을 2주 이내로 되돌리세요", "why": "1:1 평균 간격이 19일로 벌어졌습니다.", "effect": "막힘을 일찍 듣게 됩니다.", "if_not": "컨디션 하락을 늦게 알게 됩니다.", "route": "one_on_one", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "system", "urgency": 2, "effort": "mid", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "why": "보완점이 같은 주제로 반복됩니다.", "effect": "수정 횟수가 줄어듭니다.", "if_not": "리뷰 시간이 계속 늘어납니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a3", "lever": "external", "urgency": 2, "effort": "low", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "why": "비공식 경로로 2주를 기다렸습니다.", "effect": "회신 날짜가 정해집니다.", "if_not": "막힘이 계속됩니다.", "route": "report", "target_user_id": "", "script": ""}], "review": [], "watch_next": "이정규 님 컨디션."}$j$::jsonb, L;
+    execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
+      values ($1, 'advisor_weekly', 'draft', 'leader', 'L3', 3, $2, '[]'::jsonb, $3, now() - interval '20 minutes', date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 6)$q$
+    using T, replace($j${"headline": "성과는 외부 의존 하나에 묶여 있고, 운영은 팀장 시간이 순항하는 사람 쪽으로 쏠려 있습니다 — 이번 주는 '막힌 곳으로 사람과 시간을 옮기는 주'입니다.", "focus": "제휴 목표(20만 명) — 고객사 데이터 수급이 풀리지 않으면 4분기 전망이 18.6만 명 근처에서 멈춥니다.", "levers": {"exec": {"state": "act", "note": "제휴 과제가 3주째 같은 막힘(고객사 데이터)으로 멈춰 있고, 계획에 대체 경로가 없습니다."}, "staffing": {"state": "watch", "note": "제휴 목표의 하위 일 3건이 모두 정우성 님 한 사람에게 있고, 김도현 님은 가용 시간의 70%만 쓰고 있습니다."}, "people": {"state": "watch", "note": "최근 4주 칭찬·관찰이 김도현·박서연 님에게 몰렸고, 이정규 님은 컨디션이 3주째 내려가는데 팀장 접점이 가장 적습니다."}, "external": {"state": "act", "note": "전사 비용 15% 절감 방침이 런칭 캠페인 예산과 부딪히는데, 아직 위로 방향을 확인하지 않았습니다."}, "self": {"state": "watch", "note": "리뷰 대기 6건(가장 오래 5일)과 검토 중 결정 3건이 겹쳐 있고, 최근 2주 앱 활동의 31%가 밤 10시 이후·주말입니다."}, "system": {"state": "good", "note": "체크인 제출 5/6명으로 주간 리듬은 유지됩니다. 다만 결과물 보완점이 '근거·데이터'에 반복됩니다."}}, "advice": [{"id": "a1", "lever": "exec", "urgency": 3, "effort": "low", "title": "제휴 과제에 '대체 데이터 경로'를 이번 주 안에 계획으로 넣으세요 — 고객사 데이터를 기다리는 동안 공개 데이터와 파일럿 고객 2곳으로 1차안을 만들게 하세요.", "why": "같은 막힘이 3주째 체크인에 반복되고, 제휴 목표 달성 가능성이 12%까지 내려왔습니다.", "effect": "데이터 회신이 늦어져도 11월 첫 주에 1차 제안이 가능해지고, 목표 전망의 바닥이 올라갑니다.", "if_not": "회신이 2주 더 밀리면 4분기 제휴 목표는 조정이 불가피합니다.", "route": "decide", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "staffing", "urgency": 2, "effort": "mid", "title": "제휴 과제의 '데이터 정리' 1건을 김도현 님에게 옮겨 정우성 님 한 사람 의존을 푸세요.", "why": "제휴 하위 일 3건이 한 사람에게 몰려 있고(주 46시간/가용 40시간), 김도현 님은 여유가 있습니다.", "effect": "정우성 님은 파트너 협상에 집중하고, 막힘이 한 곳에서 전체로 번지는 걸 막습니다.", "if_not": "정우성 님 과부하가 이어지면 이탈 주의 신호가 '높음'으로 올라갈 수 있습니다.", "route": "request", "target_user_id": "{{KIM}}", "script": "도현 님, 제휴 제안서의 데이터 정리 파트를 이번 주부터 맡아 줄 수 있을까요? 우성 님이 파트너 협상에 집중할 수 있게 하려는 거예요. 필요한 시간은 같이 조정할게요."}, {"id": "a3", "lever": "external", "urgency": 3, "effort": "low", "title": "비용 절감 방침과 런칭 예산의 충돌을 이번 주 본부장 보고에 먼저 올리세요 — 결정권은 위에 있습니다.", "why": "전사 방침(비용 15% 절감)이 런칭 캠페인 광고 집행과 부딪히는데, 팀 안에서 결론을 내기 어려운 사안입니다.", "effect": "예산 축소 범위가 일찍 정해지면 4분기 실행계획 초안을 다시 쓰지 않아도 됩니다.", "if_not": "실행계획 확정 직전에 예산이 깎이면 런칭 일정 전체가 밀립니다.", "route": "report", "target_user_id": "", "script": "전사 비용 15% 절감 방침에 맞춰 런칭 캠페인 광고 예산을 CAC 기준으로 재배분하려 합니다. 다만 제휴 목표(20만 명)에 필요한 최소 예산은 유지가 필요해, 이번 주 안에 방향 확인 부탁드립니다."}, {"id": "a4", "lever": "self", "urgency": 2, "effort": "low", "title": "리뷰 대기 6건 중 정기 보고 2건은 박서연 님에게 1차 리뷰를 맡기고, 아낀 시간을 이정규·정우성 님에게 쓰세요.", "why": "최근 4주 팀장 접점의 48%가 김도현·박서연 님 두 사람에게 갔고, 필요도가 높은 이정규 님은 팀 평균의 0.6배입니다.", "effect": "리뷰 적체가 절반으로 줄고, 이탈 주의 두 사람에게 이번 주 1:1 시간이 생깁니다.", "if_not": "적체와 늦은 시간 작업이 이어지면 결정이 더 미뤄지는 악순환이 됩니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a5", "lever": "people", "urgency": 1, "effort": "low", "title": "이번 주 금요일 점심을 '런칭 준비 중간 점검 + 김도현 님 기획서 통과 축하' 자리로 잡으세요.", "why": "팀 컨디션이 3.6으로 내려가는 중이고, 인정이 일부에게만 보이는 상태입니다.", "effect": "짧고 부담 없는 자리로 팀 전체가 진척을 함께 보고, 인정이 팀 전체의 이야기가 됩니다.", "if_not": "막힌 사람과 순항하는 사람 사이의 온도 차가 커집니다.", "route": "calendar", "target_user_id": "", "script": "금요일 점심은 다 같이 먹어요 — 런칭 준비 중간 점검 겸, 도현 님 기획서 통과도 축하해요."}], "review": [{"id": "a1", "title": "1:1 간격을 2주 이내로 되돌리세요", "verdict": "partial", "observed": "정우성·한수진 님과는 1:1을 했지만, 이정규 님은 아직 3주째 1:1이 없습니다."}, {"id": "a2", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "verdict": "not_done", "observed": "기준 카드가 공개되지 않았고, 이번 주에도 보완점 2건이 '근거·데이터'였습니다."}, {"id": "a3", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "verdict": "done", "observed": "영업본부 요청이 기록됐고, 파트너사 회신은 '11월 둘째 주 이후 가능'으로 왔습니다."}], "watch_next": "고객사 데이터 회신 날짜와 이정규 님 다음 체크인의 컨디션."}$j$, '{{KIM}}', m_kim::text)::jsonb, L;
+    execute $q$insert into public.advice_status (team_id, advice_key, status, updated_by) values
+      ($1, (date_trunc('week', current_date)::date - 7)::text || ':a1', 'adopted', $2),
+      ($1, (date_trunc('week', current_date)::date - 7)::text || ':a2', 'held', $2),
+      ($1, (date_trunc('week', current_date)::date - 7)::text || ':a3', 'done', $2) on conflict do nothing$q$ using T, L;
+    execute $q$insert into public.leader_selfcheck (team_id, user_id, week_start, energy, burden, note) values
+      ($1, $2, date_trunc('week', current_date)::date - 14, 4, 3, ''),
+      ($1, $2, date_trunc('week', current_date)::date - 7, 3, 4, '런칭·제휴가 겹쳐 리뷰가 밀림') on conflict do nothing$q$ using T, L;
+  exception when others then null;
+  end;
+
+  -- 상향 관리: 상위 관리자 2명 + 위에서 온 것 연결 + 임원 브리핑
+  declare e1 uuid; e2 uuid;
+  begin
+    execute $q$insert into public.executives (team_id, name, title, style_tags, interests, prefs, sort) values ($1, '김정훈', '마케팅본부장', array['숫자·근거 중시','결론 먼저','비용·효율'],
+      '제휴 채널 성과와 CAC 개선 속도. 지난달 대비 숫자로 물음', '월요일 본부 주간회의 · 1페이지 · 결론 먼저', 0) returning id$q$ into e1 using T;
+    execute $q$insert into public.executives (team_id, name, title, style_tags, interests, prefs, sort) values ($1, '이수경', '전략기획 상무', array['리스크 민감','고객 관점','디테일 확인'],
+      '4분기 실행계획의 리스크와 대안, 런칭 일정', '격주 · 이슈 중심 · 대안 2개 이상', 1) returning id$q$ into e2 using T;
+    execute $q$update public.org_notes set exec_id = $2 where team_id = $1 and kind = 'exec'$q$ using T, e1;
+    execute $q$update public.org_notes set exec_id = $2 where team_id = $1 and kind = 'request'$q$ using T, e2;
+    execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
+      values ($1, 'exec_brief', 'draft', 'leader', 'L3', 3, $2, '[]'::jsonb, $3, now() - interval '40 minutes', date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 6)$q$
+    using T, replace(replace(replace($j${"headline": "위에서 보면 우리 팀은 '런칭은 순항, 제휴는 숫자가 안 보이는 팀'입니다 — 이번 주 질문은 제휴 채널과 CAC에 몰릴 가능성이 큽니다.", "execs": [{"exec_id": "{{E1}}", "name": "김정훈", "lens": "비용 15% 절감 방침 아래에서 '제휴 채널이 CAC를 낮추는 근거가 숫자로 보이는가'", "opener": "제휴 채널은 아직 목표 대비 56%지만, CAC는 1.1만 원으로 채널 중 가장 낮습니다 — 남은 변수는 B사 데이터 하나입니다.", "questions": [{"q": "제휴 신규 고객이 언제 숫자로 보이나?", "why": "주간회의에서 두 번 연속 물었고, 현재 누적 11.2만 명으로 목표 20만 명의 56%입니다.", "prep": "기준 전망 18.6만 명(93%) · B사 데이터가 11월 둘째 주 이후 → 대체 경로(공개 데이터·파일럿 2곳)로 11월 첫 주 1차 제안 가능"}, {"q": "채널별 CAC 비교표는 준비됐나?", "why": "지난 회의에서 다음 보고에 넣어 달라고 요청했습니다.", "prep": "10월 광고 성과 리포트 기준 유튜브 3.2만 · 인스타그램 2.6만 · 제휴 1.1만 원 — 박서연 님 리포트에서 바로 가져올 수 있음"}, {"q": "비용 15% 절감은 어디서 줄이나?", "why": "전사 방침의 첫 대상이 광고 집행입니다.", "prep": "유튜브 예산 20%를 제휴로 이동하는 안 (10월 리포트 제안) — 런칭 사전 예약 전환율 18%는 유지"}], "challenges": [{"point": "제휴 목표 달성 가능성 12%", "why": "같은 막힘이 3주째 반복되고 계획에 대체 경로가 없습니다.", "prep": "인정: 외부 데이터 의존을 늦게 다뤘다. 대안: 대체 데이터 경로를 이번 주 계획에 넣고, 목표 조정 여부를 11월 첫 주에 판단"}, {"point": "보고 체계 정비가 계속 밀림", "why": "계획 변경 2회, 진척 정체.", "prep": "범위를 대시보드 1차 화면으로 줄이고 나머지는 1월로"}]}, {"exec_id": "{{E2}}", "name": "이수경", "lens": "4분기 실행계획이 '최악의 경우'까지 대비돼 있는가", "opener": "실행계획 초안은 제휴 데이터 지연을 가장 큰 리스크로 두고, 대체 경로까지 넣어 6일 뒤 제출하겠습니다.", "questions": [{"q": "실행계획 초안은 기한(D-6) 안에 나오나?", "why": "경영기획팀 요청 기한이 다가옵니다.", "prep": "초안 골격 완료 · 채널별 CAC 목표만 남음 — 금요일 내부 리뷰 후 제출"}, {"q": "B사 데이터가 안 들어오면 어떻게 되나?", "why": "리스크 중심으로 보는 분이고 외부 의존이 가장 큰 변수입니다.", "prep": "최악: 4분기 제휴 목표 약 18만 명에서 멈춤 → 대체 채널 2곳으로 1.4만 명 보완안"}], "challenges": [{"point": "런칭과 제휴가 같은 사람·같은 시기에 겹침", "why": "제휴 하위 과제 3건이 한 사람에게 몰려 있습니다.", "prep": "데이터 정리 1건을 김도현 님에게 옮기는 재배분 계획을 함께 보고"}]}], "requests": [{"note_id": "", "title": "본부 4분기 마케팅 실행계획 초안 제출", "due": "{{D6}}", "status": "진행 중", "reply": "4분기 실행계획 초안은 비용 15% 절감과 채널별 CAC 목표를 반영해 기한 안에 제출하겠습니다. 제휴 데이터 지연에 대비한 대체 경로도 함께 넣었습니다."}, {"note_id": "", "title": "채널별 CAC 비교표를 다음 보고에 추가", "due": "", "status": "미답", "reply": "채널별 CAC는 유튜브 3.2만 · 인스타그램 2.6만 · 제휴 1.1만 원입니다. 다음 주간회의에 비교표로 정리해 가겠습니다."}], "share_first": [{"title": "B사 데이터는 11월 둘째 주 이후 — 제휴 목표 일정에 영향", "why": "다른 경로로 들으면 '왜 미리 말 안 했나'가 됩니다.", "tone": "bad"}, {"title": "런칭 사전 예약 1,840명 · 전환율 18%", "why": "본부장 관심사(효율)에 바로 답이 되는 좋은 숫자입니다.", "tone": "good"}], "watch": "B사 회신 날짜, 실행계획 제출 후 예산 배분 결정."}$j$, '{{E1}}', e1::text), '{{E2}}', e2::text), '{{D6}}', (current_date + 6)::text)::jsonb, L;
+  exception when others then null;
+  end;
+
+  -- 팀원 평가: 김도현 님 예상 등급(시뮬레이션) + 의견 초안
+  begin
+    execute $q$insert into public.ai_outputs (team_id, kind, subject_user_id, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
+      values ($1, 'evaluation_draft', $2, 'draft', 'leader', 'L3', 3, $3, '[]'::jsonb, $4, now() - interval '1 day',
+        make_date(extract(year from current_date)::int, case when extract(month from current_date) >= 7 then 7 else 1 end, 1),
+        make_date(extract(year from current_date)::int, case when extract(month from current_date) >= 7 then 12 else 6 end, case when extract(month from current_date) >= 7 then 31 else 30 end))$q$
+    using T, m_kim, $j${"grade": {"expected": "A", "range": ["B", "A"], "confidence": "medium", "rationale": "핵심 과제(신제품 런칭 기획)를 끌고 가면서 결과물의 판단 깊이가 2.0에서 3.0으로 뚜렷이 올랐고, 결과물 대부분이 한 번에 승인됐습니다. 다만 런칭 일정은 계획보다 조금 늦습니다.", "up": [{"text": "가격 전략을 데이터로 스스로 뒤집고, 버린 대안과 이유를 남김 (기획서 v3)", "evidence": []}, {"text": "결과물 8건 중 6건 승인, 그중 4건이 한 번에 통과", "evidence": []}, {"text": "본부장 질의에 근거를 들어 답함 (1:1 기록)", "evidence": []}], "down": [{"text": "시장 분석처럼 정형 업무에서는 자기 관점이 약하다는 보완점이 두 번 반복", "evidence": []}], "missing": "실행 관리(일정 준수) 근거가 아직 적어 A로 확정하기는 이릅니다. 11월 런칭 결과를 보면 확실해집니다."}, "overall": "문제를 끝까지 붙들고 방향을 다시 잡는 힘이 이번 기간 가장 두드러졌습니다. 신제품 가격 전략에서 처음 가정을 데이터로 뒤집고 대안을 비교해 남긴 과정이 대표적입니다. 결과물의 판단 깊이가 꾸준히 올라 팀의 핵심 과제를 맡길 수 있는 수준입니다. 다만 정해진 틀을 채우는 작업에서는 자기 관점이 덜 드러납니다.", "strengths": [{"title": "근거 기반의 방향 전환", "detail": "초기 가정을 고집하지 않고 데이터를 보고 전략을 고쳤습니다.", "evidence": []}, {"title": "결과물 품질의 꾸준한 상승", "detail": "판단 깊이 2.0 → 3.0, 대부분 한 번에 승인됐습니다.", "evidence": []}], "growth": [{"title": "정형 업무에서의 자기 관점", "detail": "시장 분석 등에서 일반적 정리에 머무는 경우가 있습니다.", "evidence": []}, {"title": "일정 관리", "detail": "런칭 기획이 계획보다 조금 늦습니다.", "evidence": []}], "competencies": [{"name": "문제 정의", "signal": "강함", "evidence": []}, {"name": "데이터 분석", "signal": "보통", "evidence": []}, {"name": "커뮤니케이션", "signal": "강함", "evidence": []}, {"name": "실행 관리", "signal": "근거 부족", "evidence": []}], "coaching": "다음 기간에는 일정이 분명한 과제를 맡기고 2주 단위로 진척을 함께 점검해 실행 관리 근거를 쌓으세요."}$j$::jsonb, L;
+  exception when others then null;
+  end;
+
+  -- 업무플랫폼: 최근에 올라온 다양한 업무 (컨펌·의견·공유 / 보고서·링크·캡처·메모·숫자)
+  declare r record; sid uuid;
+  begin
+    for r in select * from (values
+      (m_jung, t3, '제휴 제안서 — B사 제외 2개사 안, 의견 부탁드려요', 'note', 'feedback', null::text, E'B사 데이터가 이번 달 안에 들어오기 어려워 보여서, A사·C사 두 곳으로 범위를 줄인 안을 만들었습니다. 목표 영향은 약 -1.4만 명으로 봅니다. 이 방향으로 가도 될지 의견 부탁드려요.', 2),
+      (m_jung, t3, 'B사 데이터 수급 지연 현황 (메일 캡처)', 'image', 'share', null, '파트너사 회신 메일 캡처 — 11월 둘째 주 이후 가능', 1),
+      (m_park, t7, '10월 광고 성과 리포트', 'document', 'approval', null, E'10월 광고 성과 리포트\n1. 채널별 CAC: 유튜브 3.2만 원, 인스타그램 2.6만 원, 제휴 1.1만 원\n2. 런칭 사전 예약 전환율 18%\n3. 11월 제안: 유튜브 예산 20% 제휴로 이동', 0),
+      (m_park, t7, '광고 성과 대시보드 개편 1차 화면', 'link', 'share', 'https://example.com/dashboard-v1', '요청하신 1차 배포 화면 링크입니다', 3),
+      (m_lee, t4, 'CRM 웰컴 메시지 A/B안', 'document', 'feedback', null, E'A안: 혜택 중심 (첫 구매 15%)\nB안: 브랜드 스토리 중심\n제휴 유입 고객 대상, 2주 테스트 예정. 어느 쪽이 나을지 의견 주세요.', 1),
+      (m_han, t1, 'FGI 1차 4명 결과 메모', 'note', 'share', null, E'4명 중 3명이 얼리버드 할인에 긍정적. 3040 직장인 2명은 가격보다 배송 속도를 더 중요하게 봄.', 4),
+      (m_choi, t5, '11월 콘텐츠 캘린더', 'link', 'feedback', 'https://example.com/content-calendar-11', '런칭 주간에 콘텐츠를 몰았는데 괜찮을지 봐 주세요', 2),
+      (m_kim, t1, '런칭 사전 예약 누적 수', 'number', 'share', null, '사전 예약 누적', 0)
+    ) as x(author, item, title, kind, rtype, link, body, ago) loop
+      insert into submissions (team_id, author_id, item_id, title, kind, request_type, link_url, created_at)
+        values (T, r.author, r.item, r.title, r.kind, r.rtype, r.link, now() - (r.ago || ' days')::interval - interval '3 hours') returning id into sid;
+      insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at, value)
+        values (sid, T, 1, r.body, '', r.author, now() - (r.ago || ' days')::interval - interval '3 hours', case when r.kind = 'number' then 1840 else null end);
+    end loop;
+  exception when others then null;
+  end;
+end $fn$;
+revoke all on function public.seed_demo_team(uuid, uuid, uuid[]) from public, anon, authenticated;
+grant execute on function public.seed_demo_team(uuid, uuid, uuid[]) to service_role;
+
+-- >>>>>>>>>> 20261015000011_org_notes.sql
+-- =====================================================================
+-- 홈 개편 ④ 조직·전사: '위에서 온 것' 메모 + AI 영향 분석
+--   · org_notes — 전략·방향 변경 / 임원 관심사 / 상위 요청 / 유관 부서 / 전사 일정 (팀장만 보고 씀)
+--   · ai_kind 'org_impact' — 메모를 팀 목표·과제와 맞춰 본 영향 분석 (코어 AI)
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'org_impact';
+
+create table if not exists public.org_notes (
+  id          uuid primary key default gen_random_uuid(),
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  author_id   uuid references public.profiles(id) on delete set null default auth.uid(),
+  kind        text not null default 'other' check (kind in ('strategy', 'exec', 'request', 'peer', 'calendar', 'other')),
+  title       text not null,
+  body        text not null default '',
+  source      text not null default '',        -- 어디서 들었는지 (예: 본부장 주간회의)
+  event_date  date,                             -- 일정·기한 (전사 일정, 상위 요청 마감)
+  status      text not null default 'open' check (status in ('open', 'done')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists org_notes_team_idx on public.org_notes (team_id, status, created_at desc);
+
+alter table public.org_notes enable row level security;
+drop policy if exists org_notes_leader on public.org_notes;
+create policy org_notes_leader on public.org_notes for all to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+
+create or replace function public.touch_org_note() returns trigger language plpgsql as $$
+begin new.updated_at := now(); return new; end $$;
+drop trigger if exists org_notes_touch on public.org_notes;
+create trigger org_notes_touch before update on public.org_notes for each row execute function public.touch_org_note();
+
+-- 예약 AI 인사이트 대상 팀: 활동 기록(events)뿐 아니라 목표·진척·요청·위에서 온 것·결과물 활동이 최근 14일에 있으면 포함
+create or replace function public.active_ai_teams() returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select t.id from teams t
+  where public.team_has_feature(t.id, 'ai_core')
+    and (not t.is_demo or t.created_at > now() - interval '14 days')
+    and (
+      exists (select 1 from events e where e.team_id = t.id and e.created_at > now() - interval '14 days')
+      or exists (select 1 from work_items w where w.team_id = t.id and w.updated_at > now() - interval '14 days')
+      or exists (select 1 from work_item_logs l where l.team_id = t.id and l.created_at > now() - interval '14 days')
+      or exists (select 1 from team_requests r where r.team_id = t.id and r.created_at > now() - interval '14 days')
+      or exists (select 1 from org_notes o where o.team_id = t.id and o.updated_at > now() - interval '14 days')
+      or exists (select 1 from submissions s where s.team_id = t.id and s.updated_at > now() - interval '14 days')
+    );
+$$;
+revoke all on function public.active_ai_teams() from public, anon, authenticated;
+
+-- >>>>>>>>>> 20261016000012_people_work.sql
+-- =====================================================================
+-- 메뉴 재편 (팀목표 · 업무플랫폼 · 팀원관리)에 맞춘 근거 원장 보강
+--   · 팀장 요청을 팀원이 완료하면 → 그 팀원의 평가 근거로 자동 기록 (기한 준수 여부 포함)
+--   이미 쌓이는 것: 체크인 · 1:1 · 팀장 메모 · 결과물 · 리뷰 피드백 · 관찰 메모 · 업무 완료
+-- =====================================================================
+create or replace function public.trg_request_evidence() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_late int;
+begin
+  if new.status = 'done' and (tg_op = 'INSERT' or old.status is distinct from 'done') then
+    v_late := case when new.due_date is null then null else (coalesce(new.responded_at, now())::date - new.due_date) end;
+    perform public.upsert_evidence(new.team_id, new.to_id, 'task', new.id,
+      '요청 완료 — ' || new.title
+        || case when v_late is null then '' when v_late <= 0 then ' (기한 내)' else ' (' || v_late || '일 늦음)' end
+        || case when coalesce(new.response, '') <> '' then ' · 답: ' || left(new.response, 120) else '' end,
+      case when v_late is not null and v_late <= 0 then 'positive'::public.polarity else 'neutral'::public.polarity end,
+      null, coalesce(new.responded_at, now()));
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_request_evidence on public.team_requests;
+create trigger t_request_evidence after insert or update of status on public.team_requests
+  for each row execute function public.trg_request_evidence();
+
+-- 이미 완료된 요청도 한 번 채워 넣기
+insert into public.evidence (team_id, subject_user_id, source, source_id, summary, polarity, occurred_at, provenance)
+select r.team_id, r.to_id, 'task', r.id,
+       left('요청 완료 — ' || r.title
+         || case when r.due_date is null then '' when coalesce(r.responded_at, r.created_at)::date <= r.due_date then ' (기한 내)'
+                 else ' (' || (coalesce(r.responded_at, r.created_at)::date - r.due_date) || '일 늦음)' end, 400),
+       case when r.due_date is not null and coalesce(r.responded_at, r.created_at)::date <= r.due_date then 'positive'::public.polarity else 'neutral'::public.polarity end,
+       coalesce(r.responded_at, r.created_at), 'human'
+from public.team_requests r
+where r.status = 'done'
+on conflict (source, source_id, subject_user_id) where source_id is not null do nothing;
+
+-- =====================================================================
+-- 의사결정 보드 — 흩어진 기록에서 모은 '결정할 것·지켜볼 리스크' 카드의 진행 상태
+--   카드 자체는 매번 신호·AI 해석에서 계산되고, 여기에는 팀장이 옮긴 상태만 남는다
+--   stage: reviewing(검토 중) · promoted(리스크 → 결정으로 올림) · watching(지켜보기로 내림) · dismissed(뺌) · decided(결정 기록함)
+-- =====================================================================
+create table if not exists public.decision_board (
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  card_key    text not null,
+  title       text not null default '',
+  stage       text not null check (stage in ('reviewing', 'promoted', 'watching', 'dismissed', 'decided')),
+  note        text not null default '',
+  decision_id uuid references public.decisions(id) on delete set null,
+  updated_by  uuid references public.profiles(id) on delete set null default auth.uid(),
+  updated_at  timestamptz not null default now(),
+  primary key (team_id, card_key)
+);
+alter table public.decision_board enable row level security;
+drop policy if exists decision_board_leader on public.decision_board;
+create policy decision_board_leader on public.decision_board for all to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+
+-- =====================================================================
+-- 팀원관리: 주간 AI 액션 추천 (1:1 · 칭찬 배지 · 관찰 기록 · 육성 · 업무 독려 · 막힘 지원 · 업무 조정)
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'people_actions';
+
+-- 팀장이 추천 액션을 했는지/건너뛰었는지 (주 단위 키: 주시작:팀원:종류)
+create table if not exists public.people_action_status (
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  action_key text not null,
+  status     text not null check (status in ('done', 'skipped')),
+  updated_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  updated_at timestamptz not null default now(),
+  primary key (team_id, action_key)
+);
+alter table public.people_action_status enable row level security;
+drop policy if exists people_action_status_leader on public.people_action_status;
+create policy people_action_status_leader on public.people_action_status for all to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+
+-- 칭찬 배지: 팀원에게 알림으로 가고, 팀장 관찰 기록(칭찬)으로도 남아 평가 근거가 된다
+create or replace function public.send_praise(p_team uuid, p_to uuid, p_body text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_id uuid;
+begin
+  if not public.is_team_leader(p_team) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if not exists (select 1 from team_members where team_id = p_team and user_id = p_to and status = 'active') then raise exception 'NOT_MEMBER'; end if;
+  insert into observations (team_id, author_id, subject_id, kind, body)
+    values (p_team, auth.uid(), p_to, 'praise', '[칭찬 배지] ' || left(coalesce(nullif(trim(p_body), ''), '수고 많았어요'), 300)) returning id into v_id;
+  perform public._notify(p_to, p_team, 'praise', '칭찬 배지가 도착했어요', left(p_body, 120), '/');
+  return v_id;
+end $$;
+revoke all on function public.send_praise(uuid, uuid, text) from public, anon;
+grant execute on function public.send_praise(uuid, uuid, text) to authenticated;
+
+-- 월요일 07:10 KST 주간 팀원관리 액션 (pg_cron · _invoke_function 이 있는 프로젝트만)
+do $$ begin perform cron.unschedule('people-actions-weekly'); exception when others then null; end $$;
+do $$ begin
+  perform cron.schedule('people-actions-weekly', '10 22 * * 0', $c$ select public._invoke_function('ai-people-actions', '{"all": true}') $c$);
+exception when others then null; end $$;
+
+-- =====================================================================
+-- 업무플랫폼: 팀장이 '완료'로 정리한 결과물은 사람별 카드에서 빠진다 (개인 업무 스페이스에는 남음)
+--   새 버전이 올라오면 다시 열린다
+-- =====================================================================
+alter table public.submissions add column if not exists closed_at timestamptz;
+alter table public.submissions add column if not exists closed_by uuid references public.profiles(id) on delete set null;
+
+create or replace function public.trg_submission_reopen() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update submissions set closed_at = null, closed_by = null where id = new.submission_id and closed_at is not null;
+  return new;
+end $$;
+drop trigger if exists t_sv_reopen on public.submission_versions;
+create trigger t_sv_reopen after insert on public.submission_versions for each row execute function public.trg_submission_reopen();
+
+-- >>>>>>>>>> 20261017000013_ai_guard.sql
+-- =====================================================================
+-- AI 남용·원가 방어 (과금 v2.1)
+--   기존: 기본 AI 월 횟수 한도(Pro 400 · Pro+ 1,000)만 있음 → 하루에 몰아 쓰거나, 같은 걸 계속 다시 만들거나,
+--         실패한 호출(파싱 오류)의 비용은 기록되지 않는 구멍이 있었다.
+--   추가:
+--     ① 시간당 · 하루 호출 상한 (요금제별)
+--     ② 같은 대상(같은 결과물 버전 · 같은 기간 인사이트 · 같은 1:1) 다시 만들기는 하루 3번까지
+--     ③ 월 AI 원가 상한(USD) — 횟수와 별개로 실제 원가 합계가 넘으면 기본 AI를 멈춤 (체험은 더 낮게)
+--     ④ 실패한 호출도 원가를 남김 (reason = 'ai_error', 횟수 한도엔 안 셈)
+--   10분 안에 같은 대상을 다시 누르면 AI를 다시 부르지 않고 방금 결과를 돌려준다 (Edge Function 쪽)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter table public.plans add column if not exists ai_hourly_cap int not null default 0;
+alter table public.plans add column if not exists ai_daily_cap int not null default 0;
+alter table public.plans add column if not exists ai_cost_cap_usd numeric not null default 0;
+
+update public.plans set ai_hourly_cap = 0,  ai_daily_cap = 0,   ai_cost_cap_usd = 0  where id = 'free';
+update public.plans set ai_hourly_cap = 30, ai_daily_cap = 80,  ai_cost_cap_usd = 10 where id = 'pro';
+update public.plans set ai_hourly_cap = 60, ai_daily_cap = 200, ai_cost_cap_usd = 20 where id = 'pro_plus';
+
+alter table public.credit_ledger drop constraint if exists credit_ledger_reason_check;
+alter table public.credit_ledger add constraint credit_ledger_reason_check
+  check (reason in ('monthly_grant','topup','usage','refund','adjust','core_usage','ai_error'));
+
+create index if not exists ai_outputs_target_idx on public.ai_outputs (team_id, kind, ref_id, period_start, created_at desc);
+
+-- AI를 부르기 직전에 확인 (Edge Function 의 service role 만 호출)
+create or replace function public.ai_guard(p_team uuid, p_kind text, p_ref uuid default null,
+  p_period date default null, p_subject uuid default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_owner uuid; v_plan plans; v_bal credit_balances; v_sub subscriptions;
+  v_hour int; v_day int; v_cost numeric; v_cap numeric; v_same int;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then raise exception 'TEAM_NOT_FOUND' using errcode = 'P0001'; end if;
+  v_plan := public.effective_plan_for_owner(v_owner);
+  v_bal := public._ensure_credit_period(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+
+  select count(*) filter (where created_at > now() - interval '1 hour'),
+         count(*) filter (where created_at > now() - interval '24 hours')
+    into v_hour, v_day
+    from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'usage', 'ai_error') and created_at > now() - interval '24 hours';
+  if v_hour >= v_plan.ai_hourly_cap then
+    raise exception 'AI_RATE_HOUR' using errcode = 'P0001', hint = v_plan.ai_hourly_cap::text;
+  end if;
+  if v_day >= v_plan.ai_daily_cap then
+    raise exception 'AI_RATE_DAY' using errcode = 'P0001', hint = v_plan.ai_daily_cap::text;
+  end if;
+
+  -- 월 원가 상한 (체험 중이면 4달러 ≈ 5,800원)
+  v_cap := case when v_sub.status = 'trialing' then least(v_plan.ai_cost_cap_usd, 4) else v_plan.ai_cost_cap_usd end;
+  select coalesce(sum(cost_usd), 0) into v_cost from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'ai_error') and created_at >= v_bal.period_start;
+  if v_cost >= v_cap then
+    raise exception 'AI_COST_CAP' using errcode = 'P0001';
+  end if;
+
+  -- 같은 대상 다시 만들기: 24시간에 3번까지
+  if p_ref is not null or p_period is not null then
+    select count(*) into v_same from ai_outputs
+     where team_id = p_team and kind::text = p_kind
+       and ref_id is not distinct from p_ref and period_start is not distinct from p_period
+       and subject_user_id is not distinct from p_subject
+       and created_at > now() - interval '24 hours';
+    if v_same >= 3 then raise exception 'AI_REPEAT' using errcode = 'P0001'; end if;
+  end if;
+
+  return jsonb_build_object('hour', v_hour, 'day', v_day, 'cost_usd', v_cost, 'cost_cap_usd', v_cap);
+end $$;
+revoke all on function public.ai_guard(uuid, text, uuid, date, uuid) from public, anon, authenticated;
+
+-- 실패한 호출의 원가 기록 (횟수 한도엔 안 셈, 원가·속도 한도엔 셈)
+create or replace function public.log_ai_error(p_team uuid, p_kind text, p_model text, p_in int, p_out int, p_cost numeric)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_owner uuid;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  insert into credit_ledger (owner_id, team_id, delta, reason, ai_kind, model, input_tokens, output_tokens, cost_usd)
+    values (v_owner, p_team, 0, 'ai_error', p_kind, p_model, p_in, p_out, p_cost);
+end $$;
+revoke all on function public.log_ai_error(uuid, text, text, int, int, numeric) from public, anon, authenticated;
+
+-- 운영용: 팀장별 이번 달 AI 원가 (SQL Editor 에서 확인)
+create or replace view public.ai_cost_by_owner as
+select l.owner_id, p.full_name,
+       count(*) filter (where l.reason = 'core_usage') as core_calls,
+       count(*) filter (where l.reason = 'usage') as premium_calls,
+       count(*) filter (where l.reason = 'ai_error') as failed_calls,
+       round(coalesce(sum(l.cost_usd), 0), 3) as cost_usd,
+       round(coalesce(sum(l.cost_usd), 0) * 1450) as cost_krw
+  from credit_ledger l left join profiles p on p.id = l.owner_id
+ where l.created_at >= date_trunc('month', now()) and l.reason in ('core_usage', 'usage', 'ai_error')
+ group by l.owner_id, p.full_name
+ order by cost_usd desc;
+revoke all on public.ai_cost_by_owner from public, anon, authenticated;
+
+-- >>>>>>>>>> 20261018000014_ateam_advice.sql
+-- =====================================================================
+-- A·Team의 제안 (주간 운영 컨설팅) + 팀장 관심 지수 + 팀장 셀프 체크
+--   · leader_attention(): 최근 N일 팀장 → 팀원 접점(1:1 · 리뷰 코멘트 · 관찰·칭찬 · 요청 · 과제 코멘트)과 리뷰 응답 시간
+--   · advice_status: 제안별 채택 · 보류 · 완료 (다음 주 회고의 근거)
+--   · leader_selfcheck: 팀장 주 1회 에너지 · 부담 (선택)
+--   · 월요일 07:30 KST 자동 생성 (팀원관리 액션 07:10 다음)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'advisor_weekly';
+
+-- 팀장 관심(접점) — 팀장 본인 또는 service role 만
+create or replace function public.leader_attention(p_team uuid, p_days int default 28)
+returns table (user_id uuid, oo int, comments int, obs int, praise int, reqs int, item_comments int,
+               touch numeric, resp_hours numeric, waiting int, last_touch timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+declare v_since timestamptz := now() - make_interval(days => p_days); v_leader uuid;
+begin
+  if not public.is_team_leader(p_team) and coalesce(auth.role(), '') <> 'service_role' then raise exception 'forbidden'; end if;
+  select tm.user_id into v_leader from team_members tm where tm.team_id = p_team and tm.role = 'leader' and tm.status = 'active' limit 1;
+  return query
+  with m as (
+    select tm.user_id from team_members tm where tm.team_id = p_team and tm.role = 'member' and tm.status = 'active'
+  ), t as (
+    select o.member_id as uid, 'oo' as k, coalesce(o.completed_at, o.scheduled_at) as at from one_on_ones o
+     where o.team_id = p_team and o.status = 'done' and coalesce(o.completed_at, o.scheduled_at) >= v_since
+    union all
+    select s.author_id, 'cm', c.created_at from review_comments c join submissions s on s.id = c.submission_id
+     where c.team_id = p_team and c.author_id = v_leader and c.created_at >= v_since
+    union all
+    select ob.subject_id, case when ob.kind = 'praise' then 'pr' else 'ob' end, ob.created_at from observations ob
+     where ob.team_id = p_team and ob.author_id = v_leader and ob.created_at >= v_since
+    union all
+    select r.to_id, 'rq', r.created_at from team_requests r
+     where r.team_id = p_team and r.from_id = v_leader and r.created_at >= v_since
+    union all
+    select w.owner_id, 'ic', c.created_at from work_item_comments c join work_items w on w.id = c.item_id
+     where c.team_id = p_team and c.author_id = v_leader and c.created_at >= v_since
+  ), resp as (
+    -- 팀원이 올린 버전 → 팀장 첫 반응(코멘트 · 승인)까지 시간
+    select v.created_by as uid, v.id,
+           (select min(x.at) from (
+              select c.created_at as at from review_comments c where c.submission_id = v.submission_id and c.author_id = v_leader and c.created_at >= v.created_at
+              union all select s.approved_at from submissions s where s.id = v.submission_id and s.approved_at >= v.created_at) x) as first_at,
+           v.created_at, s.status as sst
+      from submission_versions v join submissions s on s.id = v.submission_id
+     where v.team_id = p_team and v.created_at >= v_since and v.created_by <> v_leader
+  )
+  select m.user_id,
+         count(*) filter (where t.k = 'oo')::int,
+         count(*) filter (where t.k = 'cm')::int,
+         count(*) filter (where t.k = 'ob')::int,
+         count(*) filter (where t.k = 'pr')::int,
+         count(*) filter (where t.k = 'rq')::int,
+         count(*) filter (where t.k = 'ic')::int,
+         (3 * count(*) filter (where t.k = 'oo') + count(*) filter (where t.k <> 'oo'))::numeric,
+         (select round(avg(extract(epoch from (r.first_at - r.created_at)) / 3600)::numeric, 1) from resp r where r.uid = m.user_id and r.first_at is not null),
+         (select count(*)::int from resp r where r.uid = m.user_id and r.first_at is null and r.sst = 'in_review'),
+         max(t.at)
+    from m left join t on t.uid = m.user_id
+   group by m.user_id;
+end $$;
+revoke all on function public.leader_attention(uuid, int) from public, anon;
+grant execute on function public.leader_attention(uuid, int) to authenticated;
+
+-- 제안 상태 (채택 · 보류 · 완료)
+create table if not exists public.advice_status (
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  advice_key text not null,               -- '<주 시작일>:<제안 id>'
+  status     text not null check (status in ('adopted', 'held', 'done')),
+  note       text,
+  updated_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  updated_at timestamptz not null default now(),
+  primary key (team_id, advice_key)
+);
+alter table public.advice_status enable row level security;
+drop policy if exists advice_status_leader on public.advice_status;
+create policy advice_status_leader on public.advice_status for all to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+
+-- 팀장 셀프 체크 (주 1회, 선택) — 팀장 본인만 보고 쓴다
+create table if not exists public.leader_selfcheck (
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade default auth.uid(),
+  week_start date not null,
+  energy     int check (energy between 1 and 5),
+  burden     int check (burden between 1 and 5),
+  note       text,
+  updated_at timestamptz not null default now(),
+  primary key (team_id, user_id, week_start)
+);
+alter table public.leader_selfcheck enable row level security;
+drop policy if exists leader_selfcheck_own on public.leader_selfcheck;
+create policy leader_selfcheck_own on public.leader_selfcheck for all to authenticated
+  using (user_id = auth.uid() and public.is_team_leader(team_id)) with check (user_id = auth.uid() and public.is_team_leader(team_id));
+
+-- 월요일 07:30 KST
+do $$ begin perform cron.unschedule('advisor-weekly'); exception when others then null; end $$;
+do $$ begin
+  perform cron.schedule('advisor-weekly', '30 22 * * 0', $c$ select public._invoke_function('ai-advisor', '{"all": true}') $c$);
+exception when others then null; end $$;
+
+-- >>>>>>>>>> 20261019000015_exec_brief.sql
+-- =====================================================================
+-- 상향 관리 › 임원 브리핑
+--   · executives: 팀장이 관리하는 상위 관리자(여럿) — 직책 · 성향 태그 · 관심사 · 보고 선호
+--   · org_notes.exec_id: 위에서 온 것(코멘트·자료·요청·방침)이 어느 관리자에게서 왔는지
+--   · ai_kind 'exec_brief': 상위 관리자 시선의 주간 브리핑 (팀장이 누를 때만)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'exec_brief';
+
+create table if not exists public.executives (
+  id          uuid primary key default gen_random_uuid(),
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  name        text not null,
+  title       text not null default '',          -- 직책 (예: 마케팅본부장)
+  style_tags  text[] not null default '{}',      -- 성향 (예: 숫자·근거 중시, 결론 먼저)
+  interests   text not null default '',          -- 요즘 관심사·자주 묻는 것
+  prefs       text not null default '',          -- 보고 선호 (형식·빈도·채널)
+  sort        int not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists executives_team_idx on public.executives (team_id, sort);
+alter table public.executives enable row level security;
+drop policy if exists executives_leader on public.executives;
+create policy executives_leader on public.executives for all to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+
+alter table public.org_notes add column if not exists exec_id uuid references public.executives(id) on delete set null;
+
+-- >>>>>>>>>> 20261020000016_leader_notes.sql
+-- =====================================================================
+-- 내 메모 — 팀장 전용 메모 (팀원에게는 보이지 않음)
+--   · 저장은 한 곳, 붙이는 곳은 여러 군데: 팀원 · 목표/과제 · 임원 · 결정 · 1:1 (anchor)
+--   · 관찰 메모(observations)와 다름: 평가 근거로 쓰지 않음
+--   · ai_allowed: AI가 참고해도 되는 메모 (팀장이 고름) — 1:1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 읽음. 평가 초안은 읽지 않음
+--   · anchor_id: 대상 id (팀원·목표·임원은 uuid, 결정 카드는 카드 키) · anchor_label: 붙일 때의 대상 이름(대상이 사라져도 보이게)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+create table if not exists public.leader_notes (
+  id           uuid primary key default gen_random_uuid(),
+  team_id      uuid not null references public.teams(id) on delete cascade,
+  owner_id     uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  body         text not null,
+  kind         text not null default 'note' check (kind in ('note', 'todo')),
+  done         boolean not null default false,
+  anchor_type  text not null default 'none' check (anchor_type in ('none', 'member', 'item', 'exec', 'decision', 'one_on_one')),
+  anchor_id    text,
+  anchor_label text not null default '',
+  pinned       boolean not null default false,
+  ai_allowed   boolean not null default false,
+  tags         text[] not null default '{}',
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+-- 예전(1단계) 테이블을 이미 만든 프로젝트용
+alter table public.leader_notes add column if not exists anchor_label text not null default '';
+alter table public.leader_notes alter column anchor_id type text using anchor_id::text;
+
+create index if not exists leader_notes_owner_idx on public.leader_notes (team_id, owner_id, updated_at desc);
+create index if not exists leader_notes_anchor_idx on public.leader_notes (team_id, anchor_type, anchor_id);
+
+alter table public.leader_notes enable row level security;
+-- 나만: 쓴 사람만 읽고 쓴다 (같은 팀의 팀장이어도 남의 메모는 안 보임)
+drop policy if exists leader_notes_owner on public.leader_notes;
+create policy leader_notes_owner on public.leader_notes for all to authenticated
+  using (owner_id = auth.uid() and public.is_team_member(team_id))
+  with check (owner_id = auth.uid() and public.is_team_member(team_id));
+
+-- 데모 팀: 메모 예시 몇 개 (이미 있으면 건너뜀)
+do $$
+declare r record; v_jung uuid; v_lee uuid; v_goal uuid; v_exec uuid;
+begin
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+    if exists (select 1 from leader_notes where team_id = r.team_id) then continue; end if;
+    select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
+    select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이정규' limit 1;
+    select id into v_goal from work_items where team_id = r.team_id and parent_id is null and title like '제휴%' limit 1;
+    select id into v_exec from executives where team_id = r.team_id order by sort limit 1;
+    insert into leader_notes (team_id, owner_id, body, kind, anchor_type, anchor_id, pinned, created_at, updated_at) values
+      (r.team_id, r.leader_id, '분기 마감 전 팀 회고는 짧게 30분 — 잘된 것 1개, 바꿀 것 1개만', 'note', 'none', null, true, now() - interval '6 days', now() - interval '6 days'),
+      (r.team_id, r.leader_id, '본부장 주간회의 전에 제휴 전망 숫자 다시 확인', 'todo', 'none', null, false, now() - interval '1 day', now() - interval '1 day');
+    if v_jung is not null then insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, anchor_label, ai_allowed, created_at, updated_at)
+      values (r.team_id, r.leader_id, '혼자 끙끙 앓는 편. 막히면 먼저 물어봐 주는 게 효과 있음', 'member', v_jung, '정우성', true, now() - interval '9 days', now() - interval '9 days'); end if;
+    if v_lee is not null then insert into leader_notes (team_id, owner_id, body, kind, anchor_type, anchor_id, created_at, updated_at)
+      values (r.team_id, r.leader_id, '다음 1:1에서 교육 예산 얘기 꺼내기', 'todo', 'member', v_lee, now() - interval '3 days', now() - interval '3 days'); end if;
+    if v_goal is not null then insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, ai_allowed, created_at, updated_at)
+      values (r.team_id, r.leader_id, 'B사 말고 C사 제휴 가능성도 열어 두기 — 영업본부 박 팀장에게 물어보기', 'item', v_goal, true, now() - interval '2 days', now() - interval '2 days'); end if;
+    if v_exec is not null then insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, ai_allowed, created_at, updated_at)
+      values (r.team_id, r.leader_id, '숫자는 항상 지난달 대비로. 표보다 한 줄 결론을 먼저', 'exec', v_exec, true, now() - interval '5 days', now() - interval '5 days'); end if;
+  end loop;
+end $$;
+
+-- >>>>>>>>>> 20261021000017_coaching.sql
+-- =====================================================================
+-- ATEAM의 코칭 — 팀장이 누르면 AI가 초안을 쓰고, 팀장이 고쳐서 보내는 개선 코칭
+--   · 팀원에게는 'ATEAM의 코칭'으로만 보인다 (보낸 사람 칸을 두지 않음)
+--   · 평가 근거로 남지 않는다 (evidence에 쓰지 않음)
+--   · 한 팀원에게 7일 동안 2건까지
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'coaching';
+
+create table if not exists public.coaching_notes (
+  id          uuid primary key default gen_random_uuid(),
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  member_id   uuid not null references public.profiles(id) on delete cascade,
+  title       text not null,
+  body        text not null,
+  seen_at     timestamptz,
+  acked_at    timestamptz,
+  helpful     boolean,
+  created_at  timestamptz not null default now()
+);
+create index if not exists coaching_member_idx on public.coaching_notes (team_id, member_id, created_at desc);
+
+alter table public.coaching_notes enable row level security;
+drop policy if exists coaching_leader on public.coaching_notes;
+create policy coaching_leader on public.coaching_notes for all to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+drop policy if exists coaching_member_read on public.coaching_notes;
+create policy coaching_member_read on public.coaching_notes for select to authenticated
+  using (member_id = auth.uid());
+
+-- 팀원: 읽음 · 확인 · 도움됨 (자기 것만)
+create or replace function public.coaching_mark(p_id uuid, p_ack boolean default false, p_helpful boolean default null)
+returns void language sql security definer set search_path = public as $$
+  update coaching_notes set
+    seen_at = coalesce(seen_at, now()),
+    acked_at = case when p_ack then coalesce(acked_at, now()) else acked_at end,
+    helpful = coalesce(p_helpful, helpful)
+  where id = p_id and member_id = auth.uid();
+$$;
+grant execute on function public.coaching_mark(uuid, boolean, boolean) to authenticated;
+
+-- 7일 2건 제한 + 팀원 알림 ('ATEAM의 코칭'으로)
+create or replace function public._coaching_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from coaching_notes where team_id = new.team_id and member_id = new.member_id and created_at > now() - interval '7 days') >= 2 then
+    raise exception 'COACHING_LIMIT: 한 팀원에게는 7일 동안 2건까지 보낼 수 있습니다';
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_coaching_guard on public.coaching_notes;
+create trigger t_coaching_guard before insert on public.coaching_notes for each row execute function public._coaching_guard();
+
+create or replace function public._coaching_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into notifications (user_id, team_id, kind, title, body, link)
+  values (new.member_id, new.team_id, 'coaching', 'ATEAM의 코칭이 도착했어요', new.title, '/?coach=' || new.id);
+  return new;
+end $$;
+drop trigger if exists t_coaching_notify on public.coaching_notes;
+create trigger t_coaching_notify after insert on public.coaching_notes for each row execute function public._coaching_notify();
+
+-- 데모: 이정규 님에게 보낸 코칭 1건 (이미 있으면 건너뜀)
+do $$
+declare r record; v_lee uuid;
+begin
+  for r in select t.id team_id from teams t where t.is_demo loop
+    select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이정규' limit 1;
+    if v_lee is null or exists (select 1 from coaching_notes where team_id = r.team_id) then continue; end if;
+    alter table coaching_notes disable trigger t_coaching_notify;
+    insert into coaching_notes (team_id, member_id, title, body, created_at) values (r.team_id, v_lee,
+      'CRM 연계, 방향을 한 번 맞추고 가면 훨씬 수월해져요',
+      E'지금 보이는 것\n· ''제휴 유입 고객 CRM 연계''가 계획보다 조금 늦어지고 있어요\n· 혼자 맡은 과제인데 최근 3주 동안 진척 공유가 없었어요\n\n왜 중요해요\n제휴 목표와 이어진 과제라, 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· 막힌 부분이 있으면 ''무엇이 필요한지''를 한 줄로 같이 적기\n· 다음 결과물은 초안 단계에서 한 번 먼저 올려 방향 확인받기\n\n권장 시점 · 이번 주 금요일까지',
+      now() - interval '2 days');
+    alter table coaching_notes enable trigger t_coaching_notify;
+  end loop;
+end $$;
