@@ -1,6 +1,6 @@
 // 이번 주 팀원관리 액션 — AI가 추천하고, 팀장은 카드에서 바로 실행(1:1 잡기 · 칭찬 배지 · 관찰 기록 · 요청)
 import { useState } from 'react';
-import { Award, CalendarPlus, Check, ChevronDown, MessageCircleQuestion, RefreshCw, Send, SkipForward, StickyNote, Undo2 } from 'lucide-react';
+import { Award, CalendarPlus, Check, ChevronDown, HeartHandshake, MessageCircleQuestion, RefreshCw, Send, SkipForward, Sprout, StickyNote, Undo2 } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { useGenerate } from '../../lib/hooks';
 import { cx, fmtDate } from '../../lib/format';
@@ -75,10 +75,10 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
 function Card({ no, a, ai, name, onDo, onDone, onSkip }: { no: number; a: PeopleAction; ai: boolean; name: string; onDo: (k: 'oo' | 'memo' | 'req' | 'praise') => void; onDone: () => void; onSkip: () => void }) {
   const meta = ACTION_META[a.type] ?? ACTION_META.push;
   const primary = a.type === 'one_on_one' ? { k: 'oo' as const, label: '1:1 잡기', I: CalendarPlus } : a.type === 'praise' ? { k: 'praise' as const, label: '칭찬 배지', I: Award }
-    : a.type === 'observe' ? { k: 'memo' as const, label: '관찰 기록', I: StickyNote } : { k: 'req' as const, label: '요청 보내기', I: Send };
+    : a.type === 'observe' ? { k: 'memo' as const, label: '관찰 기록', I: StickyNote } : { k: 'req' as const, ...(a.type === 'support' ? { label: '격려 보내기', I: HeartHandshake } : a.type === 'develop' ? { label: '성장 제안', I: Sprout } : { label: '독려 보내기', I: Send }) };
   const extra = a.opener ? { cls: 'text-teal-800', I: MessageCircleQuestion, t: `“${a.opener}”` }
     : a.message ? { cls: 'text-amber-800', I: Award, t: `“${a.message}”` }
-    : a.request && a.type !== 'praise' ? { cls: 'text-slate-600', I: Send, t: `요청: ${strip(a.request)}` } : null;
+    : a.request && a.type !== 'praise' ? { cls: 'text-slate-600', I: Send, t: `보낼 말: ${strip(a.request)}` } : null;
   return (
     <li className="flex flex-col md:flex-row md:items-center gap-3 px-4 py-3 hover:bg-slate-50/70">
       <span className="hidden md:flex w-7 h-7 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold num items-center justify-center shrink-0">{no}</span>
