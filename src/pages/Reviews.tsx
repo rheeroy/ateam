@@ -36,7 +36,7 @@ export default function Reviews() {
           <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-sm"><Briefcase size={20} /></span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">업무플랫폼</h1>
-            <p className="text-sm text-slate-500">팀원이 올린 문서·링크·캡처·숫자를 목표와 이어서 보고, AI가 먼저 본 검토로 빠르게 피드백합니다</p>
+            <p className="text-sm text-slate-500">팀원의 업무에 대해 검토하고 소통하는 공간입니다. 최대한 많은 업무가 이 공간에서 이루어질 수 있도록 독려하세요.</p>
           </div>
         </div>
       </div>
@@ -147,7 +147,9 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
   const { nameOf } = useTeam();
   const waiting = rows.filter((s) => s.status === 'in_review');
   const reviewed = waiting.filter((s) => s.review);
-  const lines = waiting.map((s) => lineOf(s, nameOf(s.author_id))).filter((x): x is Line => !!x).sort((a, b) => a.rank - b.rank).slice(0, 6);
+  const lines = waiting.map((s) => lineOf(s, nameOf(s.author_id))).filter((x): x is Line => !!x).sort((a, b) => a.rank - b.rank);
+  const [more, setMore] = useState(false);
+  const shown = more ? lines : lines.slice(0, 3);
   return (
     <AiBand cadence="live"
       title={<span className="text-[15px] font-semibold">{!waiting.length ? '리뷰를 기다리는 결과물이 없습니다' : reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 위에서부터 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다'}</span>}
@@ -158,7 +160,7 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
         <p className="text-sm text-slate-600">결과물을 열면 1차 검토를 만들 수 있습니다.</p>
       ) : (
         <ul className="rounded-xl bg-white ring-1 ring-slate-200 divide-y divide-slate-100">
-          {lines.map((x) => (
+          {shown.map((x) => (
             <li key={x.id}>
               <Link to={`/work/${x.id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
                 <span className={cx('mt-[7px] w-2 h-2 rounded-full shrink-0', TONE_DOT[x.tone] ?? 'bg-slate-400')} />
@@ -170,6 +172,10 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
               </Link>
             </li>
           ))}
+          {lines.length > 3 && (
+            <li><button onClick={() => setMore((v) => !v)} className="w-full px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 inline-flex items-center justify-center gap-1">
+              {more ? '접기' : `나머지 ${lines.length - 3}개 더 보기`}<ChevronDown size={13} className={more ? 'rotate-180' : ''} /></button></li>
+          )}
         </ul>
       )}
     </AiBand>
