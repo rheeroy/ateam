@@ -1,9 +1,10 @@
 // 팀원 한 사람 페이지 — 컨디션 · 1:1 · 맡은 일 · 결과물 · 관찰 · 근거 원장
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Award, CalendarPlus, ChevronRight, HeartHandshake, MessageSquare, Scale, Send, Sprout, StickyNote } from 'lucide-react';
 import { NotesBox } from '../components/notes/Notes';
+import { useNotes } from '../lib/notes';
 import { CoachModal } from '../components/people/Coaching';
 import { LogoMark } from '../components/Brand';
 import { useTeam } from '../state/session';
@@ -16,12 +17,11 @@ import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
 import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
-import { WorkSummary } from '../components/people/WorkSummary';
-import { ACTION_META, ruleActions, type PeopleAction } from '../lib/peopleActions';
+import { PersonOverview } from '../components/people/PersonOverview';
+import { ACTION_META, ruleActions, type Level, type MemberIndex, type PeopleAction } from '../lib/peopleActions';
 import { RequestModal } from '../components/RequestModal';
 import { MemoModal, Sparkline, useHomeModel } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
-import { IndexGrid } from './People';
 
 interface Prep { last_time: string; watch: string; questions: string[]; recent_work: string }
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -52,7 +52,7 @@ export default function PersonDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => setReq({ kind: 'other', title: '' })} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Send size={15} />요청</button>
+            <MemoButton uid={id} name={name} />
             <Link to={`/eval?member=${id}`} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Award size={15} />평가 시뮬레이션</Link>
           </div>
         </div>
@@ -78,12 +78,11 @@ export default function PersonDetail() {
 
       <div className="grid lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2 space-y-4">
-          <WorkSummary uid={id} link />
+          <PersonOverview uid={id} name={name} />
           <Condition teamId={team.id} uid={id} />
           <Observations teamId={team.id} uid={id} onNew={() => setMemo(true)} />
         </div>
         <div className="space-y-4">
-          <NotesBox anchor={{ type: 'member', id, label: name }} />
           <OneOnOneBox teamId={team.id} uid={id} onNew={() => setOo(true)} />
           <Ledger teamId={team.id} uid={id} />
         </div>
@@ -109,11 +108,77 @@ function PersonTop({ uid }: { uid: string }) {
     <>
       <ActionsPanel fallback={fallback} only={uid} compact />
       <Card className="p-4">
-        <div className="flex items-center gap-2 mb-2.5"><span className="font-semibold text-sm">주요 지표</span>
+        <div className="flex items-center gap-2 mb-2.5 flex-wrap"><span className="font-semibold text-sm">주요 지표</span>
+          {ix && <SignalCount ix={ix} />}
           {ix?.flight.note && <span className="text-xs text-slate-500 truncate">· 이탈 가능성 근거: {ix.flight.note}</span>}</div>
-        {pi.loading ? <Spinner /> : <IndexGrid ix={ix} cols={7} />}
+        {pi.loading ? <Spinner /> : <SignalGrid ix={ix} />}
       </Card>
     </>
+  );
+}
+
+/** 신호등 — 지표마다 빨강·노랑·초록 중 하나에 불이 들어온다 */
+const LAMP: Record<Exclude<Level, 'none'>, { on: string; glow: string; tile: string; text: string; label: string }> = {
+  risk: { on: 'bg-rose-500', glow: 'shadow-[0_0_0_3px_rgba(244,63,94,0.18)]', tile: 'bg-rose-50/70 ring-rose-200', text: 'text-rose-600', label: '위험' },
+  watch: { on: 'bg-amber-400', glow: 'shadow-[0_0_0_3px_rgba(251,191,36,0.25)]', tile: 'bg-amber-50/70 ring-amber-200', text: 'text-amber-700', label: '주의' },
+  good: { on: 'bg-emerald-500', glow: 'shadow-[0_0_0_3px_rgba(16,185,129,0.18)]', tile: 'bg-white ring-slate-200', text: 'text-slate-800', label: '양호' },
+};
+function Lamps({ level }: { level: Level }) {
+  return (
+    <span className="inline-flex items-center gap-[3px] rounded-full bg-slate-800 px-1.5 py-1" aria-label={level === 'none' ? '데이터 없음' : LAMP[level].label}>
+      {(['risk', 'watch', 'good'] as const).map((k) => <span key={k} className={cx('w-2 h-2 rounded-full', level === k ? cx(LAMP[k].on, LAMP[k].glow) : 'bg-slate-600')} />)}
+    </span>
+  );
+}
+function SignalCount({ ix }: { ix: MemberIndex }) {
+  const n = (l: Level) => ix.indices.filter((i) => i.level === l).length;
+  return (
+    <span className="inline-flex items-center gap-2 text-[11px] text-slate-500">
+      {(['risk', 'watch', 'good'] as const).map((k) => n(k) ? <span key={k} className="inline-flex items-center gap-1"><span className={cx('w-2 h-2 rounded-full', LAMP[k].on)} />{LAMP[k].label} <b className="num text-slate-700">{n(k)}</b></span> : null)}
+    </span>
+  );
+}
+function SignalGrid({ ix }: { ix?: MemberIndex }) {
+  if (!ix) return null;
+  return (
+    <dl className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+      {ix.indices.map((i) => {
+        const L = i.level === 'none' ? null : LAMP[i.level];
+        return (
+          <div key={i.key} className={cx('rounded-xl ring-1 px-3 py-2.5', L ? L.tile : 'bg-slate-50 ring-slate-100')}>
+            <div className="flex items-center gap-1.5"><dt className="text-[11px] text-slate-500 truncate">{i.label}</dt><span className="ml-auto"><Lamps level={i.level} /></span></div>
+            <dd className={cx('mt-1 text-lg font-bold num leading-tight', L ? L.text : 'text-slate-300')}>{i.value}</dd>
+            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-400 truncate">{i.sub}</dd>}
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+/** 우측 상단 '내 메모' — 눌러서 이 팀원에 대한 메모를 보고 바로 남긴다 (나만 보기) */
+function MemoButton({ uid, name }: { uid: string; name: string }) {
+  const notes = useNotes({ type: 'member', id: uid });
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as HTMLElement).closest('[role="dialog"], .fixed')) setOpen(false); };
+    document.addEventListener('mousedown', off);
+    return () => document.removeEventListener('mousedown', off);
+  }, [open]);
+  const n = (notes.data ?? []).filter((x) => !(x.kind === 'todo' && x.done)).length;
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((x) => !x)} className={cx('text-sm rounded-xl px-3 py-2 ring-1 inline-flex items-center gap-1.5', open ? 'bg-amber-100 ring-amber-300 text-amber-900' : 'bg-amber-50 ring-amber-200 text-amber-800 hover:ring-amber-300')}>
+        <StickyNote size={15} />내 메모{n ? <span className="num text-xs font-semibold rounded-full bg-amber-200/80 px-1.5">{n}</span> : ' 남기기'}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-30 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl bg-white shadow-xl ring-1 ring-slate-200 p-1.5">
+          <NotesBox anchor={{ type: 'member', id: uid, label: name }} title={`${name} 님 메모`} />
+        </div>
+      )}
+    </div>
   );
 }
 
