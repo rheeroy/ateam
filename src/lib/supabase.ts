@@ -56,7 +56,7 @@ export async function invoke<T>(name: string, body: Record<string, unknown>): Pr
   if (error) {
     // 함수에 아예 닿지 못함 (배포 안 됨·이름 다름·APP_ORIGIN 불일치로 CORS 차단·시간 초과)
     if ((error as { name?: string }).name === 'FunctionsFetchError') {
-      throw new AppError(`AI 서버 함수 '${name}'에 연결하지 못했습니다. Supabase Edge Functions에 '${name}' 이름으로 배포돼 있는지, APP_ORIGIN 값이 앱 주소와 같은지 확인해 주세요.`);
+      throw new AppError(`AI 서버 함수 '${name}'에 연결하지 못했습니다. Supabase Edge Functions에서 '${name}'의 Logs를 확인해 주세요 — 배포 여부, Verify JWT 꺼짐, APP_ORIGIN 값을 보면 됩니다.`);
     }
     let detail = error.message;
     const ctx = (error as { context?: Response }).context;
