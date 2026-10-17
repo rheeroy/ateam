@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { Decision } from '../lib/types';
@@ -65,7 +65,6 @@ export default function Decide() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <PeriodTabs period={period} setPeriod={setPeriod} />
-          <Button onClick={() => setRec({ open: true })}><Plus size={15} />결정 기록</Button>
         </div>
       </div>
 
