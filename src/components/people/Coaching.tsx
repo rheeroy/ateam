@@ -87,7 +87,7 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
   return (
     <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코칭하기 · {name}</span></span>}>
       <p className="text-sm text-slate-600 leading-relaxed rounded-lg bg-indigo-50/70 px-3 py-2">
-        직접 말하기 껄끄러운 개선점을 <b>ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup>의 코칭'</b>으로 도착합니다.
+        직접 말하기 껄끄러운 개선점을 <b>ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup>의 코칭'</b>으로 도착합니다. 자유롭게 수정해보세요.
       </p>
       {gen.isPending ? (
         <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2">ATEAM AI가 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>
