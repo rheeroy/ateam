@@ -19,7 +19,7 @@ import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { PersonOverview } from '../components/people/PersonOverview';
 import { ACTION_META, ruleActions, type Level, type MemberIndex, type PeopleAction } from '../lib/peopleActions';
-import { RequestModal } from '../components/RequestModal';
+import { ActionRequestModal, type ActionReqType } from '../components/RequestModal';
 import { MemoModal, Sparkline, useHomeModel } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
 
@@ -33,7 +33,7 @@ export default function PersonDetail() {
   const mb = members.find((x) => x.user_id === id);
   const [memo, setMemo] = useState(false);
   const [oo, setOo] = useState(false);
-  const [req, setReq] = useState<{ kind: 'plan' | 'progress' | 'share' | 'meeting' | 'other'; title: string } | null>(null);
+  const [act, setAct] = useState<ActionReqType | null>(null);
   const [praise, setPraise] = useState(false);
   const [coach, setCoach] = useState(false);
   const nav = useNavigate();
@@ -64,9 +64,9 @@ export default function PersonDetail() {
             ['one_on_one', CalendarPlus, () => setOo(true)],
             ['praise', Award, () => setPraise(true)],
             ['observe', StickyNote, () => setMemo(true)],
-            ['develop', Sprout, () => setReq({ kind: 'other', title: `${name} 님, 다음에 맡아 볼 성장 과제를 같이 정해 봐요` })],
-            ['push', Send, () => setReq({ kind: 'progress', title: '진행 상황과 막힌 점 공유 부탁해요' })],
-            ['support', HeartHandshake, () => setReq({ kind: 'meeting', title: '요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요' })],
+            ['develop', Sprout, () => setAct('develop')],
+            ['push', Send, () => setAct('push')],
+            ['support', HeartHandshake, () => setAct('support')],
             ['workload', Scale, () => nav('/goals/edit?view=table')],
           ] as const).map(([k, I, on]) => (
             <button key={k} onClick={on} className={cx('text-xs font-semibold rounded-full ring-1 px-3 py-1.5 inline-flex items-center gap-1.5 hover:brightness-95', ACTION_META[k].cls)}><I size={13} />{ACTION_META[k].label}</button>
@@ -90,7 +90,7 @@ export default function PersonDetail() {
 
       <MemoModal teamId={team.id} open={memo} preset={id} onClose={() => setMemo(false)} />
       <ScheduleModal open={oo} onClose={() => setOo(false)} memberId={id} />
-      {req && <RequestModal open onClose={() => setReq(null)} toId={id} defaultKind={req.kind} defaultTitle={req.title} />}
+      {act && <ActionRequestModal type={act} toId={id} name={name} onClose={() => setAct(null)} onScheduleOo={() => setOo(true)} />}
       {coach && <CoachModal memberId={id} name={name} onClose={() => setCoach(false)} />}
       {praise && <PraiseModal a={{ user_id: id, type: 'praise' } as PeopleAction} name={name} onClose={() => setPraise(false)} onSent={() => {}} />}
     </div>

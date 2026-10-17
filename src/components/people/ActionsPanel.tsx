@@ -7,7 +7,7 @@ import { cx, fmtDate } from '../../lib/format';
 import { ACTION_META, actionKey, useActionStatus, usePeopleActions, useSendPraise, type PeopleAction } from '../../lib/peopleActions';
 import { Avatar, Button, Field, Modal, inputCls } from '../ui';
 import { AiBand } from '../AiBar';
-import { RequestModal } from '../RequestModal';
+import { ActionRequestModal } from '../RequestModal';
 import { MemoModal } from '../home/shared';
 import { ScheduleModal } from '../../pages/OneOnOnes';
 
@@ -65,8 +65,8 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
       )}
       {modal?.kind === 'oo' && <ScheduleModal open onClose={() => setModal(null)} memberId={modal.a.user_id} />}
       {modal?.kind === 'memo' && <MemoModal teamId={team.id} open preset={modal.a.user_id} onSaved={() => done(modal.a)} onClose={() => setModal(null)} />}
-      {modal?.kind === 'req' && <RequestModal open onClose={() => setModal(null)} toId={modal.a.user_id} defaultKind={modal.a.type === 'push' ? 'progress' : 'other'}
-        defaultTitle={strip(modal.a.request || modal.a.title)} onSent={() => done(modal.a)} />}
+      {modal?.kind === 'req' && <ActionRequestModal type={(['push', 'develop', 'support'] as const).find((t) => t === modal.a.type) ?? 'push'} toId={modal.a.user_id} name={nameOf(modal.a.user_id)}
+        defaultText={modal.a.request ? strip(modal.a.request) : undefined} onSent={() => done(modal.a)} onClose={() => setModal(null)} onScheduleOo={() => setModal({ kind: 'oo', a: modal.a })} />}
       {modal?.kind === 'praise' && <PraiseModal a={modal.a} name={nameOf(modal.a.user_id)} onClose={() => setModal(null)} onSent={() => done(modal.a)} />}
     </AiBand>
   );

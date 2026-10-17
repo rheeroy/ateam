@@ -24,7 +24,7 @@ function Requests() {
   });
   const done = useMutation({
     mutationFn: (r: TeamRequest) => q(supabase.from('team_requests').update({ status: 'done', response: reply[r.id] ?? '' }).eq('id', r.id)),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); toast('완료로 표시했습니다. 팀장에게 알림이 갑니다.'); },
+    onSuccess: (_d, r) => { qc.invalidateQueries({ queryKey: ['requests'] }); toast(r.kind === 'cheer' ? '확인했다고 팀장님께 알렸어요.' : r.kind === 'grow' ? '답을 보냈어요. 팀장님께 알림이 갑니다.' : '완료로 표시했습니다. 팀장에게 알림이 갑니다.'); },
     onError: (e) => toast(errorText(e)),
   });
   if (!list.data?.length) return null;
@@ -34,10 +34,13 @@ function Requests() {
     share: { label: '공유하기', to: () => '/my/submissions?new=1' },
     meeting: { label: '내 1:1', to: () => '/my/one-on-ones' },
     other: null,
+    grow: null,
+    cheer: null,
   };
+  const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인했어요' };
   return (
     <Card className="border-violet-200">
-      <CardHead icon={<Inbox size={16} className="text-violet-600" />} title={`팀장님 요청 ${list.data.length}건`} />
+      <CardHead icon={<Inbox size={16} className="text-violet-600" />} title={`팀장님 요청·메시지 ${list.data.length}건`} />
       <ul className="divide-y divide-slate-100">
         {list.data.map((r) => {
           const late = r.due_date && r.due_date < new Date().toISOString().slice(0, 10);
@@ -52,8 +55,8 @@ function Requests() {
                   <div className={cx('text-xs mt-0.5', late ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{fmtDate(r.created_at)} 요청{r.due_date && ` · ${fmtShort(r.due_date)}까지`}</div>
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
                     {cta && <Link to={cta.to(r)}><Button size="sm">{cta.label}</Button></Link>}
-                    <input className="flex-1 min-w-[140px] text-xs border border-slate-200 rounded-lg px-2.5 py-1.5" placeholder="한 줄 답 (선택)" value={reply[r.id] ?? ''} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })} />
-                    <Button size="sm" variant="secondary" onClick={() => done.mutate(r)}><CheckCircle2 size={13} />완료</Button>
+                    <input className="flex-1 min-w-[140px] text-xs border border-slate-200 rounded-lg px-2.5 py-1.5" placeholder={r.kind === 'grow' ? '해 보고 싶은 일 · 생각 (선택)' : r.kind === 'cheer' ? '한 줄 답장 (선택)' : '한 줄 답 (선택)'} value={reply[r.id] ?? ''} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })} />
+                    <Button size="sm" variant="secondary" onClick={() => done.mutate(r)}><CheckCircle2 size={13} />{DONE[r.kind] ?? '완료'}</Button>
                   </div>
                 </div>
               </div>

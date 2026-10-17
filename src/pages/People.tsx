@@ -1,7 +1,7 @@
 // 팀원관리 — 이번 주 AI 액션 추천(가로) + 팀원 보드(표준 지표)
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight, Award, CalendarPlus, Send, StickyNote, Users } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Award, CalendarPlus, StickyNote, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { cx } from '../lib/format';
@@ -10,7 +10,6 @@ import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
-import { RequestModal } from '../components/RequestModal';
 import { MemoModal, Sparkline, STATUS_META, useHomeModel, type InsightItem } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
 
@@ -25,7 +24,6 @@ export default function People() {
   const [memo, setMemo] = useState<{ open: boolean; who: string | null }>({ open: false, who: null });
   const [params, setParams] = useSearchParams();
   const [oo, setOo] = useState<{ open: boolean; who: string | null }>({ open: !!params.get('new'), who: null });
-  const [req, setReq] = useState<string | null | undefined>(undefined);
   const [praise, setPraise] = useState<{ uid: string; name: string } | null>(null);
   const openMemo = (who: string | null = null) => setMemo({ open: true, who });
   const st = m.loading ? null : STATUS_META[m.status.people];
@@ -54,7 +52,6 @@ export default function People() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => openMemo()} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><StickyNote size={15} />관찰 메모</button>
-          <button onClick={() => setReq(null)} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Send size={15} />요청</button>
           <button onClick={() => setOo({ open: true, who: null })} className="text-sm rounded-xl px-3 py-2 bg-teal-600 text-white hover:bg-teal-700 inline-flex items-center gap-1.5"><CalendarPlus size={15} />1:1 잡기</button>
         </div>
       </div>
@@ -84,7 +81,6 @@ export default function People() {
 
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
       <ScheduleModal open={oo.open} onClose={() => { setOo({ open: false, who: null }); if (params.get('new') || params.get('tab')) setParams({}, { replace: true }); }} memberId={oo.who} />
-      <RequestModal open={req !== undefined} onClose={() => setReq(undefined)} toId={req ?? null} />
     </div>
   );
 }
@@ -202,3 +198,4 @@ export function Delta({ d }: { d: number }) {
   if (Math.abs(r) < 0.1) return <span className="text-slate-400">변화 없음</span>;
   return r > 0 ? <span className="text-emerald-700 inline-flex items-center"><ArrowUpRight size={10} />{r}</span> : <span className="text-rose-600 inline-flex items-center"><ArrowDownRight size={10} />{Math.abs(r)}</span>;
 }
+
