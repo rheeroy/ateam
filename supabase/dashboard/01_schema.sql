@@ -2656,6 +2656,13 @@ begin
   insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, due_date) values
     (T, L, m_park, 'share', t7, '광고 성과 대시보드 개편 화면 캡처 공유해 주세요', '지난주 말씀하신 1차 배포 화면이요. 승인까지는 필요 없습니다.', current_date + 2),
     (T, L, m_han, 'progress', t1, '고객 FGI 진행 상황 업데이트 부탁해요', '몇 명 했는지, 막히는 게 있는지만 짧게요', current_date + 1);
+  -- 팀원 상세 액션: 지원·격려 / 육성 (요청 종류 추가 14_request_kinds 이후에만 들어감)
+  begin
+    insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
+      (T, L, m_lee, 'cheer', '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.', '', now() - interval '1 day'),
+      (T, L, m_choi, 'grow', '다음 분기에 콘텐츠 운영 전체를 맡아 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', now() - interval '2 days');
+  exception when others then null;
+  end;
   insert into work_item_allocations (item_id, user_id, team_id, share_pct) values
     (t1, m_kim, T, 40), (t1, m_han, T, 30), (t2, m_kim, T, 20), (t3, m_jung, T, 15), (t4, m_lee, T, 20),
     (t5, m_choi, T, 30), (t6, m_jung, T, 45), (t6, m_park, T, 10), (t7, m_park, T, 30);
@@ -2742,7 +2749,20 @@ begin
             now() - (170 - i * 11) * interval '1 day')
     returning id into sub;
     insert into submission_versions (submission_id, team_id, version, extracted_text, created_by, created_at)
-    values (sub, T, 1, '(데모 본문)', (select author_id from submissions where id = sub), now() - (170 - i * 11) * interval '1 day') returning id into ver;
+    values (sub, T, 1, (array[
+      E'고객 세그먼트 분석\n1. 구매 데이터 기준 4개 세그먼트: 가성비형 34%, 트렌드형 27%, 충성형 22%, 이탈 위험 17%\n2. 신제품 1차 타깃: 트렌드형 — 객단가 상위 30%, SNS 유입 비중 62%\n3. 다음: 트렌드형 대상 메시지 테스트',
+      E'광고 성과 진단\n1. 3분기 CAC 2.9만 원 (전 분기 대비 +12%)\n2. 원인: 인스타그램 소재 피로도 — 같은 소재 6주 이상 집행\n3. 제안: 소재 교체 주기 3주로 단축, 제휴 채널 테스트 예산 10% 배정',
+      E'SNS 채널 운영안\n1. 목표: 런칭 전 팔로워 3만 → 5만\n2. 주 3회 정기 콘텐츠 + 월 1회 협업 라이브\n3. 성과 지표: 저장 수·공유 수 중심 (좋아요 제외)',
+      E'제휴사 후보 리스트\n1. 후보 6곳: 멤버십 규모·고객 겹침·데이터 제공 가능 여부로 비교\n2. 1순위 B사(멤버십 120만, 겹침 38%), 2순위 A사, 3순위 C사\n3. B사는 데이터 제공 일정이 불확실 — 대안 확보 필요',
+      E'경쟁사 캠페인 동향\n1. 주요 3사 모두 런칭 초기 할인(10~20%) 사용\n2. 정가 런칭 사례는 인지도 상위 브랜드뿐\n3. 시사점: 우리 인지도에서는 초기 할인 검토 필요',
+      E'광고 성과 대시보드 설계\n1. 보는 사람별 화면: 팀장(주간 CAC·전환), 실무(소재별 성과)\n2. 데이터 소스 3곳 자동 연동, 매일 오전 7시 갱신\n3. 1차 배포 범위: 채널별 CAC·전환율',
+      E'콘텐츠 가이드라인\n1. 톤: 친근하지만 과장 없이, 숫자는 출처와 함께\n2. 이미지: 제품 단독 컷 금지, 사용 장면 위주\n3. 금지 표현 12개와 대체 표현 정리',
+      E'고객 페르소나 정의\n1. 핵심 페르소나: 31세 직장인, 퇴근 후 30분 자기관리, SNS로 제품 탐색\n2. 구매 장벽: 가격보다 "나한테 맞을지" 확신 부족\n3. 메시지 방향: 후기·체험 중심',
+      E'제휴 조건 비교\n1. A사: 수수료 8%, 데이터 월 1회 / B사: 수수료 10%, 데이터 실시간(일정 미정) / C사: 수수료 7%, 데이터 없음\n2. 추천: B사 우선 협상, A사 병행',
+      E'리포트 자동화 계획\n1. 주간 리포트 작성 시간 4시간 → 30분 목표\n2. 대시보드 연동 후 자동 요약, 코멘트만 작성\n3. 일정: 3주, 1주차 데이터 정리',
+      E'브랜드 톤앤매너 정리\n1. 키워드: 정직함·가벼움·실용\n2. 채널별 톤 차이: 인스타그램은 가볍게, 상세 페이지는 근거 중심\n3. 예시 문구 20개',
+      E'가격 민감도 분석\n1. 설문 400명: 적정 가격 3.2만~3.8만 원\n2. 4만 원 이상에서 구매 의향 급감(−41%)\n3. 제안: 정가 3.9만 원, 런칭 할인으로 3.3만 원대 체험',
+      E'CRM 메시지 개편\n1. 현재 웰컴 메시지 열람률 22% — 업계 평균 35%\n2. 개편: 첫 메시지에 혜택 1개만, 발송 시점 가입 직후 → 다음 날 오전\n3. 4주 뒤 열람률·첫 구매 전환 비교'])[i], (select author_id from submissions where id = sub), now() - (170 - i * 11) * interval '1 day') returning id into ver;
     insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at)
     values (sub, ver, T, L, '좋습니다. 이대로 진행하죠.', now() - (166 - i * 11) * interval '1 day');
     -- 버전 업로드 트리거가 '리뷰 중'으로 돌려놓으므로, 승인은 그 뒤에
@@ -2883,7 +2903,9 @@ begin
     insert into public.ai_outputs (team_id, kind, subject_user_id, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at) values
       (T, 'review', m_kim, 'submission_versions', v1, 'draft', 'leader', 'L1', 1, $j${
         "depth_score": 3.0,
-        "summary": "프로모션을 얼리버드 할인으로 바꾼 근거와 버린 대안이 분명합니다. 다만 가설 2(3040 고객)는 검증 데이터가 아직 부족합니다.",
+        "summary": "정가 런칭을 버린 이유와 대안 비교가 분명해 논리가 탄탄하고, 가설마다 검증 방법까지 붙여 완성도도 높아졌습니다. 다만 결론이 §2에 묻혀 있어 첫 장만 봐서는 무엇을 하자는지 바로 보이지 않고, 가설 2(3040 고객)는 아직 주장 수준입니다.",
+        "brief": {"tone": "good", "text": "김도현 님이 올린 '하반기 신제품 런칭 캠페인 기획서'는 논리가 탄탄해 보입니다", "why": "버린 대안과 이유까지 비교함 · 결론은 뒤에 있음"},
+        "decisions": ["얼리버드 15% 할인 적용", "B사 제휴 채널 확대 시점"],
         "strengths": [{"section": "§2 프로모션", "text": "경쟁사 재분석으로 정가 런칭을 버린 이유와 대안 2개를 비교해 밝혔습니다."},
                       {"section": "§4 가설", "text": "가설마다 검증 방법(예약 데이터, FGI)을 붙였습니다."}],
         "gaps": [{"section": "§4 가설 2", "text": "3040 직장인이 주 고객이라는 근거가 FGI 계획뿐이라 아직 주장 수준입니다."},
@@ -2896,7 +2918,9 @@ begin
       }$j$::jsonb, '[]'::jsonb, m_kim, now() - interval '4 days'),
       (T, 'review', m_choi, 'submission_versions', v2, 'draft', 'leader', 'L1', 1, $j${
         "depth_score": 2.0,
-        "summary": "현황 수치와 측정 지표를 붙여 실행 가능한 안이 됐지만, 개선안이 왜 리드타임을 줄이는지 인과가 약합니다.",
+        "summary": "현황 수치와 측정 지표를 붙여 실행 가능한 모양은 갖췄지만, 목표치가 없고 세 가지 개선이 각각 리드타임을 얼마나 줄이는지 추정이 비어 있어 완결성이 낮습니다. 개선안도 일반적인 방법을 옮긴 수준이라 이 팀만의 병목을 짚은 관점이 약합니다.",
+        "brief": {"tone": "watch", "text": "최민아 님이 올린 '콘텐츠 제작 프로세스 개선안'은 완결성이 낮아 보입니다", "why": "목표치가 없고 개선 효과 추정이 비어 있음"},
+        "decisions": [],
         "strengths": [{"section": "1. 현황", "text": "최근 10건 기준 리드타임 3주로 기준선을 잡았습니다."}],
         "gaps": [{"section": "2. 개선", "text": "브리프 템플릿·고정 슬롯이 각각 며칠을 줄이는지 추정이 없습니다."},
                  {"section": "3. 측정", "text": "목표치(예: 2주)가 없어 성공 여부를 판단하기 어렵습니다."}],
@@ -3013,6 +3037,44 @@ begin
       insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at, value)
         values (sid, T, 1, r.body, '', r.author, now() - (r.ago || ' days')::interval - interval '3 hours', case when r.kind = 'number' then 1840 else null end);
     end loop;
+    -- 리뷰 대기 결과물의 AI 1차 검토 (업무플랫폼 Core Insight 한 줄 포함)
+    insert into public.ai_outputs (team_id, kind, subject_user_id, ref_table, ref_id, status, visibility, level, depth, content, sources, created_by, created_at)
+    select T, 'review', s.author_id, 'submission_versions', v.id, 'draft', 'leader', 'L1', 1, x.c::jsonb, '[]'::jsonb, s.author_id, now() - interval '2 hours'
+    from (values
+      ('제휴 제안서 — B사 제외 2개사 안, 의견 부탁드려요', $j${
+        "depth_score": 1.5,
+        "summary": "B사 데이터 지연이라는 문제는 분명히 짚었지만, 범위를 줄이는 것 말고 다른 길(파일럿·공개 데이터)을 비교하지 않았고 A사·C사를 고른 근거도 없습니다. 목표 영향 -1.4만 명이 어떻게 나왔는지도 빠져 있습니다.",
+        "brief": {"tone": "risk", "text": "정우성 님이 올린 '제휴 제안서 — B사 제외 2개사 안'은 고민의 깊이가 낮아 보입니다", "why": "범위만 줄이고 대안 비교·선정 근거가 없음"},
+        "decisions": [],
+        "strengths": [{"section": "본문", "text": "막힌 원인(B사 데이터 회신 지연)과 목표 영향을 먼저 밝혔습니다."}],
+        "gaps": [{"section": "본문", "text": "범위 축소 외에 파일럿 고객·공개 데이터로 1차안을 만드는 길을 검토하지 않았습니다."},
+                 {"section": "본문", "text": "A사·C사를 고른 이유와 -1.4만 명 추정 근거가 없습니다."}],
+        "questions": ["B사를 빼지 않고 1차안을 먼저 내는 방법은 검토해 봤나요?", "-1.4만 명은 어떤 가정으로 나온 숫자인가요?"],
+        "change_from_previous": "", "trend_note": "", "criteria_check": []
+      }$j$),
+      ('10월 광고 성과 리포트', $j${
+        "depth_score": 3.0,
+        "summary": "채널별 CAC를 나란히 놓고 제휴 채널이 가장 효율적이라는 결론까지 짧고 분명하게 전달합니다. 승인 요청이라 팀장님이 정할 것이 있습니다 — 유튜브 예산 20% 이동은 런칭 주간 노출과 맞물려 있어 판단이 필요합니다.",
+        "brief": {"tone": "risk", "text": "박서연 님이 요청한 '10월 광고 성과 리포트'에 팀장님이 결정할 사항이 있습니다", "why": "11월 유튜브 예산 20%를 제휴로 옮길지"},
+        "decisions": ["11월 유튜브 예산 20% → 제휴 이동", "런칭 주간 유튜브 예산 예외 여부"],
+        "strengths": [{"section": "1. 채널별 CAC", "text": "세 채널 CAC를 같은 기준으로 비교해 결론이 바로 보입니다."}],
+        "gaps": [{"section": "3. 11월 제안", "text": "예산 이동이 런칭 사전 예약(유튜브 유입)에 주는 영향 추정이 없습니다."}],
+        "questions": ["런칭 주간에도 유튜브 예산을 20% 줄이나요?", "제휴 채널 CAC 1.1만 원은 B사 지연 이후에도 유지되나요?"],
+        "change_from_previous": "", "trend_note": "", "criteria_check": []
+      }$j$),
+      ('CRM 웰컴 메시지 A/B안', $j${
+        "depth_score": 2.5,
+        "summary": "두 안의 방향(혜택 vs 브랜드)과 테스트 기간은 정리됐지만, 본인은 어느 안을 권하는지와 무엇으로 승부를 볼지(재방문율·구매 전환) 기준이 없어 결론이 잘 보이지 않습니다.",
+        "brief": {"tone": "watch", "text": "이정규 님이 올린 'CRM 웰컴 메시지 A/B안'은 결론이 잘 안 보입니다", "why": "어느 안을 권하는지·판단 기준이 없음"},
+        "decisions": [],
+        "strengths": [{"section": "본문", "text": "대상(제휴 유입 고객)과 테스트 기간을 분명히 했습니다."}],
+        "gaps": [{"section": "본문", "text": "성공 지표와 본인 추천안이 빠져 있어 의견을 주기 어렵습니다."}],
+        "questions": ["둘 중 어느 쪽이 나을 거라고 보나요, 이유는?", "2주 뒤 무엇을 보고 승자를 정하나요?"],
+        "change_from_previous": "", "trend_note": "", "criteria_check": []
+      }$j$)
+    ) as x(title, c)
+    join submissions s on s.team_id = T and s.title = x.title
+    join submission_versions v on v.submission_id = s.id and v.version = 1;
   exception when others then null;
   end;
 end $fn$;

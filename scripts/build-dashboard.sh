@@ -19,7 +19,7 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM v2 업그레이드 — 예전 01_schema.sql 을 이미 실행한 프로젝트에서 한 번 Run (새 프로젝트는 01에 포함되어 있으니 건너뜀)"; echo "-- 기존 전략 목표·과제·마일스톤 데이터는 새 구조(work_items)로 옮겨집니다."; echo; cat migrations/20261013000008_work_items.sql; } > dashboard/04_upgrade_v2.sql
 { echo "-- ATEAM v2 — AI 인사이트 예약 (02_schedules.sql 을 이미 실행한 프로젝트에서 한 번 Run)"; echo; cat migrations/20261013000009_insight_schedules.sql; } > dashboard/05_schedules_v2.sql
 # 06: 데모 계정 (팀장 1 + 팀원 6, 데모 팀 기록) — 다시 Run하면 초기화
-{ echo "-- ATEAM 데모 계정 — v2(04)를 적용한 프로젝트의 SQL Editor에서 Run. 다시 Run하면 데모가 처음 상태로 초기화됩니다."; echo; cat migrations/20261014000010_demo.sql; echo; cat migrations/20261015000011_org_notes.sql; echo; cat demo_accounts.sql; echo; cat migrations/20261020000016_leader_notes.sql; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/06_demo_accounts.sql
+{ echo "-- ATEAM 데모 계정 — v2(04)를 적용한 프로젝트의 SQL Editor에서 Run. 다시 Run하면 데모가 처음 상태로 초기화됩니다."; echo; cat migrations/20261014000010_demo.sql; echo; cat migrations/20261015000011_org_notes.sql; echo; cat migrations/20261022000018_request_kinds.sql; echo; cat demo_accounts.sql; echo; cat migrations/20261020000016_leader_notes.sql; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/06_demo_accounts.sql
 # 07: 홈 개편 — 조직·전사(위에서 온 것) 메모. 이미 01·04를 실행한 프로젝트에서 한 번 (06을 먼저 돌렸다면 이미 포함)
 { echo "-- ATEAM 홈 개편: 조직·전사 메모(org_notes) + AI 영향 분석 종류 추가 — SQL Editor에서 한 번 Run"; echo; cat migrations/20261015000011_org_notes.sql; } > dashboard/07_org_notes.sql
 # 08: 메뉴 재편(팀목표·업무플랫폼·팀원관리) — 요청 완료를 평가 근거로. 이미 01을 실행한 프로젝트에서 한 번
