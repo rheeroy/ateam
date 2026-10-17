@@ -53,13 +53,16 @@ export default function PersonDetail() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <MemoButton uid={id} name={name} />
-            <Link to={`/eval?member=${id}`} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Award size={15} />평가 시뮬레이션</Link>
+            <button onClick={() => setCoach(true)} title="말하기 껄끄러운 개선점을 ATEAM AI 코치가 대신 전달합니다"
+              className="rounded-xl pl-2.5 pr-3.5 py-1.5 bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm hover:brightness-110 inline-flex items-center gap-2 text-left">
+              <span className="w-7 h-7 rounded-lg bg-white/15 ring-1 ring-white/25 flex items-center justify-center"><LogoMark size={14} /></span>
+              <span className="leading-[1.1]"><span className="block text-[13px] font-extrabold tracking-tight">ATEAM<sup className="ml-0.5 text-[9px] font-bold text-indigo-100">AI</sup></span><span className="block text-[12px] font-semibold text-indigo-50">코칭하기</span></span>
+            </button>
           </div>
         </div>
         {/* 모든 액션 — 팀원관리 액션 종류 7가지를 바로 */}
         <div className="mt-3 flex items-center gap-1.5 flex-wrap">
           <span className="text-[11px] font-semibold text-slate-400 mr-1">액션</span>
-          <button onClick={() => setCoach(true)} title="말하기 껄끄러운 개선점을 ATEAM이 코치처럼 대신 알려 줍니다" className="text-xs font-bold rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700"><LogoMark size={12} /><span><span className="font-extrabold">ATEAM</span>의 코칭</span></button>
           {([
             ['one_on_one', CalendarPlus, () => setOo(true)],
             ['praise', Award, () => setPraise(true)],
