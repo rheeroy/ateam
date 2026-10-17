@@ -15,10 +15,10 @@ import { cx, daysAgo, fmtDate, fmtShort, relDay, fmtTime } from '../lib/format';
 import { EVIDENCE_LABEL, useCheckins, useEvidence, useObservations, useOneOnOneMap } from '../lib/people';
 import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
-import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
+import { PraiseModal } from '../components/people/ActionsPanel';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { PersonOverview } from '../components/people/PersonOverview';
-import { ACTION_META, ruleActions, type Level, type MemberIndex, type PeopleAction } from '../lib/peopleActions';
+import { ACTION_META, type Level, type MemberIndex, type PeopleAction } from '../lib/peopleActions';
 import { ActionRequestModal, type ActionReqType } from '../components/RequestModal';
 import { MemoModal, Sparkline, useHomeModel } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
@@ -97,58 +97,56 @@ export default function PersonDetail() {
   );
 }
 
-/** 이번 주 액션 + 표준 지표 */
+/** 표준 지표 (신호등) — 상세에서는 Core Insight 액션을 따로 띄우지 않는다 */
 function PersonTop({ uid }: { uid: string }) {
   const m = useHomeModel('weekly');
   const pi = usePeopleIndex(m);
-  const { members } = useTeam();
   const ix = pi.idx.get(uid);
-  const fallback = ruleActions(members.filter((x) => x.user_id === uid), pi.idx, m.raw);
   return (
     <>
-      <ActionsPanel fallback={fallback} only={uid} compact />
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-2.5 flex-wrap"><span className="font-semibold text-sm">주요 지표</span>
+      <section className="rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white px-4 py-3.5 shadow-sm">
+        <div className="flex items-center gap-2 mb-3 flex-wrap"><span className="font-semibold text-sm">주요 지표</span>
           {ix && <SignalCount ix={ix} />}
-          {ix?.flight.note && <span className="text-xs text-slate-500 truncate">· 이탈 가능성 근거: {ix.flight.note}</span>}</div>
+          {ix?.flight.note && <span className="text-xs text-slate-400 truncate">· 이탈 가능성 근거: {ix.flight.note}</span>}</div>
         {pi.loading ? <Spinner /> : <SignalGrid ix={ix} />}
-      </Card>
+      </section>
     </>
   );
 }
 
 /** 신호등 — 지표마다 빨강·노랑·초록 중 하나에 불이 들어온다 */
-const LAMP: Record<Exclude<Level, 'none'>, { on: string; glow: string; tile: string; text: string; label: string }> = {
-  risk: { on: 'bg-rose-500', glow: 'shadow-[0_0_0_3px_rgba(244,63,94,0.18)]', tile: 'bg-rose-50/70 ring-rose-200', text: 'text-rose-600', label: '위험' },
-  watch: { on: 'bg-amber-400', glow: 'shadow-[0_0_0_3px_rgba(251,191,36,0.25)]', tile: 'bg-amber-50/70 ring-amber-200', text: 'text-amber-700', label: '주의' },
-  good: { on: 'bg-emerald-500', glow: 'shadow-[0_0_0_3px_rgba(16,185,129,0.18)]', tile: 'bg-white ring-slate-200', text: 'text-slate-800', label: '양호' },
+const LAMP: Record<Exclude<Level, 'none'>, { on: string; glow: string; text: string; label: string }> = {
+  risk: { on: 'bg-rose-500', glow: 'shadow-[0_0_6px_1px_rgba(244,63,94,0.8)]', text: 'text-rose-400', label: '위험' },
+  watch: { on: 'bg-amber-400', glow: 'shadow-[0_0_6px_1px_rgba(251,191,36,0.75)]', text: 'text-amber-300', label: '주의' },
+  good: { on: 'bg-emerald-400', glow: 'shadow-[0_0_6px_1px_rgba(52,211,153,0.7)]', text: 'text-white', label: '양호' },
 };
 function Lamps({ level }: { level: Level }) {
   return (
-    <span className="inline-flex items-center gap-[3px] rounded-full bg-slate-800 px-1.5 py-1" aria-label={level === 'none' ? '데이터 없음' : LAMP[level].label}>
-      {(['risk', 'watch', 'good'] as const).map((k) => <span key={k} className={cx('w-2 h-2 rounded-full', level === k ? cx(LAMP[k].on, LAMP[k].glow) : 'bg-slate-600')} />)}
+    <span className="inline-flex items-center gap-[3px] rounded-full bg-black/40 ring-1 ring-white/10 px-1.5 py-1" aria-label={level === 'none' ? '데이터 없음' : LAMP[level].label}>
+      {(['risk', 'watch', 'good'] as const).map((k) => <span key={k} className={cx('w-2 h-2 rounded-full', level === k ? cx(LAMP[k].on, LAMP[k].glow) : 'bg-white/15')} />)}
     </span>
   );
 }
 function SignalCount({ ix }: { ix: MemberIndex }) {
   const n = (l: Level) => ix.indices.filter((i) => i.level === l).length;
   return (
-    <span className="inline-flex items-center gap-2 text-[11px] text-slate-500">
-      {(['risk', 'watch', 'good'] as const).map((k) => n(k) ? <span key={k} className="inline-flex items-center gap-1"><span className={cx('w-2 h-2 rounded-full', LAMP[k].on)} />{LAMP[k].label} <b className="num text-slate-700">{n(k)}</b></span> : null)}
+    <span className="inline-flex items-center gap-2 text-[11px] text-slate-400">
+      {(['risk', 'watch', 'good'] as const).map((k) => n(k) ? <span key={k} className="inline-flex items-center gap-1"><span className={cx('w-2 h-2 rounded-full', LAMP[k].on)} />{LAMP[k].label} <b className="num text-white">{n(k)}</b></span> : null)}
     </span>
   );
 }
+/** 박스 없이 세로 구분선으로만 나눈 신호등 줄 */
 function SignalGrid({ ix }: { ix?: MemberIndex }) {
   if (!ix) return null;
   return (
-    <dl className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+    <dl className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-y-3 lg:divide-x lg:divide-white/10">
       {ix.indices.map((i) => {
         const L = i.level === 'none' ? null : LAMP[i.level];
         return (
-          <div key={i.key} className={cx('rounded-xl ring-1 px-3 py-2.5', L ? L.tile : 'bg-slate-50 ring-slate-100')}>
-            <div className="flex items-center gap-1.5"><dt className="text-[11px] text-slate-500 truncate">{i.label}</dt><span className="ml-auto"><Lamps level={i.level} /></span></div>
-            <dd className={cx('mt-1 text-lg font-bold num leading-tight', L ? L.text : 'text-slate-300')}>{i.value}</dd>
-            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-400 truncate">{i.sub}</dd>}
+          <div key={i.key} className="px-3 first:pl-0 lg:first:pl-0">
+            <div className="flex items-center gap-1.5"><dt className="text-[11px] text-slate-400 truncate">{i.label}</dt><span className="ml-auto"><Lamps level={i.level} /></span></div>
+            <dd className={cx('mt-1 text-lg font-bold num leading-tight', L ? L.text : 'text-slate-500')}>{i.value}</dd>
+            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-500 truncate">{i.sub}</dd>}
           </div>
         );
       })}
