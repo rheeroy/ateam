@@ -103,7 +103,7 @@ serve(async (req) => {
   ].filter(Boolean).join('\n\n');
   content.push({ type: 'text', text });
 
-  const { output, parsed } = await runAi<{ depth_score: number; competency_signals?: Record<string, number> }>({
+  const { output, parsed } = await runAi<{ depth_score: number; quality?: { depth?: { score?: number | null } }; competency_signals?: Record<string, number> }>({
     teamId: sub.team_id,
     kind: 'review',
     model: MODEL_SMART,
@@ -116,10 +116,10 @@ serve(async (req) => {
     subjectUserId: sub.author_id,
     refTable: 'submission_versions',
     refId: ver.id,
-    maxTokens: 1600,
+    maxTokens: 2200,
   });
 
-  const score = Math.max(1, Math.min(4, Math.round((Number(parsed.depth_score) || 2) * 2) / 2));
+  const score = Math.max(1, Math.min(4, Math.round((Number(parsed.quality?.depth?.score ?? parsed.depth_score) || 2) * 2) / 2));
   await admin.from('judgment_scores').insert({
     team_id: sub.team_id, user_id: sub.author_id, submission_id: sub.id, version_id: ver.id,
     score, competencies: parsed.competency_signals ?? {}, ai_output_id: output.id,

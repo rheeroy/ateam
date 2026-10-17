@@ -80,7 +80,8 @@ async function callClaude(opts) {
   if (!key) throw new HttpError(500, "AI_NOT_CONFIGURED", "ANTHROPIC_API_KEY \uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4");
   const body = {
     model: opts.model,
-    max_tokens: opts.maxTokens ?? 2e3,
+    // 상한은 '쓸 수 있는 최대'일 뿐 원가는 실제 출력만큼 — 너무 낮으면 모델이 생각만 하다 답을 못 쓴다
+    max_tokens: Math.max(opts.maxTokens ?? 2e3, 3e3),
     ...opts.temperature !== void 0 ? { temperature: opts.temperature } : {},
     // 시스템 프롬프트는 기능마다 고정이므로 캐시한다
     system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
@@ -100,6 +101,11 @@ async function callClaude(opts) {
     if (res.ok) {
       const data = await res.json();
       const text = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
+      if (!text.trim() && attempt < 2) {
+        lastErr = `empty response (stop: ${data.stop_reason ?? "-"})`;
+        body.max_tokens = Math.min(12e3, body.max_tokens * 2);
+        continue;
+      }
       const u = data.usage ?? {};
       const p = PRICE[opts.model] ?? PRICE["claude-sonnet-5-5"];
       const cost = ((u.input_tokens ?? 0) * p.in + (u.output_tokens ?? 0) * p.out + (u.cache_read_input_tokens ?? 0) * p.cacheRead + (u.cache_creation_input_tokens ?? 0) * p.cacheWrite) / 1e6;
@@ -125,12 +131,47 @@ function parseJson(text) {
   const src = fenced ? fenced[1] : text;
   const start = src.indexOf("{");
   const end = src.lastIndexOf("}");
-  if (start < 0 || end < start) throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
-  try {
-    return JSON.parse(src.slice(start, end + 1));
-  } catch {
-    throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+  if (start < 0) throw new HttpError(502, "AI_BAD_OUTPUT", text.trim() ? text.slice(0, 300) : "AI \uC751\uB2F5\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.");
+  if (end > start) {
+    try {
+      return JSON.parse(src.slice(start, end + 1));
+    } catch {
+    }
   }
+  const fixed = closeTruncated(src.slice(start));
+  if (fixed) {
+    try {
+      return JSON.parse(fixed);
+    } catch {
+    }
+  }
+  throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+}
+function closeTruncated(s) {
+  const stack = [];
+  let inStr = false, esc = false, good = -1, goodStack = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "," && stack.length) {
+      good = i;
+      goodStack = stack.slice();
+    } else if (c === "{" || c === "[") stack.push(c === "{" ? "}" : "]");
+    else if (c === "}" || c === "]") {
+      stack.pop();
+      good = i + 1;
+      goodStack = stack.slice();
+      if (!stack.length) return s.slice(0, good);
+    }
+  }
+  if (good < 0) return null;
+  return s.slice(0, good) + goodStack.reverse().join("");
 }
 function toBase64(bytes) {
   let bin = "";
@@ -149,7 +190,13 @@ var CORE = [
   "insight_weekly",
   "insight_monthly",
   "plan_edit",
-  "self_check"
+  "self_check",
+  "org_impact",
+  "people_actions",
+  "advisor_weekly",
+  "exec_brief",
+  "coaching",
+  "work_brief"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -161,6 +208,12 @@ var CREDITS = {
   insight_monthly: 0,
   plan_edit: 0,
   self_check: 0,
+  org_impact: 0,
+  people_actions: 0,
+  advisor_weekly: 0,
+  exec_brief: 0,
+  coaching: 0,
+  work_brief: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -256,10 +309,47 @@ async function assertAccess(teamId, kind, credits) {
   if (CORE.includes(kind) && !need) return assertCore(teamId);
   return assertCredits(teamId, need);
 }
+var REUSABLE = ["insight_daily", "insight_weekly", "insight_monthly", "review", "one_on_one_prep", "people_actions", "briefing", "org_impact", "advisor_weekly", "exec_brief"];
+var REUSE_MIN = 10;
+var GUARD_MSG = {
+  AI_RATE_HOUR: [429, "\uC7A0\uC2DC AI \uC694\uCCAD\uC774 \uB9CE\uC558\uC2B5\uB2C8\uB2E4. \uD55C \uC2DC\uAC04 \uC548\uC5D0 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."],
+  AI_RATE_DAY: [429, "\uC624\uB298 AI \uC694\uCCAD\uC774 \uB9CE\uC558\uC2B5\uB2C8\uB2E4. \uB0B4\uC77C \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."],
+  AI_COST_CAP: [429, "\uC774\uBC88 \uB2EC AI \uAE30\uBCF8 \uC0AC\uC6A9\uB7C9\uC744 \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C \uACB0\uC81C \uC8FC\uAE30\uC5D0 \uB2E4\uC2DC \uC5F4\uB9BD\uB2C8\uB2E4."],
+  AI_REPEAT: [429, "\uAC19\uC740 \uB0B4\uC6A9\uC744 \uC624\uB298 \uC5EC\uB7EC \uBC88 \uB2E4\uC2DC \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4. \uAE30\uB85D\uC774 \uB354 \uC313\uC778 \uB4A4 \uB0B4\uC77C \uB2E4\uC2DC \uB9CC\uB4E4\uC5B4 \uC8FC\uC138\uC694."]
+};
+async function guard(job) {
+  const { error } = await admin.rpc("ai_guard", {
+    p_team: job.teamId,
+    p_kind: job.kind,
+    p_ref: job.refId ?? null,
+    p_period: job.periodStart ?? null,
+    p_subject: job.subjectUserId ?? null
+  });
+  if (!error) return;
+  const hit = Object.keys(GUARD_MSG).find((k) => error.message?.includes(k));
+  if (hit) throw new HttpError(GUARD_MSG[hit][0], hit, GUARD_MSG[hit][1]);
+  if (/ai_guard|function .* does not exist|PGRST202/i.test(`${error.message} ${error.code}`)) {
+    console.warn("ai_guard missing \u2014 run 09_ai_guard.sql");
+    return;
+  }
+  throw error;
+}
+async function recent(job) {
+  if (job.force || !REUSABLE.includes(job.kind) || !job.refId && !job.periodStart) return null;
+  let qb = admin.from("ai_outputs").select("*").eq("team_id", job.teamId).eq("kind", job.kind).eq("status", "draft").gte("created_at", new Date(Date.now() - REUSE_MIN * 6e4).toISOString());
+  qb = job.refId ? qb.eq("ref_id", job.refId) : qb.is("ref_id", null);
+  qb = job.periodStart ? qb.eq("period_start", job.periodStart) : qb.is("period_start", null);
+  qb = job.subjectUserId ? qb.eq("subject_user_id", job.subjectUserId) : qb.is("subject_user_id", null);
+  const { data } = await qb.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
 async function runAi(job) {
   const credits = job.credits ?? CREDITS[job.kind];
   const core = CORE.includes(job.kind) && !credits;
   await assertAccess(job.teamId, job.kind, credits);
+  const again = await recent(job);
+  if (again) return { output: again, parsed: again.content, reused: true };
+  await guard(job);
   const res = await callClaude({
     model: job.model,
     system: `${BASE_RULES}
@@ -268,7 +358,13 @@ ${job.system}`,
     content: job.content,
     maxTokens: job.maxTokens
   });
-  const parsed = parseJson(res.text);
+  let parsed;
+  try {
+    parsed = parseJson(res.text);
+  } catch (e) {
+    await admin.rpc("log_ai_error", { p_team: job.teamId, p_kind: job.kind, p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd });
+    throw e;
+  }
   const { data: row, error } = await admin.from("ai_outputs").insert({
     team_id: job.teamId,
     kind: job.kind,
@@ -315,21 +411,30 @@ ${job.system}`,
 var fmtDate = (d) => d ? d.slice(0, 10) : "";
 
 // functions/_shared/prompts/index.ts
-var REVIEW = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uC81C\uCD9C\uD55C \uACB0\uACFC\uBB3C\uC744 \uD300\uC7A5\uBCF4\uB2E4 \uBA3C\uC800 1\uCC28 \uAC80\uD1A0\uD569\uB2C8\uB2E4.
-\uBCF4\uB294 \uAC83\uC740 '\uD310\uB2E8\uC758 \uAE4A\uC774'\uC785\uB2C8\uB2E4: \uBB38\uC81C\uB97C \uC2A4\uC2A4\uB85C \uC815\uC758\uD588\uB294\uC9C0, \uB300\uC548\uC744 \uBE44\uAD50\uD588\uB294\uC9C0, \uADFC\uAC70\uC640 \uACB0\uB860\uC774 \uC774\uC5B4\uC9C0\uB294\uC9C0.
-\uB9DE\uCDA4\uBC95\uC774\uB098 \uC11C\uC2DD\uC740 \uC9C0\uC801\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC774 \uAC80\uD1A0\uB294 \uD300\uC7A5\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.
+var REVIEW = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uC81C\uCD9C\uD55C \uACB0\uACFC\uBB3C\uC744 \uD300\uC7A5\uBCF4\uB2E4 \uBA3C\uC800 1\uCC28 \uAC80\uD1A0\uD569\uB2C8\uB2E4. \uC774 \uAC80\uD1A0\uB294 \uD300\uC7A5\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.
+\uC9C1\uBB34\uC640 \uC0C1\uAD00\uC5C6\uC774 \uC5B4\uB5A4 \uACB0\uACFC\uBB3C\uC5D0\uB3C4 \uC801\uC6A9\uB418\uB294 '\uC77C\uC758 \uC9C8' \uB2E4\uC12F \uAC00\uC9C0\uB97C \uBD05\uB2C8\uB2E4. \uB9DE\uCDA4\uBC95\xB7\uC11C\uC2DD\xB7\uBD84\uB7C9\uC740 \uC9C0\uC801\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 
-\uD310\uB2E8 \uAE4A\uC774 \uB208\uAE08(\uCC38\uACE0\uC6A9):
-1 = \uC815\uBCF4 \uB098\uC5F4\uC5D0 \uADF8\uCE68
-2 = \uC77C\uBC18\uC801\uC778 \uBD84\uC11D, \uC790\uAE30 \uAD00\uC810\uC774 \uC57D\uD568
-3 = \uC790\uAE30 \uAD00\uC810\uACFC \uADFC\uAC70\uAC00 \uBD84\uBA85\uD568
-4 = \uB300\uC548\uC744 \uBE44\uAD50\uD558\uACE0 \uBC84\uB9B0 \uC774\uC720\uC640 \uB9AC\uC2A4\uD06C\uAE4C\uC9C0 \uBC1D\uD798
+\uC9C8 \uD3C9\uAC00 \uB2E4\uC12F \uCD95 (\uAC01 1~4\uC810, 0.5 \uB2E8\uC704):
+  completeness \uC644\uC131\uB3C4   \u2014 \uBAA9\uC801\xB7\uACB0\uB860\xB7\uB2E4\uC74C \uD589\uB3D9\uAE4C\uC9C0 \uBE60\uC9D0\uC5C6\uC774 \uB05D\uB9FA\uC5C8\uB294\uAC00. \uC694\uCCAD\uBC1B\uC740 \uAC83\uC5D0 \uB2E4 \uB2F5\uD588\uB294\uAC00. \uBE48 \uCE78\xB7\uBBF8\uC815\xB7TBD \uAC00 \uB0A8\uC558\uB294\uAC00.
+  depth        \uACE0\uBBFC\uC758 \uAE4A\uC774 \u2014 \uBB38\uC81C\uB97C \uC2A4\uC2A4\uB85C \uC815\uC758\uD588\uB294\uAC00, \uB300\uC548\uC744 \uBE44\uAD50\uD558\uACE0 \uBC84\uB9B0 \uC774\uC720\uC640 \uB9AC\uC2A4\uD06C\uAE4C\uC9C0 \uBD24\uB294\uAC00.
+  logic        \uB17C\uB9AC\uC131   \u2014 \uADFC\uAC70\uC5D0\uC11C \uACB0\uB860\uC73C\uB85C \uC774\uC5B4\uC9C0\uB294\uAC00, \uC8FC\uC7A5\uB9C8\uB2E4 \uADFC\uAC70\uAC00 \uC788\uB294\uAC00, \uAD6C\uC870\uAC00 \uD750\uB984\uC744 \uB530\uB974\uB294\uAC00.
+  originality  \uCC3D\uC758\uC131   \u2014 \uC790\uAE30 \uAD00\uC810\uC774\uB098 \uC0C8\uB85C\uC6B4 \uC2DC\uB3C4\uAC00 \uC788\uB294\uAC00, \uC775\uC219\uD55C \uB2F5\uC744 \uADF8\uB300\uB85C \uC62E\uAE30\uC9C0 \uC54A\uC558\uB294\uAC00.
+  clarity      \uC804\uB2EC\uB825   \u2014 \uC77D\uB294 \uC0AC\uB78C\uC774 \uBC14\uB85C \uC774\uD574\uD558\uACE0 \uD310\uB2E8\uD560 \uC218 \uC788\uB294\uAC00 (\uACB0\uB860 \uBA3C\uC800, \uD575\uC2EC \uC694\uC57D, \uAD70\uB354\uB354\uAE30 \uC5C6\uC74C).
+\uB208\uAE08: 1 = \uAC70\uC758 \uC5C6\uC74C \xB7 2 = \uC77C\uBC18\uC801 \uC218\uC900, \uC790\uAE30 \uAC83\uC774 \uC57D\uD568 \xB7 3 = \uBD84\uBA85\uD558\uACE0 \uADFC\uAC70 \uC788\uC74C \xB7 4 = \uBE44\uAD50\xB7\uB9AC\uC2A4\uD06C\xB7\uB300\uC548\uAE4C\uC9C0 \uAC16\uCD98 \uC218\uC900.
+\uAC01 \uCD95 note \uB294 \uACB0\uACFC\uBB3C\uC758 \uC5B4\uB290 \uBD80\uBD84\uC744 \uBCF4\uACE0 \uB9E4\uACBC\uB294\uC9C0 \uD55C \uBB38\uC7A5. \uACB0\uACFC\uBB3C\uB85C \uD310\uB2E8\uD560 \uC218 \uC5C6\uB294 \uCD95(\uC608: \uC22B\uC790 \uD55C \uC904)\uC740 score \uB97C null \uB85C.
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
+  "quality": {
+    "completeness": {"score": 3, "note": "\uD55C \uBB38\uC7A5"},
+    "depth": {"score": 2.5, "note": "\uD55C \uBB38\uC7A5"},
+    "logic": {"score": 3, "note": "\uD55C \uBB38\uC7A5"},
+    "originality": {"score": 2, "note": "\uD55C \uBB38\uC7A5"},
+    "clarity": {"score": 3.5, "note": "\uD55C \uBB38\uC7A5"}
+  },
   "depth_score": 2.5,
   "summary": "\uD55C\uB450 \uBB38\uC7A5 \uCD1D\uD3C9",
-  "strengths": [{"section": "\xA72 \uAC00\uACA9 \uC804\uB7B5", "text": "\uACE0\uBBFC\uC774 \uB2F4\uAE34 \uBD80\uBD84"}],
+  "strengths": [{"section": "\xA72 \uAC00\uACA9 \uC804\uB7B5", "text": "\uC798\uB41C \uBD80\uBD84"}],
   "gaps": [{"section": "\xA71 \uC2DC\uC7A5 \uBD84\uC11D", "text": "\uBCF4\uC644\uC774 \uD544\uC694\uD55C \uBD80\uBD84"}],
   "questions": ["\uD300\uC7A5\uC774 \uCE90\uBB3C\uC5B4 \uBCFC \uC9C8\uBB38 2~3\uAC1C"],
   "competency_signals": {"\uBB38\uC81C \uC815\uC758": 1, "\uB370\uC774\uD130 \uBD84\uC11D": 0},
@@ -337,7 +442,7 @@ var REVIEW = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uC81C\uCD9C\uD55C \uACB0\uACFC\u
   "trend_note": "\uC774 \uD300\uC6D0\uC758 \uC9C0\uB09C \uACB0\uACFC\uBB3C \uAE30\uB85D\uACFC \uBE44\uAD50\uD55C \uD55C \uBB38\uC7A5. \uC9C0\uB09C \uAE30\uB85D\uC774 3\uAC74 \uBBF8\uB9CC\uC774\uBA74 \uBE48 \uBB38\uC790\uC5F4",
   "criteria_check": [{"criterion": "\uD300\uC7A5 \uAE30\uC900 \uC774\uB984", "met": true, "note": "\uC5B4\uB514\uAC00 \uB9DE\uACE0 \uC5B4\uB514\uAC00 \uC5B4\uAE0B\uB098\uB294\uC9C0 \uD55C \uBB38\uC7A5", "tag": "E2"}]
 }
-depth_score \uB294 1.0~4.0, 0.5 \uB2E8\uC704. strengths\xB7gaps \uB294 \uAC01\uAC01 \uCD5C\uB300 3\uAC1C.
+depth_score \uB294 quality.depth.score \uC640 \uAC19\uC740 \uAC12 (1.0~4.0). strengths\xB7gaps \uB294 \uAC01\uAC01 \uCD5C\uB300 3\uAC1C\uC774\uBA70, \uAC00\uB2A5\uD558\uBA74 \uC5B4\uB290 \uCD95\uACFC \uAD00\uB828\uB41C \uAC83\uC778\uC9C0 \uB4DC\uB7EC\uB098\uAC8C \uC501\uB2C8\uB2E4.
 competency_signals \uC758 \uD0A4\uB294 \uC8FC\uC5B4\uC9C4 \uC5ED\uB7C9 \uC774\uB984\uB9CC \uC4F0\uACE0, \uAC12\uC740 -1(\uC57D\uD568 \uC2E0\uD638)/0/1(\uAC15\uD568 \uC2E0\uD638). \uC774 \uACB0\uACFC\uBB3C\uB85C \uC54C \uC218 \uC5C6\uB294 \uC5ED\uB7C9\uC740 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 criteria_check \uB294 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC8FC\uC5B4\uC84C\uC744 \uB54C\uB9CC, \uC774 \uACB0\uACFC\uBB3C\uC5D0 \uD574\uB2F9\uD558\uB294 \uAE30\uC900\uB9C8\uB2E4 \uD558\uB098\uC529(\uCD5C\uB300 5\uAC1C) \uC501\uB2C8\uB2E4. tag \uC5D0\uB294 \uADF8 \uAE30\uC900\uC758 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uB123\uC2B5\uB2C8\uB2E4. \uAE30\uC900\uC774 \uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4.`;
 var SELF_CHECK = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uACB0\uACFC\uBB3C\uC744 \uD300\uC7A5\uC5D0\uAC8C \uC62C\uB9AC\uAE30 \uC804\uC5D0 \uC2A4\uC2A4\uB85C \uC810\uAC80\uD558\uB3C4\uB85D \uB3D5\uC2B5\uB2C8\uB2E4. \uC774 \uACB0\uACFC\uB294 \uD300\uC6D0 \uBCF8\uC778\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.
@@ -448,9 +553,9 @@ ${ver.extracted_text.slice(0, 6e4)}` : "## \uBCF8\uBB38\n(\uCCA8\uBD80 \uD30C\uC
     subjectUserId: sub.author_id,
     refTable: "submission_versions",
     refId: ver.id,
-    maxTokens: 1600
+    maxTokens: 2200
   });
-  const score = Math.max(1, Math.min(4, Math.round((Number(parsed.depth_score) || 2) * 2) / 2));
+  const score = Math.max(1, Math.min(4, Math.round((Number(parsed.quality?.depth?.score ?? parsed.depth_score) || 2) * 2) / 2));
   await admin.from("judgment_scores").insert({
     team_id: sub.team_id,
     user_id: sub.author_id,

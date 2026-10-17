@@ -5,8 +5,15 @@ import { useToast } from '../components/ui';
 import type { Submission, WorkItem } from './types';
 import type { Node } from './items';
 
+export type QualityKey = 'completeness' | 'depth' | 'logic' | 'originality' | 'clarity';
+export type Quality = Partial<Record<QualityKey, { score: number | null; note?: string }>>;
+/** 결과물 질 평가 다섯 축 — 직무와 상관없이 공통 */
+export const QUALITY_AXES: { key: QualityKey; label: string }[] = [
+  { key: 'completeness', label: '완성도' }, { key: 'depth', label: '고민의 깊이' }, { key: 'logic', label: '논리성' },
+  { key: 'originality', label: '창의성' }, { key: 'clarity', label: '전달력' },
+];
 export interface AiReview {
-  depth_score: number; summary: string;
+  depth_score: number; summary: string; quality?: Quality;
   strengths: { section: string; text: string }[]; gaps: { section: string; text: string }[];
   questions: string[]; change_from_previous?: string; trend_note?: string;
   criteria_check?: { criterion: string; met: boolean; note: string; tag?: string }[];
