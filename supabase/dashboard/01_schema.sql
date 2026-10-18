@@ -3984,7 +3984,7 @@ end $$;
 -- 목표 수정 기간 (팀장이 열어 둘 때만 팀원이 목표·과제를 고친다)
 --   · 목표·과제(1·2단계)  : 팀장이 '수정 기간'을 열어 둔 동안만 팀원이 만들고 고친다 → 팀장 승인 후 반영
 --                           기간이 닫혀 있으면 진척·상태만 남기고, 바꿀 게 있으면 [변경 요청](kind 'change')
---                           (검토 대기·수정 요청 중인 내 제안은 기간과 상관없이 고칠 수 있다)
+--                           (검토 대기·수정 요청 중인 제안도 기간이 닫혀 있으면 고치거나 거둘 수 없다)
 --   · 할 일(3단계 이하)    : 내 과제 아래에서는 언제든 자유롭게 (승인·재계획 기록 없음)
 --   · 기간: teams.settings.plan_open_until (YYYY-MM-DD, 그날까지 열림 · 한국 날짜 기준)
 --   · 팀장이 '계획 세우기' 요청을 보내면 기한(없으면 2주 뒤)까지 자동으로 열린다
@@ -4060,6 +4060,10 @@ begin
         v_skip_replan := true;                            -- 할 일은 자유: 재계획 기록 안 남김
         if new.status in ('proposed', 'changes_requested') and old.status not in ('proposed', 'changes_requested') then new.status := old.status; end if;
       else
+        -- 검토 중인 제안: 기간이 닫혀 있으면 상태도 못 바꾼다(거두기 포함)
+        if not v_open and old.status in ('proposed', 'changes_requested') and new.status is distinct from old.status then
+          raise exception '%', v_lock;
+        end if;
         -- 승인은 팀장만: 제안·수정 요청 상태에서 진행 상태로 바로 못 간다
         if old.status in ('proposed', 'changes_requested') and new.status not in ('proposed', 'changes_requested', 'dropped') then
           raise exception '팀장 승인 전에는 진행 상태로 바꿀 수 없습니다';
@@ -4068,7 +4072,7 @@ begin
           raise exception '목표·과제 중단은 팀장님께 변경 요청으로 알려 주세요';
         end if;
         if v_plan_changed then
-          if not v_open and old.status not in ('proposed', 'changes_requested') then raise exception '%', v_lock; end if;   -- 검토 중인 제안은 언제든 고친다
+          if not v_open then raise exception '%', v_lock; end if;
           if old.status in ('active', 'blocked', 'changes_requested') then new.status := 'proposed'; end if;   -- 고친 계획은 다시 승인
         end if;
       end if;
@@ -4130,7 +4134,7 @@ drop policy if exists wi_delete on public.work_items;
 create policy wi_delete on public.work_items for delete to authenticated
   using (public.is_team_leader(team_id)
          or (owner_id = auth.uid() and (public.item_depth(id) >= 2
-             or (status in ('proposed', 'changes_requested') and baselined_at is null))));
+             or (status in ('proposed', 'changes_requested') and baselined_at is null and public.plan_open(team_id)))));
 
 -- 요청 종류: 변경 요청(change) — 팀원 → 팀장, 목표·과제를 바꿔 달라는 요청
 do $$

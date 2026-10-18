@@ -153,8 +153,11 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           <div className={cx('rounded-xl p-3.5 text-sm', item.status === 'proposed' ? 'bg-violet-50' : 'bg-amber-50')}>
             <div className="font-semibold">{item.status === 'proposed' ? `${nameOf(item.owner_id) || '팀원'}님이 올린 계획입니다` : '팀장이 수정을 요청했습니다'}</div>
             <p className="text-xs text-slate-600 mt-0.5">{item.status === 'proposed'
-              ? (isLeader ? '승인하면 지금 일정이 처음 계획(기준선)으로 저장되고, 이후 변경은 이력으로 남습니다.' : '팀장 승인을 기다리고 있습니다. 승인 전까지는 자유롭게 고칠 수 있습니다.')
-              : (isLeader ? '팀원이 고치면 자동으로 다시 검토 대기로 올라옵니다.' : '아래 코멘트를 보고 고치면 자동으로 다시 검토 요청됩니다.')}</p>
+              ? (isLeader ? '승인하면 지금 일정이 처음 계획(기준선)으로 저장되고, 이후 변경은 이력으로 남습니다.'
+                : rules.open ? '팀장 승인을 기다리고 있습니다. 수정 기간 동안에는 고칠 수 있습니다.' : '팀장 승인을 기다리고 있습니다. 수정 기간이 닫혀 있어 지금은 고칠 수 없습니다.')
+              : (isLeader ? '팀원이 고치면 자동으로 다시 검토 대기로 올라옵니다.'
+                : rules.open ? '아래 코멘트를 보고 고치면 자동으로 다시 검토 요청됩니다.' : '아래 코멘트를 확인해 두세요. 팀장님이 수정 기간을 열면 고칠 수 있습니다.')}</p>
+            {isLeader && !rules.open && <p className="text-[11px] text-amber-800 mt-1">지금은 팀원 수정 기간이 닫혀 있어, 수정을 요청해도 팀원이 바로 고칠 수 없습니다. 위쪽 [팀원 수정]에서 기간을 열어 주세요.</p>}
             {isLeader && item.status === 'proposed' && (
               <div className="mt-3 space-y-2">
                 <textarea rows={2} className={inputCls} placeholder="피드백 (수정 요청 시 필수)" value={comment} onChange={(e) => setComment(e.target.value)} />
@@ -170,7 +173,9 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
         {locked && (
           <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600 flex gap-2">
             <Lock size={13} className="mt-0.5 shrink-0 text-slate-400" />
-            <span>지금은 {levelName(item.depth)} 수정 기간이 아니라 진척·상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</span>
+            <span>{PENDING.includes(item.status)
+              ? <>지금은 {levelName(item.depth)} 수정 기간이 아니라 검토 중인 계획도 고칠 수 없어요. 팀장님이 기간을 열면 고칠 수 있습니다.</>
+              : <>지금은 {levelName(item.depth)} 수정 기간이 아니라 진척·상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
           </div>
         )}
         {!isLeader && mine && canPlan && rules.reapproves(item) && item.status !== 'changes_requested' && (
@@ -348,7 +353,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
       <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-2 flex-wrap">
         {canEdit && onAiPlan && <Button size="sm" variant="soft" onClick={() => onAiPlan(item.id)}><Sparkles size={13} />AI로 하위 계획</Button>}
         {isLeader && item.owner_id && item.owner_id !== uid && <Button size="sm" variant="secondary" onClick={() => setReqOpen(true)}><Send size={13} />요청 보내기</Button>}
-        {locked && item.depth < 2 && <Button size="sm" variant="secondary" onClick={() => setChangeOpen(true)}><GitPullRequestArrow size={13} />변경 요청</Button>}
+        {locked && item.depth < 2 && !PENDING.includes(item.status) && <Button size="sm" variant="secondary" onClick={() => setChangeOpen(true)}><GitPullRequestArrow size={13} />변경 요청</Button>}
         {rules.canDelete(item) && (
           <button className="ml-auto text-xs text-slate-400 hover:text-rose-600 inline-flex items-center gap-1"
             onClick={() => { if (confirm(item.children.length ? '하위 항목까지 모두 지웁니다. 계속할까요?' : '이 항목을 지울까요?')) { remove.mutate(item.id); onClose(); } }}>

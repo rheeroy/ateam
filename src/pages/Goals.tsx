@@ -59,10 +59,11 @@ function PlanWindowModal({ onClose }: { onClose: () => void }) {
   const { team, refresh } = useTeam();
   const { open, until } = usePlanRules();
   const toast = useToast();
+  const qc = useQueryClient();
   const [date, setDate] = useState(open && until ? until : addDays(seoulToday(), 14));
   const save = useMutation({
     mutationFn: (v: string | null) => q(supabase.from('teams').update({ settings: { ...team.settings, plan_open_until: v } }).eq('id', team.id)),
-    onSuccess: (_d, v) => { refresh(); toast(v ? `${fmtShort(v)}까지 팀원 수정 기간을 열었습니다` : '팀원 수정 기간을 닫았습니다'); onClose(); },
+    onSuccess: (_d, v) => { refresh(); qc.invalidateQueries({ queryKey: ['plan-window'] }); toast(v ? `${fmtShort(v)}까지 팀원 수정 기간을 열었습니다` : '팀원 수정 기간을 닫았습니다'); onClose(); },
     onError: (e) => toast(errorText(e)),
   });
   return (
@@ -100,7 +101,7 @@ function PlanRequestModal({ year, roots, onClose }: { year: number; roots: Node[
     mutationFn: () => q(supabase.from('team_requests').insert([...who].map((to) => ({
       team_id: team.id, from_id: uid, to_id: to, kind: 'plan', item_id: parent || null, title: title.trim() || `${year}년 내 목표와 과제를 세워 주세요`, body, due_date: due || null,
     })))),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); refresh(); toast(`${who.size}명에게 계획 요청을 보냈습니다. 팀원 수정 기간도 ${fmtShort(due || addDays(seoulToday(), 14))}까지 열렸습니다.`); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); qc.invalidateQueries({ queryKey: ['plan-window'] }); refresh(); toast(`${who.size}명에게 계획 요청을 보냈습니다. 팀원 수정 기간도 ${fmtShort(due || addDays(seoulToday(), 14))}까지 열렸습니다.`); onClose(); },
     onError: (e) => toast(errorText(e)),
   });
   const flip = (id: string) => setWho((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -176,7 +177,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
   const inYear = useMemo(() => new Set(roots.flatMap((r) => { const out: string[] = []; const walk = (n: Node) => { out.push(n.id); n.children.forEach(walk); }; walk(r); return out; })), [roots]);
   const rootDefaults = year !== nowYear ? { start_date: `${year}-01-01`, due_date: `${year}-12-31` } : undefined;
   const canEditItem = (n: WorkItem) => rules.canEditPlan(byId.get(n.id) ?? { ...n, depth: 0 });
-  const canProgress = rules.canProgress;
+  const canProgress = (n: WorkItem) => rules.canProgress(byId.get(n.id) ?? { ...n, depth: 0 });
   const canAddUnder = rules.canAddUnder;
   const canStructure = isLeader;
 
