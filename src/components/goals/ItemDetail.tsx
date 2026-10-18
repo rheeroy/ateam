@@ -157,7 +157,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
                 : rules.open ? '팀장 승인을 기다리고 있습니다. 승인 전까지 고칠 수 있습니다.' : '팀장 승인을 기다리고 있습니다. 팀원 수정이 꺼져 있어 지금은 고칠 수 없습니다.')
               : (isLeader ? '팀원이 고치면 자동으로 다시 검토 대기로 올라옵니다.'
                 : rules.open ? '아래 코멘트를 보고 고치면 자동으로 다시 검토 요청됩니다.' : '아래 코멘트를 확인해 두세요. 팀장님이 팀원 수정을 켜면 고칠 수 있습니다.')}</p>
-            {isLeader && !rules.open && <p className="text-[11px] text-amber-800 mt-1">지금은 팀원 목표 수정이 꺼져 있어, 수정을 요청해도 팀원이 바로 고칠 수 없습니다. 위쪽 토글로 켜 주세요.</p>}
+            {isLeader && !rules.open && <p className="text-[11px] text-amber-800 mt-1">지금은 팀원 목표 수정이 꺼져 있어, 수정을 요청해도 팀원이 바로 고칠 수 없습니다. 오른쪽 위 [팀원 목표수정] 토글을 켜 주세요.</p>}
             {isLeader && item.status === 'proposed' && (
               <div className="mt-3 space-y-2">
                 <textarea rows={2} className={inputCls} placeholder="피드백 (수정 요청 시 필수)" value={comment} onChange={(e) => setComment(e.target.value)} />
