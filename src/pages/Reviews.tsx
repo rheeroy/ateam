@@ -15,14 +15,14 @@ import { PlanBar } from '../components/goals/PlanBar';
 import { STATUS } from './MySubmissions';
 
 type F = 'in_review' | 'needs_work' | 'approved' | 'shared' | 'all';
-type V = 'people' | 'groups' | 'list' | 'goal';
+type V = 'people' | 'list' | 'goal';
 const KIND_ICON = { link: Link2, image: ImageIcon, number: Hash, note: MessageSquareText, document: FileText } as const;
 
 export default function Reviews() {
   const { team } = useTeam();
   const [params, setParams] = useSearchParams();
   const f = (params.get('f') as F) ?? 'in_review';
-  const view = (params.get('view') as V) ?? 'people';
+  const view = (params.get('view') === 'groups' ? 'people' : params.get('view') as V) ?? 'people';
   const set = (k: string, v: string | null) => { const p = new URLSearchParams(params); if (v) p.set(k, v); else p.delete(k); setParams(p, { replace: true }); };
   const list = useSubmissionsAi(team.id);
   const items = useItems(team.id);
@@ -47,29 +47,38 @@ export default function Reviews() {
       <AiDigest rows={all} loading={list.isLoading} />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {view === 'groups' ? <div className="flex items-center gap-2 min-w-0"><UsersRound size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">그룹별 업무스페이스</span><span className="text-xs text-slate-400 truncate">프로젝트·TF 그룹에 올라온 업무 — 그룹 멤버들이 함께 보고 대화합니다</span></div>
-        : view !== 'people' ? <div className="flex gap-1.5 overflow-x-auto">
+        {view !== 'people' ? <div className="flex gap-1.5 overflow-x-auto">
           {([['in_review', '리뷰 대기'], ['needs_work', '보완 요청'], ['approved', '승인'], ['shared', '공유'], ['all', '전체']] as [F, string][]).map(([id, label]) => (
             <button key={id} onClick={() => set('f', id === 'in_review' ? null : id)}
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', f === id ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300')}>
               {label} <span className="num">{count(id)}</span></button>
           ))}
-        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">팀원별 업무스페이스</span><span className="text-xs text-slate-400 truncate">팀원별로 올라온 업무 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 개인 업무 스페이스에는 남습니다</span></div>}
+        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">업무스페이스</span><span className="text-xs text-slate-400 truncate">왼쪽은 팀원별, 오른쪽은 그룹별 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 스페이스에는 남습니다</span></div>}
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5">
-          {([['people', '사람별', Users], ['groups', '그룹별', UsersRound], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
+          {([['people', '업무스페이스', Users], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
             <button key={id} onClick={() => set('view', id === 'people' ? null : id)} className={cx('text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1', view === id ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><I size={13} />{label}</button>
           ))}
         </div>
         <button onClick={() => setGroupModal({})} className="text-xs rounded-lg px-2.5 py-1.5 bg-white ring-1 ring-slate-200 hover:ring-indigo-300 inline-flex items-center gap-1"><Plus size={13} />그룹 만들기</button>
       </div>
 
-      {view === 'people' ? <PeopleBoxes rows={all} loading={list.isLoading} byId={byId} />
-        : view === 'groups' ? <GroupBoxes rows={all} loading={list.isLoading} byId={byId} onEdit={(g) => setGroupModal({ group: g })} onNew={() => setGroupModal({})} /> : list.isLoading ? <Card><Spinner /></Card> : !rows.length ? (
+      {view === 'people' ? (
+        <div className="grid lg:grid-cols-2 gap-5 items-start">
+          <div className="space-y-3">
+            <div className="text-xs font-semibold text-slate-500 inline-flex items-center gap-1.5"><Users size={13} />팀원별</div>
+            <PeopleBoxes rows={all} loading={list.isLoading} byId={byId} />
+          </div>
+          <div className="space-y-3">
+            <div className="text-xs font-semibold text-slate-500 inline-flex items-center gap-1.5"><UsersRound size={13} />그룹별</div>
+            <GroupBoxes rows={all} loading={list.isLoading} byId={byId} onEdit={(g) => setGroupModal({ group: g })} onNew={() => setGroupModal({})} />
+          </div>
+        </div>
+      ) : list.isLoading ? <Card><Spinner /></Card> : !rows.length ? (
         <Card><Empty icon={<FileText size={18} />} title="아직 없습니다">팀원이 '업무플랫폼'에 올린 결과물·링크·캡처가 여기에 모입니다. 올리면 AI가 먼저 검토합니다.</Empty></Card>
       ) : view === 'list' ? (
         <Card className="overflow-hidden"><ListHead />{rows.map((s, i) => <Row key={s.id} s={s} byId={byId} no={i + 1} />)}</Card>
       ) : <ByGoal rows={rows} byId={byId} />}
-      {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={() => set('view', 'groups')} />}
+      {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={() => set('view', null)} />}
     </div>
   );
 }
@@ -85,7 +94,7 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
   if (loading) return <Card><Spinner /></Card>;
   if (!members.length) return <Card><Empty title="팀원이 없습니다">팀원을 초대하면 사람별 업무 스페이스가 생깁니다.</Empty></Card>;
   return (
-    <div className="grid md:grid-cols-2 gap-4 items-start">
+    <div className="grid gap-4 items-start">
       {sorted.map((mb) => {
         const list = openOf(mb.user_id);
         const name = mb.profiles?.full_name ?? '팀원';
@@ -145,7 +154,7 @@ function GroupBoxes({ rows, loading, byId, onEdit, onNew }: { rows: SubRow[]; lo
   if (loading || groups.isLoading) return <Card><Spinner /></Card>;
   const list = groups.data ?? [];
   return (
-    <div className="grid md:grid-cols-2 gap-4 items-start">
+    <div className="grid gap-4 items-start">
       {list.map((g) => {
         const open = rows.filter((s) => s.group_id === g.id && isOpenSub(s)).sort((a, b) => latestAt(b).localeCompare(latestAt(a)));
         const goal = g.item_id ? byId.get(g.item_id) : null;
@@ -163,7 +172,7 @@ function GroupBoxes({ rows, loading, byId, onEdit, onNew }: { rows: SubRow[]; lo
           </section>
         );
       })}
-      <button onClick={onNew} className="rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:text-indigo-700 hover:border-indigo-200 text-sm py-10 inline-flex flex-col items-center gap-1">
+      <button onClick={onNew} className="rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:text-indigo-700 hover:border-indigo-200 text-sm py-6 inline-flex flex-col items-center gap-1">
         <Plus size={18} />그룹 만들기<span className="text-xs">프로젝트·TF 단위로 멤버를 묶습니다. 팀원도 직접 만들 수 있어요</span></button>
     </div>
   );
