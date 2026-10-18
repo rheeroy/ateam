@@ -47,7 +47,7 @@ function LevelSettings({ open, onClose }: { open: boolean; onClose: () => void }
           <input className={inputCls} value={levels} onChange={(e) => setLevels(e.target.value)} placeholder="목표, 과제, 할 일" />
         </Field>
         <p className="text-xs text-slate-500 -mt-2">예) Objective, Key Result, 이니셔티브 / 본부과제, 세부과제, 실행 항목 — 회사에서 쓰는 말 그대로 쓰세요.</p>
-        <p className="text-xs text-slate-500 rounded-lg bg-slate-50 px-3 py-2">팀원이 목표·과제를 고칠 수 있는지는 위쪽 [팀원 목표 수정] 토글로 켜고 끕니다. 할 일은 팀원이 자기 과제 아래에서 언제든 씁니다.</p>
+        <p className="text-xs text-slate-500 rounded-lg bg-slate-50 px-3 py-2">팀원이 목표·과제를 고칠 수 있는지는 오른쪽 위 [팀원 목표수정] 토글로 켜고 끕니다. 할 일은 팀원이 자기 과제 아래에서 언제든 씁니다.</p>
         <Button className="w-full" onClick={save}>저장</Button>
       </div>
     </Modal>
@@ -65,19 +65,20 @@ function PlanToggle() {
       const cur = await q<{ settings: Record<string, unknown> }>(supabase.from('teams').select('settings').eq('id', team.id).single());
       return q(supabase.from('teams').update({ settings: { ...cur.settings, plan_open: !open } }).eq('id', team.id));
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plan-window'] }); refresh(); toast(open ? '팀원 수정을 껐습니다' : '팀원 수정을 켰습니다. 팀원이 고친 목표·과제는 검토 대기로 올라옵니다.'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['plan-window'] }); refresh(); toast(open ? '팀원 목표수정을 불가로 바꿨습니다' : '팀원 목표수정을 열었습니다. 팀원이 고친 목표·과제는 검토 대기로 올라옵니다.'); },
     onError: (e) => toast(errorText(e)),
   });
   return (
-    <button role="switch" aria-checked={open} disabled={flip.isPending} onClick={() => flip.mutate()}
-      title="켜면 팀원이 목표·과제를 고칠 수 있어요. 고친 내용은 팀장 승인 후 반영됩니다. 할 일은 항상 자유롭게 씁니다."
-      className="inline-flex items-center gap-2.5 rounded-lg bg-white ring-1 ring-slate-200 px-3 py-1.5 text-left hover:ring-indigo-300 disabled:opacity-60">
-      <span className={cx('relative w-8 h-[18px] rounded-full transition-colors shrink-0', open ? 'bg-indigo-600' : 'bg-slate-300')}>
-        <span className={cx('absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-all', open ? 'left-[16px]' : 'left-[2px]')} />
-      </span>
-      <span className="leading-tight"><span className="block text-xs font-semibold text-slate-800">팀원 목표 수정 {open ? '켜짐' : '꺼짐'}</span>
-        <span className="block text-[10px] text-slate-500">수정은 팀장 승인 후 반영</span></span>
-    </button>
+    <div className="flex items-start gap-2.5 text-right">
+      <div className="leading-tight">
+        <div className="text-sm font-semibold text-slate-800">팀원 목표수정 {open ? '가능' : '불가'}</div>
+        <div className="text-[11px] text-slate-500 mt-0.5">켜면 팀원들이 목표를 추가하거나 수정할 수 있습니다</div>
+      </div>
+      <button role="switch" aria-checked={open} aria-label="팀원 목표수정" disabled={flip.isPending} onClick={() => flip.mutate()}
+        className={cx('relative mt-0.5 w-10 h-[22px] rounded-full transition-colors shrink-0 disabled:opacity-60', open ? 'bg-indigo-600' : 'bg-slate-300')}>
+        <span className={cx('absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-all', open ? 'left-[21px]' : 'left-[3px]')} />
+      </button>
+    </div>
   );
 }
 
@@ -211,10 +212,13 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
             className="text-base font-semibold rounded-lg border border-slate-200 bg-white px-2 py-0.5">
             {years.map((y) => <option key={y} value={y}>{y}년{y > nowYear ? ' (준비)' : y < nowYear ? ' (지난)' : ''}</option>)}
           </select></span>}
-        back={mode === 'leader' ? <Link to={`/goals${year !== nowYear ? `?year=${year}` : ''}`} className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link> : undefined}
+        back={mode === 'leader' ? (
+          <div className="flex items-start justify-between gap-4 mb-1">
+            <Link to={`/goals${year !== nowYear ? `?year=${year}` : ''}`} className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link>
+            {isLeader && <PlanToggle />}
+          </div>) : undefined}
         sub={mode === 'member' ? '팀 목표 안에서 내 목표·과제의 진척을 남기고, 내 과제 아래 할 일을 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
         right={<>
-          {isLeader && mode === 'leader' && <PlanToggle />}
           {isLeader && mode === 'leader' && <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={15} />팀원에게 계획 요청</Button>}
           {isLeader && <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={15} />AI로 계획 만들기</Button>}
           {(isLeader || rules.open) && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>}
