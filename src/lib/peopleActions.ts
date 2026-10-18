@@ -4,7 +4,7 @@ import { supabase, q, errorText } from './supabase';
 import { useLatestAi } from './hooks';
 import { mondayOf, daysAgo } from './format';
 import type { AiOutput, TeamMember, WorkItem } from './types';
-import type { Raw } from './insights';
+import { flagsFor, type Raw } from './insights';
 import type { ScoreRow } from './people';
 import { useToast } from '../components/ui';
 
@@ -122,10 +122,15 @@ export function memberIndex(p: {
   if (flags.has('blocked_repeat')) score += 10;
   if (flags.has('checkin_missing')) score += 10;
   score += Math.min(15, p.concerns * 8);
+  // 이탈 인터뷰에서 반복되는 선행 신호 (signals.ts flagsFor) — 컨디션이 괜찮아도 오른다
+  const mf = p.raw ? flagsFor(p.raw, uid) : [];
+  const FW: Record<string, number> = { frustrated: 15, recog_gap: 10, withdrawn: 10, growth_stall: 8, promise_late: 8 };
+  for (const f of mf) score += FW[f.key] ?? 0;
   score = Math.min(100, score);
   const ai = p.view?.flight_risk;
   const lv: Level = ai ? (ai === 'high' ? 'risk' : ai === 'medium' ? 'watch' : 'good') : score >= 55 ? 'risk' : score >= 30 ? 'watch' : 'good';
   const lvLabel = lv === 'risk' ? '높음' : lv === 'watch' ? '주의' : '낮음';
+  const flagNote = mf.length ? `선행 신호: ${mf.map((f) => f.label).join(' · ')}` : undefined;
   // 업무 부하: 진행 중 담당 항목의 주당 예상 시간 ÷ 가용 시간
   const mine = p.items.filter((i) => i.owner_id === uid && (i.status === 'active' || i.status === 'blocked'));
   const hours = mine.reduce((a, i) => a + Number(i.est_hours_per_week ?? 0), 0);
@@ -145,11 +150,11 @@ export function memberIndex(p: {
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   return {
     condition: cond,
-    flight: { score, level: lv, label: lvLabel, ai: !!ai, note: p.view?.flight_note },
+    flight: { score, level: lv, label: lvLabel, ai: !!ai, note: p.view?.flight_note ?? flagNote },
     indices: [
       { key: 'cond', label: '컨디션', value: cond != null ? `${cond}/5` : '—', sub: cond != null && prev != null && cond !== prev ? `3주 전 ${prev}` : '체크인 기준', level: cond == null ? 'none' : cond <= 2 ? 'risk' : cond === 3 ? 'watch' : 'good', pct: cond != null ? cond * 20 : undefined },
       { key: 'flight', label: '이탈 가능성', value: lvLabel, sub: ai ? 'AI 판단' : `지표 ${score}`, level: lv, pct: ai ? ({ risk: 85, watch: 50, good: 15, none: 0 } as const)[lv] : score },
-      { key: 'load', label: '업무 부하', value: load != null ? `${load}%` : '—', sub: `진행 ${mine.length}건 · 주 ${hours}h`, level: load == null ? 'none' : load > 110 ? 'risk' : load > 90 ? 'watch' : 'good', pct: load != null ? Math.min(100, load) : undefined },
+      { key: 'load', label: '업무 부하', value: load != null ? `${load}%` : '—', sub: `${load == null ? '' : load <= 90 ? '여유 · ' : load <= 110 ? '가끔 몰림 · ' : load <= 130 ? '종종 시간외 · ' : '상시 시간외 · '}진행 ${mine.length}건 · 주 ${hours}h`, level: load == null ? 'none' : load > 110 ? 'risk' : load > 90 ? 'watch' : 'good', pct: load != null ? Math.min(100, load) : undefined },
       { key: 'growth', label: '성장', value: gNow != null ? `${gNow}/4` : '—', sub: gNow != null && gPrev != null ? `직전 대비 ${sign(Math.round((gNow - gPrev) * 10) / 10)}` : '판단 깊이', level: gNow == null ? 'none' : gPrev != null && gNow - gPrev <= -0.3 ? 'watch' : 'good', pct: gNow != null ? gNow * 25 : undefined },
       { key: 'oo', label: '1:1', value: ooDays == null ? '없음' : ooDays === 0 ? '오늘' : `${ooDays}일 전`, sub: '마지막 면담', level: ooDays == null || ooDays > 21 ? 'risk' : ooDays > 14 ? 'watch' : 'good', pct: ooDays == null ? 100 : Math.min(100, Math.round((ooDays / 28) * 100)) },
       { key: 'attn', label: '팀장 관심', value: !ar ? '—' : attnLv === 'risk' ? '부족' : attnLv === 'watch' ? '적음' : rel != null && rel >= 1.4 ? '많음' : '보통',

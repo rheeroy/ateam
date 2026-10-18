@@ -69,3 +69,10 @@
 - 함수 수정 → 해당 함수 화면에서 코드 교체 후 Deploy
 - 스키마 수정 → 바뀐 부분만 담은 SQL을 따로 받아서 실행 (`01_schema.sql`을 다시 돌리지 않기)
 - 개발자가 원본을 고쳤다면 `npm run build:dashboard`로 이 폴더를 다시 만들 수 있습니다.
+
+## 컨설팅 기준 카드 + 고도화 v1 (2026-10)
+1. SQL Editor → `16_consulting_knowhow.sql` 붙여넣기 → Run (다시 Run 해도 안전). 지금 있는 모든 팀에 '컨설팅 기준' 카드 21장이 들어가고, 새 팀은 자동으로 받습니다.
+2. Edge Functions → 아래 15개를 새 파일로 코드 교체 후 Deploy (공통 코드 `_shared`가 바뀌어 모두 다시 배포)
+   `ai-advisor` `ai-checkin-draft` `ai-coach` `ai-evaluation-draft` `ai-exec-brief` `ai-ingest-knowhow` `ai-insights` `ai-interpret` `ai-people-actions` `ai-plan` `ai-prep-1on1` `ai-review-submission` `ai-weekly-briefing` `ai-weekly-report` `ai-work-brief`
+   - Verify JWT: **끈 상태(OFF) 그대로** 둡니다 (지금 쓰는 설정과 같게). `billing`은 바뀌지 않아 다시 배포하지 않아도 됩니다.
+3. 프런트(Vercel)는 SQL을 먼저 실행한 뒤 배포하세요. (순서가 바뀌면 '내 노하우'의 컨설팅 기준 칸이 잠깐 비어 보입니다)

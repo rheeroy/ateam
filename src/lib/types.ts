@@ -91,7 +91,7 @@ export interface Plan { id: string; name: string; price_month_krw: number; price
 
 // ---- 팀장 노하우 ----
 export type KnowhowKind = 'principle' | 'rubric' | 'framework' | 'context' | 'coaching' | 'glossary';
-export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario';
+export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario' | 'plan';
 export interface KnowhowSource {
   id: string; team_id: string; owner_id: string; title: string; raw_text: string; file_path: string | null; file_name: string | null;
   mime_type: string | null; status: 'pending' | 'processing' | 'done' | 'failed'; error: string | null; summary: string | null;
@@ -101,6 +101,8 @@ export interface KnowhowCard {
   id: string; team_id: string; owner_id: string; source_id: string | null; kind: KnowhowKind; title: string; body: string;
   rules: string[]; applies_to: KnowhowFeature[]; keywords: string[]; active: boolean; pinned: boolean; shared: boolean;
   provenance: 'ai' | 'human' | 'human_edit'; use_count: number; last_used_at: string | null; created_at: string; updated_at: string;
+  /** team = 팀장이 넣은 카드 · consulting = 기본 제공 컨설팅 기준 */
+  source?: 'team' | 'consulting'; template_key?: string | null;
 }
 
 

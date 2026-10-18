@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, BookOpen, FileUp, Pencil, Pin, PinOff, Plus, RefreshCw, Sparkles, Trash2, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, FileUp, GraduationCap, Pencil, Pin, PinOff, Plus, RefreshCw, Sparkles, Trash2, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_KNOWHOW, MAX_BYTES, extractText, safeName } from '../lib/extract';
@@ -18,8 +18,9 @@ export const KIND: Record<KnowhowKind, { label: string; desc: string; tone: 'ind
   glossary: { label: '용어', desc: '팀에서 쓰는 말과 약어', tone: 'slate' },
 };
 export const FEATURE: Record<KnowhowFeature, string> = {
-  review: '1차 검토', prep: '1:1 준비', report: '주간보고', evaluation: '평가 초안', briefing: '브리핑', strategy: '전략 점검', scenario: '시나리오',
+  review: '1차 검토', prep: '1:1 준비', report: '보고·임원 브리핑', evaluation: '평가 초안', briefing: '브리핑·제안', strategy: '전략 점검', scenario: '시나리오', plan: '목표 초안',
 };
+const isConsulting = (c: Pick<KnowhowCard, 'source'>) => c.source === 'consulting';
 const EXAMPLES: { label: string; text: string }[] = [
   { label: '보고 원칙', text: '우리 팀 보고서 원칙\n1. 첫 문장에 결론. 배경 설명은 뒤로.\n2. 숫자 없는 주장은 받지 않는다. 출처를 단다.\n3. 대안 2개 이상을 비교하고 버린 이유를 쓴다.\n4. 리스크와 다음 행동(누가, 언제)을 마지막에.' },
   { label: '좋은 기획서 기준', text: '좋은 기획서의 기준\n- 문제 정의가 고객 관점에서 한 문장으로 된다\n- 가설과 검증 방법이 짝을 이룬다\n- 자원(사람·돈·시간) 추정이 있다\n- 실패하면 무엇을 배우는지가 적혀 있다' },
@@ -44,7 +45,7 @@ function CardItem({ c }: { c: KnowhowCard }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowhow-cards'] }),
   });
   const k = KIND[c.kind];
-  const prov = c.provenance === 'ai' ? <ProvChip kind="ai" label="AI 정리" note="던져 넣은 자료를 AI가 카드로 정리했습니다. 고치면 '팀장 수정'으로 바뀝니다." />
+  const prov = isConsulting(c) ? null : c.provenance === 'ai' ? <ProvChip kind="ai" label="AI 정리" note="던져 넣은 자료를 AI가 카드로 정리했습니다. 고치면 '팀장 수정'으로 바뀝니다." />
     : c.provenance === 'human_edit' ? <ProvChip kind="edited" label="팀장 수정" /> : <ProvChip kind="final" label="직접 작성" />;
   const toggleFeature = (f: KnowhowFeature) =>
     upd.mutate({ applies_to: c.applies_to.includes(f) ? c.applies_to.filter((x) => x !== f) : [...c.applies_to, f] });
@@ -54,6 +55,7 @@ function CardItem({ c }: { c: KnowhowCard }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <Pill tone={k.tone}>{k.label}</Pill>
+          {isConsulting(c) && <span title="ATEAM이 기본으로 넣어 둔 컨설팅 기준입니다. 고치거나 끌 수 있고, 내 카드와 어긋나면 내 카드가 우선합니다."><Pill tone="slate"><GraduationCap size={11} />컨설팅 기준</Pill></span>}
           {c.pinned && <Pill tone="indigo"><Pin size={11} />항상 반영</Pill>}
           {c.shared && <Pill tone="emerald"><Users size={11} />팀원 공개</Pill>}
           {prov}
@@ -61,7 +63,7 @@ function CardItem({ c }: { c: KnowhowCard }) {
         <div className="flex items-center gap-1 shrink-0 text-slate-400">
           <button title={c.pinned ? '고정 해제' : '항상 먼저 반영'} className="hover:text-indigo-600 p-1" onClick={() => upd.mutate({ pinned: !c.pinned })}>{c.pinned ? <PinOff size={14} /> : <Pin size={14} />}</button>
           <button title="고치기" className="hover:text-indigo-600 p-1" onClick={() => setEdit((x) => !x)}><Pencil size={14} /></button>
-          <button title="삭제" className="hover:text-rose-600 p-1" onClick={() => { if (confirm('이 카드를 지울까요?')) del.mutate(); }}><Trash2 size={14} /></button>
+          <button title="삭제" className="hover:text-rose-600 p-1" onClick={() => { if (confirm(isConsulting(c) ? "이 컨설팅 기준 카드를 지울까요? (끄기만 하려면 'AI가 사용'을 해제하세요. 지운 카드는 '컨설팅 기준 다시 받기'로 되살릴 수 있습니다)" : '이 카드를 지울까요?')) del.mutate(); }}><Trash2 size={14} /></button>
         </div>
       </div>
       {edit ? (
@@ -199,7 +201,9 @@ function QuickAdd() {
 export default function Knowhow() {
   const { team } = useTeam();
   const qc = useQueryClient();
+  const toast = useToast();
   const [kind, setKind] = useState<KnowhowKind | 'all'>('all');
+  const [src, setSrc] = useState<'all' | 'team' | 'consulting'>('all');
   const cards = useQuery({ queryKey: ['knowhow-cards', team.id], queryFn: () => q<KnowhowCard[]>(supabase.from('knowhow_cards').select('*').eq('team_id', team.id).order('pinned', { ascending: false }).order('created_at', { ascending: false })) });
   const sources = useQuery({
     queryKey: ['knowhow-sources', team.id],
@@ -217,8 +221,16 @@ export default function Knowhow() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowhow-sources'] }),
   });
-  const list = useMemo(() => (cards.data ?? []).filter((c) => kind === 'all' || c.kind === kind), [cards.data, kind]);
-  const counts = useMemo(() => (cards.data ?? []).reduce((a, c) => ((a[c.kind] = (a[c.kind] ?? 0) + 1), a), {} as Record<string, number>), [cards.data]);
+  const restore = useMutation({
+    mutationFn: () => q<number>(supabase.rpc('restore_consulting_cards', { p_team: team.id })),
+    onSuccess: (n) => { toast(n ? `컨설팅 기준 카드 ${n}장을 다시 넣었습니다` : '빠진 컨설팅 기준 카드가 없습니다'); qc.invalidateQueries({ queryKey: ['knowhow-cards'] }); },
+    onError: (e) => toast(errorText(e).includes('restore_consulting_cards') ? '컨설팅 기준 테이블이 아직 없습니다. 16_consulting_knowhow.sql 을 실행해 주세요.' : errorText(e)),
+  });
+  const bySrc = useMemo(() => (cards.data ?? []).filter((c) => src === 'all' || (src === 'consulting' ? isConsulting(c) : !isConsulting(c))), [cards.data, src]);
+  // 내 카드 먼저, 컨설팅 기준은 뒤로
+  const list = useMemo(() => bySrc.filter((c) => kind === 'all' || c.kind === kind).sort((a, b) => Number(isConsulting(a)) - Number(isConsulting(b))), [bySrc, kind]);
+  const nCon = (cards.data ?? []).filter(isConsulting).length;
+  const counts = useMemo(() => bySrc.reduce((a, c) => ((a[c.kind] = (a[c.kind] ?? 0) + 1), a), {} as Record<string, number>), [bySrc]);
   const active = (cards.data ?? []).filter((c) => c.active).length;
   const used = (cards.data ?? []).reduce((a, c) => a + c.use_count, 0);
 
@@ -264,10 +276,22 @@ export default function Knowhow() {
 
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm text-slate-600">카드 <b className="font-mono">{cards.data?.length ?? 0}</b> · AI가 사용 <b className="font-mono">{active}</b> · 지금까지 AI 결과에 <b className="font-mono">{used}</b>번 반영</div>
+            <div className="text-sm text-slate-600">카드 <b className="font-mono">{cards.data?.length ?? 0}</b>{nCon > 0 && <span className="text-slate-400"> (컨설팅 기준 {nCon})</span>} · AI가 사용 <b className="font-mono">{active}</b> · 지금까지 AI 결과에 <b className="font-mono">{used}</b>번 반영</div>
+            <Button size="sm" variant="ghost" loading={restore.isPending} onClick={() => restore.mutate()} title="지웠던 컨설팅 기준 카드를 다시 넣습니다 (고친 카드는 그대로)"><GraduationCap size={14} />컨설팅 기준 다시 받기</Button>
+          </div>
+          <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
+            <b>컨설팅 기준</b>은 성과관리 컨설팅에서 써 온 목표·리뷰·1:1·보고·팀 운영 기준을 ATEAM이 기본으로 넣어 둔 카드입니다.
+            AI는 팀장님 카드를 먼저 읽고, 남는 자리에 컨설팅 기준을 함께 봅니다. 둘이 어긋나면 팀장님 카드를 따릅니다. 평가 시뮬레이션과 팀원 액션에는 쓰지 않습니다.
           </div>
           <div className="flex gap-1.5 flex-wrap text-xs">
-            <button onClick={() => setKind('all')} className={cx('rounded-full border px-3 py-1', kind === 'all' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 bg-white')}>전체 {cards.data?.length ?? 0}</button>
+            {([['all', '전체'], ['team', '내 카드'], ['consulting', '컨설팅 기준']] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setSrc(k)} className={cx('rounded-lg border px-3 py-1', src === k ? 'border-slate-700 bg-slate-800 text-white font-semibold' : 'border-slate-200 bg-white')}>
+                {l} {k === 'all' ? cards.data?.length ?? 0 : k === 'consulting' ? nCon : (cards.data?.length ?? 0) - nCon}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5 flex-wrap text-xs">
+            <button onClick={() => setKind('all')} className={cx('rounded-full border px-3 py-1', kind === 'all' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 bg-white')}>전체 {bySrc.length}</button>
             {(Object.keys(KIND) as KnowhowKind[]).map((k) => (
               <button key={k} onClick={() => setKind(k)} title={KIND[k].desc}
                 className={cx('rounded-full border px-3 py-1', kind === k ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 bg-white')}>{KIND[k].label} {counts[k] ?? 0}</button>

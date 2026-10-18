@@ -6,16 +6,16 @@ import { callClaude, parseJson, type Block } from './anthropic.ts';
 export type AiKind =
   | 'briefing' | 'one_on_one_prep' | 'review' | 'weekly_report'
   | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note'
-  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly' | 'exec_brief' | 'coaching' | 'checkin_draft';
+  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly' | 'exec_brief' | 'coaching' | 'checkin_draft' | 'work_brief';
 
 /** 코어 AI: 구독에 포함 (크레딧 차감 없음, 요금제별 공정 사용 한도만) */
 export const CORE: AiKind[] = ['briefing', 'one_on_one_prep', 'review', 'weekly_report',
-  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check', 'org_impact', 'people_actions', 'advisor_weekly', 'exec_brief', 'coaching', 'checkin_draft'];
+  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check', 'org_impact', 'people_actions', 'advisor_weekly', 'exec_brief', 'coaching', 'checkin_draft', 'work_brief'];
 
 /** 프리미엄 AI: 크레딧 차감 */
 export const CREDITS: Record<AiKind, number> = {
   one_on_one_prep: 0, review: 0, briefing: 0, weekly_report: 0,
-  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0, org_impact: 0, people_actions: 0, advisor_weekly: 0, exec_brief: 0, coaching: 0, checkin_draft: 0,
+  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0, org_impact: 0, people_actions: 0, advisor_weekly: 0, exec_brief: 0, coaching: 0, checkin_draft: 0, work_brief: 0,
   evaluation_draft: 5, plan_draft: 2, forecast_note: 1, strategy_check: 1, scenario_note: 1,
 };
 
@@ -37,20 +37,24 @@ export class SourceBook {
     return tag;
   }
   get size() {
-    return this.items.filter((i) => i.type !== 'knowhow').length;
+    return this.items.filter((i) => !KH_TYPES.includes(i.type)).length;
   }
   get sources() {
     return this.items;
   }
   /** 기록(근거) 섹션 — 팀장 노하우는 따로 출력한다 */
   text(title: string) {
-    const ls = this.lines.filter((l) => l.type !== 'knowhow').map((l) => l.line);
+    const ls = this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line);
     return ls.length ? `## ${title}\n${ls.join('\n')}` : `## ${title}\n(기록 없음)`;
   }
-  /** 팀장의 기준 섹션 (없으면 빈 문자열) */
+  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
   knowhowText() {
-    const ls = this.lines.filter((l) => l.type === 'knowhow').map((l) => l.line);
-    return ls.length ? `## 팀장의 기준 (팀장이 직접 넣은 노하우 — 일반 상식보다 우선)\n${ls.join('\n')}` : '';
+    const own = this.lines.filter((l) => l.type === 'knowhow').map((l) => l.line);
+    const con = this.lines.filter((l) => l.type === 'consulting').map((l) => l.line);
+    return [
+      own.length ? `## 팀장의 기준 (팀장이 직접 넣은 노하우 — 일반 상식보다 우선)\n${own.join('\n')}` : '',
+      con.length ? `## 컨설팅 기준 (기본 제공 — 팀장의 기준과 어긋나면 팀장의 기준을 따름)\n${con.join('\n')}` : '',
+    ].filter(Boolean).join('\n\n');
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
   cited(output: unknown): Source[] {
@@ -66,21 +70,30 @@ export class SourceBook {
   }
 }
 
+/** 노하우 근거 종류: 팀장 카드(knowhow) · 기본 제공 컨설팅 카드(consulting) — 기록(근거) 수에는 세지 않는다 */
+const KH_TYPES = ['knowhow', 'consulting'];
+
 export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario' | 'plan';
 
-/** 팀장이 켜 둔 노하우 카드 중 이 기능에 해당하는 것을 근거책에 싣는다 (고정 카드 우선, 글자 수 상한) */
-export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 2600, onlyShared = false): Promise<number> {
+/** 팀장이 켜 둔 노하우 카드 중 이 기능에 해당하는 것을 근거책에 싣는다
+ *  순서: 팀장 카드(고정 → 최근) 먼저, 남는 글자 수 안에서 컨설팅 기준 카드(source='consulting').
+ *  consulting=false 면 컨설팅 카드는 싣지 않는다 (예: 팀원 액션) */
+export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 2600, onlyShared = false, consulting = true): Promise<number> {
   let qb = admin.from('knowhow_cards')
-    .select('id, kind, title, body, rules, pinned, updated_at')
+    .select('id, kind, title, body, rules, pinned, updated_at, source')
     .eq('team_id', teamId).eq('active', true).contains('applies_to', [feature]);
   if (onlyShared) qb = qb.eq('shared', true);
-  const { data } = await qb.order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(30);
+  const { data } = await qb.order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(40);
+  const rows = (data ?? []) as { id: string; title: string; body: string; rules: unknown; source?: string | null }[];
+  const isCon = (c: { source?: string | null }) => c.source === 'consulting';
+  const ordered = [...rows.filter((c) => !isCon(c)), ...(consulting ? rows.filter(isCon) : [])];
   let used = 0, n = 0;
-  for (const c of data ?? []) {
+  for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? (c.rules as string[]).filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / 규칙: ${rules.join(' · ')}` : ''}`;
-    if (used + text.length > limitChars && n > 0) break;
-    book.add('knowhow', c.id, `내 노하우 · ${c.title}`, text);
+    if (used + text.length > limitChars && n > 0) { if (isCon(c)) break; continue; }
+    if (isCon(c)) book.add('consulting', c.id, `컨설팅 기준 · ${c.title}`, text);
+    else book.add('knowhow', c.id, `내 노하우 · ${c.title}`, text);
     used += text.length; n++;
   }
   return n;
@@ -102,7 +115,8 @@ export const BASE_RULES = `당신은 한국 기업 팀장의 성과관리를 돕
 4. 점수로 사람을 줄 세우거나 비교하지 않습니다.
 5. 문체: 한국 기업 실무 보고서처럼 짧고 담백하게, '~합니다'체. 과장, 감탄, 영어 직역투, 이모지는 쓰지 않습니다.
 6. 출력은 요청한 JSON 객체 하나만. 앞뒤 설명이나 코드 펜스를 붙이지 않습니다.
-7. '팀장의 기준' 섹션이 있으면 그 기준을 일반적인 상식보다 우선해 적용하고, 기준을 적용한 문장에는 해당 근거 태그를 붙입니다. 기준과 기록이 어긋나면 그 점을 짚습니다.`;
+7. '팀장의 기준' 섹션이 있으면 그 기준을 일반적인 상식보다 우선해 적용하고, 기준을 적용한 문장에는 해당 근거 태그를 붙입니다. 기준과 기록이 어긋나면 그 점을 짚습니다.
+8. '컨설팅 기준' 섹션은 기본 제공 기준입니다. 일반 상식보다는 우선하되 '팀장의 기준'과 어긋나면 팀장의 기준을 따르고, 적용한 문장에는 해당 근거 태그를 붙입니다.`;
 
 export interface AiJob {
   teamId: string;
@@ -251,7 +265,7 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
     });
   if (cErr) console.error('consume_credits failed', cErr);
 
-  const kh = job.book.citedStrict(parsed).filter((x) => x.type === 'knowhow' && x.id).map((x) => x.id);
+  const kh = job.book.citedStrict(parsed).filter((x) => KH_TYPES.includes(x.type) && x.id).map((x) => x.id);
   if (kh.length) await admin.rpc('mark_knowhow_used', { p_ids: kh });
 
   return { output: row, parsed };

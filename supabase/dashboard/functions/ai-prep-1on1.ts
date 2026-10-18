@@ -85,7 +85,8 @@ async function callClaude(opts) {
   if (!key) throw new HttpError(500, "AI_NOT_CONFIGURED", "ANTHROPIC_API_KEY \uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4");
   const body = {
     model: opts.model,
-    max_tokens: opts.maxTokens ?? 2e3,
+    // 상한은 '쓸 수 있는 최대'일 뿐 원가는 실제 출력만큼 — 너무 낮으면 모델이 생각만 하다 답을 못 쓴다
+    max_tokens: Math.max(opts.maxTokens ?? 2e3, 3e3),
     ...opts.temperature !== void 0 ? { temperature: opts.temperature } : {},
     // 시스템 프롬프트는 기능마다 고정이므로 캐시한다
     system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
@@ -105,6 +106,11 @@ async function callClaude(opts) {
     if (res.ok) {
       const data = await res.json();
       const text = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
+      if (!text.trim() && attempt < 2) {
+        lastErr = `empty response (stop: ${data.stop_reason ?? "-"})`;
+        body.max_tokens = Math.min(12e3, body.max_tokens * 2);
+        continue;
+      }
       const u = data.usage ?? {};
       const p = PRICE[opts.model] ?? PRICE["claude-sonnet-5-5"];
       const cost = ((u.input_tokens ?? 0) * p.in + (u.output_tokens ?? 0) * p.out + (u.cache_read_input_tokens ?? 0) * p.cacheRead + (u.cache_creation_input_tokens ?? 0) * p.cacheWrite) / 1e6;
@@ -130,12 +136,47 @@ function parseJson(text) {
   const src = fenced ? fenced[1] : text;
   const start = src.indexOf("{");
   const end = src.lastIndexOf("}");
-  if (start < 0 || end < start) throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
-  try {
-    return JSON.parse(src.slice(start, end + 1));
-  } catch {
-    throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+  if (start < 0) throw new HttpError(502, "AI_BAD_OUTPUT", text.trim() ? text.slice(0, 300) : "AI \uC751\uB2F5\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.");
+  if (end > start) {
+    try {
+      return JSON.parse(src.slice(start, end + 1));
+    } catch {
+    }
   }
+  const fixed = closeTruncated(src.slice(start));
+  if (fixed) {
+    try {
+      return JSON.parse(fixed);
+    } catch {
+    }
+  }
+  throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+}
+function closeTruncated(s) {
+  const stack = [];
+  let inStr = false, esc = false, good = -1, goodStack = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "," && stack.length) {
+      good = i;
+      goodStack = stack.slice();
+    } else if (c === "{" || c === "[") stack.push(c === "{" ? "}" : "]");
+    else if (c === "}" || c === "]") {
+      stack.pop();
+      good = i + 1;
+      goodStack = stack.slice();
+      if (!stack.length) return s.slice(0, good);
+    }
+  }
+  if (good < 0) return null;
+  return s.slice(0, good) + goodStack.reverse().join("");
 }
 
 // functions/_shared/gateway.ts
@@ -148,7 +189,14 @@ var CORE = [
   "insight_weekly",
   "insight_monthly",
   "plan_edit",
-  "self_check"
+  "self_check",
+  "org_impact",
+  "people_actions",
+  "advisor_weekly",
+  "exec_brief",
+  "coaching",
+  "checkin_draft",
+  "work_brief"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -160,6 +208,13 @@ var CREDITS = {
   insight_monthly: 0,
   plan_edit: 0,
   self_check: 0,
+  org_impact: 0,
+  people_actions: 0,
+  advisor_weekly: 0,
+  exec_brief: 0,
+  coaching: 0,
+  checkin_draft: 0,
+  work_brief: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -176,23 +231,28 @@ var SourceBook = class {
     return tag;
   }
   get size() {
-    return this.items.filter((i) => i.type !== "knowhow").length;
+    return this.items.filter((i) => !KH_TYPES.includes(i.type)).length;
   }
   get sources() {
     return this.items;
   }
   /** 기록(근거) 섹션 — 팀장 노하우는 따로 출력한다 */
   text(title) {
-    const ls = this.lines.filter((l) => l.type !== "knowhow").map((l) => l.line);
+    const ls = this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line);
     return ls.length ? `## ${title}
 ${ls.join("\n")}` : `## ${title}
 (\uAE30\uB85D \uC5C6\uC74C)`;
   }
-  /** 팀장의 기준 섹션 (없으면 빈 문자열) */
+  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
   knowhowText() {
-    const ls = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
-    return ls.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
-${ls.join("\n")}` : "";
+    const own = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
+    const con = this.lines.filter((l) => l.type === "consulting").map((l) => l.line);
+    return [
+      own.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
+${own.join("\n")}` : "",
+      con.length ? `## \uCEE8\uC124\uD305 \uAE30\uC900 (\uAE30\uBCF8 \uC81C\uACF5 \u2014 \uD300\uC7A5\uC758 \uAE30\uC900\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB984)
+${con.join("\n")}` : ""
+    ].filter(Boolean).join("\n\n");
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
   cited(output) {
@@ -207,16 +267,24 @@ ${ls.join("\n")}` : "";
     return this.items.reduce((acc, i) => (acc[i.type] = (acc[i.type] ?? 0) + 1, acc), {});
   }
 };
-async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false) {
-  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+var KH_TYPES = ["knowhow", "consulting"];
+async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false, consulting = true) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at, source").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
   if (onlyShared) qb = qb.eq("shared", true);
-  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(40);
+  const rows = data ?? [];
+  const isCon = (c) => c.source === "consulting";
+  const ordered = [...rows.filter((c) => !isCon(c)), ...consulting ? rows.filter(isCon) : []];
   let used = 0, n = 0;
-  for (const c of data ?? []) {
+  for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / \uADDC\uCE59: ${rules.join(" \xB7 ")}` : ""}`;
-    if (used + text.length > limitChars && n > 0) break;
-    book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
+    if (used + text.length > limitChars && n > 0) {
+      if (isCon(c)) break;
+      continue;
+    }
+    if (isCon(c)) book.add("consulting", c.id, `\uCEE8\uC124\uD305 \uAE30\uC900 \xB7 ${c.title}`, text);
+    else book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
     used += text.length;
     n++;
   }
@@ -236,7 +304,8 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 4. \uC810\uC218\uB85C \uC0AC\uB78C\uC744 \uC904 \uC138\uC6B0\uAC70\uB098 \uBE44\uAD50\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 5. \uBB38\uCCB4: \uD55C\uAD6D \uAE30\uC5C5 \uC2E4\uBB34 \uBCF4\uACE0\uC11C\uCC98\uB7FC \uC9E7\uACE0 \uB2F4\uBC31\uD558\uAC8C, '~\uD569\uB2C8\uB2E4'\uCCB4. \uACFC\uC7A5, \uAC10\uD0C4, \uC601\uC5B4 \uC9C1\uC5ED\uD22C, \uC774\uBAA8\uC9C0\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 6. \uCD9C\uB825\uC740 \uC694\uCCAD\uD55C JSON \uAC1D\uCCB4 \uD558\uB098\uB9CC. \uC55E\uB4A4 \uC124\uBA85\uC774\uB098 \uCF54\uB4DC \uD39C\uC2A4\uB97C \uBD99\uC774\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.`;
+7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.
+8. '\uCEE8\uC124\uD305 \uAE30\uC900' \uC139\uC158\uC740 \uAE30\uBCF8 \uC81C\uACF5 \uAE30\uC900\uC785\uB2C8\uB2E4. \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4\uB294 \uC6B0\uC120\uD558\uB418 '\uD300\uC7A5\uC758 \uAE30\uC900'\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB974\uACE0, \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4.`;
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
@@ -255,10 +324,47 @@ async function assertAccess(teamId, kind, credits) {
   if (CORE.includes(kind) && !need) return assertCore(teamId);
   return assertCredits(teamId, need);
 }
+var REUSABLE = ["insight_daily", "insight_weekly", "insight_monthly", "review", "one_on_one_prep", "people_actions", "briefing", "org_impact", "advisor_weekly", "exec_brief"];
+var REUSE_MIN = 10;
+var GUARD_MSG = {
+  AI_RATE_HOUR: [429, "\uC7A0\uC2DC AI \uC694\uCCAD\uC774 \uB9CE\uC558\uC2B5\uB2C8\uB2E4. \uD55C \uC2DC\uAC04 \uC548\uC5D0 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."],
+  AI_RATE_DAY: [429, "\uC624\uB298 AI \uC694\uCCAD\uC774 \uB9CE\uC558\uC2B5\uB2C8\uB2E4. \uB0B4\uC77C \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."],
+  AI_COST_CAP: [429, "\uC774\uBC88 \uB2EC AI \uAE30\uBCF8 \uC0AC\uC6A9\uB7C9\uC744 \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C \uACB0\uC81C \uC8FC\uAE30\uC5D0 \uB2E4\uC2DC \uC5F4\uB9BD\uB2C8\uB2E4."],
+  AI_REPEAT: [429, "\uAC19\uC740 \uB0B4\uC6A9\uC744 \uC624\uB298 \uC5EC\uB7EC \uBC88 \uB2E4\uC2DC \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4. \uAE30\uB85D\uC774 \uB354 \uC313\uC778 \uB4A4 \uB0B4\uC77C \uB2E4\uC2DC \uB9CC\uB4E4\uC5B4 \uC8FC\uC138\uC694."]
+};
+async function guard(job) {
+  const { error } = await admin.rpc("ai_guard", {
+    p_team: job.teamId,
+    p_kind: job.kind,
+    p_ref: job.refId ?? null,
+    p_period: job.periodStart ?? null,
+    p_subject: job.subjectUserId ?? null
+  });
+  if (!error) return;
+  const hit = Object.keys(GUARD_MSG).find((k) => error.message?.includes(k));
+  if (hit) throw new HttpError(GUARD_MSG[hit][0], hit, GUARD_MSG[hit][1]);
+  if (/ai_guard|function .* does not exist|PGRST202/i.test(`${error.message} ${error.code}`)) {
+    console.warn("ai_guard missing \u2014 run 09_ai_guard.sql");
+    return;
+  }
+  throw error;
+}
+async function recent(job) {
+  if (job.force || !REUSABLE.includes(job.kind) || !job.refId && !job.periodStart) return null;
+  let qb = admin.from("ai_outputs").select("*").eq("team_id", job.teamId).eq("kind", job.kind).eq("status", "draft").gte("created_at", new Date(Date.now() - REUSE_MIN * 6e4).toISOString());
+  qb = job.refId ? qb.eq("ref_id", job.refId) : qb.is("ref_id", null);
+  qb = job.periodStart ? qb.eq("period_start", job.periodStart) : qb.is("period_start", null);
+  qb = job.subjectUserId ? qb.eq("subject_user_id", job.subjectUserId) : qb.is("subject_user_id", null);
+  const { data } = await qb.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
 async function runAi(job) {
   const credits = job.credits ?? CREDITS[job.kind];
   const core = CORE.includes(job.kind) && !credits;
   await assertAccess(job.teamId, job.kind, credits);
+  const again = await recent(job);
+  if (again) return { output: again, parsed: again.content, reused: true };
+  await guard(job);
   const res = await callClaude({
     model: job.model,
     system: `${BASE_RULES}
@@ -267,7 +373,13 @@ ${job.system}`,
     content: job.content,
     maxTokens: job.maxTokens
   });
-  const parsed = parseJson(res.text);
+  let parsed;
+  try {
+    parsed = parseJson(res.text);
+  } catch (e) {
+    await admin.rpc("log_ai_error", { p_team: job.teamId, p_kind: job.kind, p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd });
+    throw e;
+  }
   const { data: row, error } = await admin.from("ai_outputs").insert({
     team_id: job.teamId,
     kind: job.kind,
@@ -307,7 +419,7 @@ ${job.system}`,
     p_cost: res.costUsd
   });
   if (cErr) console.error("consume_credits failed", cErr);
-  const kh = job.book.citedStrict(parsed).filter((x) => x.type === "knowhow" && x.id).map((x) => x.id);
+  const kh = job.book.citedStrict(parsed).filter((x) => KH_TYPES.includes(x.type) && x.id).map((x) => x.id);
   if (kh.length) await admin.rpc("mark_knowhow_used", { p_ids: kh });
   return { output: row, parsed };
 }
@@ -324,6 +436,19 @@ var PREP = `\uACFC\uC81C: 1:1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774
 \uAE30\uB85D\uC5D0\uC11C '\uC9C0\uB09C \uBA74\uB2F4 \uC774\uD6C4 \uBB34\uC5C7\uC774 \uBC14\uB00C\uC5C8\uB294\uC9C0'\uC640 '\uC544\uC9C1 \uC774\uC57C\uAE30\uB418\uC9C0 \uC54A\uC740 \uAC83'\uC744 \uCC3E\uB294 \uAC83\uC774 \uD575\uC2EC\uC785\uB2C8\uB2E4.
 \uC9C8\uBB38\uC740 \uD300\uC6D0\uC774 \uC2A4\uC2A4\uB85C \uC0DD\uAC01\uC744 \uB9D0\uD558\uAC8C \uD558\uB294 \uC5F4\uB9B0 \uC9C8\uBB38\uC73C\uB85C, \uD3C9\uAC00\uB098 \uCD94\uAD81\uCC98\uB7FC \uB4E4\uB9AC\uC9C0 \uC54A\uAC8C \uC501\uB2C8\uB2E4.
 
+[\uBA74\uB2F4 \uD750\uB984] \uC9C8\uBB38 4\uAC1C\uB294 \uC774 \uC21C\uC11C\uB97C \uB530\uB985\uB2C8\uB2E4: \u2460 \uC9C0\uB09C \uC774\uD6C4 \uBCC0\uD654\xB7\uADFC\uD669 \u2192 \u2461 \uC810\uAC80\xB7\uD68C\uACE0(\uC798\uB41C \uAC83, \uC5B4\uB824\uC6E0\uB358 \uAC83\uACFC \uADF8 \uC6D0\uC778) \u2192 \u2462 \uC55E\uC73C\uB85C(\uC6B0\uC120\uC21C\uC704, \uBAA9\uD45C \uC720\uC9C0\xB7\uC218\uC815, \uD544\uC694\uD55C \uAC83) \u2192 \u2463 \uB9C8\uC9C0\uB9C9\uC740 \uB298 "\uB0B4\uAC00(\uD300\uC7A5\uC774) \uB3C4\uC6B8 \uAC83"\uC744 \uBB3B\uB294 \uC9C8\uBB38.
+\uD300\uC7A5\uC774 \uC9C0\uD0A4\uC9C0 \uBABB\uD55C \uC57D\uC18D(open_promises \uC758 \uD300\uC7A5\xB7\uAE30\uD55C \uC9C0\uB0A8)\uC774 \uC788\uC73C\uBA74 watch \uC5D0\uC11C "\uCCAB \uC548\uAC74\uC73C\uB85C \uBA3C\uC800 \uAEBC\uB0B4\uAE30"\uB97C \uAD8C\uD569\uB2C8\uB2E4.
+
+[\uC9C8\uBB38 \uACE0\uB974\uAE30] \uAE30\uB85D\uC5D0 \uBCF4\uC774\uB294 \uC0C1\uD669\uC5D0 \uB9DE\uCDB0 \uACE0\uB985\uB2C8\uB2E4.
+- \uACC4\uD68D\uBCF4\uB2E4 \uB2A6\uC74C\xB7\uBD80\uC9C4: \uC6D0\uC778\uC774 \uBCF8\uC778 \uD1B5\uC81C \uC548 / \uC678\uBD80 \uD658\uACBD / \uD611\uC5C5 / \uC5C5\uBB34 \uCD94\uAC00 \uC911 \uC5B4\uB514\uC778\uC9C0 \uC2A4\uC2A4\uB85C \uB098\uB220 \uBCF4\uAC8C \uD558\uB294 \uC9C8\uBB38. "\uC65C \uB2A6\uC5C8\uB098\uC694"\uAC00 \uC544\uB2C8\uB77C "\uBB34\uC5C7\uC774 \uAC00\uC7A5 \uD06C\uAC8C \uB9C9\uC558\uB098\uC694".
+- \uAC19\uC740 \uB9C9\uD798 \uBC18\uBCF5: \uC5B4\uB514\uC11C \uBA48\uCDC4\uB294\uC9C0, \uBB34\uC5C7\uC744 \uC2DC\uB3C4\uD588\uB294\uC9C0, \uB204\uAD6C\uC758 \uACB0\uC815\xB7\uC815\uBCF4\uAC00 \uC788\uC73C\uBA74 \uC6C0\uC9C1\uC77C \uC218 \uC788\uB294\uC9C0.
+- \uCEE8\uB514\uC158 \uD558\uB77D: \uC5D0\uB108\uC9C0\uAC00 \uBE60\uC9C0\uB294 \uC21C\uAC04\uACFC \uCC28\uC624\uB974\uB294 \uC21C\uAC04, \uB2E4\uC74C 2\uC8FC\uC5D0 \uBB34\uC5C7\uC774 \uB2EC\uB77C\uC9C0\uBA74 \uB098\uC544\uC9C8\uC9C0. \uC5C5\uBB34 \uC9C4\uCC99\uC740 \uBB3B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
+- \uC798\uD55C \uC77C\xB7\uC131\uC7A5: \uC798\uB41C \uACB0\uC815\uC801 \uC694\uC778, \uADF8 \uBC29\uC2DD\uC744 \uB2E4\uB978 \uC77C\uC5D0 \uC4F8 \uBC29\uBC95, \uD55C \uB2E8\uACC4 \uC5B4\uB824\uC6B4 \uC77C\uC744 \uB9E1\uB294\uB2E4\uBA74 \uBB34\uC5C7\uC744.
+- \uC5C5\uBB34\uAC00 \uB9CE\uC74C: \uC774\uBC88 \uC8FC \uD558\uC9C0 \uC54A\uC544\uB3C4 \uB418\uB294 \uC77C, \uB118\uAE38 \uC218 \uC788\uB294 \uC77C, \uC6B0\uC120\uC21C\uC704\uAC00 \uBD80\uB52A\uD788\uB294 \uC77C.
+- \uD569\uB958\uD55C \uC9C0 \uC5BC\uB9C8 \uC548 \uB428: \uC774 \uD300\uC5D0\uC11C '\uC798\uD588\uB2E4'\uC758 \uAE30\uC900\uC744 \uC5B4\uB5BB\uAC8C \uC774\uD574\uD558\uACE0 \uC788\uB294\uC9C0, \uC544\uC9C1 \uBABB \uBC1B\uC740 \uC815\uBCF4.
+[\uD300\uC6D0 \uC218\uC900\uC5D0 \uB9DE\uCD94\uAE30] \uACB0\uACFC\uBB3C \uD310\uB2E8 \uAE4A\uC774\uAC00 3 \uC774\uC0C1\uC774\uBA74 \uC2A4\uC2A4\uB85C \uB2F5\uC744 \uCC3E\uAC8C \uD558\uB294 \uC9C8\uBB38 \uC704\uC8FC\uB85C, 2 \uC774\uD558\uC774\uBA74 \uC120\uD0DD\uC9C0 2~3\uAC1C\uB97C \uD568\uAED8 \uC8FC\uB294 \uC9C8\uBB38\uC744 \uD558\uB098 \uC774\uC0C1 \uC11E\uC2B5\uB2C8\uB2E4.
+\uAE08\uC9C0: "\uC5B8\uC81C\uAE4C\uC9C0 \uD560 \uAC74\uAC00\uC694?", "\uC65C \uC548 \uD588\uB098\uC694?" \uAC19\uC740 \uCD94\uAD81\uD615 \xB7 \uC608/\uC544\uB2C8\uC624\uB85C \uB05D\uB098\uB294 \uC9C8\uBB38 \xB7 \uC9C8\uBB38 \uD558\uB098\uC5D0 \uB450 \uAC00\uC9C0 \uBB3B\uAE30.
+
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
   "last_time": "\uC9C0\uB09C 1:1 \uC694\uC9C0 1~2\uBB38\uC7A5. \uC5C6\uC73C\uBA74 \uBE48 \uBB38\uC790\uC5F4",
@@ -334,6 +459,27 @@ var PREP = `\uACFC\uC81C: 1:1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774
   "questions": ["\uC9C8\uBB38 4\uAC1C"]
 }
 since \uB294 \uCD5C\uB300 5\uAC1C, \uC624\uB798\uB41C \uC21C\uC11C.`;
+
+// functions/_shared/notes.ts
+var NOTE_RULE = `
+
+[\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8] \uADFC\uAC70 \uC911 '\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8'\uB294 \uD300\uC7A5\uC774 \uC790\uAE30\uB9CC \uBCF4\uB824\uACE0 \uC801\uC740 \uC0DD\uAC01\xB7\uAD00\uCC30\uC785\uB2C8\uB2E4. \uC0AC\uC2E4\uB85C \uB2E8\uC815\uD558\uC9C0 \uB9D0\uACE0 \uD310\uB2E8\uC758 \uB9E5\uB77D\uC73C\uB85C\uB9CC \uC4F0\uBA70, \uBA54\uBAA8 \uBB38\uC7A5\uC744 \uADF8\uB300\uB85C \uC62E\uACA8 \uC801\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uD300\uC6D0\uC5D0 \uB300\uD55C \uBA54\uBAA8\uB97C \uD3C9\uAC00\uB098 \uB4F1\uAE09\uC758 \uADFC\uAC70\uB85C \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.`;
+var KIND = { member: "\uD300\uC6D0", item: "\uBAA9\uD45C\xB7\uACFC\uC81C", exec: "\uC0C1\uC704 \uAD00\uB9AC\uC790", decision: "\uACB0\uC815", one_on_one: "1:1", none: "" };
+async function loadLeaderNotes(teamId, ownerId, opt = {}) {
+  let qb = admin.from("leader_notes").select("id, body, kind, anchor_type, anchor_id, anchor_label, updated_at").eq("team_id", teamId).eq("owner_id", ownerId).eq("ai_allowed", true).eq("done", false);
+  if (opt.types?.length) qb = qb.in("anchor_type", opt.types);
+  if (opt.ids?.length) qb = qb.in("anchor_id", opt.ids);
+  const { data, error } = await qb.order("updated_at", { ascending: false }).limit(opt.limit ?? 10);
+  return error || !data ? [] : data;
+}
+function addNote(book, n, name) {
+  const target = n.anchor_type !== "none" ? ` \xB7 ${KIND[n.anchor_type] ?? ""} ${name || n.anchor_label}`.trimEnd() : "";
+  return book.add("my_note", n.id, `\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8${target} \xB7 ${n.updated_at.slice(0, 10)}`, `${n.kind === "todo" ? "(\uD300\uC7A5 \uD560 \uC77C) " : ""}${n.body}`);
+}
+async function addLeaderNotes(book, teamId, ownerId, opt = {}) {
+  const rows = await loadLeaderNotes(teamId, ownerId, opt);
+  return rows.map((n) => addNote(book, n, opt.nameOf?.(n)));
+}
 
 // functions/ai-prep-1on1/index.ts
 serve(async (req) => {
@@ -370,11 +516,13 @@ serve(async (req) => {
   for (const s of subs ?? []) {
     const { data: vers } = await admin.from("submission_versions").select("id").eq("submission_id", s.id);
     const { data: rv } = await admin.from("ai_outputs").select("content").eq("ref_table", "submission_versions").in("ref_id", (vers ?? []).map((v) => v.id)).eq("kind", "review").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    const summary = rv?.content?.summary ?? "";
-    book.add("submission", s.id, `\uACB0\uACFC\uBB3C \xB7 ${s.title}`, `\uC0C1\uD0DC ${s.status}. ${summary}`);
+    const rc = rv?.content;
+    const summary = rc?.summary ?? "";
+    book.add("submission", s.id, `\uACB0\uACFC\uBB3C \xB7 ${s.title}`, `\uC0C1\uD0DC ${s.status}.${rc?.depth_score != null ? ` \uD310\uB2E8 \uAE4A\uC774 ${rc.depth_score}/4.` : ""} ${summary}`);
   }
   const { data: obs } = await admin.from("observations").select("id, kind, body, occurred_at").eq("team_id", oo.team_id).eq("subject_id", oo.member_id).gte("occurred_at", since.slice(0, 10)).limit(5);
   for (const o of obs ?? []) book.add("observation", o.id, `\uAD00\uCC30 \uBA54\uBAA8 ${fmtDate(o.occurred_at)}`, `[${o.kind}] ${o.body}`);
+  await addLeaderNotes(book, oo.team_id, oo.leader_id, { types: ["member", "one_on_one"], ids: [oo.member_id, oo.id], limit: 6, nameOf: () => member.full_name });
   const { data: its } = await admin.from("work_items").select("id, title, status, progress, due_date, base_due, replan_count, needs_plan").eq("team_id", oo.team_id).eq("owner_id", oo.member_id).in("status", ["proposed", "changes_requested", "active", "blocked"]).limit(15);
   const ST = { proposed: "\uD300\uC7A5 \uAC80\uD1A0 \uB300\uAE30", changes_requested: "\uC218\uC815 \uC694\uCCAD\uB428", active: "\uC9C4\uD589", blocked: "\uB9C9\uD798" };
   for (const it of its ?? []) {
@@ -391,7 +539,7 @@ ${book.text("\uAE30\uB85D")}`;
     teamId: oo.team_id,
     kind: "one_on_one_prep",
     model: MODEL_SMART,
-    system: PREP,
+    system: PREP + NOTE_RULE,
     content: [{ type: "text", text: prompt }],
     book,
     depth: depthOf(book.size, [3, 6, 10]),

@@ -190,6 +190,7 @@ var CORE = [
   "advisor_weekly",
   "exec_brief",
   "coaching",
+  "checkin_draft",
   "work_brief"
 ];
 var CREDITS = {
@@ -207,6 +208,7 @@ var CREDITS = {
   advisor_weekly: 0,
   exec_brief: 0,
   coaching: 0,
+  checkin_draft: 0,
   work_brief: 0,
   evaluation_draft: 5,
   plan_draft: 2,
@@ -224,23 +226,28 @@ var SourceBook = class {
     return tag;
   }
   get size() {
-    return this.items.filter((i) => i.type !== "knowhow").length;
+    return this.items.filter((i) => !KH_TYPES.includes(i.type)).length;
   }
   get sources() {
     return this.items;
   }
   /** 기록(근거) 섹션 — 팀장 노하우는 따로 출력한다 */
   text(title) {
-    const ls = this.lines.filter((l) => l.type !== "knowhow").map((l) => l.line);
+    const ls = this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line);
     return ls.length ? `## ${title}
 ${ls.join("\n")}` : `## ${title}
 (\uAE30\uB85D \uC5C6\uC74C)`;
   }
-  /** 팀장의 기준 섹션 (없으면 빈 문자열) */
+  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
   knowhowText() {
-    const ls = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
-    return ls.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
-${ls.join("\n")}` : "";
+    const own = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
+    const con = this.lines.filter((l) => l.type === "consulting").map((l) => l.line);
+    return [
+      own.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
+${own.join("\n")}` : "",
+      con.length ? `## \uCEE8\uC124\uD305 \uAE30\uC900 (\uAE30\uBCF8 \uC81C\uACF5 \u2014 \uD300\uC7A5\uC758 \uAE30\uC900\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB984)
+${con.join("\n")}` : ""
+    ].filter(Boolean).join("\n\n");
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
   cited(output) {
@@ -255,16 +262,24 @@ ${ls.join("\n")}` : "";
     return this.items.reduce((acc, i) => (acc[i.type] = (acc[i.type] ?? 0) + 1, acc), {});
   }
 };
-async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false) {
-  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+var KH_TYPES = ["knowhow", "consulting"];
+async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false, consulting = true) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at, source").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
   if (onlyShared) qb = qb.eq("shared", true);
-  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(40);
+  const rows = data ?? [];
+  const isCon = (c) => c.source === "consulting";
+  const ordered = [...rows.filter((c) => !isCon(c)), ...consulting ? rows.filter(isCon) : []];
   let used = 0, n = 0;
-  for (const c of data ?? []) {
+  for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / \uADDC\uCE59: ${rules.join(" \xB7 ")}` : ""}`;
-    if (used + text.length > limitChars && n > 0) break;
-    book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
+    if (used + text.length > limitChars && n > 0) {
+      if (isCon(c)) break;
+      continue;
+    }
+    if (isCon(c)) book.add("consulting", c.id, `\uCEE8\uC124\uD305 \uAE30\uC900 \xB7 ${c.title}`, text);
+    else book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
     used += text.length;
     n++;
   }
@@ -284,7 +299,8 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 4. \uC810\uC218\uB85C \uC0AC\uB78C\uC744 \uC904 \uC138\uC6B0\uAC70\uB098 \uBE44\uAD50\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 5. \uBB38\uCCB4: \uD55C\uAD6D \uAE30\uC5C5 \uC2E4\uBB34 \uBCF4\uACE0\uC11C\uCC98\uB7FC \uC9E7\uACE0 \uB2F4\uBC31\uD558\uAC8C, '~\uD569\uB2C8\uB2E4'\uCCB4. \uACFC\uC7A5, \uAC10\uD0C4, \uC601\uC5B4 \uC9C1\uC5ED\uD22C, \uC774\uBAA8\uC9C0\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 6. \uCD9C\uB825\uC740 \uC694\uCCAD\uD55C JSON \uAC1D\uCCB4 \uD558\uB098\uB9CC. \uC55E\uB4A4 \uC124\uBA85\uC774\uB098 \uCF54\uB4DC \uD39C\uC2A4\uB97C \uBD99\uC774\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.`;
+7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.
+8. '\uCEE8\uC124\uD305 \uAE30\uC900' \uC139\uC158\uC740 \uAE30\uBCF8 \uC81C\uACF5 \uAE30\uC900\uC785\uB2C8\uB2E4. \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4\uB294 \uC6B0\uC120\uD558\uB418 '\uD300\uC7A5\uC758 \uAE30\uC900'\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB974\uACE0, \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4.`;
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
@@ -398,7 +414,7 @@ ${job.system}`,
     p_cost: res.costUsd
   });
   if (cErr) console.error("consume_credits failed", cErr);
-  const kh = job.book.citedStrict(parsed).filter((x) => x.type === "knowhow" && x.id).map((x) => x.id);
+  const kh = job.book.citedStrict(parsed).filter((x) => KH_TYPES.includes(x.type) && x.id).map((x) => x.id);
   if (kh.length) await admin.rpc("mark_knowhow_used", { p_ids: kh });
   return { output: row, parsed };
 }

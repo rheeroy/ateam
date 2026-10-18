@@ -894,7 +894,7 @@ export function QuickStart({ teamId }: { teamId: string }) {
         if (f) qb = f(qb);
         return (await qb).count ?? 0;
       };
-      const [kh, rep, org, it] = await Promise.all([count('knowhow_cards'), count('ai_outputs', (x) => x.eq('kind', 'weekly_report')), count('org_notes'), count('work_items')]);
+      const [kh, rep, org, it] = await Promise.all([count('knowhow_cards', (x) => x.neq('source', 'consulting')), count('ai_outputs', (x) => x.eq('kind', 'weekly_report')), count('org_notes'), count('work_items')]);
       return { kh, rep, org, it };
     },
   });

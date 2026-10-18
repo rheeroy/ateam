@@ -64,15 +64,19 @@ export interface Raw {
   schedule: { item_id: string; title: string; owner_id: string | null; slip_days: number | null; replan_count: number; projected_delay: number | null; projected_done: string | null; due_date: string | null }[] | null;
   portfolio: { task_id: string; title: string; mission_contribution: number; hours: number; share_pct: number | null }[] | null;
   care: { user_id: string; full_name: string; signals: { type: string; label: string; detail?: string }[] }[] | null;
-  checkins: { user_id: string; week_start: string; condition: number | null }[];
+  checkins: { user_id: string; week_start: string; condition: number | null; did?: string | null; blocked?: string | null }[];
   subs: { id: string; author_id: string; status: string; created_at: string; submission_versions: { version: number; created_at: string }[] }[];
   depth: { user_id: string; full_name: string; judgment_evidence: number; eligible: boolean }[] | null;
   perf: { user_id: string; full_name: string; x: number; y: number; prev_x: number; prev_y: number; withheld: boolean }[] | null;
   level: { level: number; levels: { level: number; name: string; conditions: { label: string; current: number; target: number; unit?: string }[] }[]; totals: { metric_months: number } } | null;
-  obs: { subject_id: string }[];
+  obs: { subject_id: string; polarity?: string | null; created_at?: string }[];
   requests: { id: string; to_id: string; title: string; kind: string; due_date: string | null; created_at: string; status: string }[];
   recurringLogs: { item_id: string; period: string; done: boolean | null }[];
   latePromises: number;
+  /** 팀장이 1:1에서 한 약속 중 기한 지난 것 — 팀원별 (기한 지난 날 수) */
+  latePromiseBy?: { member_id: string; days: number }[];
+  /** 결과물 판단 깊이 기록 (최근 120일) */
+  jscores?: { user_id: string; score: number; scored_at: string }[];
   minEvidence: number;
   orgNotes: { id: string; kind: string; title: string; event_date: string | null; status: string; created_at: string }[];
   orgImpacts: string[]; // 영향 분석이 끝난 메모 id
@@ -100,26 +104,33 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
   const mon = kstMonday();
   const since60 = new Date(Date.now() - 60 * 86400000).toISOString();
   const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
-  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs, orgNotes, orgImpacts, decisionsDue] = await Promise.all([
+  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs, orgNotes, orgImpacts, decisionsDue, jscores] = await Promise.all([
     safe<Raw['goals']>(db.rpc('goal_outlook', { p_team: teamId }), null),
     safe<{ id: string; item_id: string | null }[]>(db.from('metrics').select('id, item_id').eq('team_id', teamId).not('target', 'is', null).order('created_at').limit(4), []),
     safe<RawItem[]>(db.from('work_items').select('id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, base_due, replan_count, recur, needs_plan, updated_at, created_at, est_hours_per_week').eq('team_id', teamId).neq('status', 'dropped'), []),
     safe<Raw['schedule']>(db.rpc('item_schedule', { p_team: teamId }), null),
     safe<Raw['portfolio']>(db.rpc('task_portfolio', { p_team: teamId }), null),
     safe<Raw['care']>(db.rpc('care_radar', { p_team: teamId }), null),
-    safe<Raw['checkins']>(db.from('checkins').select('user_id, week_start, condition').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35)), []),
+    safe<Raw['checkins']>(db.from('checkins').select('user_id, week_start, condition, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35)), []),
     safe<Raw['subs']>(db.from('submissions').select('id, author_id, status, created_at, submission_versions(version, created_at)').eq('team_id', teamId).gte('updated_at', since60), []),
     safe<Raw['depth']>(db.rpc('member_data_depth', { p_team: teamId }), null),
     safe<Raw['perf']>(db.rpc('team_performance_map', { p_team: teamId }), null),
     safe<Raw['level']>(db.rpc('team_insight_level', { p_team: teamId }), null),
-    safe<Raw['obs']>(db.from('observations').select('subject_id').eq('team_id', teamId).gte('created_at', since30), []),
+    safe<Raw['obs']>(db.from('observations').select('subject_id, polarity, created_at').eq('team_id', teamId).gte('created_at', since30), []),
     safe<Raw['requests']>(db.from('team_requests').select('id, to_id, title, kind, due_date, created_at, status').eq('team_id', teamId).eq('from_id', leaderId).eq('status', 'open'), []),
-    safe<{ id: string }[]>(db.from('action_items').select('id').eq('team_id', teamId).eq('owner_id', leaderId).is('done_at', null).lt('due_date', kstToday()), []),
+    safe<{ id: string; due_date: string | null; one_on_one_id: string | null }[]>(db.from('action_items').select('id, due_date, one_on_one_id').eq('team_id', teamId).eq('owner_id', leaderId).is('done_at', null).lt('due_date', kstToday()), []),
     safe<Raw['recurringLogs']>(db.from('work_item_logs').select('item_id, period, done').eq('team_id', teamId).eq('kind', 'recurring').gte('period', addDaysYmd(kstToday(), -100)), []),
     safe<Raw['orgNotes']>(db.from('org_notes').select('id, kind, title, event_date, status, created_at').eq('team_id', teamId).eq('status', 'open').order('created_at', { ascending: false }).limit(40), []),
     safe<{ ref_id: string }[]>(db.from('ai_outputs').select('ref_id').eq('team_id', teamId).eq('kind', 'org_impact').gte('created_at', since60), []),
     safe<Raw['decisionsDue']>(db.from('decisions').select('id, title, decided_at, review_on').eq('team_id', teamId).is('outcome', null).order('decided_at').limit(20), []),
+    safe<NonNullable<Raw['jscores']>>(db.from('judgment_scores').select('user_id, score, scored_at').eq('team_id', teamId).gte('scored_at', new Date(Date.now() - 120 * 86400000).toISOString()).order('scored_at'), []),
   ]);
+  // 기한 지난 팀장 약속 → 어느 팀원과의 1:1에서 나온 약속인지
+  const ooIds = [...new Set(late.map((a) => a.one_on_one_id).filter(Boolean))] as string[];
+  const oos = ooIds.length ? await safe<{ id: string; member_id: string }[]>(db.from('one_on_ones').select('id, member_id').in('id', ooIds), []) : [];
+  const memberOf = new Map(oos.map((o) => [o.id, o.member_id]));
+  const latePromiseBy = late.filter((a) => a.one_on_one_id && memberOf.has(a.one_on_one_id))
+    .map((a) => ({ member_id: memberOf.get(a.one_on_one_id!)!, days: a.due_date ? daysSince(a.due_date) : 0 }));
   const forecasts = (await Promise.all(metrics.map(async (m) => {
     const f = await safe<Raw['forecasts'][number] | null>(db.rpc('metric_forecast', { p_metric: m.id }), null);
     return f ? { ...f, item_id: m.item_id } : null;
@@ -141,7 +152,8 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
   }
   const goalsNow = goals ? goals.filter((g) => !pastIds.has(g.goal_id)) : goals;
   return { goals: goalsNow, forecasts, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests,
-    recurringLogs: rlogs, latePromises: late.length, minEvidence, orgNotes, orgImpacts: orgImpacts.map((o) => o.ref_id), decisionsDue };
+    recurringLogs: rlogs, latePromises: late.length, minEvidence,
+    latePromiseBy, jscores, orgNotes, orgImpacts: orgImpacts.map((o) => o.ref_id), decisionsDue };
 }
 
 // ---------- 분석 ----------
@@ -150,6 +162,65 @@ const names = (arr: string[], max = 3) => arr.slice(0, max).join(', ') + (arr.le
 const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
 const D: Period[] = ['daily']; const W: Period[] = ['weekly']; const M: Period[] = ['monthly'];
 const DW: Period[] = ['daily', 'weekly']; const WM: Period[] = ['weekly', 'monthly']; const ALL: Period[] = ['daily', 'weekly', 'monthly'];
+
+// ---------- 팀원별 선행 신호 (팀원관리 지수 · 인사이트 공용) ----------
+// 이탈 인터뷰에서 반복되는 동인(인정 공백 · 성장 정체 · 막힘 · 약속 미이행 · 참여 위축)을 앱 기록으로 잡는다.
+export type MemberFlagKey = 'frustrated' | 'recog_gap' | 'growth_stall' | 'promise_late' | 'withdrawn';
+export interface MemberFlag { key: MemberFlagKey; label: string; detail: string }
+export const FLAG_LABEL: Record<MemberFlagKey, string> = {
+  frustrated: '의지는 있는데 막힘', recog_gap: '인정 공백', growth_stall: '성장 정체', promise_late: '팀장 약속 밀림', withdrawn: '참여 위축',
+};
+export function flagsFor(raw: Raw, uid: string): MemberFlag[] {
+  const out: MemberFlag[] = [];
+  const mon = kstMonday();
+  const recentFrom = addDaysYmd(mon, -14);
+  const mine = raw.checkins.filter((c) => c.user_id === uid).sort((a, b) => a.week_start.localeCompare(b.week_start));
+  const lastCond = [...mine].reverse().find((c) => c.condition != null && c.week_start >= recentFrom)?.condition ?? null;
+
+  // 1) 의지는 있는데 막힘 — 컨디션은 괜찮은데(3 이상) 막힘·대기가 겹친 사람
+  if (lastCond != null && lastCond >= 3) {
+    const why: string[] = [];
+    if ((raw.care ?? []).some((r) => r.user_id === uid && r.signals.some((x) => x.type === 'blocked_repeat'))) why.push('같은 막힘 2주 연속');
+    const blk = raw.items.filter((i) => i.owner_id === uid && i.status === 'blocked');
+    if (blk.length) why.push(`막힘 상태 항목 ${blk.length}건`);
+    const waiting = raw.subs.filter((x) => x.author_id === uid && x.status === 'in_review'
+      && daysSince(x.submission_versions.reduce((a, v) => (v.created_at > a ? v.created_at : a), x.created_at)) >= 3);
+    if (waiting.length) why.push(`리뷰 대기 3일 넘은 결과물 ${waiting.length}건`);
+    if (why.length) out.push({ key: 'frustrated', label: FLAG_LABEL.frustrated, detail: `컨디션 ${lastCond}/5 · ${why.join(' · ')}` });
+  }
+  // 2) 인정 공백 — 최근 마친 일이 있는데 칭찬·긍정 관찰이 없음
+  const done = raw.items.filter((i) => i.owner_id === uid && i.status === 'done' && daysSince(i.updated_at) <= 30).length;
+  const appr = raw.subs.filter((x) => x.author_id === uid && x.status === 'approved' && daysSince(x.created_at) <= 45).length;
+  const pos = raw.obs.filter((o) => o.subject_id === uid && o.polarity === 'positive').length;
+  if (done + appr >= 2 && pos === 0) out.push({ key: 'recog_gap', label: FLAG_LABEL.recog_gap, detail: `최근 마친 일 ${done}건 · 승인된 결과물 ${appr}건, 30일간 칭찬·긍정 관찰 0건` });
+  // 3) 성장 정체 — 판단 깊이가 8주 넘게 같은 수준 + 60일간 새로 맡은 일 없음
+  const js = (raw.jscores ?? []).filter((j) => j.user_id === uid).map((j) => ({ s: Number(j.score), at: j.scored_at }));
+  if (js.length >= 4) {
+    const last4 = js.slice(-4).map((j) => j.s);
+    const spanDays = (Date.parse(js[js.length - 1].at) - Date.parse(js[js.length - 4].at)) / 86400000;
+    const mean = last4.reduce((a, b) => a + b, 0) / 4;
+    const fresh = raw.items.some((i) => i.owner_id === uid && daysSince(i.created_at) <= 60);
+    if (spanDays >= 56 && Math.max(...last4) - Math.min(...last4) <= 0.5 && mean < 3.5 && !fresh)
+      out.push({ key: 'growth_stall', label: FLAG_LABEL.growth_stall, detail: `최근 결과물 4건 판단 깊이 평균 ${Math.round(mean * 10) / 10}/4로 비슷 · 60일간 새로 맡은 일 없음` });
+  }
+  // 4) 팀장 약속 밀림 — 이 팀원과의 1:1에서 팀장이 한 약속
+  const pr = (raw.latePromiseBy ?? []).filter((x) => x.member_id === uid);
+  if (pr.length >= 2 || pr.some((x) => x.days >= 14))
+    out.push({ key: 'promise_late', label: FLAG_LABEL.promise_late, detail: `기한 지난 약속 ${pr.length}건 · 최장 ${Math.max(...pr.map((x) => x.days))}일` });
+  // 5) 참여 위축 — 체크인이 예전보다 크게 짧아지거나 빠지고, 막힘 칸도 비어 있음
+  const w1 = recentFrom, w2 = addDaysYmd(mon, -7);
+  const len = (c: (typeof mine)[number]) => (c.did ?? '').trim().length;
+  const prior = mine.filter((c) => c.week_start < w1 && len(c) > 0);
+  const priorAvg = prior.length ? prior.reduce((a, c) => a + len(c), 0) / prior.length : 0;
+  if (prior.length >= 2 && priorAvg >= 30) {
+    const rec = [w1, w2].map((w) => mine.find((c) => c.week_start === w) ?? null);
+    const present = rec.filter(Boolean) as (typeof mine);
+    const quiet = rec.every((c) => !c || len(c) < priorAvg * 0.4);
+    if (present.length && quiet && !present.some((c) => (c.blocked ?? '').trim()))
+      out.push({ key: 'withdrawn', label: FLAG_LABEL.withdrawn, detail: `최근 2주 체크인 ${present.length}회 · 글 길이 평소의 ${Math.round((present.reduce((a, c) => a + len(c), 0) / present.length / priorAvg) * 100)}% · 막힘 칸 비어 있음` });
+  }
+  return out;
+}
 
 export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; domains: DomainSummary[] } {
   const S: Signal[] = [];
@@ -195,6 +266,27 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   if (!goals.length) S.push({ id: 'goal-none', domain: 'goal', type: 'data', severity: 1, periods: ALL,
     title: '목표가 없어 달성 전망을 볼 수 없습니다', detail: '계획서를 넣으면 AI가 목표·과제 초안을 만들어 드립니다.', rule: '최상위 항목 0개', action: { label: '목표 세우기', to: '/goals' } });
   const goalLow = probs.length ? Math.min(...probs) : null;
+  // 목표 품질 — 개수 · 마감 · 달성 판단 기준
+  const tops = items.filter((i) => !i.parent_id && ['active', 'blocked'].includes(i.status));
+  const kidsOf = new Map<string, RawItem[]>();
+  for (const it of items) if (it.parent_id) kidsOf.set(it.parent_id, [...(kidsOf.get(it.parent_id) ?? []), it]);
+  const measurable = (id: string): boolean => {
+    const it = byId.get(id);
+    if (it && (it.measure === 'number' || it.measure === 'percent')) return true;
+    if (raw.forecasts.some((f) => f.item_id === id)) return true;
+    return (kidsOf.get(id) ?? []).some((k) => measurable(k.id));
+  };
+  if (tops.length > 5) S.push({ id: `goal-many-${tops.length}`, domain: 'goal', type: 'pattern', severity: 1, periods: M,
+    title: `팀 목표가 ${tops.length}개입니다 — 3~5개로 묶으면 우선순위가 선명해집니다`, detail: tops.slice(0, 6).map((t) => t.title).join(' · '),
+    rule: '진행 중 최상위 목표 6개 이상', action: { label: '목표 정리하기', to: '/goals' } });
+  const noDue = tops.filter((t) => !t.due_date);
+  if (noDue.length) S.push({ id: `goal-nodue-${noDue.length}`, domain: 'goal', type: 'data', severity: 1, periods: M,
+    title: `마감이 없는 목표 ${noDue.length}개 — 마감을 넣으면 계획 대비가 그려집니다`, detail: noDue.slice(0, 3).map((t) => t.title).join(' · '),
+    rule: '진행 중 최상위 목표 중 마감일 없음', action: { label: '마감 넣기', to: '/goals' } });
+  const noMeasure = tops.filter((t) => !measurable(t.id) && !(t.measure === 'check'));
+  if (noMeasure.length) S.push({ id: `goal-nomeasure-${noMeasure.length}`, domain: 'goal', type: 'data', severity: 1, periods: M,
+    title: `달성했는지 잴 기준이 없는 목표 ${noMeasure.length}개`, detail: `${noMeasure.slice(0, 3).map((t) => t.title).join(' · ')} — 숫자 목표나 '완료 판단 기준'을 하나 붙여 두세요.`,
+    rule: '최상위 목표와 그 하위에 숫자·진척률 항목이나 실적 지표가 없음', action: { label: '기준 붙이기', to: '/goals' } });
 
   // ---------------- 실행·과제 ----------------
   const work = items.filter((i) => i.parent_id && ['active', 'blocked'].includes(i.status));
@@ -268,12 +360,14 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     detail: '투입 시간을 넣으면 시간 배분·충원 시뮬레이션이 정확해집니다.', rule: '공수 입력률 50% 미만', action: { label: '표에서 입력', to: '/goals/edit?view=table' } });
 
   // ---------------- 사람·컨디션 ----------------
+  const flagMap = new Map(mem.map((m) => [m.user_id, flagsFor(raw, m.user_id)]));
+  const has = (u: string, k: MemberFlagKey) => !!flagMap.get(u)?.some((f) => f.key === k);
   const noOO: string[] = []; const missing: string[] = [];
   for (const r of raw.care ?? []) for (const s of r.signals) {
     if (s.type === 'condition_down') S.push({ id: `care-cond-${r.user_id}`, domain: 'people', type: 'risk', severity: 3, periods: DW,
       title: `${r.full_name}님 컨디션이 3주 연속 떨어졌습니다 (${s.label.replace('컨디션 ', '')})`, detail: '번아웃·이탈 신호일 수 있습니다. 이번 주 안에 1:1을 권합니다.',
       rule: '체크인 컨디션 3주 연속 하락, 최근 값 3 이하', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
-    if (s.type === 'blocked_repeat') S.push({ id: `care-block-${r.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
+    if (s.type === 'blocked_repeat' && !has(r.user_id, 'frustrated')) S.push({ id: `care-block-${r.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
       title: `${r.full_name}님이 2주째 같은 문제로 막혀 있습니다`, detail: s.detail ? `"${s.detail}"` : undefined,
       rule: '체크인 막힘 항목 2주 연속', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
     if (s.type === 'no_one_on_one') noOO.push(r.full_name);
@@ -298,6 +392,24 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   }
   if (raw.latePromises) S.push({ id: `promise-late-${raw.latePromises}`, domain: 'people', type: 'missed', severity: 2, periods: D,
     title: `팀원에게 한 약속 ${raw.latePromises}건이 기한을 넘겼습니다`, detail: '팀장의 약속이 밀리면 1:1 신뢰가 가장 먼저 떨어집니다.', rule: '1:1에서 정한 팀장 할 일, 기한 경과', action: { label: '약속 보기', to: '#today' } });
+  for (const m of mem) for (const f of flagMap.get(m.user_id) ?? []) {
+    const nm = m.name;
+    if (f.key === 'frustrated') S.push({ id: `care-frus-${m.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
+      title: `${nm}님은 의욕은 있는데 막혀 있습니다 — 막힌 것부터 풀어 주세요`, detail: f.detail,
+      rule: '최근 컨디션 3 이상 + (같은 막힘 2주 연속 · 막힘 상태 항목 · 리뷰 대기 3일 이상)', action: { label: '1:1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
+    if (f.key === 'recog_gap') S.push({ id: `care-recog-${m.user_id}`, domain: 'people', type: 'missed', severity: 2, periods: WM,
+      title: `${nm}님이 최근 일을 마쳤는데 인정 기록이 없습니다`, detail: `${f.detail} — 인정이 끊기면 '내가 뭘 했지'가 쌓입니다.`,
+      rule: '최근 30일 완료 항목 + 45일 승인 결과물 2건 이상, 30일간 긍정 관찰·칭찬 0건', action: { label: '칭찬 메모 남기기', memo: m.user_id } });
+    if (f.key === 'growth_stall') S.push({ id: `growth-stall-${m.user_id}`, domain: 'growth', type: 'pattern', severity: 1, periods: M,
+      title: `${nm}님 결과물 수준이 두 달 넘게 비슷합니다 — 한 단계 어려운 일을 맡길 때`, detail: f.detail,
+      rule: '판단 깊이 최근 4건 차이 0.5 이하·8주 이상, 평균 3.5 미만, 60일간 새로 맡은 항목 없음', action: { label: '팀원 보기', to: `/people/${m.user_id}` } });
+    if (f.key === 'promise_late') S.push({ id: `care-promise-${m.user_id}`, domain: 'people', type: 'missed', severity: 2, periods: W,
+      title: `${nm}님과의 1:1에서 한 약속이 밀려 있습니다 — 다음 1:1 첫 안건으로`, detail: f.detail,
+      rule: '이 팀원과의 1:1에서 정한 팀장 할 일, 기한 지난 것 2건 이상 또는 14일 이상', action: { label: '약속 보기', to: '#today' } });
+    if (f.key === 'withdrawn') S.push({ id: `care-quiet-${m.user_id}`, domain: 'people', type: 'pattern', severity: 1, periods: W,
+      title: `${nm}님 체크인이 눈에 띄게 짧아졌습니다 — 추궁보다 안부부터`, detail: f.detail,
+      rule: '이전 체크인 평균 대비 최근 2주 40% 미만 또는 빠짐, 막힘 칸 비어 있음', action: { label: '1:1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
+  }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
   const ciLast = new Set(raw.checkins.filter((c) => c.week_start === lastMon).map((c) => c.user_id)).size;
   const ciWeeks = new Set(raw.checkins.map((c) => c.week_start)).size;

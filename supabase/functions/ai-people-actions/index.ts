@@ -84,7 +84,7 @@ async function actionsFor(teamId: string, createdBy: string | null) {
     for (const n of myNotes.filter((x) => x.anchor_id === uid).slice(0, 2)) extra.push(addNote(book, n, name));
     blocks.push(`### ${name} ${tag}${extra.length ? ` (관련 기록 ${extra.join(' ')})` : ''}`);
   }
-  await addKnowhow(book, teamId, 'prep', 1000);
+  await addKnowhow(book, teamId, 'prep', 1000, false, false); // 팀원 액션은 컨설팅 기준 카드를 싣지 않는다
   const text = [
     `오늘: ${today} (이번 주 시작 ${mon}) / 팀: ${team?.name} / 미션: ${team?.mission || '-'}`,
     `## 팀원 (${members.length}명)\n${blocks.join('\n')}`,

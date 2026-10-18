@@ -45,7 +45,7 @@ function AiReview({ teamId, version, versions, reviewOf, onPick, onToComments }:
   });
   const kh = useQuery({
     queryKey: ['knowhow-count', teamId, 'review'],
-    queryFn: async () => (await supabase.from('knowhow_cards').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('active', true).contains('applies_to', ['review'])).count ?? 0,
+    queryFn: async () => (await supabase.from('knowhow_cards').select('id', { count: 'exact', head: true }).eq('team_id', teamId).eq('active', true).neq('source', 'consulting').contains('applies_to', ['review'])).count ?? 0,
   });
   const r = rv.data;
   return (

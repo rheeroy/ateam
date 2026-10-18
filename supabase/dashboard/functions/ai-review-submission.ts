@@ -195,7 +195,9 @@ var CORE = [
   "people_actions",
   "advisor_weekly",
   "exec_brief",
-  "coaching"
+  "coaching",
+  "checkin_draft",
+  "work_brief"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -212,6 +214,8 @@ var CREDITS = {
   advisor_weekly: 0,
   exec_brief: 0,
   coaching: 0,
+  checkin_draft: 0,
+  work_brief: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -228,23 +232,28 @@ var SourceBook = class {
     return tag;
   }
   get size() {
-    return this.items.filter((i) => i.type !== "knowhow").length;
+    return this.items.filter((i) => !KH_TYPES.includes(i.type)).length;
   }
   get sources() {
     return this.items;
   }
   /** 기록(근거) 섹션 — 팀장 노하우는 따로 출력한다 */
   text(title) {
-    const ls = this.lines.filter((l) => l.type !== "knowhow").map((l) => l.line);
+    const ls = this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line);
     return ls.length ? `## ${title}
 ${ls.join("\n")}` : `## ${title}
 (\uAE30\uB85D \uC5C6\uC74C)`;
   }
-  /** 팀장의 기준 섹션 (없으면 빈 문자열) */
+  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
   knowhowText() {
-    const ls = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
-    return ls.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
-${ls.join("\n")}` : "";
+    const own = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
+    const con = this.lines.filter((l) => l.type === "consulting").map((l) => l.line);
+    return [
+      own.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
+${own.join("\n")}` : "",
+      con.length ? `## \uCEE8\uC124\uD305 \uAE30\uC900 (\uAE30\uBCF8 \uC81C\uACF5 \u2014 \uD300\uC7A5\uC758 \uAE30\uC900\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB984)
+${con.join("\n")}` : ""
+    ].filter(Boolean).join("\n\n");
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
   cited(output) {
@@ -259,16 +268,24 @@ ${ls.join("\n")}` : "";
     return this.items.reduce((acc, i) => (acc[i.type] = (acc[i.type] ?? 0) + 1, acc), {});
   }
 };
-async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false) {
-  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+var KH_TYPES = ["knowhow", "consulting"];
+async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false, consulting = true) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at, source").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
   if (onlyShared) qb = qb.eq("shared", true);
-  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(40);
+  const rows = data ?? [];
+  const isCon = (c) => c.source === "consulting";
+  const ordered = [...rows.filter((c) => !isCon(c)), ...consulting ? rows.filter(isCon) : []];
   let used = 0, n = 0;
-  for (const c of data ?? []) {
+  for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / \uADDC\uCE59: ${rules.join(" \xB7 ")}` : ""}`;
-    if (used + text.length > limitChars && n > 0) break;
-    book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
+    if (used + text.length > limitChars && n > 0) {
+      if (isCon(c)) break;
+      continue;
+    }
+    if (isCon(c)) book.add("consulting", c.id, `\uCEE8\uC124\uD305 \uAE30\uC900 \xB7 ${c.title}`, text);
+    else book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
     used += text.length;
     n++;
   }
@@ -288,7 +305,8 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 4. \uC810\uC218\uB85C \uC0AC\uB78C\uC744 \uC904 \uC138\uC6B0\uAC70\uB098 \uBE44\uAD50\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 5. \uBB38\uCCB4: \uD55C\uAD6D \uAE30\uC5C5 \uC2E4\uBB34 \uBCF4\uACE0\uC11C\uCC98\uB7FC \uC9E7\uACE0 \uB2F4\uBC31\uD558\uAC8C, '~\uD569\uB2C8\uB2E4'\uCCB4. \uACFC\uC7A5, \uAC10\uD0C4, \uC601\uC5B4 \uC9C1\uC5ED\uD22C, \uC774\uBAA8\uC9C0\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 6. \uCD9C\uB825\uC740 \uC694\uCCAD\uD55C JSON \uAC1D\uCCB4 \uD558\uB098\uB9CC. \uC55E\uB4A4 \uC124\uBA85\uC774\uB098 \uCF54\uB4DC \uD39C\uC2A4\uB97C \uBD99\uC774\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.`;
+7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.
+8. '\uCEE8\uC124\uD305 \uAE30\uC900' \uC139\uC158\uC740 \uAE30\uBCF8 \uC81C\uACF5 \uAE30\uC900\uC785\uB2C8\uB2E4. \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4\uB294 \uC6B0\uC120\uD558\uB418 '\uD300\uC7A5\uC758 \uAE30\uC900'\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB974\uACE0, \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4.`;
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
@@ -402,7 +420,7 @@ ${job.system}`,
     p_cost: res.costUsd
   });
   if (cErr) console.error("consume_credits failed", cErr);
-  const kh = job.book.citedStrict(parsed).filter((x) => x.type === "knowhow" && x.id).map((x) => x.id);
+  const kh = job.book.citedStrict(parsed).filter((x) => KH_TYPES.includes(x.type) && x.id).map((x) => x.id);
   if (kh.length) await admin.rpc("mark_knowhow_used", { p_ids: kh });
   return { output: row, parsed };
 }
@@ -447,7 +465,10 @@ depth_score \uB294 1.0~4.0, 0.5 \uB2E8\uC704. strengths\xB7gaps \uB294 \uAC01\uA
 competency_signals \uC758 \uD0A4\uB294 \uC8FC\uC5B4\uC9C4 \uC5ED\uB7C9 \uC774\uB984\uB9CC \uC4F0\uACE0, \uAC12\uC740 -1(\uC57D\uD568 \uC2E0\uD638)/0/1(\uAC15\uD568 \uC2E0\uD638). \uC774 \uACB0\uACFC\uBB3C\uB85C \uC54C \uC218 \uC5C6\uB294 \uC5ED\uB7C9\uC740 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 criteria_check \uB294 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC8FC\uC5B4\uC84C\uC744 \uB54C\uB9CC, \uC774 \uACB0\uACFC\uBB3C\uC5D0 \uD574\uB2F9\uD558\uB294 \uAE30\uC900\uB9C8\uB2E4 \uD558\uB098\uC529(\uCD5C\uB300 5\uAC1C) \uC501\uB2C8\uB2E4. tag \uC5D0\uB294 \uADF8 \uAE30\uC900\uC758 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uB123\uC2B5\uB2C8\uB2E4. \uAE30\uC900\uC774 \uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4.`;
 var SELF_CHECK = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uACB0\uACFC\uBB3C\uC744 \uD300\uC7A5\uC5D0\uAC8C \uC62C\uB9AC\uAE30 \uC804\uC5D0 \uC2A4\uC2A4\uB85C \uC810\uAC80\uD558\uB3C4\uB85D \uB3D5\uC2B5\uB2C8\uB2E4. \uC774 \uACB0\uACFC\uB294 \uD300\uC6D0 \uBCF8\uC778\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.
-'\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC5D0 \uB9DE\uB294\uC9C0\uB97C \uBA3C\uC800 \uBD05\uB2C8\uB2E4. \uC5C6\uC73C\uBA74 \uC77C\uBC18\uC801\uC778 \uC5C5\uBB34 \uBCF4\uACE0\uC11C \uAE30\uC900(\uACB0\uB860 \uBA3C\uC800, \uADFC\uAC70, \uB300\uC548, \uB2E4\uC74C \uD589\uB3D9)\uC73C\uB85C \uBD05\uB2C8\uB2E4.
+'\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC5D0 \uB9DE\uB294\uC9C0\uB97C \uBA3C\uC800 \uBD05\uB2C8\uB2E4. \uC5C6\uAC70\uB098 \uADF8 \uC678\uC758 \uBD80\uBD84\uC740 \uACB0\uACFC\uBB3C \uAC80\uD1A0\uC640 \uAC19\uC740 \uAD00\uC810\uC73C\uB85C \uBD05\uB2C8\uB2E4:
+  \uC644\uC131\uB3C4(\uBAA9\uC801\xB7\uACB0\uB860\xB7\uB2E4\uC74C \uD589\uB3D9\uAE4C\uC9C0 \uB05D\uB9FA\uC5C8\uB294\uAC00, \uBE48 \uCE78\xB7\uBBF8\uC815\uC774 \uB0A8\uC558\uB294\uAC00) \xB7 \uACE0\uBBFC\uC758 \uAE4A\uC774(\uB300\uC548\uC744 \uBE44\uAD50\uD558\uACE0 \uBC84\uB9B0 \uC774\uC720\uB97C \uBC1D\uD614\uB294\uAC00) \xB7 \uB17C\uB9AC(\uC8FC\uC7A5\uB9C8\uB2E4 \uADFC\uAC70\uAC00 \uC788\uB294\uAC00) \xB7 \uC804\uB2EC\uB825(\uACB0\uB860\uC774 \uBA3C\uC800 \uC624\uB294\uAC00).
+\uADF8\uB9AC\uACE0 \uC62C\uB9AC\uAE30 \uC804\uC5D0 \uB450 \uAC00\uC9C0\uB97C \uAF2D \uD655\uC778\uD569\uB2C8\uB2E4: \uBC1B\uB294 \uC0AC\uB78C\uC774 \uACB0\uC815\uD558\uAC70\uB098 \uB2F5\uD574\uC57C \uD560 \uAC83\uC774 \uBD84\uBA85\uD55C\uAC00 / \uC138\uBD80 \uB370\uC774\uD130\uB294 \uBCF8\uBB38\uC5D0\uC11C \uBE7C\uC11C \uCC38\uACE0\uB85C \uB3CC\uB838\uB294\uAC00.
+\uAD00\uC810\uBCC4\uB85C \uB098\uB220 \uC4F0\uAC70\uB098 \uC810\uC218\uB97C \uB9E4\uAE30\uC9C0 \uC54A\uACE0, \uC774 \uACB0\uACFC\uBB3C\uC5D0\uC11C \uAC00\uC7A5 \uBA3C\uC800 \uACE0\uCE60 \uAC83\uBD80\uD130 \uC501\uB2C8\uB2E4. \uB9DE\uCDA4\uBC95\xB7\uC11C\uC2DD\uC740 \uC9C0\uC801\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 \uB9D0\uD22C\uB294 \uB3D9\uB8CC\uAC00 \uC606\uC5D0\uC11C \uC870\uC5B8\uD558\uB4EF \uBD80\uB4DC\uB7FD\uACE0 \uAD6C\uCCB4\uC801\uC73C\uB85C. \uD3C9\uAC00\uB098 \uC810\uC218\uB294 \uB9E4\uAE30\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 
 \uCD9C\uB825 JSON \uD615\uC2DD:

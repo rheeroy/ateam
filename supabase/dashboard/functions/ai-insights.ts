@@ -80,7 +80,8 @@ async function callClaude(opts) {
   if (!key) throw new HttpError(500, "AI_NOT_CONFIGURED", "ANTHROPIC_API_KEY \uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4");
   const body = {
     model: opts.model,
-    max_tokens: opts.maxTokens ?? 2e3,
+    // 상한은 '쓸 수 있는 최대'일 뿐 원가는 실제 출력만큼 — 너무 낮으면 모델이 생각만 하다 답을 못 쓴다
+    max_tokens: Math.max(opts.maxTokens ?? 2e3, 3e3),
     ...opts.temperature !== void 0 ? { temperature: opts.temperature } : {},
     // 시스템 프롬프트는 기능마다 고정이므로 캐시한다
     system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
@@ -100,6 +101,11 @@ async function callClaude(opts) {
     if (res.ok) {
       const data = await res.json();
       const text = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
+      if (!text.trim() && attempt < 2) {
+        lastErr = `empty response (stop: ${data.stop_reason ?? "-"})`;
+        body.max_tokens = Math.min(12e3, body.max_tokens * 2);
+        continue;
+      }
       const u = data.usage ?? {};
       const p = PRICE[opts.model] ?? PRICE["claude-sonnet-5-5"];
       const cost = ((u.input_tokens ?? 0) * p.in + (u.output_tokens ?? 0) * p.out + (u.cache_read_input_tokens ?? 0) * p.cacheRead + (u.cache_creation_input_tokens ?? 0) * p.cacheWrite) / 1e6;
@@ -125,12 +131,47 @@ function parseJson(text) {
   const src = fenced ? fenced[1] : text;
   const start = src.indexOf("{");
   const end = src.lastIndexOf("}");
-  if (start < 0 || end < start) throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
-  try {
-    return JSON.parse(src.slice(start, end + 1));
-  } catch {
-    throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+  if (start < 0) throw new HttpError(502, "AI_BAD_OUTPUT", text.trim() ? text.slice(0, 300) : "AI \uC751\uB2F5\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.");
+  if (end > start) {
+    try {
+      return JSON.parse(src.slice(start, end + 1));
+    } catch {
+    }
   }
+  const fixed = closeTruncated(src.slice(start));
+  if (fixed) {
+    try {
+      return JSON.parse(fixed);
+    } catch {
+    }
+  }
+  throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+}
+function closeTruncated(s) {
+  const stack = [];
+  let inStr = false, esc = false, good = -1, goodStack = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "," && stack.length) {
+      good = i;
+      goodStack = stack.slice();
+    } else if (c === "{" || c === "[") stack.push(c === "{" ? "}" : "]");
+    else if (c === "}" || c === "]") {
+      stack.pop();
+      good = i + 1;
+      goodStack = stack.slice();
+      if (!stack.length) return s.slice(0, good);
+    }
+  }
+  if (good < 0) return null;
+  return s.slice(0, good) + goodStack.reverse().join("");
 }
 
 // functions/_shared/gateway.ts
@@ -143,7 +184,14 @@ var CORE = [
   "insight_weekly",
   "insight_monthly",
   "plan_edit",
-  "self_check"
+  "self_check",
+  "org_impact",
+  "people_actions",
+  "advisor_weekly",
+  "exec_brief",
+  "coaching",
+  "checkin_draft",
+  "work_brief"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -155,6 +203,13 @@ var CREDITS = {
   insight_monthly: 0,
   plan_edit: 0,
   self_check: 0,
+  org_impact: 0,
+  people_actions: 0,
+  advisor_weekly: 0,
+  exec_brief: 0,
+  coaching: 0,
+  checkin_draft: 0,
+  work_brief: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -171,23 +226,28 @@ var SourceBook = class {
     return tag;
   }
   get size() {
-    return this.items.filter((i) => i.type !== "knowhow").length;
+    return this.items.filter((i) => !KH_TYPES.includes(i.type)).length;
   }
   get sources() {
     return this.items;
   }
   /** 기록(근거) 섹션 — 팀장 노하우는 따로 출력한다 */
   text(title) {
-    const ls = this.lines.filter((l) => l.type !== "knowhow").map((l) => l.line);
+    const ls = this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line);
     return ls.length ? `## ${title}
 ${ls.join("\n")}` : `## ${title}
 (\uAE30\uB85D \uC5C6\uC74C)`;
   }
-  /** 팀장의 기준 섹션 (없으면 빈 문자열) */
+  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
   knowhowText() {
-    const ls = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
-    return ls.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
-${ls.join("\n")}` : "";
+    const own = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
+    const con = this.lines.filter((l) => l.type === "consulting").map((l) => l.line);
+    return [
+      own.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
+${own.join("\n")}` : "",
+      con.length ? `## \uCEE8\uC124\uD305 \uAE30\uC900 (\uAE30\uBCF8 \uC81C\uACF5 \u2014 \uD300\uC7A5\uC758 \uAE30\uC900\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB984)
+${con.join("\n")}` : ""
+    ].filter(Boolean).join("\n\n");
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
   cited(output) {
@@ -202,16 +262,24 @@ ${ls.join("\n")}` : "";
     return this.items.reduce((acc, i) => (acc[i.type] = (acc[i.type] ?? 0) + 1, acc), {});
   }
 };
-async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false) {
-  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+var KH_TYPES = ["knowhow", "consulting"];
+async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false, consulting = true) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at, source").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
   if (onlyShared) qb = qb.eq("shared", true);
-  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(30);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(40);
+  const rows = data ?? [];
+  const isCon = (c) => c.source === "consulting";
+  const ordered = [...rows.filter((c) => !isCon(c)), ...consulting ? rows.filter(isCon) : []];
   let used = 0, n = 0;
-  for (const c of data ?? []) {
+  for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / \uADDC\uCE59: ${rules.join(" \xB7 ")}` : ""}`;
-    if (used + text.length > limitChars && n > 0) break;
-    book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
+    if (used + text.length > limitChars && n > 0) {
+      if (isCon(c)) break;
+      continue;
+    }
+    if (isCon(c)) book.add("consulting", c.id, `\uCEE8\uC124\uD305 \uAE30\uC900 \xB7 ${c.title}`, text);
+    else book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
     used += text.length;
     n++;
   }
@@ -231,7 +299,8 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 4. \uC810\uC218\uB85C \uC0AC\uB78C\uC744 \uC904 \uC138\uC6B0\uAC70\uB098 \uBE44\uAD50\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 5. \uBB38\uCCB4: \uD55C\uAD6D \uAE30\uC5C5 \uC2E4\uBB34 \uBCF4\uACE0\uC11C\uCC98\uB7FC \uC9E7\uACE0 \uB2F4\uBC31\uD558\uAC8C, '~\uD569\uB2C8\uB2E4'\uCCB4. \uACFC\uC7A5, \uAC10\uD0C4, \uC601\uC5B4 \uC9C1\uC5ED\uD22C, \uC774\uBAA8\uC9C0\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 6. \uCD9C\uB825\uC740 \uC694\uCCAD\uD55C JSON \uAC1D\uCCB4 \uD558\uB098\uB9CC. \uC55E\uB4A4 \uC124\uBA85\uC774\uB098 \uCF54\uB4DC \uD39C\uC2A4\uB97C \uBD99\uC774\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.`;
+7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.
+8. '\uCEE8\uC124\uD305 \uAE30\uC900' \uC139\uC158\uC740 \uAE30\uBCF8 \uC81C\uACF5 \uAE30\uC900\uC785\uB2C8\uB2E4. \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4\uB294 \uC6B0\uC120\uD558\uB418 '\uD300\uC7A5\uC758 \uAE30\uC900'\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB974\uACE0, \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4.`;
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
@@ -250,10 +319,47 @@ async function assertAccess(teamId, kind, credits) {
   if (CORE.includes(kind) && !need) return assertCore(teamId);
   return assertCredits(teamId, need);
 }
+var REUSABLE = ["insight_daily", "insight_weekly", "insight_monthly", "review", "one_on_one_prep", "people_actions", "briefing", "org_impact", "advisor_weekly", "exec_brief"];
+var REUSE_MIN = 10;
+var GUARD_MSG = {
+  AI_RATE_HOUR: [429, "\uC7A0\uC2DC AI \uC694\uCCAD\uC774 \uB9CE\uC558\uC2B5\uB2C8\uB2E4. \uD55C \uC2DC\uAC04 \uC548\uC5D0 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."],
+  AI_RATE_DAY: [429, "\uC624\uB298 AI \uC694\uCCAD\uC774 \uB9CE\uC558\uC2B5\uB2C8\uB2E4. \uB0B4\uC77C \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."],
+  AI_COST_CAP: [429, "\uC774\uBC88 \uB2EC AI \uAE30\uBCF8 \uC0AC\uC6A9\uB7C9\uC744 \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C \uACB0\uC81C \uC8FC\uAE30\uC5D0 \uB2E4\uC2DC \uC5F4\uB9BD\uB2C8\uB2E4."],
+  AI_REPEAT: [429, "\uAC19\uC740 \uB0B4\uC6A9\uC744 \uC624\uB298 \uC5EC\uB7EC \uBC88 \uB2E4\uC2DC \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4. \uAE30\uB85D\uC774 \uB354 \uC313\uC778 \uB4A4 \uB0B4\uC77C \uB2E4\uC2DC \uB9CC\uB4E4\uC5B4 \uC8FC\uC138\uC694."]
+};
+async function guard(job) {
+  const { error } = await admin.rpc("ai_guard", {
+    p_team: job.teamId,
+    p_kind: job.kind,
+    p_ref: job.refId ?? null,
+    p_period: job.periodStart ?? null,
+    p_subject: job.subjectUserId ?? null
+  });
+  if (!error) return;
+  const hit = Object.keys(GUARD_MSG).find((k) => error.message?.includes(k));
+  if (hit) throw new HttpError(GUARD_MSG[hit][0], hit, GUARD_MSG[hit][1]);
+  if (/ai_guard|function .* does not exist|PGRST202/i.test(`${error.message} ${error.code}`)) {
+    console.warn("ai_guard missing \u2014 run 09_ai_guard.sql");
+    return;
+  }
+  throw error;
+}
+async function recent(job) {
+  if (job.force || !REUSABLE.includes(job.kind) || !job.refId && !job.periodStart) return null;
+  let qb = admin.from("ai_outputs").select("*").eq("team_id", job.teamId).eq("kind", job.kind).eq("status", "draft").gte("created_at", new Date(Date.now() - REUSE_MIN * 6e4).toISOString());
+  qb = job.refId ? qb.eq("ref_id", job.refId) : qb.is("ref_id", null);
+  qb = job.periodStart ? qb.eq("period_start", job.periodStart) : qb.is("period_start", null);
+  qb = job.subjectUserId ? qb.eq("subject_user_id", job.subjectUserId) : qb.is("subject_user_id", null);
+  const { data } = await qb.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data;
+}
 async function runAi(job) {
   const credits = job.credits ?? CREDITS[job.kind];
   const core = CORE.includes(job.kind) && !credits;
   await assertAccess(job.teamId, job.kind, credits);
+  const again = await recent(job);
+  if (again) return { output: again, parsed: again.content, reused: true };
+  await guard(job);
   const res = await callClaude({
     model: job.model,
     system: `${BASE_RULES}
@@ -262,7 +368,13 @@ ${job.system}`,
     content: job.content,
     maxTokens: job.maxTokens
   });
-  const parsed = parseJson(res.text);
+  let parsed;
+  try {
+    parsed = parseJson(res.text);
+  } catch (e) {
+    await admin.rpc("log_ai_error", { p_team: job.teamId, p_kind: job.kind, p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd });
+    throw e;
+  }
   const { data: row, error } = await admin.from("ai_outputs").insert({
     team_id: job.teamId,
     kind: job.kind,
@@ -302,7 +414,7 @@ ${job.system}`,
     p_cost: res.costUsd
   });
   if (cErr) console.error("consume_credits failed", cErr);
-  const kh = job.book.citedStrict(parsed).filter((x) => x.type === "knowhow" && x.id).map((x) => x.id);
+  const kh = job.book.citedStrict(parsed).filter((x) => KH_TYPES.includes(x.type) && x.id).map((x) => x.id);
   if (kh.length) await admin.rpc("mark_knowhow_used", { p_ids: kh });
   return { output: row, parsed };
 }
@@ -320,17 +432,45 @@ var INSIGHT = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uAE30\uAC04\uC5D0 
 \uC22B\uC790\uC640 \uC0AC\uC2E4\uC740 \uC785\uB825\uC5D0 \uC788\uB294 \uAC83\uB9CC \uC501\uB2C8\uB2E4. \uCD94\uCE21\uC740 '\uAC00\uB2A5\uC131'\uC73C\uB85C \uD45C\uC2DC\uD558\uACE0, \uD310\uB2E8\uC758 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4.
 \uD55C \uBB38\uC7A5\uC740 \uC9E7\uAC8C. \uD300\uC7A5\uC774 \uC9C0\uAE08 \uD560 \uD589\uB3D9\uC744 \uAD6C\uCCB4\uC801\uC73C\uB85C(\uB204\uAD6C\uC640, \uBB34\uC5C7\uC744).
 
+\uD574\uC11D\uC740 \uD300\uC7A5 \uD648\uC758 \uB2E4\uC12F \uC139\uC158\uC73C\uB85C \uB098\uB220 \uC501\uB2C8\uB2E4. \uAC01 \uADFC\uAC70 \uC2E0\uD638 \uC55E\uC5D0 [\uC139\uC158]\uC774 \uBD99\uC5B4 \uC788\uC2B5\uB2C8\uB2E4.
+- risk (\uB9AC\uC2A4\uD06C): \uCEE4\uC9C0\uACE0 \uC788\uB294 \uC704\uD5D8\uACFC \uADF8 \uC6D0\uC778 \uC5F0\uACB0. \uC5EC\uB7EC \uC601\uC5ED\uC5D0 \uAC78\uCE5C \uC6D0\uC778(\uC608: \uACFC\uC81C \uC9C0\uC5F0 \u2190 \uB2F4\uB2F9\uC790 \uB9C9\uD798 \u2190 \uCEE8\uB514\uC158 \uD558\uB77D)\uC740 \uC5EC\uAE30\uC11C \uC5EE\uC2B5\uB2C8\uB2E4.
+- decide (\uC758\uC0AC\uACB0\uC815): \uD300\uC7A5\uC774 \uB0B4\uB824\uC57C \uD560 \uACB0\uC815 \u2014 \uBAA9\uD45C\xB7\uC6B0\uC120\uC21C\uC704 \uC870\uC815, \uC790\uC6D0 \uC7AC\uBC30\uBD84, \uC9C0\uC6D0\xB7\uC5D0\uC2A4\uCEEC\uB808\uC774\uC158, \uC704\uC758 \uBC29\uCE68\uC5D0 \uB300\uD55C \uB300\uC751, \uACB0\uACFC\uB97C \uB3CC\uC544\uBCFC \uC9C0\uB09C \uACB0\uC815. \uC120\uD0DD\uC9C0\uAC00 \uBCF4\uC774\uBA74 \uC9E7\uAC8C \uC81C\uC2DC\uD569\uB2C8\uB2E4.
+- perf (\uD300 \uC131\uACFC): \uBAA9\uD45C \uB2EC\uC131 \uC804\uB9DD, \uC2E4\uD589\xB7\uC77C\uC815\xB7\uB9C9\uD798\xB7\uBC30\uBD84.
+- people (\uC0AC\uB78C): \uCEE8\uB514\uC158, 1:1, \uB9C9\uD798\uC744 \uD63C\uC790 \uB04C\uC5B4\uC548\uC74C, \uC131\uC7A5\xB7\uD3C9\uAC00 \uADFC\uAC70, \uACB0\uACFC\uBB3C \uD488\uC9C8.
+- org (\uC870\uC9C1\xB7\uC804\uC0AC): \uC704\uC5D0\uC11C \uC628 \uAC83(\uC804\uC0AC \uBC29\uCE68\xB7\uC784\uC6D0 \uAD00\uC2EC\uC0AC\xB7\uC0C1\uC704 \uC694\uCCAD\xB7\uC720\uAD00 \uBD80\uC11C\xB7\uC804\uC0AC \uC77C\uC815)\uACFC \uD300 \uBAA9\uD45C\uC758 \uC5F0\uACB0, \uC704\uB85C \uBCF4\uACE0\uD560 \uAC83.
+\uD55C \uB0B4\uC6A9\uC740 \uD55C \uC139\uC158\uC5D0\uB9CC \uC501\uB2C8\uB2E4. \uD560 \uB9D0\uC774 \uC5C6\uB294 \uC139\uC158\uC740 summary \uB97C \uBE48 \uBB38\uC790\uC5F4, items \uB97C \uBE48 \uBC30\uC5F4\uB85C \uB461\uB2C8\uB2E4.
+
+summary \uC640 headline \uC740 \uD55C \uCC28\uC6D0 \uC704\uC758 '\uC9C4\uB2E8'\uC785\uB2C8\uB2E4 (\uD300\uC7A5 \uD648\uC5D0 \uC774 \uBB38\uC7A5\uB9CC \uBCF4\uC785\uB2C8\uB2E4):
+- \uAC1C\uBCC4 \uC0AC\uAC74\uC744 \uB2E4\uC2DC \uB9D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uADF8 \uC601\uC5ED\uC774 \uC9C0\uAE08 \uC798 \uB418\uACE0 \uC788\uB294\uC9C0\xB7\uC548 \uB418\uACE0 \uC788\uB294\uC9C0, \uADF8 '\uAD6C\uC870\uC801 \uC774\uC720'(\uC5EC\uB7EC \uC2E0\uD638\uC5D0 \uACF5\uD1B5\uB41C \uC6D0\uC778\xB7\uD328\uD134\xB7\uC6B4\uC601 \uBC29\uC2DD), \uADF8\uB798\uC11C \uBB34\uC5C7\uC774 \uAC78\uB824 \uC788\uB294\uC9C0\uB97C 1~2\uBB38\uC7A5\uC73C\uB85C.
+- \uC0AC\uB78C \uC774\uB984\uC774\uB098 \uACFC\uC81C\uBA85 \uD558\uB098\uB97C \uC8FC\uC5B4\uB85C \uC138\uC6B0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC601\uC5ED\uC744 \uC8FC\uC5B4\uB85C \uC501\uB2C8\uB2E4.
+  \uB098\uC05C \uC608: "\uC774\uC815\uADDC \uB2D8 \uCEE8\uB514\uC158\uC774 \uB5A8\uC5B4\uC84C\uC2B5\uB2C8\uB2E4." / "\uC81C\uC548\uC11C\uAC00 \uC9C0\uC5F0\uB418\uACE0 \uC788\uC2B5\uB2C8\uB2E4."
+  \uC88B\uC740 \uC608: "\uD300\uC6D0\uAD00\uB9AC\uAC00 \uD754\uB4E4\uB9AC\uB294 \uAC74 \uAC1C\uC778 \uBB38\uC81C\uBCF4\uB2E4 \uC6B4\uC601 \uB9AC\uB4EC \uB54C\uBB38\uC785\uB2C8\uB2E4 \u2014 1:1 \uAC04\uACA9\uC774 \uBC8C\uC5B4\uC9C4 \uC2DC\uAE30\uC5D0 \uB9C9\uD798\uC744 \uD63C\uC790 \uB04C\uC5B4\uC548\uB294 \uD328\uD134\uC774 \uACB9\uCCE4\uC2B5\uB2C8\uB2E4."
+           "\uC131\uACFC\uB294 \uC21C\uD56D\uACFC \uC815\uCCB4\uB85C \uAC08\uB824 \uC788\uACE0, \uC6D0\uC778\uC740 \uC2E4\uD589\uB825\uBCF4\uB2E4 \uC678\uBD80 \uC758\uC874 \uACFC\uC81C\uC5D0 \uB300\uCCB4 \uACBD\uB85C\uAC00 \uC5C6\uB294 \uACC4\uD68D \uAD6C\uC870\uC785\uB2C8\uB2E4."
+- \uAD6C\uCCB4\uC801\uC778 \uC0AC\uB78C\xB7\uACFC\uC81C\xB7\uC22B\uC790\uB294 items \uC5D0 \uC501\uB2C8\uB2E4. headline \uC740 \uD300 \uC804\uCCB4\uC5D0 \uB300\uD55C \uAC19\uC740 \uC218\uC900\uC758 \uC9C4\uB2E8 \uD55C \uBB38\uC7A5.
+
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
   "headline": "\uC774\uBC88 \uAE30\uAC04 \uD300 \uC0C1\uD669\uC744 \uD55C \uBB38\uC7A5\uC73C\uB85C",
-  "items": [
-    {"domain": "goal|exec|people|output|growth", "type": "risk|missed|forecast|pattern|good|data", "severity": 1,
-     "title": "\uC9E7\uC740 \uC81C\uBAA9", "body": "2~3\uBB38\uC7A5 \uD574\uC11D [E1][E3]", "action": "\uD300\uC7A5\uC774 \uD560 \uD589\uB3D9 \uD55C \uBB38\uC7A5", "link": "goals|team|reviews|one_on_ones|perf|sim|knowhow|report|eval"}
-  ],
+  "sections": {
+    "risk":   {"summary": "\uC774 \uC139\uC158 \uD574\uC11D \uD55C \uBB38\uC7A5 [E1]", "items": [ITEM]},
+    "decide": {"summary": "...", "items": [ITEM]},
+    "perf":   {"summary": "...", "items": [ITEM]},
+    "people": {"summary": "...", "items": [ITEM]},
+    "org":    {"summary": "...", "items": [ITEM]}
+  },
   "watch_next": "\uB2E4\uC74C \uAE30\uAC04\uC5D0 \uC9C0\uCF1C\uBCFC \uAC83 \uD55C \uBB38\uC7A5"
 }
-severity \uB294 1~3 (3\uC774 \uAC00\uC7A5 \uAE09\uD568). items \uB294 \uC77C\uAC04 2~4\uAC1C, \uC8FC\uAC04 3~5\uAC1C, \uC6D4\uAC04 4~6\uAC1C.
-\uB370\uC774\uD130\uAC00 \uBD80\uC871\uD574\uC11C \uD310\uB2E8\uC774 \uC5B4\uB824\uC6B4 \uC601\uC5ED\uC774 \uC788\uC73C\uBA74 type 'data' \uD56D\uBAA9\uC73C\uB85C \uBB34\uC5C7\uC744 \uB354 \uC313\uC73C\uBA74 \uB418\uB294\uC9C0 \uC501\uB2C8\uB2E4.`;
+ITEM = {"type": "risk|missed|forecast|pattern|good|data", "severity": 1, "title": "\uC9E7\uC740 \uC81C\uBAA9", "body": "2~3\uBB38\uC7A5 \uD574\uC11D [E1][E3]",
+        "action": "\uD300\uC7A5\uC774 \uD560 \uD589\uB3D9 \uD55C \uBB38\uC7A5", "link": "goals|team|reviews|one_on_ones|perf|sim|knowhow|report|eval|strategy|org"}
+decide \uC139\uC158\uC758 ITEM \uC5D0\uB294 \uB450 \uCE78\uC744 \uB354 \uC501\uB2C8\uB2E4 (\uD300\uC7A5 \uD648\uC758 'Top Priority'\uAC00 \uB429\uB2C8\uB2E4):
+  "options": ["\uC120\uD0DD\uC9C0 \uD55C \uC904", "\uC120\uD0DD\uC9C0 \uD55C \uC904"]  \u2014 2~3\uAC1C, \uC2E4\uC81C\uB85C \uACE0\uB97C \uC218 \uC788\uB294 \uB300\uC548 (\uC608: \uBAA9\uD45C\uB97C \uB0AE\uCD98\uB2E4 / \uC778\uB825\uC744 \uB354 \uB123\uB294\uB2E4 / \uBC94\uC704\uB97C \uC904\uC778\uB2E4)
+  "impact": "\uC774 \uACB0\uC815\uC774 \uC5B4\uB5A4 \uBAA9\uD45C\xB7\uC9C0\uD45C\uC5D0 \uC5B4\uB5BB\uAC8C \uC791\uC6A9\uD558\uB294\uC9C0 \uD55C \uBB38\uC7A5 (\uC22B\uC790\uB294 \uC785\uB825\uC5D0 \uC788\uB294 \uAC83\uB9CC)"
+decide \uC758 title \uC740 '\uBB34\uC5C7\uC744 \uACB0\uC815\uD560\uC9C0'\uB97C \uC9C8\uBB38\uC774\uB098 \uACB0\uC815\uBB38\uC73C\uB85C \uC501\uB2C8\uB2E4 (\uC608: "\uC81C\uD734 \uBAA9\uD45C\uB97C \uC870\uC815\uD560\uC9C0, \uB370\uC774\uD130 \uC9C0\uC6D0\uC744 \uC694\uCCAD\uD560\uC9C0"). \uB2E8\uC21C \uD560 \uC77C(\uB9AC\uBDF0\uD558\uAE30, 1:1 \uC7A1\uAE30, \uC57D\uC18D \uC9C0\uD0A4\uAE30)\uC740 decide \uC5D0 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uD300 \uC131\uACFC\uC5D0 \uBBF8\uCE58\uB294 \uC601\uD5A5\uC774 \uD070 \uACB0\uC815\uBD80\uD130 \uC815\uB82C\uD569\uB2C8\uB2E4.
+severity \uB294 1~3 (3\uC774 \uAC00\uC7A5 \uAE09\uD568). \uC139\uC158\uB9C8\uB2E4 items \uB294 \uC77C\uAC04 0~2\uAC1C, \uC8FC\uAC04 0~3\uAC1C, \uC6D4\uAC04 0~3\uAC1C.
+\uB370\uC774\uD130\uAC00 \uBD80\uC871\uD574\uC11C \uD310\uB2E8\uC774 \uC5B4\uB824\uC6B4 \uC601\uC5ED\uC774 \uC788\uC73C\uBA74 type 'data' \uD56D\uBAA9\uC73C\uB85C \uBB34\uC5C7\uC744 \uB354 \uC313\uC73C\uBA74 \uB418\uB294\uC9C0 \uC501\uB2C8\uB2E4.
+'\uC704\uC5D0\uC11C \uC628 \uAC83'(\uC0C1\uC704 \uC870\uC9C1\xB7\uC804\uC0AC \uC18C\uC2DD, \uC784\uC6D0 \uAD00\uC2EC\uC0AC, \uC0C1\uC704 \uC694\uCCAD, \uC804\uC0AC \uC77C\uC815)\uC774 \uC788\uC73C\uBA74 \uD300 \uBAA9\uD45C\xB7\uACFC\uC81C\uC640\uC758 \uC5F0\uACB0\uC744 \uC9DA\uC2B5\uB2C8\uB2E4. \uC608: \uC804\uC0AC \uBC29\uCE68\uC774 \uD300\uC758 \uC5B4\uB5A4 \uACB0\uC815\uACFC \uBD80\uB52A\uD788\uB294\uC9C0, \uC784\uC6D0\uC774 \uAD81\uAE08\uD574\uD560 \uAC83\uC744 \uBB34\uC5C7\uC73C\uB85C \uBCF4\uACE0\uD558\uBA74 \uB418\uB294\uC9C0. \uC774\uB7F0 \uD56D\uBAA9\uC740 org \uC139\uC158\uC5D0.
+'\uB3CC\uC544\uBCFC \uACB0\uC815'\uC774 \uC788\uC73C\uBA74 \uADF8 \uACB0\uC815\uC758 \uACB0\uACFC\uB97C \uC9C0\uAE08 \uAE30\uB85D\uC73C\uB85C \uD655\uC778\uD560 \uC218 \uC788\uB294\uC9C0 decide \uC139\uC158\uC5D0\uC11C \uC9DA\uC2B5\uB2C8\uB2E4. \uAC19\uC740 \uC0AC\uC548\uC758 \uC704\uD5D8\uC740 risk, \uBB34\uC5C7\uC744 \uC815\uD560\uC9C0\uB294 decide \uC5D0 \uB098\uB220 \uC501\uB2C8\uB2E4.
+\uAC01 \uC139\uC158\uC758 items \uB294 \uAE09\uD558\uACE0 \uC601\uD5A5\uC774 \uD070 \uAC83 \uBA3C\uC800 \uC815\uB82C\uD569\uB2C8\uB2E4.`;
 var INSIGHT_PERIOD = {
   daily: "\uAE30\uAC04: \uC624\uB298. \uC624\uB298 \uC548\uC5D0 \uC190\uC368\uC57C \uD560 \uAC83(\uAE09\uD55C \uB9AC\uC2A4\uD06C, \uB193\uCE5C \uC57D\uC18D\xB7\uC694\uCCAD\xB7\uB9AC\uBDF0, \uC624\uB298 1:1 \uC900\uBE44)\uB9CC \uC9E7\uAC8C. \uCD94\uC138 \uD574\uC11D\uC740 \uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   weekly: "\uAE30\uAC04: \uC774\uBC88 \uC8FC. \uC9C0\uB09C 7\uC77C\uC758 \uD750\uB984(\uC9C4\uCC99 \uC18D\uB3C4, \uB9C9\uD798 \uBC18\uBCF5, \uCEE8\uB514\uC158 \uCD94\uC138, \uB9AC\uBDF0 \uD750\uB984)\uACFC \uC774\uBC88 \uC8FC \uC6B0\uC120\uC21C\uC704\uB97C \uC9DA\uC2B5\uB2C8\uB2E4.",
@@ -343,7 +483,8 @@ var DOMAIN_META = {
   exec: { name: "\uC2E4\uD589\xB7\uACFC\uC81C", desc: "\uACC4\uD68D \uB300\uBE44 \uC9C0\uC5F0\xB7\uB9C9\uD798\xB7\uC2DC\uAC04 \uBC30\uBD84", period: "\uC8FC\uAC04 \uC9C4\uCC99" },
   people: { name: "\uC0AC\uB78C\xB7\uCEE8\uB514\uC158", desc: "\uCEE8\uB514\uC158 \uCD94\uC138, 1:1 \uAC04\uACA9, \uCCB4\uD06C\uC778", period: "\uC8FC\uAC04 \uCD94\uC138" },
   output: { name: "\uACB0\uACFC\uBB3C\xB7\uB9AC\uBDF0", desc: "\uB9AC\uBDF0 \uB300\uAE30\uC640 \uC7AC\uC791\uC5C5 \uD328\uD134", period: "\uC8FC\uAC04 \uD750\uB984" },
-  growth: { name: "\uC721\uC131\xB7\uD3C9\uAC00", desc: "\uD3C9\uAC00 \uADFC\uAC70\uC640 \uC131\uC7A5 \uC2E0\uD638", period: "\uC6D4\uAC04 \uADA4\uC801" }
+  growth: { name: "\uC721\uC131\xB7\uD3C9\uAC00", desc: "\uD3C9\uAC00 \uADFC\uAC70\uC640 \uC131\uC7A5 \uC2E0\uD638", period: "\uC6D4\uAC04 \uADA4\uC801" },
+  org: { name: "\uC870\uC9C1\xB7\uC804\uC0AC", desc: "\uC0C1\uC704 \uBC29\uD5A5\xB7\uC694\uCCAD\xB7\uC804\uC0AC \uC77C\uC815", period: "\uC218\uC2DC" }
 };
 var TYPE_LABEL = {
   risk: "\uB9AC\uC2A4\uD06C",
@@ -374,29 +515,57 @@ async function loadRaw(db, teamId, leaderId, minEvidence) {
   const mon = kstMonday();
   const since60 = new Date(Date.now() - 60 * 864e5).toISOString();
   const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
-  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs] = await Promise.all([
+  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs, orgNotes, orgImpacts, decisionsDue, jscores] = await Promise.all([
     safe(db.rpc("goal_outlook", { p_team: teamId }), null),
     safe(db.from("metrics").select("id, item_id").eq("team_id", teamId).not("target", "is", null).order("created_at").limit(4), []),
     safe(db.from("work_items").select("id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, base_due, replan_count, recur, needs_plan, updated_at, created_at, est_hours_per_week").eq("team_id", teamId).neq("status", "dropped"), []),
     safe(db.rpc("item_schedule", { p_team: teamId }), null),
     safe(db.rpc("task_portfolio", { p_team: teamId }), null),
     safe(db.rpc("care_radar", { p_team: teamId }), null),
-    safe(db.from("checkins").select("user_id, week_start, condition").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []),
+    safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []),
     safe(db.from("submissions").select("id, author_id, status, created_at, submission_versions(version, created_at)").eq("team_id", teamId).gte("updated_at", since60), []),
     safe(db.rpc("member_data_depth", { p_team: teamId }), null),
     safe(db.rpc("team_performance_map", { p_team: teamId }), null),
     safe(db.rpc("team_insight_level", { p_team: teamId }), null),
-    safe(db.from("observations").select("subject_id").eq("team_id", teamId).gte("created_at", since30), []),
+    safe(db.from("observations").select("subject_id, polarity, created_at").eq("team_id", teamId).gte("created_at", since30), []),
     safe(db.from("team_requests").select("id, to_id, title, kind, due_date, created_at, status").eq("team_id", teamId).eq("from_id", leaderId).eq("status", "open"), []),
-    safe(db.from("action_items").select("id").eq("team_id", teamId).eq("owner_id", leaderId).is("done_at", null).lt("due_date", kstToday()), []),
-    safe(db.from("work_item_logs").select("item_id, period, done").eq("team_id", teamId).eq("kind", "recurring").gte("period", addDaysYmd(kstToday(), -100)), [])
+    safe(db.from("action_items").select("id, due_date, one_on_one_id").eq("team_id", teamId).eq("owner_id", leaderId).is("done_at", null).lt("due_date", kstToday()), []),
+    safe(db.from("work_item_logs").select("item_id, period, done").eq("team_id", teamId).eq("kind", "recurring").gte("period", addDaysYmd(kstToday(), -100)), []),
+    safe(db.from("org_notes").select("id, kind, title, event_date, status, created_at").eq("team_id", teamId).eq("status", "open").order("created_at", { ascending: false }).limit(40), []),
+    safe(db.from("ai_outputs").select("ref_id").eq("team_id", teamId).eq("kind", "org_impact").gte("created_at", since60), []),
+    safe(db.from("decisions").select("id, title, decided_at, review_on").eq("team_id", teamId).is("outcome", null).order("decided_at").limit(20), []),
+    safe(db.from("judgment_scores").select("user_id, score, scored_at").eq("team_id", teamId).gte("scored_at", new Date(Date.now() - 120 * 864e5).toISOString()).order("scored_at"), [])
   ]);
+  const ooIds = [...new Set(late.map((a) => a.one_on_one_id).filter(Boolean))];
+  const oos = ooIds.length ? await safe(db.from("one_on_ones").select("id, member_id").in("id", ooIds), []) : [];
+  const memberOf = new Map(oos.map((o) => [o.id, o.member_id]));
+  const latePromiseBy = late.filter((a) => a.one_on_one_id && memberOf.has(a.one_on_one_id)).map((a) => ({ member_id: memberOf.get(a.one_on_one_id), days: a.due_date ? daysSince(a.due_date) : 0 }));
   const forecasts = (await Promise.all(metrics.map(async (m) => {
     const f = await safe(db.rpc("metric_forecast", { p_metric: m.id }), null);
     return f ? { ...f, item_id: m.item_id } : null;
   }))).filter(Boolean);
+  const thisYear = Number(kstToday().slice(0, 4));
+  const pastIds = /* @__PURE__ */ new Set();
+  const kids = /* @__PURE__ */ new Map();
+  for (const it of items) if (it.parent_id) kids.set(it.parent_id, [...kids.get(it.parent_id) ?? [], it.id]);
+  for (const it of items) {
+    if (it.parent_id || it.status !== "done") continue;
+    if (Number((it.start_date ?? it.due_date ?? it.created_at).slice(0, 4)) >= thisYear) continue;
+    const stack = [it.id];
+    while (stack.length) {
+      const id = stack.pop();
+      pastIds.add(id);
+      stack.push(...kids.get(id) ?? []);
+    }
+  }
+  if (pastIds.size) {
+    const keep = items.filter((it) => !pastIds.has(it.id));
+    items.length = 0;
+    items.push(...keep);
+  }
+  const goalsNow = goals ? goals.filter((g) => !pastIds.has(g.goal_id)) : goals;
   return {
-    goals,
+    goals: goalsNow,
     forecasts,
     items,
     schedule,
@@ -411,7 +580,12 @@ async function loadRaw(db, teamId, leaderId, minEvidence) {
     requests,
     recurringLogs: rlogs,
     latePromises: late.length,
-    minEvidence
+    minEvidence,
+    latePromiseBy,
+    jscores,
+    orgNotes,
+    orgImpacts: orgImpacts.map((o) => o.ref_id),
+    decisionsDue
   };
 }
 var fmtN = (n) => Math.abs(n) >= 100 ? Math.round(n).toLocaleString("ko-KR") : String(Math.round(n * 10) / 10);
@@ -423,6 +597,57 @@ var M = ["monthly"];
 var DW = ["daily", "weekly"];
 var WM = ["weekly", "monthly"];
 var ALL = ["daily", "weekly", "monthly"];
+var FLAG_LABEL = {
+  frustrated: "\uC758\uC9C0\uB294 \uC788\uB294\uB370 \uB9C9\uD798",
+  recog_gap: "\uC778\uC815 \uACF5\uBC31",
+  growth_stall: "\uC131\uC7A5 \uC815\uCCB4",
+  promise_late: "\uD300\uC7A5 \uC57D\uC18D \uBC00\uB9BC",
+  withdrawn: "\uCC38\uC5EC \uC704\uCD95"
+};
+function flagsFor(raw, uid) {
+  const out = [];
+  const mon = kstMonday();
+  const recentFrom = addDaysYmd(mon, -14);
+  const mine = raw.checkins.filter((c) => c.user_id === uid).sort((a, b) => a.week_start.localeCompare(b.week_start));
+  const lastCond = [...mine].reverse().find((c) => c.condition != null && c.week_start >= recentFrom)?.condition ?? null;
+  if (lastCond != null && lastCond >= 3) {
+    const why = [];
+    if ((raw.care ?? []).some((r) => r.user_id === uid && r.signals.some((x) => x.type === "blocked_repeat"))) why.push("\uAC19\uC740 \uB9C9\uD798 2\uC8FC \uC5F0\uC18D");
+    const blk = raw.items.filter((i) => i.owner_id === uid && i.status === "blocked");
+    if (blk.length) why.push(`\uB9C9\uD798 \uC0C1\uD0DC \uD56D\uBAA9 ${blk.length}\uAC74`);
+    const waiting = raw.subs.filter((x) => x.author_id === uid && x.status === "in_review" && daysSince(x.submission_versions.reduce((a, v) => v.created_at > a ? v.created_at : a, x.created_at)) >= 3);
+    if (waiting.length) why.push(`\uB9AC\uBDF0 \uB300\uAE30 3\uC77C \uB118\uC740 \uACB0\uACFC\uBB3C ${waiting.length}\uAC74`);
+    if (why.length) out.push({ key: "frustrated", label: FLAG_LABEL.frustrated, detail: `\uCEE8\uB514\uC158 ${lastCond}/5 \xB7 ${why.join(" \xB7 ")}` });
+  }
+  const done = raw.items.filter((i) => i.owner_id === uid && i.status === "done" && daysSince(i.updated_at) <= 30).length;
+  const appr = raw.subs.filter((x) => x.author_id === uid && x.status === "approved" && daysSince(x.created_at) <= 45).length;
+  const pos = raw.obs.filter((o) => o.subject_id === uid && o.polarity === "positive").length;
+  if (done + appr >= 2 && pos === 0) out.push({ key: "recog_gap", label: FLAG_LABEL.recog_gap, detail: `\uCD5C\uADFC \uB9C8\uCE5C \uC77C ${done}\uAC74 \xB7 \uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C ${appr}\uAC74, 30\uC77C\uAC04 \uCE6D\uCC2C\xB7\uAE0D\uC815 \uAD00\uCC30 0\uAC74` });
+  const js = (raw.jscores ?? []).filter((j) => j.user_id === uid).map((j) => ({ s: Number(j.score), at: j.scored_at }));
+  if (js.length >= 4) {
+    const last4 = js.slice(-4).map((j) => j.s);
+    const spanDays = (Date.parse(js[js.length - 1].at) - Date.parse(js[js.length - 4].at)) / 864e5;
+    const mean = last4.reduce((a, b) => a + b, 0) / 4;
+    const fresh = raw.items.some((i) => i.owner_id === uid && daysSince(i.created_at) <= 60);
+    if (spanDays >= 56 && Math.max(...last4) - Math.min(...last4) <= 0.5 && mean < 3.5 && !fresh)
+      out.push({ key: "growth_stall", label: FLAG_LABEL.growth_stall, detail: `\uCD5C\uADFC \uACB0\uACFC\uBB3C 4\uAC74 \uD310\uB2E8 \uAE4A\uC774 \uD3C9\uADE0 ${Math.round(mean * 10) / 10}/4\uB85C \uBE44\uC2B7 \xB7 60\uC77C\uAC04 \uC0C8\uB85C \uB9E1\uC740 \uC77C \uC5C6\uC74C` });
+  }
+  const pr = (raw.latePromiseBy ?? []).filter((x) => x.member_id === uid);
+  if (pr.length >= 2 || pr.some((x) => x.days >= 14))
+    out.push({ key: "promise_late", label: FLAG_LABEL.promise_late, detail: `\uAE30\uD55C \uC9C0\uB09C \uC57D\uC18D ${pr.length}\uAC74 \xB7 \uCD5C\uC7A5 ${Math.max(...pr.map((x) => x.days))}\uC77C` });
+  const w1 = recentFrom, w2 = addDaysYmd(mon, -7);
+  const len = (c) => (c.did ?? "").trim().length;
+  const prior = mine.filter((c) => c.week_start < w1 && len(c) > 0);
+  const priorAvg = prior.length ? prior.reduce((a, c) => a + len(c), 0) / prior.length : 0;
+  if (prior.length >= 2 && priorAvg >= 30) {
+    const rec = [w1, w2].map((w) => mine.find((c) => c.week_start === w) ?? null);
+    const present = rec.filter(Boolean);
+    const quiet = rec.every((c) => !c || len(c) < priorAvg * 0.4);
+    if (present.length && quiet && !present.some((c) => (c.blocked ?? "").trim()))
+      out.push({ key: "withdrawn", label: FLAG_LABEL.withdrawn, detail: `\uCD5C\uADFC 2\uC8FC \uCCB4\uD06C\uC778 ${present.length}\uD68C \xB7 \uAE00 \uAE38\uC774 \uD3C9\uC18C\uC758 ${Math.round(present.reduce((a, c) => a + len(c), 0) / present.length / priorAvg * 100)}% \xB7 \uB9C9\uD798 \uCE78 \uBE44\uC5B4 \uC788\uC74C` });
+  }
+  return out;
+}
 function analyze(raw, members) {
   const S = [];
   const today = kstToday();
@@ -490,6 +715,50 @@ function analyze(raw, members) {
     action: { label: "\uBAA9\uD45C \uC138\uC6B0\uAE30", to: "/goals" }
   });
   const goalLow = probs.length ? Math.min(...probs) : null;
+  const tops = items.filter((i) => !i.parent_id && ["active", "blocked"].includes(i.status));
+  const kidsOf = /* @__PURE__ */ new Map();
+  for (const it of items) if (it.parent_id) kidsOf.set(it.parent_id, [...kidsOf.get(it.parent_id) ?? [], it]);
+  const measurable = (id) => {
+    const it = byId.get(id);
+    if (it && (it.measure === "number" || it.measure === "percent")) return true;
+    if (raw.forecasts.some((f) => f.item_id === id)) return true;
+    return (kidsOf.get(id) ?? []).some((k) => measurable(k.id));
+  };
+  if (tops.length > 5) S.push({
+    id: `goal-many-${tops.length}`,
+    domain: "goal",
+    type: "pattern",
+    severity: 1,
+    periods: M,
+    title: `\uD300 \uBAA9\uD45C\uAC00 ${tops.length}\uAC1C\uC785\uB2C8\uB2E4 \u2014 3~5\uAC1C\uB85C \uBB36\uC73C\uBA74 \uC6B0\uC120\uC21C\uC704\uAC00 \uC120\uBA85\uD574\uC9D1\uB2C8\uB2E4`,
+    detail: tops.slice(0, 6).map((t) => t.title).join(" \xB7 "),
+    rule: "\uC9C4\uD589 \uC911 \uCD5C\uC0C1\uC704 \uBAA9\uD45C 6\uAC1C \uC774\uC0C1",
+    action: { label: "\uBAA9\uD45C \uC815\uB9AC\uD558\uAE30", to: "/goals" }
+  });
+  const noDue = tops.filter((t) => !t.due_date);
+  if (noDue.length) S.push({
+    id: `goal-nodue-${noDue.length}`,
+    domain: "goal",
+    type: "data",
+    severity: 1,
+    periods: M,
+    title: `\uB9C8\uAC10\uC774 \uC5C6\uB294 \uBAA9\uD45C ${noDue.length}\uAC1C \u2014 \uB9C8\uAC10\uC744 \uB123\uC73C\uBA74 \uACC4\uD68D \uB300\uBE44\uAC00 \uADF8\uB824\uC9D1\uB2C8\uB2E4`,
+    detail: noDue.slice(0, 3).map((t) => t.title).join(" \xB7 "),
+    rule: "\uC9C4\uD589 \uC911 \uCD5C\uC0C1\uC704 \uBAA9\uD45C \uC911 \uB9C8\uAC10\uC77C \uC5C6\uC74C",
+    action: { label: "\uB9C8\uAC10 \uB123\uAE30", to: "/goals" }
+  });
+  const noMeasure = tops.filter((t) => !measurable(t.id) && !(t.measure === "check"));
+  if (noMeasure.length) S.push({
+    id: `goal-nomeasure-${noMeasure.length}`,
+    domain: "goal",
+    type: "data",
+    severity: 1,
+    periods: M,
+    title: `\uB2EC\uC131\uD588\uB294\uC9C0 \uC7B4 \uAE30\uC900\uC774 \uC5C6\uB294 \uBAA9\uD45C ${noMeasure.length}\uAC1C`,
+    detail: `${noMeasure.slice(0, 3).map((t) => t.title).join(" \xB7 ")} \u2014 \uC22B\uC790 \uBAA9\uD45C\uB098 '\uC644\uB8CC \uD310\uB2E8 \uAE30\uC900'\uC744 \uD558\uB098 \uBD99\uC5EC \uB450\uC138\uC694.`,
+    rule: "\uCD5C\uC0C1\uC704 \uBAA9\uD45C\uC640 \uADF8 \uD558\uC704\uC5D0 \uC22B\uC790\xB7\uC9C4\uCC99\uB960 \uD56D\uBAA9\uC774\uB098 \uC2E4\uC801 \uC9C0\uD45C\uAC00 \uC5C6\uC74C",
+    action: { label: "\uAE30\uC900 \uBD99\uC774\uAE30", to: "/goals" }
+  });
   const work = items.filter((i) => i.parent_id && ["active", "blocked"].includes(i.status));
   const leaves = work.filter((i) => !hasChildren.has(i.id));
   const overdue = leaves.filter((t) => t.due_date && t.due_date < today);
@@ -510,7 +779,7 @@ function analyze(raw, members) {
     title: `\uD300\uC6D0\uC774 \uC62C\uB9B0 \uACC4\uD68D ${proposed.length}\uAC74\uC774 \uAC80\uD1A0\uB97C \uAE30\uB2E4\uB9BD\uB2C8\uB2E4`,
     detail: proposed.slice(0, 3).map((p) => `${p.title}(${nameOf(p.owner_id)})`).join(" \xB7 "),
     rule: "\uC0C1\uD0DC\uAC00 '\uC81C\uC548'\uC778 \uD56D\uBAA9",
-    action: { label: "\uAC80\uD1A0\uD558\uAE30", to: "/goals?filter=proposed" }
+    action: { label: "\uAC80\uD1A0\uD558\uAE30", to: "/goals/edit?filter=proposed" }
   });
   if (overdue.length) S.push({
     id: `exec-overdue-${overdue.length}`,
@@ -521,7 +790,7 @@ function analyze(raw, members) {
     title: `\uAE30\uD55C \uC9C0\uB09C \uD56D\uBAA9 ${overdue.length}\uAC74`,
     detail: overdue.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)}, ${t.due_date.slice(5).replace("-", "/")})`).join(" \xB7 "),
     rule: "\uB9C8\uAC10\uC77C\uC774 \uC9C0\uB0AC\uB294\uB370 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC740 \uD56D\uBAA9",
-    action: { label: "\uD56D\uBAA9 \uBCF4\uAE30", to: "/goals?filter=overdue" }
+    action: { label: "\uD56D\uBAA9 \uBCF4\uAE30", to: "/goals/edit?filter=overdue" }
   });
   if (blocked.length) S.push({
     id: `exec-blocked-${blocked.map((t) => t.id.slice(0, 4)).join("")}`,
@@ -532,7 +801,7 @@ function analyze(raw, members) {
     title: `\uB9C9\uD78C \uD56D\uBAA9 ${blocked.length}\uAC74 \u2014 \uD300\uC7A5\uC774 \uD480\uC5B4 \uC904 \uC218 \uC788\uB294\uC9C0 \uD655\uC778`,
     detail: blocked.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(" \xB7 "),
     rule: "\uC0C1\uD0DC\uAC00 '\uB9C9\uD798'",
-    action: { label: "\uD56D\uBAA9 \uBCF4\uAE30", to: "/goals?filter=blocked" }
+    action: { label: "\uD56D\uBAA9 \uBCF4\uAE30", to: "/goals/edit?filter=blocked" }
   });
   for (const r of delayed.slice(0, 3)) S.push({
     id: `exec-delay-${r.item_id}`,
@@ -554,7 +823,7 @@ function analyze(raw, members) {
     title: `\uACC4\uD68D\uC774 \uBC18\uBCF5\uD574\uC11C \uBC00\uB9AC\uB294 \uD56D\uBAA9 ${replanned.length}\uAC74`,
     detail: replanned.slice(0, 3).map((r) => `${r.title}(\uC77C\uC815 \uBCC0\uACBD ${r.replan_count}\uD68C${r.slip_days ? `, \uCC98\uC74C \uACC4\uD68D\uBCF4\uB2E4 ${r.slip_days}\uC77C` : ""})`).join(" \xB7 "),
     rule: "\uC77C\uC815 \uBCC0\uACBD 2\uD68C \uC774\uC0C1 \uB610\uB294 \uCC98\uC74C \uACC4\uD68D \uB300\uBE44 14\uC77C \uC774\uC0C1 \uC9C0\uC5F0",
-    action: { label: "\uACC4\uD68D \uB300\uBE44 \uBCF4\uAE30", to: "/goals?view=timeline" }
+    action: { label: "\uACC4\uD68D \uB300\uBE44 \uBCF4\uAE30", to: "/goals/edit?view=timeline" }
   });
   if (stale.length) S.push({
     id: `exec-stale-${stale.length}`,
@@ -565,7 +834,7 @@ function analyze(raw, members) {
     title: `2\uC8FC \uB118\uAC8C \uC9C4\uCC99 \uC5C5\uB370\uC774\uD2B8\uAC00 \uC5C6\uB294 \uD56D\uBAA9 ${stale.length}\uAC74`,
     detail: stale.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(" \xB7 "),
     rule: "\uC9C4\uD589 \uC911 \uD56D\uBAA9\uC758 \uB9C8\uC9C0\uB9C9 \uC218\uC815\uC774 14\uC77C \uC804",
-    action: { label: "\uC9C4\uCC99 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/goals?filter=stale" }
+    action: { label: "\uC9C4\uCC99 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/goals/edit?filter=stale" }
   });
   if (needsPlan.length) S.push({
     id: `exec-needsplan-${needsPlan.length}`,
@@ -587,7 +856,7 @@ function analyze(raw, members) {
     title: `\uC218\uC815 \uC694\uCCAD \uD6C4 5\uC77C \uB118\uAC8C \uADF8\uB300\uB85C\uC778 \uACC4\uD68D ${changes.length}\uAC74`,
     detail: changes.slice(0, 3).map((t) => `${t.title}(${nameOf(t.owner_id)})`).join(" \xB7 "),
     rule: "\uC0C1\uD0DC '\uC218\uC815 \uC694\uCCAD'\uC73C\uB85C 5\uC77C \uACBD\uACFC",
-    action: { label: "\uD56D\uBAA9 \uBCF4\uAE30", to: "/goals?filter=changes" }
+    action: { label: "\uD56D\uBAA9 \uBCF4\uAE30", to: "/goals/edit?filter=changes" }
   });
   const recurring = items.filter((i) => i.measure === "recurring" && i.status === "active");
   for (const r of recurring) {
@@ -614,7 +883,7 @@ function analyze(raw, members) {
     title: `\uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0B8 \uC694\uCCAD ${lateReq.length}\uAC74\uC774 \uC544\uC9C1 \uB2F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4`,
     detail: lateReq.slice(0, 3).map((q) => `${q.title}(${nameOf(q.to_id)})`).join(" \xB7 "),
     rule: "\uAE30\uD55C\uC774 \uC9C0\uB0AC\uAC70\uB098 5\uC77C \uB118\uAC8C \uC5F4\uB9B0 \uC694\uCCAD",
-    action: { label: "\uC694\uCCAD \uBCF4\uAE30", to: "/team?tab=requests" }
+    action: { label: "\uC694\uCCAD \uBCF4\uAE30", to: "/settings?tab=members" }
   });
   const pf = raw.portfolio ?? [];
   const lowShare = pf.filter((r) => r.mission_contribution <= 2).reduce((a, r) => a + (r.share_pct ?? 0), 0);
@@ -627,7 +896,7 @@ function analyze(raw, members) {
     title: `\uAE30\uC5EC\uB3C4\uAC00 \uB0AE\uC740 \uACFC\uC81C\uC5D0 \uD300 \uC2DC\uAC04 ${Math.round(lowShare)}%\uAC00 \uB4E4\uC5B4\uAC00\uACE0 \uC788\uC2B5\uB2C8\uB2E4`,
     detail: "\uAE30\uC5EC\uB3C4 1~2\uC778 \uACFC\uC81C\uB97C \uC904\uC774\uAC70\uB098 \uB118\uAE30\uBA74 \uD575\uC2EC \uBAA9\uD45C\uC5D0 \uC4F8 \uC2DC\uAC04\uC774 \uC0DD\uAE41\uB2C8\uB2E4.",
     rule: "\uC2DC\uAC04 \uD3EC\uD2B8\uD3F4\uB9AC\uC624: \uAE30\uC5EC\uB3C4 \u2264 2 \uD56D\uBAA9\uC758 \uC2DC\uAC04 \uBE44\uC911 25% \uC774\uC0C1",
-    action: { label: "\uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uBCF4\uAE30", to: "/goals?view=table" }
+    action: { label: "\uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uBCF4\uAE30", to: "/goals/edit?view=table" }
   });
   const byOwner = /* @__PURE__ */ new Map();
   leaves.forEach((t) => t.owner_id && byOwner.set(t.owner_id, (byOwner.get(t.owner_id) ?? 0) + 1));
@@ -665,8 +934,10 @@ function analyze(raw, members) {
     title: `\uACFC\uC81C ${pf.length}\uAC74 \uC911 ${noEffort}\uAC74\uC5D0 \uC8FC\uB2F9 \uD22C\uC785 \uC2DC\uAC04\uC774 \uC5C6\uC2B5\uB2C8\uB2E4`,
     detail: "\uD22C\uC785 \uC2DC\uAC04\uC744 \uB123\uC73C\uBA74 \uC2DC\uAC04 \uBC30\uBD84\xB7\uCDA9\uC6D0 \uC2DC\uBBAC\uB808\uC774\uC158\uC774 \uC815\uD655\uD574\uC9D1\uB2C8\uB2E4.",
     rule: "\uACF5\uC218 \uC785\uB825\uB960 50% \uBBF8\uB9CC",
-    action: { label: "\uD45C\uC5D0\uC11C \uC785\uB825", to: "/goals?view=table" }
+    action: { label: "\uD45C\uC5D0\uC11C \uC785\uB825", to: "/goals/edit?view=table" }
   });
+  const flagMap = new Map(mem.map((m) => [m.user_id, flagsFor(raw, m.user_id)]));
+  const has = (u, k) => !!flagMap.get(u)?.some((f) => f.key === k);
   const noOO = [];
   const missing = [];
   for (const r of raw.care ?? []) for (const s of r.signals) {
@@ -681,7 +952,7 @@ function analyze(raw, members) {
       rule: "\uCCB4\uD06C\uC778 \uCEE8\uB514\uC158 3\uC8FC \uC5F0\uC18D \uD558\uB77D, \uCD5C\uADFC \uAC12 3 \uC774\uD558",
       action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
     });
-    if (s.type === "blocked_repeat") S.push({
+    if (s.type === "blocked_repeat" && !has(r.user_id, "frustrated")) S.push({
       id: `care-block-${r.user_id}`,
       domain: "people",
       type: "risk",
@@ -704,7 +975,7 @@ function analyze(raw, members) {
     title: `1:1\uC744 2\uC8FC \uB118\uAC8C \uC548 \uD55C \uD300\uC6D0 ${noOO.length}\uBA85`,
     detail: names(noOO),
     rule: "\uB9C8\uC9C0\uB9C9 \uC644\uB8CC 1:1\uC774 14\uC77C \uC804",
-    action: { label: "1:1 \uC7A1\uAE30", to: "/one-on-ones?new=1" }
+    action: { label: "1:1 \uC7A1\uAE30", to: "/people?new=1" }
   });
   const thisMon = kstMonday();
   if (missing.length) S.push({
@@ -716,7 +987,7 @@ function analyze(raw, members) {
     title: `\uC774\uBC88 \uC8FC \uCCB4\uD06C\uC778\uC744 \uC548 \uB0B8 \uD300\uC6D0 ${missing.length}\uBA85`,
     detail: `${names(missing)} \u2014 \uCCB4\uD06C\uC778\uC774 \uBE60\uC9C0\uBA74 \uCEE8\uB514\uC158\xB7\uB9C9\uD798 \uC2E0\uD638\uB97C \uB193\uCE69\uB2C8\uB2E4.`,
     rule: "\uC218\uC694\uC77C \uC774\uD6C4 \uC774\uBC88 \uC8FC \uCCB4\uD06C\uC778 \uC5C6\uC74C",
-    action: { label: "\uCCB4\uD06C\uC778 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/team?tab=requests" }
+    action: { label: "\uCCB4\uD06C\uC778 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/settings?tab=members" }
   });
   const condOf = (pred) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition);
   const thisWeek = condOf((w) => w >= thisMon);
@@ -756,6 +1027,64 @@ function analyze(raw, members) {
     rule: "1:1\uC5D0\uC11C \uC815\uD55C \uD300\uC7A5 \uD560 \uC77C, \uAE30\uD55C \uACBD\uACFC",
     action: { label: "\uC57D\uC18D \uBCF4\uAE30", to: "#today" }
   });
+  for (const m of mem) for (const f of flagMap.get(m.user_id) ?? []) {
+    const nm = m.name;
+    if (f.key === "frustrated") S.push({
+      id: `care-frus-${m.user_id}`,
+      domain: "people",
+      type: "risk",
+      severity: 2,
+      periods: DW,
+      title: `${nm}\uB2D8\uC740 \uC758\uC695\uC740 \uC788\uB294\uB370 \uB9C9\uD600 \uC788\uC2B5\uB2C8\uB2E4 \u2014 \uB9C9\uD78C \uAC83\uBD80\uD130 \uD480\uC5B4 \uC8FC\uC138\uC694`,
+      detail: f.detail,
+      rule: "\uCD5C\uADFC \uCEE8\uB514\uC158 3 \uC774\uC0C1 + (\uAC19\uC740 \uB9C9\uD798 2\uC8FC \uC5F0\uC18D \xB7 \uB9C9\uD798 \uC0C1\uD0DC \uD56D\uBAA9 \xB7 \uB9AC\uBDF0 \uB300\uAE30 3\uC77C \uC774\uC0C1)",
+      action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
+    });
+    if (f.key === "recog_gap") S.push({
+      id: `care-recog-${m.user_id}`,
+      domain: "people",
+      type: "missed",
+      severity: 2,
+      periods: WM,
+      title: `${nm}\uB2D8\uC774 \uCD5C\uADFC \uC77C\uC744 \uB9C8\uCCE4\uB294\uB370 \uC778\uC815 \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4`,
+      detail: `${f.detail} \u2014 \uC778\uC815\uC774 \uB04A\uAE30\uBA74 '\uB0B4\uAC00 \uBB58 \uD588\uC9C0'\uAC00 \uC313\uC785\uB2C8\uB2E4.`,
+      rule: "\uCD5C\uADFC 30\uC77C \uC644\uB8CC \uD56D\uBAA9 + 45\uC77C \uC2B9\uC778 \uACB0\uACFC\uBB3C 2\uAC74 \uC774\uC0C1, 30\uC77C\uAC04 \uAE0D\uC815 \uAD00\uCC30\xB7\uCE6D\uCC2C 0\uAC74",
+      action: { label: "\uCE6D\uCC2C \uBA54\uBAA8 \uB0A8\uAE30\uAE30", memo: m.user_id }
+    });
+    if (f.key === "growth_stall") S.push({
+      id: `growth-stall-${m.user_id}`,
+      domain: "growth",
+      type: "pattern",
+      severity: 1,
+      periods: M,
+      title: `${nm}\uB2D8 \uACB0\uACFC\uBB3C \uC218\uC900\uC774 \uB450 \uB2EC \uB118\uAC8C \uBE44\uC2B7\uD569\uB2C8\uB2E4 \u2014 \uD55C \uB2E8\uACC4 \uC5B4\uB824\uC6B4 \uC77C\uC744 \uB9E1\uAE38 \uB54C`,
+      detail: f.detail,
+      rule: "\uD310\uB2E8 \uAE4A\uC774 \uCD5C\uADFC 4\uAC74 \uCC28\uC774 0.5 \uC774\uD558\xB78\uC8FC \uC774\uC0C1, \uD3C9\uADE0 3.5 \uBBF8\uB9CC, 60\uC77C\uAC04 \uC0C8\uB85C \uB9E1\uC740 \uD56D\uBAA9 \uC5C6\uC74C",
+      action: { label: "\uD300\uC6D0 \uBCF4\uAE30", to: `/people/${m.user_id}` }
+    });
+    if (f.key === "promise_late") S.push({
+      id: `care-promise-${m.user_id}`,
+      domain: "people",
+      type: "missed",
+      severity: 2,
+      periods: W,
+      title: `${nm}\uB2D8\uACFC\uC758 1:1\uC5D0\uC11C \uD55C \uC57D\uC18D\uC774 \uBC00\uB824 \uC788\uC2B5\uB2C8\uB2E4 \u2014 \uB2E4\uC74C 1:1 \uCCAB \uC548\uAC74\uC73C\uB85C`,
+      detail: f.detail,
+      rule: "\uC774 \uD300\uC6D0\uACFC\uC758 1:1\uC5D0\uC11C \uC815\uD55C \uD300\uC7A5 \uD560 \uC77C, \uAE30\uD55C \uC9C0\uB09C \uAC83 2\uAC74 \uC774\uC0C1 \uB610\uB294 14\uC77C \uC774\uC0C1",
+      action: { label: "\uC57D\uC18D \uBCF4\uAE30", to: "#today" }
+    });
+    if (f.key === "withdrawn") S.push({
+      id: `care-quiet-${m.user_id}`,
+      domain: "people",
+      type: "pattern",
+      severity: 1,
+      periods: W,
+      title: `${nm}\uB2D8 \uCCB4\uD06C\uC778\uC774 \uB208\uC5D0 \uB744\uAC8C \uC9E7\uC544\uC84C\uC2B5\uB2C8\uB2E4 \u2014 \uCD94\uAD81\uBCF4\uB2E4 \uC548\uBD80\uBD80\uD130`,
+      detail: f.detail,
+      rule: "\uC774\uC804 \uCCB4\uD06C\uC778 \uD3C9\uADE0 \uB300\uBE44 \uCD5C\uADFC 2\uC8FC 40% \uBBF8\uB9CC \uB610\uB294 \uBE60\uC9D0, \uB9C9\uD798 \uCE78 \uBE44\uC5B4 \uC788\uC74C",
+      action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
+    });
+  }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
   const ciLast = new Set(raw.checkins.filter((c) => c.week_start === lastMon).map((c) => c.user_id)).size;
   const ciWeeks = new Set(raw.checkins.map((c) => c.week_start)).size;
@@ -772,7 +1101,7 @@ function analyze(raw, members) {
     title: `3\uC77C \uB118\uAC8C \uB9AC\uBDF0\uB97C \uAE30\uB2E4\uB9AC\uB294 \uACB0\uACFC\uBB3C ${aged.length}\uAC74 (\uCD5C\uC7A5 ${maxWait}\uC77C)`,
     detail: "AI 1\uCC28 \uAC80\uD1A0\uAC00 \uB05D\uB09C \uAC74\uBD80\uD130 \uBCF4\uBA74 \uBE60\uB985\uB2C8\uB2E4.",
     rule: "\uB9C8\uC9C0\uB9C9 \uBC84\uC804 \uC81C\uCD9C \uD6C4 3\uC77C \uACBD\uACFC, \uB9AC\uBDF0 \uC911 \uC0C1\uD0DC",
-    action: { label: "\uB9AC\uBDF0\uD558\uB7EC \uAC00\uAE30", to: "/reviews" }
+    action: { label: "\uB9AC\uBDF0\uD558\uB7EC \uAC00\uAE30", to: "/work" }
   });
   const byAuthor = /* @__PURE__ */ new Map();
   raw.subs.filter((s) => s.status !== "shared").forEach((s) => {
@@ -806,7 +1135,7 @@ function analyze(raw, members) {
     title: `2\uC8FC \uB118\uAC8C ATEAM\uC5D0 \uD754\uC801\uC774 \uC5C6\uB294 \uD300\uC6D0 ${silent.length}\uBA85`,
     detail: `${names(silent.map((m) => m.name))} \u2014 \uC694\uCCAD\uC744 \uBCF4\uB0B4\uBA74 \uD300\uC6D0 \uD654\uBA74\uC5D0 \uD560 \uC77C\uB85C \uB739\uB2C8\uB2E4.`,
     rule: "\uCD5C\uADFC 2\uC8FC \uCCB4\uD06C\uC778\xB7\uACF5\uC720\xB7\uACB0\uACFC\uBB3C 0\uAC74",
-    action: { label: "\uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/team?tab=requests" }
+    action: { label: "\uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/settings?tab=members" }
   });
   const depth = raw.depth ?? [];
   const thin = depth.filter((d) => !d.eligible);
@@ -873,6 +1202,66 @@ function analyze(raw, members) {
     rule: "\uCD5C\uADFC 30\uC77C, \uCC98\uC74C \uACC4\uD68D\uD55C \uB9C8\uAC10 \uC774\uC804 \uC644\uB8CC 3\uAC74 \uC774\uC0C1",
     action: { label: "\uCE6D\uCC2C \uBA54\uBAA8 \uB0A8\uAE30\uAE30", memo: u }
   });
+  const org = raw.orgNotes ?? [];
+  const dDay = (d) => Math.round((Date.parse(d) - Date.parse(today)) / 864e5);
+  for (const n of org.filter((x) => x.event_date && (x.kind === "calendar" || x.kind === "request"))) {
+    const dd = dDay(n.event_date);
+    if (n.kind === "request" && dd < 0) S.push({
+      id: `org-req-late-${n.id}`,
+      domain: "org",
+      type: "missed",
+      severity: 2,
+      periods: DW,
+      title: `\uC0C1\uC704 \uC694\uCCAD '${n.title}' \uAE30\uD55C\uC774 ${-dd}\uC77C \uC9C0\uB0AC\uC2B5\uB2C8\uB2E4`,
+      rule: "\uC0C1\uC704 \uC694\uCCAD \uBA54\uBAA8\uC758 \uAE30\uD55C \uACBD\uACFC, \uC644\uB8CC \uD45C\uC2DC \uC5C6\uC74C",
+      action: { label: "\uC870\uC9C1\xB7\uC804\uC0AC \uBCF4\uAE30", to: "#org" }
+    });
+    else if (n.kind === "request" && dd <= 7) S.push({
+      id: `org-req-soon-${n.id}`,
+      domain: "org",
+      type: "forecast",
+      severity: dd <= 2 ? 3 : 2,
+      periods: dd <= 3 ? DW : W,
+      title: `\uC0C1\uC704 \uC694\uCCAD '${n.title}' \uB9C8\uAC10 D-${dd}`,
+      rule: "\uC0C1\uC704 \uC694\uCCAD \uBA54\uBAA8\uC758 \uAE30\uD55C 7\uC77C \uC774\uB0B4",
+      action: { label: "\uC870\uC9C1\xB7\uC804\uC0AC \uBCF4\uAE30", to: "#org" }
+    });
+    else if (n.kind === "calendar" && dd >= 0 && dd <= 14) S.push({
+      id: `org-cal-${n.id}`,
+      domain: "org",
+      type: "forecast",
+      severity: dd <= 7 ? 2 : 1,
+      periods: dd <= 7 ? DW : WM,
+      title: `\uC804\uC0AC \uC77C\uC815 '${n.title}' D-${dd}`,
+      rule: "\uC804\uC0AC \uC77C\uC815 \uBA54\uBAA8 14\uC77C \uC774\uB0B4",
+      action: { label: "\uC870\uC9C1\xB7\uC804\uC0AC \uBCF4\uAE30", to: "#org" }
+    });
+  }
+  const analyzed = new Set(raw.orgImpacts ?? []);
+  const unread = org.filter((n) => ["strategy", "exec", "request", "peer"].includes(n.kind) && daysSince(n.created_at) <= 14 && !analyzed.has(n.id));
+  if (unread.length) S.push({
+    id: `org-unread-${unread.length}-${unread[0].id.slice(0, 6)}`,
+    domain: "org",
+    type: "missed",
+    severity: 1,
+    periods: WM,
+    title: `\uC6B0\uB9AC \uD300 \uC601\uD5A5\uC744 \uC544\uC9C1 \uD655\uC778\uD558\uC9C0 \uC54A\uC740 \uC704\uC758 \uC18C\uC2DD ${unread.length}\uAC74`,
+    detail: unread.slice(0, 3).map((n) => n.title).join(" \xB7 "),
+    rule: "\uCD5C\uADFC 14\uC77C \uC0C1\uC704 \uC18C\uC2DD \uBA54\uBAA8 \uC911 \uC601\uD5A5 \uBD84\uC11D \uC5C6\uC74C",
+    action: { label: "\uC601\uD5A5 \uBCF4\uAE30", to: "#org" }
+  });
+  const decDue = (raw.decisionsDue ?? []).filter((d) => d.review_on ? d.review_on <= today : daysSince(d.decided_at) >= 30);
+  if (decDue.length) S.push({
+    id: `decide-review-${decDue.length}`,
+    domain: "goal",
+    type: "missed",
+    severity: 1,
+    periods: WM,
+    title: `\uACB0\uACFC\uB97C \uB3CC\uC544\uBCFC \uC2DC\uC810\uC774 \uC9C0\uB09C \uACB0\uC815 ${decDue.length}\uAC74`,
+    detail: decDue.slice(0, 3).map((d) => d.title).join(" \xB7 "),
+    rule: "\uD68C\uACE0\uC77C\uC774 \uC9C0\uB0AC\uAC70\uB098 \uACB0\uC815 \uD6C4 30\uC77C\uC774 \uC9C0\uB0AC\uB294\uB370 \uACB0\uACFC \uAE30\uB85D \uC5C6\uC74C",
+    action: { label: "\uACB0\uACFC \uAE30\uB85D\uD558\uAE30", to: "/strategy" }
+  });
   const lv = raw.level;
   if (lv && lv.level < 5) {
     const next = lv.levels[lv.level];
@@ -934,7 +1323,7 @@ function analyze(raw, members) {
       line: pick("people")?.title ?? (nMem ? "\uD2B9\uBCC4\uD788 \uCC59\uAE38 \uC2E0\uD638\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4" : "\uD300\uC6D0\uC744 \uCD08\uB300\uD558\uBA74 \uCEE8\uB514\uC158 \uCD94\uC138\uB97C \uBD05\uB2C8\uB2E4"),
       confidence: !nMem ? 0 : ciWeeks >= 4 ? 3 : ciWeeks >= 2 ? 2 : 1,
       confidenceNote: `\uCD5C\uADFC 5\uC8FC \uC911 \uCCB4\uD06C\uC778 \uC788\uB294 \uC8FC ${ciWeeks}\uC8FC`,
-      to: "/team",
+      to: "/people",
       period: DOMAIN_META.people.period
     },
     {
@@ -945,7 +1334,7 @@ function analyze(raw, members) {
       line: pick("output")?.title ?? (raw.subs.length ? `\uCD5C\uADFC 60\uC77C \uC2B9\uC778 ${approved}\uAC74 \xB7 \uD55C \uBC88\uC5D0 \uD1B5\uACFC ${firstPass}\uAC74 \xB7 \uACF5\uC720 ${shared}\uAC74` : "\uACB0\uACFC\uBB3C\uC774 \uC62C\uB77C\uC624\uBA74 \uB9AC\uBDF0 \uD750\uB984\uC744 \uBD05\uB2C8\uB2E4"),
       confidence: raw.subs.length >= 10 ? 3 : raw.subs.length >= 4 ? 2 : raw.subs.length ? 1 : 0,
       confidenceNote: `\uCD5C\uADFC 60\uC77C \uACB0\uACFC\uBB3C\xB7\uACF5\uC720 ${raw.subs.length}\uAC74`,
-      to: "/reviews",
+      to: "/work",
       period: DOMAIN_META.output.period
     },
     {

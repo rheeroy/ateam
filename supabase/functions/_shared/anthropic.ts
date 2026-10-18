@@ -36,7 +36,8 @@ export async function callClaude(opts: {
 
   const body = {
     model: opts.model,
-    max_tokens: opts.maxTokens ?? 2000,
+    // 상한은 '쓸 수 있는 최대'일 뿐 원가는 실제 출력만큼 — 너무 낮으면 모델이 생각만 하다 답을 못 쓴다
+    max_tokens: Math.max(opts.maxTokens ?? 2000, 3000),
     ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
     // 시스템 프롬프트는 기능마다 고정이므로 캐시한다
     system: [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }],
@@ -60,6 +61,12 @@ export async function callClaude(opts: {
         .filter((b: { type: string }) => b.type === 'text')
         .map((b: { text: string }) => b.text)
         .join('');
+      // 빈 응답(출력 한도에 걸림 등)이면 한도를 늘려 다시 시도
+      if (!text.trim() && attempt < 2) {
+        lastErr = `empty response (stop: ${data.stop_reason ?? '-'})`;
+        body.max_tokens = Math.min(12000, body.max_tokens * 2);
+        continue;
+      }
       const u = data.usage ?? {};
       const p = PRICE[opts.model] ?? PRICE['claude-sonnet-5-5'];
       const cost =
@@ -92,12 +99,45 @@ export function parseJson<T>(text: string): T {
   const src = fenced ? fenced[1] : text;
   const start = src.indexOf('{');
   const end = src.lastIndexOf('}');
-  if (start < 0 || end < start) throw new HttpError(502, 'AI_BAD_OUTPUT', text.slice(0, 300));
-  try {
-    return JSON.parse(src.slice(start, end + 1)) as T;
-  } catch {
-    throw new HttpError(502, 'AI_BAD_OUTPUT', text.slice(0, 300));
+  if (start < 0) throw new HttpError(502, 'AI_BAD_OUTPUT', text.trim() ? text.slice(0, 300) : 'AI 응답이 비어 있습니다. 잠시 후 다시 시도해 주세요.');
+  if (end > start) {
+    try {
+      return JSON.parse(src.slice(start, end + 1)) as T;
+    } catch { /* 아래에서 잘린 JSON 복구 시도 */ }
   }
+  // 출력이 중간에 잘렸으면 마지막 온전한 항목까지 살려서 닫는다
+  const fixed = closeTruncated(src.slice(start));
+  if (fixed) {
+    try {
+      return JSON.parse(fixed) as T;
+    } catch { /* 복구 실패 */ }
+  }
+  throw new HttpError(502, 'AI_BAD_OUTPUT', text.slice(0, 300));
+}
+
+/** 잘린 JSON: 마지막으로 끝난 값까지 자르고 열린 괄호를 닫는다 */
+function closeTruncated(s: string): string | null {
+  const stack: string[] = [];
+  let inStr = false, esc = false, good = -1, goodStack: string[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === ',' && stack.length) { good = i; goodStack = stack.slice(); }
+    else if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') {
+      stack.pop();
+      good = i + 1; goodStack = stack.slice();
+      if (!stack.length) return s.slice(0, good);
+    }
+  }
+  if (good < 0) return null;
+  return s.slice(0, good) + goodStack.reverse().join('');
 }
 
 export function toBase64(bytes: Uint8Array): string {

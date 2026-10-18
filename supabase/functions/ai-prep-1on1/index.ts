@@ -59,8 +59,9 @@ serve(async (req) => {
     const { data: rv } = await admin.from('ai_outputs').select('content')
       .eq('ref_table', 'submission_versions').in('ref_id', (vers ?? []).map((v) => v.id)).eq('kind', 'review')
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
-    const summary = (rv?.content as { summary?: string } | undefined)?.summary ?? '';
-    book.add('submission', s.id, `결과물 · ${s.title}`, `상태 ${s.status}. ${summary}`);
+    const rc = rv?.content as { summary?: string; depth_score?: number } | undefined;
+    const summary = rc?.summary ?? '';
+    book.add('submission', s.id, `결과물 · ${s.title}`, `상태 ${s.status}.${rc?.depth_score != null ? ` 판단 깊이 ${rc.depth_score}/4.` : ''} ${summary}`);
   }
 
   const { data: obs } = await admin

@@ -31,4 +31,5 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM의 코칭 (팀장이 누르면 AI 초안 → 팀장이 고쳐 보내는 개선 코칭, 보낸 사람 비표시) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/13_coaching.sql
 { echo "-- ATEAM 요청 종류 추가 (성장 제안 · 격려 — 팀원 상세의 육성 · 지원·격려 버튼용) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261022000018_request_kinds.sql; } > dashboard/14_request_kinds.sql
 { echo "-- ATEAM 팀원 앱 정비 (받은 칭찬 보기 · 팀원 1:1 요청 · AI 체크인 초안) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261024000020_member_app.sql; } > dashboard/15_member_app.sql
+{ echo "-- ATEAM 컨설팅 기준 카드 (내 노하우 기본 제공 21장 · 새 팀 자동 · 다시 받기) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261025000021_consulting_cards.sql; } > dashboard/16_consulting_knowhow.sql
 echo "done: supabase/dashboard"
