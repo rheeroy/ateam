@@ -127,6 +127,9 @@ begin
     insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
       (T, L, m_lee, 'cheer', '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.', '', now() - interval '1 day'),
       (T, L, m_choi, 'grow', '다음 분기에 콘텐츠 운영 전체를 맡아 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', now() - interval '2 days');
+    -- 팀원 → 팀장 1:1 요청 (팀원 앱에서 '1:1 요청하기')
+    insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
+      (T, m_lee, L, 'meeting', 'CRM 연계 방향이 맞는지 한번 같이 보고 싶어요', '', now() - interval '5 hours');
   exception when others then null;
   end;
   insert into work_item_allocations (item_id, user_id, team_id, share_pct) values
@@ -604,6 +607,11 @@ begin
     ) as x(title, c)
     join submissions s on s.team_id = T and s.title = x.title
     join submission_versions v on v.submission_id = s.id and v.version = 1;
+    -- 최민아 11월 콘텐츠 캘린더: 보완 요청 (팀원 홈 '지금 할 일'에 뜬다)
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at)
+    select s.id, v.id, T, L, '런칭 주간에 몰린 건 좋은데, 그 주 디자인팀 슬롯이 이미 찼어요. 2편은 앞 주로 당기고, 일정이랑 담당까지 표로 다시 올려 주세요.', now() - interval '20 hours'
+    from submissions s join submission_versions v on v.submission_id = s.id where s.team_id = T and s.title = '11월 콘텐츠 캘린더';
+    update submissions set status = 'needs_work' where team_id = T and title = '11월 콘텐츠 캘린더';
   exception when others then null;
   end;
 end $fn$;

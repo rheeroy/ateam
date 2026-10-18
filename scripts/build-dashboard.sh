@@ -19,7 +19,7 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM v2 업그레이드 — 예전 01_schema.sql 을 이미 실행한 프로젝트에서 한 번 Run (새 프로젝트는 01에 포함되어 있으니 건너뜀)"; echo "-- 기존 전략 목표·과제·마일스톤 데이터는 새 구조(work_items)로 옮겨집니다."; echo; cat migrations/20261013000008_work_items.sql; } > dashboard/04_upgrade_v2.sql
 { echo "-- ATEAM v2 — AI 인사이트 예약 (02_schedules.sql 을 이미 실행한 프로젝트에서 한 번 Run)"; echo; cat migrations/20261013000009_insight_schedules.sql; } > dashboard/05_schedules_v2.sql
 # 06: 데모 계정 (팀장 1 + 팀원 6, 데모 팀 기록) — 다시 Run하면 초기화
-{ echo "-- ATEAM 데모 계정 — v2(04)를 적용한 프로젝트의 SQL Editor에서 Run. 다시 Run하면 데모가 처음 상태로 초기화됩니다."; echo; cat migrations/20261014000010_demo.sql; echo; cat migrations/20261015000011_org_notes.sql; echo; cat migrations/20261022000018_request_kinds.sql; echo; cat demo_accounts.sql; echo; cat migrations/20261020000016_leader_notes.sql; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/06_demo_accounts.sql
+{ echo "-- ATEAM 데모 계정 — v2(04)를 적용한 프로젝트의 SQL Editor에서 Run. 다시 Run하면 데모가 처음 상태로 초기화됩니다."; echo; cat migrations/20261014000010_demo.sql; echo; cat migrations/20261015000011_org_notes.sql; echo; cat migrations/20261022000018_request_kinds.sql; echo; cat migrations/20261024000020_member_app.sql; echo; cat demo_accounts.sql; echo; cat migrations/20261020000016_leader_notes.sql; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/06_demo_accounts.sql
 # 07: 홈 개편 — 조직·전사(위에서 온 것) 메모. 이미 01·04를 실행한 프로젝트에서 한 번 (06을 먼저 돌렸다면 이미 포함)
 { echo "-- ATEAM 홈 개편: 조직·전사 메모(org_notes) + AI 영향 분석 종류 추가 — SQL Editor에서 한 번 Run"; echo; cat migrations/20261015000011_org_notes.sql; } > dashboard/07_org_notes.sql
 # 08: 메뉴 재편(팀목표·업무플랫폼·팀원관리) — 요청 완료를 평가 근거로. 이미 01을 실행한 프로젝트에서 한 번
@@ -30,4 +30,5 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM 내 메모 (팀장 전용 메모 · 팀원·목표·임원에 붙이기) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261020000016_leader_notes.sql; } > dashboard/12_leader_notes.sql
 { echo "-- ATEAM의 코칭 (팀장이 누르면 AI 초안 → 팀장이 고쳐 보내는 개선 코칭, 보낸 사람 비표시) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261021000017_coaching.sql; } > dashboard/13_coaching.sql
 { echo "-- ATEAM 요청 종류 추가 (성장 제안 · 격려 — 팀원 상세의 육성 · 지원·격려 버튼용) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261022000018_request_kinds.sql; } > dashboard/14_request_kinds.sql
+{ echo "-- ATEAM 팀원 앱 정비 (받은 칭찬 보기 · 팀원 1:1 요청 · AI 체크인 초안) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261024000020_member_app.sql; } > dashboard/15_member_app.sql
 echo "done: supabase/dashboard"

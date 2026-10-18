@@ -1,7 +1,7 @@
 // 팀원 한 사람 페이지 — 컨디션 · 1:1 · 맡은 일 · 결과물 · 관찰 · 근거 원장
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Award, CalendarPlus, ChevronRight, HeartHandshake, MessageSquare, Scale, Send, Sprout, StickyNote } from 'lucide-react';
 import { NotesBox } from '../components/notes/Notes';
 import { useNotes } from '../lib/notes';
@@ -32,7 +32,8 @@ export default function PersonDetail() {
   const { team, members } = useTeam();
   const mb = members.find((x) => x.user_id === id);
   const [memo, setMemo] = useState(false);
-  const [oo, setOo] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [oo, setOo] = useState(params.get('oo') === '1');
   const [act, setAct] = useState<ActionReqType | null>(null);
   const [praise, setPraise] = useState(false);
   const [coach, setCoach] = useState(false);
@@ -77,6 +78,7 @@ export default function PersonDetail() {
         </div>
       </div>
 
+      <OORequestBanner from={id} name={name} onSchedule={() => setOo(true)} />
       <PersonTop uid={id} />
 
       <div className="grid lg:grid-cols-3 gap-4 items-start">
@@ -92,10 +94,37 @@ export default function PersonDetail() {
       </div>
 
       <MemoModal teamId={team.id} open={memo} preset={id} onClose={() => setMemo(false)} />
-      <ScheduleModal open={oo} onClose={() => setOo(false)} memberId={id} />
+      <ScheduleModal open={oo} onClose={() => { setOo(false); if (params.get('oo')) setParams({}, { replace: true }); }} memberId={id} />
       {act && <ActionRequestModal type={act} toId={id} name={name} onClose={() => setAct(null)} onScheduleOo={() => setOo(true)} />}
       {coach && <CoachModal memberId={id} name={name} onClose={() => setCoach(false)} />}
       {praise && <PraiseModal a={{ user_id: id, type: 'praise' } as PeopleAction} name={name} onClose={() => setPraise(false)} onSent={() => {}} />}
+    </div>
+  );
+}
+
+/** 팀원이 보낸 1:1 요청 */
+function OORequestBanner({ from, name, onSchedule }: { from: string; name: string; onSchedule: () => void }) {
+  const { team, uid } = useTeam();
+  const qc = useQueryClient();
+  const rq = useQuery({
+    queryKey: ['requests', team.id, 'oo-from', from],
+    queryFn: () => q<{ id: string; title: string; created_at: string }[]>(supabase.from('team_requests').select('id, title, created_at').eq('team_id', team.id).eq('from_id', from).eq('to_id', uid).eq('kind', 'meeting').eq('status', 'open').order('created_at', { ascending: false })),
+  });
+  const done = useMutation({
+    mutationFn: (rid: string) => q(supabase.from('team_requests').update({ status: 'done', response: '1:1 일정을 잡았어요' }).eq('id', rid)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['requests'] }),
+  });
+  const r = rq.data?.[0];
+  if (!r) return null;
+  return (
+    <div className="rounded-2xl bg-teal-50 ring-1 ring-teal-200 px-4 py-3 flex items-center gap-3 flex-wrap">
+      <CalendarPlus size={18} className="text-teal-700 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-teal-900">{name} 님이 1:1을 요청했어요 <span className="text-xs font-normal text-teal-700">· {relDay(r.created_at)}</span></div>
+        <p className="text-sm text-slate-700 truncate">"{r.title}"</p>
+      </div>
+      <button onClick={onSchedule} className="text-sm font-semibold rounded-lg bg-teal-600 text-white px-3 py-1.5 hover:bg-teal-700">일정 잡기</button>
+      <button onClick={() => done.mutate(r.id)} className="text-sm text-slate-600 hover:text-slate-900">처리함</button>
     </div>
   );
 }

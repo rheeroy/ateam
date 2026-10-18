@@ -12,6 +12,7 @@ import { MyProgress } from '../components/goals/MyProgress';
 import { LeaderGuide } from '../components/LeaderGuide';
 import { REQUEST_KIND } from '../components/RequestModal';
 import { MyCoaching } from '../components/people/Coaching';
+import { MyPraise, MyTodo, RequestOOModal, useMyOORequest } from '../components/member/Member';
 
 function Requests() {
   const { team, uid, nameOf } = useTeam();
@@ -110,10 +111,14 @@ export default function MemberHome() {
   const oo = useQuery({ queryKey: ['my-oo-next', team.id, uid], queryFn: () => q<OneOnOne[]>(supabase.from('one_on_ones').select('*').eq('team_id', team.id).eq('member_id', uid).eq('status', 'scheduled').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1)) });
   const sent = !!ci.data?.length;
   const next = oo.data?.[0];
+  const ooReq = useMyOORequest();
+  const [reqOO, setReqOO] = useState(false);
+  const h = new Date().getHours(), dow = new Date().getDay();
+  const hello = dow === 0 || dow === 6 ? '주말에도 챙기시네요' : h < 11 ? '좋은 아침입니다' : h < 18 ? '오늘도 힘내세요' : '오늘도 수고 많으셨습니다';
   return (
     <section>
       <p className="text-sm text-slate-500">{fmtDate(new Date().toISOString(), true)}</p>
-      <h1 className="text-2xl font-bold tracking-tight mt-1">{profile?.full_name}님, 이번 주도 화이팅입니다</h1>
+      <h1 className="text-2xl font-bold tracking-tight mt-1">{hello}, {profile?.full_name}님</h1>
       <div className="mt-5 grid sm:grid-cols-3 gap-3">
         <Link to="/checkin" className={cx('rounded-2xl border p-4 hover:border-indigo-300', sent ? 'bg-white border-slate-200' : 'bg-indigo-600 border-indigo-600 text-white')}>
           <div className={cx('text-xs flex items-center gap-1.5', sent ? 'text-slate-500' : 'text-indigo-100')}><PenLine size={13} />이번 주 체크인</div>
@@ -125,27 +130,34 @@ export default function MemberHome() {
           <div className="mt-1 font-semibold">문서·링크·캡처·숫자</div>
           <div className="text-xs text-slate-400 mt-0.5">어디서 일했든 결과만 올리면 팀장님께 바로 갑니다</div>
         </Link>
-        <Link to="/my/one-on-ones" className="rounded-2xl border border-slate-200 bg-white p-4 hover:border-indigo-300">
-          <div className="text-xs text-slate-500 flex items-center gap-1.5"><CalendarClock size={13} />다음 1:1</div>
-          <div className="mt-1 font-semibold">{next ? `${relDay(next.scheduled_at)} ${fmtTime(next.scheduled_at)} · ${nameOf(next.leader_id)}` : '잡힌 일정 없음'}</div>
-          <div className="text-xs text-slate-400 mt-0.5">이야기할 거리를 미리 남겨 둘 수 있습니다</div>
-        </Link>
+        {next || ooReq.data?.length ? (
+          <Link to="/my/one-on-ones" className="rounded-2xl border border-slate-200 bg-white p-4 hover:border-indigo-300">
+            <div className="text-xs text-slate-500 flex items-center gap-1.5"><CalendarClock size={13} />다음 1:1</div>
+            <div className="mt-1 font-semibold">{next ? `${relDay(next.scheduled_at)} ${fmtTime(next.scheduled_at)} · ${nameOf(next.leader_id)}` : '요청함 · 일정 기다리는 중'}</div>
+            <div className="text-xs text-slate-400 mt-0.5">{next ? '이야기하고 싶은 것을 미리 남겨 둘 수 있습니다' : ooReq.data?.[0]?.title}</div>
+          </Link>
+        ) : (
+          <button onClick={() => setReqOO(true)} className="text-left rounded-2xl border border-dashed border-teal-300 bg-teal-50/40 p-4 hover:border-teal-400">
+            <div className="text-xs text-teal-700 flex items-center gap-1.5"><CalendarClock size={13} />다음 1:1</div>
+            <div className="mt-1 font-semibold text-slate-800">잡힌 일정 없음 · 1:1 요청하기 →</div>
+            <div className="text-xs text-slate-500 mt-0.5">이야기하고 싶은 게 있으면 먼저 청해도 됩니다</div>
+          </button>
+        )}
       </div>
       <div className="mt-6 grid lg:grid-cols-5 gap-5 items-start">
         <div className="lg:col-span-3 space-y-5">
           <MyCoaching focusId={params.get('coach')} />
+          <MyTodo />
           <Requests />
           <MyProgress limit={10} />
-          <Card className="p-5 text-sm text-slate-600">
-            <b className="text-slate-800">내 목표·과제</b>에서 팀장님이 맡긴 목표 아래 계획을 세우고, AI로 초안을 만들 수 있습니다.
-            <Link to="/my/goals" className="ml-1 text-indigo-700 font-semibold">열기 →</Link>
-          </Card>
         </div>
         <div className="lg:col-span-2 space-y-5">
+          <MyPraise />
           <Feedback />
           <LeaderGuide teamId={team.id} kinds={['principle', 'rubric', 'framework', 'coaching']} />
         </div>
       </div>
+      {reqOO && <RequestOOModal onClose={() => setReqOO(false)} />}
     </section>
   );
 }

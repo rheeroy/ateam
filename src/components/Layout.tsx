@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
+  PenLine, ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Trophy } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -17,6 +17,7 @@ import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { QuickNote } from './notes/Notes';
 import { openQuickNote } from '../lib/notes';
 import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
+import { useMemberBadges } from './member/Member';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string };
 
@@ -78,6 +79,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
 
 export default function Layout() {
   const { team, isLeader, profile, memberships, setTeamId, credits } = useSession();
+  const mb = useMemberBadges(!isLeader);
   const { on, toggle } = useAiMark();
   const nav = useNavigate();
   const loc = useLocation();
@@ -114,7 +116,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
-      <aside className="md:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:p-4 overflow-x-auto md:overflow-y-auto">
+      <aside className={cx('md:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:p-4 overflow-x-auto md:overflow-y-auto', !isLeader && 'hidden md:block')}>
         <Link to="/" title="대시보드로" className="hidden md:flex items-center gap-2.5 px-2 pb-4 rounded-lg hover:opacity-80">
           <LogoBlock size={34} />
           <div className="min-w-0">
@@ -131,8 +133,9 @@ export default function Layout() {
             <NavItem to="/" label="홈" icon={Home} />
             <NavItem to="/my/goals" label="내 목표" icon={ListTree} />
             <NavItem to="/checkin" label="체크인" icon={PenLine} />
-            <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} />
-            <NavItem to="/my/one-on-ones" label="내 1:1" icon={MessageSquare} />
+            <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
+            <NavItem to="/my/one-on-ones" label="내 1:1" icon={MessageSquare} badge={mb.data?.promises ? `약속 ${mb.data.promises}` : undefined} />
+            <NavItem to="/my/record" label="내 기록" icon={Trophy} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -192,6 +195,8 @@ export default function Layout() {
               {menu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-sm z-30">
                   <div className="px-3 py-2 text-xs text-slate-500 truncate">{profile?.email}</div>
+                  {!isLeader && <NavLink to="/my/record" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">내 기록</NavLink>}
+                  {!isLeader && <NavLink to="/settings" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">설정</NavLink>}
                   <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>
                   <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
                 </div>
@@ -199,12 +204,31 @@ export default function Layout() {
             </div>
           </div>
         </div>
-        <div ref={mainRef} className="px-4 md:px-8 py-6 md:py-8 max-w-[1240px]">
+        <div ref={mainRef} className={cx('px-4 md:px-8 py-6 md:py-8 max-w-[1240px]', !isLeader && 'pb-24 md:pb-8')}>
           <Suspense fallback={<Spinner />}><Outlet /></Suspense>
         </div>
       </main>
+      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} />}
       {isLeader && <QuickNote />}
       <ProvLegend />
     </div>
+  );
+}
+
+/** 팀원 모바일 하단 탭 */
+function MemberTabBar({ needsWork }: { needsWork: number }) {
+  const tabs = [
+    { to: '/', label: '홈', I: Home }, { to: '/my/goals', label: '내 목표', I: ListTree }, { to: '/checkin', label: '체크인', I: PenLine },
+    { to: '/my/submissions', label: '업무', I: FileUp, dot: needsWork > 0 }, { to: '/my/one-on-ones', label: '1:1', I: MessageSquare },
+  ];
+  return (
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+      {tabs.map((t) => (
+        <NavLink key={t.to} to={t.to} end={t.to === '/'} className={({ isActive }) => cx('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-indigo-700 font-semibold' : 'text-slate-500')}>
+          <t.I size={20} />{t.label}
+          {t.dot && <span className="absolute top-1.5 right-[30%] w-2 h-2 rounded-full bg-rose-500" />}
+        </NavLink>
+      ))}
+    </nav>
   );
 }

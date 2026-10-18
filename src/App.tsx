@@ -25,6 +25,7 @@ const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Goals = lazy(() => import('./pages/Goals'));
 const MemberHome = lazy(() => import('./pages/MemberHome'));
+const MyRecord = lazy(() => import('./pages/MyRecord'));
 const Brief = lazy(() => import('./pages/Brief'));
 const People = lazy(() => import('./pages/People'));
 const PersonDetail = lazy(() => import('./pages/PersonDetail'));
@@ -127,6 +128,7 @@ export default function App() {
         <Route path="checkin" element={<Checkin />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
+        <Route path="my/record" element={<MyRecord />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -275,7 +275,34 @@ export default function SettingsPage() {
     <section>
       <PageHeader title="설정" />
       <div className="mb-5"><Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={items} /></div>
-      {tab === 'billing' && isLeader ? <Billing /> : tab === 'members' && isLeader ? <TeamPage embedded /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings /><PasswordSettings /></div>}
+      {tab === 'billing' && isLeader ? <Billing /> : tab === 'members' && isLeader ? <TeamPage embedded /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings />{!isLeader && <MyDataGuide />}<PasswordSettings /></div>}
     </section>
+  );
+}
+
+/** 팀원: 내 기록은 누가 보고 무엇에 쓰이나 */
+function MyDataGuide() {
+  const rows: [string, string, string][] = [
+    ['체크인 (한 일 · 막힌 일 · 컨디션)', '나와 팀장님', '팀장님의 1:1 준비, 주간 보고 초안. 컨디션은 도움이 필요한 때를 알아차리는 데 씁니다.'],
+    ['업무플랫폼에 올린 결과물', '나와 팀장님', 'AI가 팀장님보다 먼저 읽고 1차 의견을 정리합니다. 승인된 결과물과 피드백은 성과 기록으로 남습니다.'],
+    ['1:1 함께 보는 노트 · 약속', '나와 팀장님', '다음 1:1 준비와 약속 챙기기.'],
+    ['목표 · 과제 진척', '팀 전체', '팀 목표 진행 상황과 계획 대비 확인.'],
+    ['받은 칭찬', '나와 팀장님', '내 기록에 모이고, 성과 기록으로 남습니다.'],
+    ['ATEAM AI 코칭', '나', '보낸 사람이 드러나지 않는 개선 코칭. 평가 근거로 남지 않습니다.'],
+  ];
+  return (
+    <Card className="p-5">
+      <div className="font-semibold">내 기록은 이렇게 쓰여요</div>
+      <p className="text-xs text-slate-500 mt-1">ATEAM에 남긴 기록을 누가 보고, 무엇에 쓰는지 정리했습니다. 다른 팀원은 내 체크인·결과물·1:1을 볼 수 없습니다.</p>
+      <div className="mt-3 divide-y divide-slate-100 text-sm">
+        {rows.map(([k, who, use]) => (
+          <div key={k} className="py-2.5 grid sm:grid-cols-[180px_90px_1fr] gap-1 sm:gap-3">
+            <span className="font-medium text-slate-800">{k}</span>
+            <span className="text-xs text-indigo-700 sm:pt-0.5">{who}</span>
+            <span className="text-slate-600">{use}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

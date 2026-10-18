@@ -26,7 +26,12 @@ export function ScheduleModal({ open, onClose, memberId }: { open: boolean; onCl
       team_id: team.id, leader_id: uid, member_id: who || members[0]?.user_id,
       scheduled_at: new Date(`${date}T${time}:00`).toISOString(), duration_min: dur,
     }).select().single()),
-    onSuccess: (o) => { qc.invalidateQueries({ queryKey: ['oo'] }); qc.invalidateQueries({ queryKey: ['oo-week'] }); onClose(); nav(`/one-on-ones/${o.id}`); },
+    onSuccess: async (o) => {
+      // 그 팀원이 보낸 1:1 요청이 열려 있으면 '일정 잡음'으로 닫는다 (팀원에게 알림)
+      await supabase.from('team_requests').update({ status: 'done', response: `1:1 일정을 잡았어요 — ${new Date(o.scheduled_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` })
+        .eq('team_id', team.id).eq('from_id', o.member_id).eq('to_id', uid).eq('kind', 'meeting').eq('status', 'open');
+      qc.invalidateQueries({ queryKey: ['oo'] }); qc.invalidateQueries({ queryKey: ['oo-week'] }); qc.invalidateQueries({ queryKey: ['requests'] }); onClose(); nav(`/one-on-ones/${o.id}`);
+    },
   });
   return (
     <Modal open={open} onClose={onClose} title="1:1 일정 잡기">

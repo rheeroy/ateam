@@ -237,6 +237,28 @@ export default function ReviewDetail() {
         )}
       </div>
 
+      {isAuthor && !sub.closed_at && sub.request_type !== 'share' && (() => {
+        const fbs = all.filter((c) => c.author_id !== uid && !c.parent_id).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 2);
+        const toComposer = () => composer.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (sub.status === 'needs_work') return (
+          <div className="mt-4 rounded-2xl bg-amber-50 ring-1 ring-amber-200 p-4 flex items-start gap-3">
+            <RotateCcw size={18} className="text-amber-700 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-amber-900">팀장님이 보완을 요청했어요</div>
+              {fbs.length ? <ul className="mt-1 space-y-0.5 text-sm text-slate-700">{fbs.map((c) => <li key={c.id} className="truncate">· {c.section_ref ? <b className="font-semibold">{c.section_ref} </b> : null}{c.body}</li>)}</ul>
+                : <p className="mt-1 text-sm text-slate-600">아래 댓글을 확인하고 고친 자료를 새 버전으로 올려 주세요.</p>}
+              <p className="mt-1 text-xs text-amber-800">고친 자료를 새 버전으로 올리면 다시 리뷰 중으로 바뀌고, 이전 버전과 대화는 그대로 남습니다.</p>
+            </div>
+            <Button size="sm" onClick={toComposer}><FileUp size={14} />고쳐서 새 버전 올리기</Button>
+          </div>
+        );
+        if (sub.status === 'approved') return (
+          <div className="mt-4 rounded-2xl bg-emerald-50 ring-1 ring-emerald-200 px-4 py-3 text-sm text-emerald-900 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" />승인됐어요. 수고했어요 — 내 기록에 남습니다.</div>
+        );
+        return (
+          <div className="mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200 px-4 py-3 text-sm text-slate-600 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />팀장님 리뷰를 기다리는 중이에요. 피드백이 오면 알림과 함께 여기에 보입니다.</div>
+        );
+      })()}
       <div className="mt-5 grid lg:grid-cols-5 gap-5 items-start">
         {/* 피드 */}
         <div className="lg:col-span-3">

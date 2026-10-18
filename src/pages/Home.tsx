@@ -2,7 +2,7 @@
 // 색: 섹션 정체성 성과 indigo · 사람 teal · 의사결정 slate · 리스크 rose · 조직 fuchsia · 업무 sky / 상태는 rose·amber·emerald, 항상 글자와 함께.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel,
   Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X,
@@ -65,6 +65,11 @@ function useBriefing(m: HomeModel): BLine[] {
   const brief = useLatestAi<{ briefs?: unknown[] }>(team.id, 'exec_brief');
   const subs = useSubmissionsAi(team.id);
   const notes = useNotes();
+  const { uid: me } = useTeam();
+  const ooReq = useQuery({
+    queryKey: ['requests', team.id, 'oo-to-me'],
+    queryFn: () => q<{ id: string; from_id: string }[]>(supabase.from('team_requests').select('id, from_id').eq('team_id', team.id).eq('to_id', me).eq('kind', 'meeting').eq('status', 'open')),
+  });
   const { nameOf } = useTeam();
   const idx = [...pi.idx.values()];
   const high = idx.filter((x) => x.flight.level === 'risk').length, mid = idx.filter((x) => x.flight.level === 'watch').length;
@@ -75,6 +80,8 @@ function useBriefing(m: HomeModel): BLine[] {
   const nearest = m.orgSt.nearest ? dDay(m.orgSt.nearest.event_date!) : null;
   const n = (v: number, unit: string) => <b className="text-white num">{v}{unit}</b>;
   const out: BLine[] = [];
+  const ooR = ooReq.data ?? [];
+  if (ooR.length) out.push({ key: 'ooreq', tone: 'rose', icon: Users, text: <>{ooR.length === 1 ? <>{nameOf(ooR[0].from_id)} 님이</> : <>팀원 {n(ooR.length, '명')}이</>} 1:1을 요청했어요.</>, go: ooR.length === 1 ? '일정 잡기를' : '팀원관리를', to: ooR.length === 1 ? `/people/${ooR[0].from_id}?oo=1` : '/people' });
   if (m.lowGoals.length) out.push({ key: 'low', tone: 'rose', icon: ScatterChart, text: <>달성이 어려워 보이는 목표가 {n(m.lowGoals.length, '개')} 있어요.</>, go: '팀 성과를', to: '/perf' });
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });

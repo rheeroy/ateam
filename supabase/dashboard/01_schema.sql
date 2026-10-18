@@ -2661,6 +2661,9 @@ begin
     insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
       (T, L, m_lee, 'cheer', '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.', '', now() - interval '1 day'),
       (T, L, m_choi, 'grow', '다음 분기에 콘텐츠 운영 전체를 맡아 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', now() - interval '2 days');
+    -- 팀원 → 팀장 1:1 요청 (팀원 앱에서 '1:1 요청하기')
+    insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
+      (T, m_lee, L, 'meeting', 'CRM 연계 방향이 맞는지 한번 같이 보고 싶어요', '', now() - interval '5 hours');
   exception when others then null;
   end;
   insert into work_item_allocations (item_id, user_id, team_id, share_pct) values
@@ -3138,6 +3141,11 @@ begin
     ) as x(title, c)
     join submissions s on s.team_id = T and s.title = x.title
     join submission_versions v on v.submission_id = s.id and v.version = 1;
+    -- 최민아 11월 콘텐츠 캘린더: 보완 요청 (팀원 홈 '지금 할 일'에 뜬다)
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at)
+    select s.id, v.id, T, L, '런칭 주간에 몰린 건 좋은데, 그 주 디자인팀 슬롯이 이미 찼어요. 2편은 앞 주로 당기고, 일정이랑 담당까지 표로 다시 올려 주세요.', now() - interval '20 hours'
+    from submissions s join submission_versions v on v.submission_id = s.id where s.team_id = T and s.title = '11월 콘텐츠 캘린더';
+    update submissions set status = 'needs_work' where team_id = T and title = '11월 콘텐츠 캘린더';
   exception when others then null;
   end;
 end $fn$;
@@ -3676,8 +3684,8 @@ begin
     if v_lee is null or exists (select 1 from coaching_notes where team_id = r.team_id) then continue; end if;
     alter table coaching_notes disable trigger t_coaching_notify;
     insert into coaching_notes (team_id, member_id, title, body, created_at) values (r.team_id, v_lee,
-      'CRM 연계, 방향을 한 번 맞추고 가면 훨씬 수월해져요',
-      E'지금 보이는 것\n· ''제휴 유입 고객 CRM 연계''가 계획보다 조금 늦어지고 있어요\n· 혼자 맡은 과제인데 최근 3주 동안 진척 공유가 없었어요\n\n왜 중요해요\n제휴 목표와 이어진 과제라, 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· 막힌 부분이 있으면 ''무엇이 필요한지''를 한 줄로 같이 적기\n· 다음 결과물은 초안 단계에서 한 번 먼저 올려 방향 확인받기\n\n권장 시점 · 이번 주 금요일까지',
+      '제휴 목표, 혼자 끌기보다 방향부터 맞추고 가요',
+      E'요즘 흐름\n제휴 채널 목표 아래 CRM 연계를 혼자 맡고 있어요. 웰컴 메시지 A/B안처럼 실험을 먼저 설계하는 점은 좋은데, 맡은 일의 진척이 계획보다 조금 늦고 최근 3주 동안 진척 공유가 없었어요.\n\n특히 짚고 싶은 것\n· ''CRM 웰컴 메시지 A/B안''에 어느 안을 권하는지와 무엇으로 승자를 정할지가 빠져 있어요\n· ''제휴 유입 고객 CRM 연계''는 마감이 다가오는데 지난 업데이트가 3주 전이에요\n\n왜 중요해요\n제휴 목표와 바로 이어진 일이라 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요. 이 팀은 평소 결론을 첫 줄에 쓰고, 막히면 이틀 안에 공유하는 걸 중요하게 봐요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· A/B안 첫 줄에 "저는 A안을 권합니다 — 2주 뒤 재방문율로 판단"처럼 결론과 기준을 쓰기\n· 막힌 게 있으면 "필요한 것: ○○, ○일까지"로 한 줄 남기기\n\n권장 시점 · 이번 주 금요일까지',
       now() - interval '2 days');
     alter table coaching_notes enable trigger t_coaching_notify;
   end loop;
@@ -3734,6 +3742,60 @@ begin
     new.responded_at := coalesce(new.responded_at, now());
     perform public._notify(new.from_id, new.team_id, 'request.done',
       case new.kind when 'grow' then '성장 제안 답: ' when 'cheer' then '격려 확인: ' else '완료: ' end || new.title, left(new.response, 120), '/');
+  end if;
+  return new;
+end $$;
+
+-- >>>>>>>>>> 20261024000020_member_app.sql
+-- =====================================================================
+-- 팀원 앱 정비
+--   · 팀원이 받은 칭찬 배지를 다시 볼 수 있게 (자기 것 · 칭찬만 읽기)
+--   · 팀원 → 팀장 '1:1 요청' (team_requests kind=meeting) — 팀장 알림이 팀원 상세로 이어지고, 팀장에게 평가 근거가 쌓이지 않게
+--   · AI 체크인 초안 (ai_kind 'checkin_draft')
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'checkin_draft';
+
+drop policy if exists obs_member_praise on public.observations;
+create policy obs_member_praise on public.observations for select to authenticated
+  using (subject_id = auth.uid() and kind = 'praise');
+
+-- 알림: 요청 / 성장 제안 / 팀장님 격려 / 팀원의 1:1 요청
+create or replace function public.trg_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_up boolean;
+begin
+  v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
+  if tg_op = 'INSERT' then
+    perform public._notify(new.to_id, new.team_id, 'request',
+      case when v_up and new.kind = 'meeting' then '1:1 요청: ' when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
+      left(new.body, 120), case when v_up then '/people/' || new.from_id || '?oo=1' else '/' end);
+    if new.kind = 'plan' and new.item_id is not null then
+      update work_items set needs_plan = true where id = new.item_id;
+    end if;
+  elsif new.status is distinct from old.status and new.status = 'done' then
+    new.responded_at := coalesce(new.responded_at, now());
+    perform public._notify(new.from_id, new.team_id, 'request.done',
+      case when v_up and new.kind = 'meeting' then '1:1 요청 확인: ' when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
+      left(new.response, 120), case when v_up then '/my/one-on-ones' else '/' end);
+  end if;
+  return new;
+end $$;
+
+-- 요청 완료 → 평가 근거 (격려, 팀장이 받은 요청은 남기지 않음)
+create or replace function public.trg_request_evidence() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_late int;
+begin
+  if new.kind = 'cheer' or new.to_id = public._team_leader(new.team_id) then return new; end if;
+  if new.status = 'done' and (tg_op = 'INSERT' or old.status is distinct from 'done') then
+    v_late := case when new.due_date is null then null else (coalesce(new.responded_at, now())::date - new.due_date) end;
+    perform public.upsert_evidence(new.team_id, new.to_id, 'task', new.id,
+      case when new.kind = 'grow' then '성장 제안 답 — ' else '요청 완료 — ' end || new.title
+        || case when v_late is null then '' when v_late <= 0 then ' (기한 내)' else ' (' || v_late || '일 늦음)' end
+        || case when coalesce(new.response, '') <> '' then ' · 답: ' || left(new.response, 120) else '' end,
+      case when v_late is not null and v_late <= 0 then 'positive'::public.polarity else 'neutral'::public.polarity end,
+      null, coalesce(new.responded_at, now()));
   end if;
   return new;
 end $$;
