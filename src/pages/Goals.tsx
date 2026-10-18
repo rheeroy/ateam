@@ -218,12 +218,16 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
             {isLeader && <PlanToggle />}
           </div>) : undefined}
         sub={mode === 'member' ? '팀 목표 안에서 내 목표·과제의 진척을 남기고, 내 과제 아래 할 일을 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
-        right={<>
-          {isLeader && mode === 'leader' && <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={15} />팀원에게 계획 요청</Button>}
-          {isLeader && <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={15} />AI로 계획 만들기</Button>}
-          {(isLeader || rules.open) && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>}
-          {isLeader && <Button variant="ghost" onClick={() => setSettings(true)} aria-label="설정"><Settings2 size={15} /></Button>}
-        </>} />
+        right={mode === 'member' && rules.open ? <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button> : undefined} />
+      {/* 팀장 도구 — 제목 아래 줄에 고정 (오른쪽 위는 팀원 목표수정 토글) */}
+      {mode === 'leader' && isLeader && (
+        <div className="-mt-2 mb-6 flex gap-2 flex-wrap">
+          <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={15} />팀원에게 계획 요청</Button>
+          <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={15} />AI로 계획 만들기</Button>
+          <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>
+          <Button variant="ghost" onClick={() => setSettings(true)} aria-label="설정"><Settings2 size={15} /></Button>
+        </div>
+      )}
 
       {/* 팀원: 지금 고칠 수 있는 것 */}
       {mode === 'member' && !isLeader && (
