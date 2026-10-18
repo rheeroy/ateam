@@ -1,19 +1,20 @@
-// 업무 상세 — 버전 탭 대신 스크롤 피드: 올린 것(v1, v2…) 사이사이에 댓글, 누르면 오른쪽에 스레드
-//   팀원은 맨 아래에서 바로 새 버전을 올리고(액자식), 모두 댓글로 주고받는다. 팀장은 오른쪽에서 AI 1차 검토를 본다.
-import { useEffect, useRef, useState } from 'react';
+// 업무 상세 — 대화창: 올린 버전과 말풍선이 시간순으로 한 흐름. 맨 아래 대화창 하나로 보내기·파일(새 버전/첨부)
+//   말풍선의 [답글]은 오른쪽 스레드에서 이어 간다. 팀장은 오른쪽에서 AI 1차 검토를 본다(팀원에게는 보이지 않음).
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Check, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, X, XCircle } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, ChevronDown, CornerDownRight, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { supabase, q, invoke, errorText } from '../lib/supabase';
+import { supabase, q, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import type { ReviewComment, Submission, SubmissionVersion } from '../lib/types';
 import { cx, fmtDate, fmtShort } from '../lib/format';
-import { safeName } from '../lib/extract';
+import { addVersion, namedPaste, startReview, uploadAttachment } from '../lib/post';
+import { useGroups } from '../lib/groups';
 import { KIND_TAG, REQ_TAG, useCloseSubmission } from '../lib/work';
 import { Avatar, Button, Empty, Pill, Spinner, inputCls, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
-import { FILE_ACCEPT, IMAGE, readFile } from '../components/Upload';
+import { FILE_ACCEPT, IMAGE } from '../components/Upload';
 import { STATUS } from './MySubmissions';
 
 interface Review {
@@ -23,7 +24,7 @@ interface Review {
   questions: string[]; change_from_previous?: string; trend_note?: string;
   criteria_check?: { criterion: string; met: boolean; note: string; tag?: string }[];
 }
-type Panel = { kind: 'ai'; versionId: string } | { kind: 'thread'; commentId: string } | null;
+type Panel = { kind: 'ai'; versionId: string } | { kind: 'thread'; commentId: string } | { kind: 'help' } | null;
 
 const DOT: Record<string, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
 /** 한 줄 판단에서 '~해 보입니다' 부분만 (버전 흐름용) */
@@ -134,7 +135,7 @@ function AiReview({ teamId, version, versions, reviewOf, onPick, onToComments }:
               </span></div>
           </div>
           {!!r.content.questions?.length && (
-            <Button variant="soft" className="mt-3 w-full" onClick={() => onToComments(r.content.questions)}>질문을 댓글로 남기기</Button>
+            <Button variant="soft" className="mt-3 w-full" onClick={() => onToComments(r.content.questions)}>AI가 짚은 질문을 대화창에 남기기</Button>
           )}
         </>
       )}
@@ -172,14 +173,18 @@ function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionVersion;
   );
 }
 
+type Item = { t: 'v'; at: string; v: SubmissionVersion } | { t: 'c'; at: string; c: ReviewComment };
+
 export default function ReviewDetail() {
   const { id } = useParams();
   const { isLeader, nameOf, uid, team } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
-  const subQ = useQuery({ queryKey: ['sub', id], queryFn: () => q<Submission>(supabase.from('submissions').select('*').eq('id', id!).single()) });
-  const versQ = useQuery({ queryKey: ['sub', id, 'versions'], queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id!).order('version')) });
-  const comQ = useQuery({ queryKey: ['comments', id], queryFn: () => q<ReviewComment[]>(supabase.from('review_comments').select('*').eq('submission_id', id!).order('created_at')) });
+  const live = { refetchInterval: 15_000 };
+  const subQ = useQuery({ queryKey: ['sub', id], queryFn: () => q<Submission>(supabase.from('submissions').select('*').eq('id', id!).single()), ...live });
+  const versQ = useQuery({ queryKey: ['sub', id, 'versions'], queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id!).order('version')), ...live });
+  const comQ = useQuery({ queryKey: ['comments', id], queryFn: () => q<ReviewComment[]>(supabase.from('review_comments').select('*').eq('submission_id', id!).order('created_at')), ...live });
+  const groups = useGroups();
   const versions = versQ.data ?? [];
   const vIds = versions.map((v) => v.id);
   const aiQ = useQuery({
@@ -189,143 +194,141 @@ export default function ReviewDetail() {
   const aiOf = (vid: string) => aiQ.data?.find((a) => a.ref_id === vid)?.content;
   const latest = versions[versions.length - 1];
   const [panel, setPanel] = useState<Panel>(null);
-  const [target, setTarget] = useState<string | null>(null);
-  const composer = useRef<HTMLDivElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [drag, setDrag] = useState(false);
   const close = useCloseSubmission(team.id);
   const setStatus = useMutation({
     mutationFn: (status: 'approved' | 'needs_work') => q(supabase.from('submissions').update({ status }).eq('id', id!)),
-    onSuccess: (_d, s) => { toast(s === 'approved' ? '승인했습니다. 근거로 쌓입니다.' : '보완을 요청했습니다.'); qc.invalidateQueries({ queryKey: ['sub', id] }); qc.invalidateQueries({ queryKey: ['subs'] }); qc.invalidateQueries({ queryKey: ['review-queue'] }); },
+    onSuccess: (_d, s) => { toast(s === 'approved' ? '승인했습니다. 근거로 쌓입니다.' : '보완을 요청했습니다. 대화창에 무엇을 고칠지 남겨 주세요.'); qc.invalidateQueries({ queryKey: ['sub', id] }); qc.invalidateQueries({ queryKey: ['subs'] }); qc.invalidateQueries({ queryKey: ['review-queue'] }); },
     onError: (e) => toast(errorText(e)),
   });
   const toComments = useMutation({
     mutationFn: (qs: string[]) => q(supabase.from('review_comments').insert(qs.map((body) => ({ submission_id: id, version_id: latest!.id, team_id: team.id, author_id: uid, body })))),
-    onSuccess: () => { toast('질문을 댓글로 옮겼습니다'); qc.invalidateQueries({ queryKey: ['comments', id] }); },
+    onSuccess: () => { toast('질문을 대화창에 남겼습니다'); qc.invalidateQueries({ queryKey: ['comments', id] }); },
     onError: (e) => toast(errorText(e)),
   });
-  useEffect(() => { setPanel(null); setTarget(null); }, [id]);
+  useEffect(() => { setPanel(null); setFile(null); }, [id]);
+
+  // 대화 흐름: 올린 버전 + 댓글(답글 제외)을 시간순으로
+  const all = comQ.data ?? [];
+  const stream: Item[] = useMemo(() => [
+    ...versions.map((v) => ({ t: 'v' as const, at: v.created_at, v })),
+    ...all.filter((c) => !c.parent_id).map((c) => ({ t: 'c' as const, at: c.created_at, c })),
+  ].sort((a, b) => a.at.localeCompare(b.at)), [versions, all]);
+  const scroller = useRef<HTMLDivElement>(null);
+  const seen = useRef(0);
+  useEffect(() => {
+    if (!stream.length || stream.length === seen.current) return;
+    const first = seen.current === 0;
+    seen.current = stream.length;
+    requestAnimationFrame(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: first ? 'auto' : 'smooth' }));
+  }, [stream.length]);
 
   if (subQ.isLoading || versQ.isLoading) return <Spinner />;
   const sub = subQ.data;
   if (!sub || !latest) return <Empty title="업무를 찾을 수 없습니다" />;
   const isAuthor = sub.author_id === uid;
-  const all = comQ.data ?? [];
-  const roots = all.filter((c) => !c.parent_id);
-  const rootsOf = (v: SubmissionVersion) => roots.filter((c) => (c.version_id ?? latest.id) === v.id);
-  const cur: Panel = panel ?? (isLeader && !isAuthor ? { kind: 'ai', versionId: latest.id } : null);
+  const group = sub.group_id ? (groups.data ?? []).find((g) => g.id === sub.group_id) ?? null : null;
+  const inGroup = !!group?.work_group_members.some((m) => m.user_id === uid);
+  const canUpload = isAuthor || inGroup;
+  const leaderView = isLeader && !isAuthor;
+  const cur: Panel = panel ?? (leaderView ? { kind: 'ai', versionId: latest.id } : null);
   const rq = REQ_TAG[sub.request_type] ?? REQ_TAG.approval;
+  const makers = [...new Set(versions.map((v) => v.created_by))];
+  const back = isLeader
+    ? (group ? { to: '/work?view=groups', label: '그룹별 업무' } : isAuthor ? { to: '/work', label: '업무플랫폼' } : { to: `/work/u/${sub.author_id}`, label: `${nameOf(sub.author_id)} 업무 스페이스` })
+    : (group ? { to: `/my/submissions?g=${group.id}`, label: group.name } : { to: '/my/submissions', label: '내 스페이스' });
 
   return (
     <section>
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <Link to={isLeader ? (isAuthor ? '/work' : `/work/u/${sub.author_id}`) : '/my/submissions'} className="text-sm text-slate-500 hover:text-indigo-700">← {isLeader && !isAuthor ? `${nameOf(sub.author_id)} 업무 스페이스` : '목록으로'}</Link>
+          <Link to={back.to} className="text-sm text-slate-500 hover:text-indigo-700">← {back.label}</Link>
           <h1 className="mt-1 text-2xl font-bold tracking-tight flex items-center gap-2 flex-wrap">
-            <span className={cx('text-[11px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>{sub.title}</h1>
-          <p className="mt-1 text-sm text-slate-500 flex items-center gap-2 flex-wrap">{nameOf(sub.author_id)} · 처음 올림 {fmtDate(sub.created_at)} · {KIND_TAG[sub.kind] ?? '문서'} · 버전 {versions.length}개
+            <span className={cx('text-[11px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>{sub.title}
+            <span className="font-mono text-sm font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{latest.version}</span></h1>
+          <p className="mt-1 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
+            {group && <span className="inline-flex items-center gap-1 text-indigo-700 font-medium"><Users size={13} />{group.name}</span>}
+            {makers.length > 1 ? `${makers.map(nameOf).join(' · ')} 공동` : nameOf(sub.author_id)} · 처음 올림 {fmtDate(sub.created_at)} · {KIND_TAG[sub.kind] ?? '문서'}
             {sub.closed_at ? <span className="text-[11px] font-semibold rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5">완료함</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}</p>
         </div>
-        {isLeader && !isAuthor && (
+        {leaderView && (
           <div className="flex items-center gap-2 flex-wrap">
             {sub.request_type !== 'share' && <>
               <Button variant="secondary" loading={setStatus.isPending && setStatus.variables === 'needs_work'} onClick={() => setStatus.mutate('needs_work')}><RotateCcw size={14} />보완 요청</Button>
-              <Button loading={setStatus.isPending && setStatus.variables === 'approved'} onClick={() => setStatus.mutate('approved')}><CheckCircle2 size={15} />이대로 좋음</Button>
+              <Button loading={setStatus.isPending && setStatus.variables === 'approved'} onClick={() => setStatus.mutate('approved')}><CheckCircle2 size={15} />승인</Button>
             </>}
             {sub.closed_at
               ? <Button variant="ghost" onClick={() => close.mutate({ id: sub.id, close: false, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Undo2 size={14} />다시 열기</Button>
-              : <Button variant="secondary" onClick={() => close.mutate({ id: sub.id, close: true, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Check size={14} />완료</Button>}
+              : <Button variant="ghost" onClick={() => close.mutate({ id: sub.id, close: true, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Check size={14} />완료</Button>}
           </div>
         )}
       </div>
 
-      {isAuthor && !sub.closed_at && sub.request_type !== 'share' && (() => {
-        const fbs = all.filter((c) => c.author_id !== uid && !c.parent_id).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 2);
-        const toComposer = () => composer.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (sub.status === 'needs_work') return (
-          <div className="mt-4 rounded-2xl bg-amber-50 ring-1 ring-amber-200 p-4 flex items-start gap-3">
-            <RotateCcw size={18} className="text-amber-700 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-amber-900">팀장님이 보완을 요청했어요</div>
-              {fbs.length ? <ul className="mt-1 space-y-0.5 text-sm text-slate-700">{fbs.map((c) => <li key={c.id} className="truncate">· {c.section_ref ? <b className="font-semibold">{c.section_ref} </b> : null}{c.body}</li>)}</ul>
-                : <p className="mt-1 text-sm text-slate-600">아래 댓글을 확인하고 고친 자료를 새 버전으로 올려 주세요.</p>}
-              <p className="mt-1 text-xs text-amber-800">고친 자료를 새 버전으로 올리면 다시 리뷰 중으로 바뀌고, 이전 버전과 대화는 그대로 남습니다.</p>
-            </div>
-            <Button size="sm" onClick={toComposer}><FileUp size={14} />고쳐서 새 버전 올리기</Button>
-          </div>
-        );
-        if (sub.status === 'approved') return (
-          <div className="mt-4 rounded-2xl bg-emerald-50 ring-1 ring-emerald-200 px-4 py-3 text-sm text-emerald-900 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" />승인됐어요. 수고했어요 — 내 기록에 남습니다.</div>
-        );
-        return (
-          <div className="mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-200 px-4 py-3 text-sm text-slate-600 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />팀장님 리뷰를 기다리는 중이에요. 피드백이 오면 알림과 함께 여기에 보입니다.</div>
-        );
-      })()}
+      {canUpload && !sub.closed_at && sub.request_type !== 'share' && sub.status === 'needs_work' && (
+        <div className="mt-4 rounded-2xl bg-amber-50 ring-1 ring-amber-200 px-4 py-3 text-sm flex items-start gap-2.5">
+          <RotateCcw size={16} className="text-amber-700 mt-0.5 shrink-0" />
+          <span className="text-amber-900"><b>팀장님이 보완을 요청했어요.</b> 대화를 확인하고, 고친 파일을 아래 대화창에 끌어다 놓으면 새 버전(v{latest.version + 1})으로 올라갑니다. 이전 버전과 대화는 그대로 남습니다.</span>
+        </div>
+      )}
+      {isAuthor && sub.status === 'approved' && (
+        <div className="mt-4 rounded-2xl bg-emerald-50 ring-1 ring-emerald-200 px-4 py-3 text-sm text-emerald-900 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" />승인됐어요. 수고했어요 — 내 기록에 남습니다.</div>
+      )}
+
       <div className="mt-5 grid lg:grid-cols-5 gap-5 items-start">
-        {/* 피드 */}
-        <div className="lg:col-span-3">
-          <ol className="relative space-y-4 before:absolute before:left-[19px] before:top-4 before:bottom-4 before:w-px before:bg-slate-200">
-            {versions.map((v) => {
-              const r = isLeader ? aiOf(v.id) : undefined;
-              const cs = rootsOf(v);
-              return (
-                <li key={v.id} className="relative pl-12">
-                  <span className="absolute left-0 top-3"><Avatar name={nameOf(v.created_by)} size={9} /></span>
-                  <article className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                    <div className="px-5 pt-4">
-                      <div className="flex items-center gap-2 text-sm flex-wrap">
-                        <b>{nameOf(v.created_by)}</b>
-                        <span className="font-mono text-[11px] font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{v.version}</span>
-                        <span className="text-slate-400 text-xs">{v.version === 1 ? '올림' : '새 버전'} · {fmtDate(v.created_at)}</span>
-                        {v.id === latest.id && versions.length > 1 && <span className="text-[10px] font-semibold text-indigo-700">최신</span>}
-                        {isLeader && !isAuthor && sub.request_type !== 'share' && sub.kind !== 'number' && (
-                          <button onClick={() => setPanel({ kind: 'ai', versionId: v.id })} className={cx('ml-auto text-[11px] font-semibold rounded-full px-2 py-0.5 inline-flex items-center gap-1 ring-1',
-                            cur?.kind === 'ai' && cur.versionId === v.id ? 'bg-violet-600 text-white ring-violet-600' : r ? 'bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100' : 'bg-white text-slate-400 ring-slate-200 hover:text-slate-600')}>
-                            <Sparkles size={11} />{r ? 'AI 검토' : 'AI 검토 전'}</button>
-                        )}
-                      </div>
-                      {v.note && <p className="mt-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{v.note}</p>}
-                      <VersionBody sub={sub} v={v} older={v.id !== latest.id} />
-                    </div>
-                    {/* 이 버전에 달린 댓글 */}
-                    <div className="mt-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-                      {cs.map((c) => {
-                        const reps = all.filter((x) => x.parent_id === c.id);
-                        const on = cur?.kind === 'thread' && cur.commentId === c.id;
-                        return (
-                          <button key={c.id} onClick={() => setPanel({ kind: 'thread', commentId: c.id })}
-                            className={cx('w-full text-left px-5 py-2.5 flex gap-2.5 border-b border-slate-100 last:border-b-0 hover:bg-white', on && 'bg-white ring-1 ring-inset ring-violet-300')}>
-                            <Avatar name={nameOf(c.author_id)} tone={c.author_id === sub.author_id ? 'slate' : 'indigo'} size={7} />
-                            <span className="min-w-0 flex-1">
-                              <span className="text-xs"><b>{nameOf(c.author_id)}</b> <span className="text-slate-400">{fmtShort(c.created_at)}</span>
-                                {c.section_ref && <span className="ml-1.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}</span>
-                              <span className="block text-sm text-slate-700 line-clamp-2 whitespace-pre-wrap">{c.body}</span>
-                              {!!reps.length && <span className="mt-0.5 text-[11px] font-semibold text-indigo-700 inline-flex items-center gap-1"><MessageSquare size={11} />답글 {reps.length} · {nameOf(reps[reps.length - 1].author_id)}</span>}
-                            </span>
-                          </button>
-                        );
-                      })}
-                      <button onClick={() => { setTarget(v.id); composer.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
-                        className="w-full text-left px-5 py-2.5 text-xs text-slate-400 hover:text-indigo-700 inline-flex items-center gap-1"><MessageSquare size={12} />v{v.version}에 댓글 달기</button>
-                    </div>
-                  </article>
-                </li>
-              );
-            })}
-            {/* 맨 아래: 댓글 / 새 버전 올리기 */}
-            <li className="relative pl-12" ref={composer as never}>
-              <span className="absolute left-0 top-3"><Avatar name={nameOf(uid)} tone="indigo" size={9} /></span>
-              <Composer sub={sub} versions={versions} target={target ?? latest.id} setTarget={setTarget} canUpload={isAuthor} />
-            </li>
-          </ol>
+        {/* 대화 */}
+        <div className={cx('lg:col-span-3 rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col h-[calc(100vh-15rem)] min-h-[520px] relative', drag && 'ring-2 ring-indigo-500')}
+          onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) setDrag(true); }}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false); }}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}>
+          {drag && (
+            <div className="absolute inset-0 z-10 rounded-2xl bg-indigo-50/90 flex flex-col items-center justify-center text-indigo-700 pointer-events-none">
+              <FileUp size={24} /><div className="mt-1.5 font-semibold">{canUpload ? `놓으면 새 버전(v${latest.version + 1})으로 올릴 준비가 됩니다` : '놓으면 대화에 첨부됩니다'}</div>
+            </div>
+          )}
+          <div ref={scroller} className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 bg-slate-50/60 rounded-t-2xl">
+            {stream.map((it) => it.t === 'v' ? (
+              <VersionCard key={it.v.id} sub={sub} v={it.v} latest={it.v.id === latest.id}
+                ai={leaderView && sub.request_type !== 'share' && sub.kind !== 'number' ? { has: !!aiOf(it.v.id), on: cur?.kind === 'ai' && cur.versionId === it.v.id, open: () => setPanel({ kind: 'ai', versionId: it.v.id }) } : undefined} />
+            ) : (
+              <Bubble key={it.c.id} c={it.c} mine={it.c.author_id === uid} replies={all.filter((x) => x.parent_id === it.c.id)}
+                active={cur?.kind === 'thread' && cur.commentId === it.c.id} onThread={() => setPanel({ kind: 'thread', commentId: it.c.id })} />
+            ))}
+          </div>
+          <Composer sub={sub} latest={latest} canUpload={canUpload} file={file} setFile={setFile} />
         </div>
 
-        {/* 오른쪽: 스레드 / AI 1차 검토 */}
-        <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-4">
-          {cur?.kind === 'thread' ? <Thread sub={sub} versions={versions} comments={all} rootId={cur.commentId} onClose={() => setPanel(null)} />
+        {/* 오른쪽: AI 검토(팀장) / 스레드 */}
+        <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-3">
+          {leaderView && (
+            <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
+              <button onClick={() => setPanel({ kind: 'ai', versionId: cur?.kind === 'ai' ? cur.versionId : latest.id })} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={12} className="text-violet-600" />AI 검토</button>
+              <button onClick={() => { const r = all.filter((c) => !c.parent_id).at(-1); setPanel(r ? { kind: 'thread', commentId: r.id } : { kind: 'help' }); }} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind !== 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><MessageSquare size={12} />스레드</button>
+            </div>
+          )}
+          {cur?.kind === 'thread' ? <Thread sub={sub} comments={all} rootId={cur.commentId} onClose={() => setPanel(leaderView ? { kind: 'help' } : null)} />
             : cur?.kind === 'ai' ? <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === cur.versionId) ?? latest} versions={versions} reviewOf={aiOf} onPick={(vid) => setPanel({ kind: 'ai', versionId: vid })} onToComments={(qs) => toComments.mutate(qs)} />
             : (
-              <div className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] p-5 text-sm text-slate-500">
-                <div className="font-semibold text-slate-800 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />대화 보기</div>
-                <p className="mt-1.5">왼쪽 댓글을 누르면 여기에 그 대화가 열리고 바로 답글을 달 수 있습니다.{isAuthor && ' 고친 자료는 맨 아래에서 바로 새 버전으로 올리세요 — 이전 버전과 대화가 위에 그대로 남습니다.'}</p>
+              <div className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] p-5 text-sm text-slate-500 space-y-3">
+                <div>
+                  <div className="font-semibold text-slate-800 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />대화 안내</div>
+                  <p className="mt-1.5">말풍선 아래 <b className="text-slate-700">[답글]</b>을 누르면 여기서 그 대화를 이어 갑니다. 파일은 대화창에 끌어다 놓거나 캡처를 붙여 넣으면 됩니다.{canUpload && ' 고친 자료는 새 버전으로 올라가고, 이전 버전과 대화는 그대로 남습니다.'}</p>
+                </div>
+                {group && (
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="text-xs font-semibold text-slate-600 mb-1.5 inline-flex items-center gap-1"><Users size={12} />{group.name}</div>
+                    <div className="flex flex-wrap gap-1.5">{group.work_group_members.map((m) => <span key={m.user_id} className="inline-flex items-center gap-1 text-xs text-slate-600"><Avatar name={nameOf(m.user_id)} size={7} />{nameOf(m.user_id)}</span>)}</div>
+                  </div>
+                )}
+                {versions.length > 1 && (
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="text-xs font-semibold text-slate-600 mb-1.5">버전 흐름</div>
+                    <ol className="space-y-1 text-xs">{[...versions].reverse().map((v) => (
+                      <li key={v.id} className="flex items-center gap-2"><span className="font-mono font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5">v{v.version}</span><span className="text-slate-700 truncate flex-1">{v.note || (v.version === 1 ? '처음 올림' : '새 버전')}</span><span className="text-slate-400 shrink-0">{nameOf(v.created_by)} · {fmtShort(v.created_at)}</span></li>
+                    ))}</ol>
+                  </div>
+                )}
               </div>
             )}
         </aside>
@@ -334,127 +337,151 @@ export default function ReviewDetail() {
   );
 }
 
-/** 맨 아래 입력: 댓글, 또는(올린 사람이면) 새 버전 바로 올리기 */
-function Composer({ sub, versions, target, setTarget, canUpload }: { sub: Submission; versions: SubmissionVersion[]; target: string; setTarget: (v: string) => void; canUpload: boolean }) {
-  const { uid, team, hasFeature } = useTeam();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [mode, setMode] = useState<'comment' | 'version'>('comment');
-  const [body, setBody] = useState('');
-  const [section, setSection] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [note, setNote] = useState('');
-  const [text, setText] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
-  const tv = versions.find((v) => v.id === target) ?? versions[versions.length - 1];
-  const add = useMutation({
-    mutationFn: () => q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: tv.id, team_id: team.id, author_id: uid, body, section_ref: section || null })),
-    onSuccess: () => { setBody(''); setSection(''); qc.invalidateQueries({ queryKey: ['comments', sub.id] }); qc.invalidateQueries({ queryKey: ['talk'] }); },
-    onError: (e) => toast(errorText(e)),
-  });
-  const up = useMutation({
-    mutationFn: async () => {
-      if (!file && !text.trim()) throw new Error('파일을 첨부하거나 내용을 써 주세요');
-      let read = { text, mime: 'text/plain' };
-      if (file) read = await readFile(file);
-      const version = Math.max(0, ...versions.map((v) => v.version)) + 1;
-      let path: string | null = null;
-      if (file) {
-        path = `${team.id}/${sub.id}/${version}-${safeName(file.name)}`;
-        const { error } = await supabase.storage.from('submissions').upload(path, file, { contentType: read.mime || file.type, upsert: false });
-        if (error) throw error;
-      }
-      return q<SubmissionVersion>(supabase.from('submission_versions').insert({
-        submission_id: sub.id, team_id: team.id, version, file_path: path, file_name: file?.name ?? null,
-        mime_type: file ? read.mime : 'text/plain', extracted_text: read.text || text, note, created_by: uid,
-      }).select().single());
-    },
-    onSuccess: (ver) => {
-      const reviewable = sub.request_type !== 'share' && sub.kind !== 'number' && sub.kind !== 'note' && hasFeature('ai_core');
-      toast(`v${ver.version}을 올렸습니다.${reviewable ? ' AI가 1차 검토를 시작합니다.' : ''}`);
-      setFile(null); setNote(''); setText(''); setMode('comment');
-      ['subs', 'sub', 'review-queue', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-      if (reviewable) invoke('ai-review-submission', { version_id: ver.id }).then(() => qc.invalidateQueries({ queryKey: ['ai'] })).catch(() => {});
-    },
-    onError: (e) => toast(errorText(e)),
-  });
+/** 대화 흐름 속 버전 카드 — 누가 올렸고 무엇이 바뀌었는지 + 본문 (이전 버전은 접힘) */
+function VersionCard({ sub, v, latest, ai }: { sub: Submission; v: SubmissionVersion; latest: boolean; ai?: { has: boolean; on: boolean; open: () => void } }) {
+  const { nameOf } = useTeam();
   return (
-    <div className="rounded-2xl bg-white ring-1 ring-indigo-200 shadow-sm">
-      {canUpload && (
-        <div className="px-4 pt-3 flex gap-1 text-xs">
-          {([['comment', '댓글', MessageSquare], ['version', '새 버전 올리기', FileUp]] as const).map(([k, l, I]) => (
-            <button key={k} onClick={() => setMode(k)} className={cx('px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1', mode === k ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:bg-slate-50')}><I size={13} />{l}</button>
-          ))}
-        </div>
-      )}
-      {mode === 'comment' ? (
-        <form className="p-4 space-y-2" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate(); }}>
-          <textarea aria-label="댓글" rows={2} className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="댓글을 남기세요 — 질문, 의견, 확인 부탁" />
-          <div className="flex items-center gap-2">
-            <select aria-label="버전" value={tv.id} onChange={(e) => setTarget(e.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
-              {versions.map((v) => <option key={v.id} value={v.id}>v{v.version}에 남기기</option>)}
-            </select>
-            <input aria-label="섹션" className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-28" value={section} onChange={(e) => setSection(e.target.value)} placeholder="섹션 (선택)" />
-            <Button type="submit" size="sm" className="ml-auto" loading={add.isPending}><Send size={13} />보내기</Button>
-          </div>
-        </form>
-      ) : (
-        <form className="p-4 space-y-2.5" onSubmit={(e) => { e.preventDefault(); up.mutate(); }}>
-          <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          <button type="button" onClick={() => fileRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}
-            className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-indigo-300 px-4 py-4 text-sm text-slate-500 text-center">
-            {file ? <span className="inline-flex items-center gap-1.5 text-slate-800 font-medium"><Paperclip size={14} />{file.name} <span className="text-xs text-slate-400">(바꾸려면 누르기)</span></span>
-              : <span className="inline-flex items-center gap-1.5"><FileUp size={15} />파일을 끌어 놓거나 눌러서 첨부 · 문서·PDF·PPT·캡처</span>}
-          </button>
-          <textarea rows={2} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="또는 본문을 바로 쓰기" />
-          <div className="flex items-center gap-2">
-            <input className={cx(inputCls, 'flex-1')} value={note} onChange={(e) => setNote(e.target.value)} placeholder="이번에 바꾼 점 (예: 피드백 반영해 §2 수정)" />
-            <Button type="submit" loading={up.isPending}><FileUp size={14} />v{Math.max(0, ...versions.map((v) => v.version)) + 1} 올리기</Button>
-          </div>
-        </form>
-      )}
+    <div>
+      <div className="flex items-center gap-3 text-xs text-slate-500">
+        <span className="flex-1 h-px bg-slate-200" />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white ring-1 ring-slate-200 px-3 py-1">
+          <FileUp size={12} className="text-indigo-600" /><b className="text-slate-700 font-mono">v{v.version}</b>{nameOf(v.created_by)} {v.version === 1 ? '올림' : '새 버전'} · {fmtDate(v.created_at)}
+          {ai && <button onClick={ai.open} className={cx('ml-1 font-semibold inline-flex items-center gap-0.5 rounded-full px-1.5', ai.on ? 'bg-violet-600 text-white' : ai.has ? 'text-violet-700 hover:bg-violet-50' : 'text-slate-400 hover:text-slate-600')}><Sparkles size={11} />{ai.has ? 'AI 검토' : 'AI 검토 전'}</button>}
+        </span>
+        <span className="flex-1 h-px bg-slate-200" />
+      </div>
+      <article className={cx('mt-2 rounded-2xl bg-white ring-1 px-4 pb-4 pt-1', latest ? 'ring-indigo-200' : 'ring-slate-200')}>
+        {v.note && <p className="mt-3 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{v.note}</p>}
+        <VersionBody sub={sub} v={v} older={!latest} />
+      </article>
     </div>
   );
 }
 
-/** 오른쪽 스레드: 댓글 하나와 답글 */
-function Thread({ sub, versions, comments, rootId, onClose }: { sub: Submission; versions: SubmissionVersion[]; comments: ReviewComment[]; rootId: string; onClose: () => void }) {
-  const { uid, team, nameOf } = useTeam();
+function Attachment({ c, mine }: { c: ReviewComment; mine?: boolean }) {
+  const url = useSignedUrl(c.file_path ?? null);
+  if (!c.file_path) return null;
+  const img = !!c.mime_type && IMAGE.test(c.mime_type);
+  return (
+    <a href={url ?? undefined} target="_blank" rel="noreferrer" className={cx('mt-1 inline-flex flex-col rounded-xl ring-1 bg-white text-sm overflow-hidden max-w-full', mine ? 'ring-indigo-200' : 'ring-slate-200')}>
+      {img && url && <img src={url} alt={c.file_name ?? ''} className="max-h-56 object-contain bg-slate-50" />}
+      <span className="inline-flex items-center gap-2 px-3 py-2"><Paperclip size={14} className="text-indigo-600 shrink-0" /><span className="truncate">{c.file_name}</span><ExternalLink size={12} className="text-slate-400 shrink-0" /></span>
+    </a>
+  );
+}
+
+/** 말풍선 — 내 말은 오른쪽 */
+function Bubble({ c, mine, replies = [], active, onThread }: { c: ReviewComment; mine: boolean; replies?: ReviewComment[]; active?: boolean; onThread?: () => void }) {
+  const { nameOf } = useTeam();
+  return (
+    <div className={cx('flex gap-2.5 group', mine && 'flex-row-reverse')}>
+      <Avatar name={nameOf(c.author_id)} size={8} tone={mine ? 'indigo' : 'slate'} />
+      <div className={cx('max-w-[80%] min-w-0 flex flex-col', mine ? 'items-end' : 'items-start')}>
+        <div className="text-[11px] text-slate-400 mb-0.5"><b className="text-slate-600 font-semibold">{nameOf(c.author_id)}</b> · {fmtDate(c.created_at)}
+          {c.section_ref && <span className="ml-1.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}</div>
+        {!!c.body && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', mine ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 rounded-tl-sm text-slate-800', active && 'ring-2 ring-violet-400')}>{c.body}</div>}
+        <Attachment c={c} mine={mine} />
+        {!onThread ? null : replies.length ? (
+          <button onClick={onThread} className="mt-1 text-xs text-indigo-700 font-semibold inline-flex items-center gap-1 hover:underline"><CornerDownRight size={12} />답글 {replies.length}개 · {nameOf(replies[replies.length - 1].author_id)}</button>
+        ) : (
+          <button onClick={onThread} className="mt-0.5 text-[11px] text-slate-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-1"><CornerDownRight size={11} />답글</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 대화창 — Enter 보내기 · 파일은 끌어다 놓기/📎/붙여넣기. 올린 사람(그룹 멤버)이 파일을 보내면 새 버전 */
+function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submission; latest: SubmissionVersion; canUpload: boolean; file: File | null; setFile: (f: File | null) => void }) {
+  const { uid, team, hasFeature } = useTeam();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [body, setBody] = useState('');
+  const [asVersion, setAsVersion] = useState(true);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const nextV = latest.version + 1;
+  const newVersion = !!file && canUpload && asVersion;
+  const send = useMutation({
+    mutationFn: async () => {
+      const text = body.trim();
+      if (newVersion) {
+        const ver = await addVersion({ teamId: team.id, uid, sub, version: nextV, file, note: text });
+        return { kind: 'version' as const, ver };
+      }
+      const att = file ? await uploadAttachment(team.id, sub.id, file) : {};
+      await q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: latest.id, team_id: team.id, author_id: uid, body: text, ...att }));
+      return { kind: 'comment' as const };
+    },
+    onSuccess: (r) => {
+      setBody(''); setFile(null); setAsVersion(true);
+      qc.invalidateQueries({ queryKey: ['comments', sub.id] });
+      if (r.kind === 'version') {
+        toast(`v${r.ver.version}을 올렸습니다`);
+        ['subs', 'sub', 'review-queue', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+        startReview(sub, r.ver.id, hasFeature('ai_core'), () => qc.invalidateQueries({ queryKey: ['ai'] }));
+      } else qc.invalidateQueries({ queryKey: ['subs'] });
+    },
+    onError: (e) => toast(errorText(e).includes('file_path') ? '대화 첨부는 18_work_groups.sql 실행 후 쓸 수 있습니다.' : errorText(e)),
+  });
+  const ready = !!file || !!body.trim();
+  return (
+    <div className="p-3 border-t border-slate-100">
+      <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ''; }} />
+      {file && (
+        <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-50 ring-1 ring-slate-200 px-3 py-2 text-sm flex-wrap">
+          <Paperclip size={14} className="text-indigo-600 shrink-0" /><span className="truncate font-medium min-w-0 flex-1">{file.name}</span>
+          {canUpload && (
+            <span className="flex gap-1 text-xs">
+              <button onClick={() => setAsVersion(true)} className={cx('rounded-full border px-2 py-0.5', asVersion ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500')}>새 버전 v{nextV}으로</button>
+              <button onClick={() => setAsVersion(false)} className={cx('rounded-full border px-2 py-0.5', !asVersion ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500')}>첨부만</button>
+            </span>
+          )}
+          <button onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-700" aria-label="파일 빼기"><X size={15} /></button>
+        </div>
+      )}
+      <div className="rounded-xl ring-1 ring-slate-200 bg-white focus-within:ring-indigo-400">
+        <textarea rows={2} value={body} onChange={(e) => setBody(e.target.value)} aria-label="메시지"
+          onPaste={(e) => { const f = e.clipboardData.files?.[0]; if (f) { e.preventDefault(); setFile(namedPaste(f)); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (ready && !send.isPending) send.mutate(); } }}
+          className="w-full resize-none text-sm px-3.5 pt-2.5 leading-6 focus:outline-none placeholder:text-slate-400 rounded-t-xl"
+          placeholder={newVersion ? '이번에 바꾼 점 (선택) — Enter로 올리기' : '메시지 — Enter 보내기 · Shift+Enter 줄바꿈'} />
+        <div className="flex items-center gap-1 px-2 pb-2">
+          <button onClick={() => fileRef.current?.click()} className="p-1.5 rounded text-slate-500 hover:bg-slate-100" title="파일 첨부" aria-label="파일 첨부"><Paperclip size={16} /></button>
+          <span className="text-[11px] text-slate-400 ml-1 truncate">{canUpload ? `파일을 끌어다 놓거나 캡처를 붙여 넣으면 새 버전(v${nextV})으로 올라갑니다` : '파일을 끌어다 놓거나 캡처를 붙여 넣으면 첨부됩니다'}</span>
+          <Button size="sm" className="ml-auto shrink-0" disabled={!ready} loading={send.isPending} onClick={() => send.mutate()}>{newVersion ? <><FileUp size={13} />v{nextV} 올리기</> : <><Send size={13} />보내기</>}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 오른쪽 스레드: 말풍선 하나와 답글 */
+function Thread({ sub, comments, rootId, onClose }: { sub: Submission; comments: ReviewComment[]; rootId: string; onClose: () => void }) {
+  const { uid, team } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
   const [body, setBody] = useState('');
   const root = comments.find((c) => c.id === rootId);
   const reps = comments.filter((c) => c.parent_id === rootId);
   const add = useMutation({
-    mutationFn: () => q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: root?.version_id ?? null, team_id: team.id, author_id: uid, body, parent_id: rootId })),
+    mutationFn: () => q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: root?.version_id ?? null, team_id: team.id, author_id: uid, body: body.trim(), parent_id: rootId })),
     onSuccess: () => { setBody(''); qc.invalidateQueries({ queryKey: ['comments', sub.id] }); },
     onError: (e) => toast(errorText(e)),
   });
   if (!root) return null;
-  const vnum = versions.find((v) => v.id === root.version_id)?.version;
-  const Msg = ({ c }: { c: ReviewComment }) => (
-    <div className="flex gap-2.5">
-      <Avatar name={nameOf(c.author_id)} tone={c.author_id === sub.author_id ? 'slate' : 'indigo'} size={8} />
-      <div className="min-w-0 flex-1">
-        <div className="text-xs"><b className="text-sm">{nameOf(c.author_id)}</b> <span className="text-slate-400 ml-1">{fmtDate(c.created_at)}</span></div>
-        {c.section_ref && <span className="inline-block mt-0.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}
-        <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{c.body}</p>
-      </div>
-    </div>
-  );
   return (
-    <section className="rounded-2xl bg-white ring-1 ring-violet-200 shadow-sm flex flex-col max-h-[calc(100vh-6rem)]">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">대화</span>
-        {vnum && <span className="font-mono text-[10px] rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{vnum}</span>}
+    <section className="rounded-2xl bg-white ring-1 ring-violet-200 shadow-sm flex flex-col max-h-[calc(100vh-10rem)]">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">스레드</span>
         <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={16} /></button></div>
-      <div className="p-4 space-y-4 overflow-y-auto">
-        <Msg c={root} />
-        {reps.length > 0 && <div className="pl-5 border-l-2 border-slate-100 space-y-4">{reps.map((r) => <Msg key={r.id} c={r} />)}</div>}
+      <div className="p-4 space-y-3.5 overflow-y-auto">
+        <Bubble c={root} mine={root.author_id === uid} />
+        <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {reps.length}개<span className="flex-1 h-px bg-slate-200" /></div>
+        {reps.map((r) => <Bubble key={r.id} c={r} mine={r.author_id === uid} />)}
       </div>
       <form className="p-3 border-t border-slate-100 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate(); }}>
-        <textarea rows={2} autoFocus className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글" />
-        <Button type="submit" className="self-end" loading={add.isPending}><Send size={14} /></Button>
+        <textarea rows={1} autoFocus className={cx(inputCls, 'resize-none')} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글 — Enter 보내기"
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (body.trim() && !add.isPending) add.mutate(); } }} />
+        <Button type="submit" className="self-end" loading={add.isPending} aria-label="보내기"><Send size={14} /></Button>
       </form>
     </section>
   );

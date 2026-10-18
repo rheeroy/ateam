@@ -1,11 +1,13 @@
 // 업무플랫폼 — 팀원이 올린 결과물을 목표(없으면 루틴)와 연결해 보고, AI 1차 검토를 미리 보며 피드백
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Briefcase, Check, ChevronDown, ChevronRight, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquareText, Repeat, Target, Layers } from 'lucide-react';
+import { Briefcase, Check, ChevronDown, ChevronRight, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, UsersRound } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { buildTree, useItems, type Node } from '../lib/items';
-import { KIND_TAG, REQ_TAG, chainOf, isOpenSub, latestAt, useCloseSubmission, useSubmissionsAi, type SubRow } from '../lib/work';
+import { REQ_TAG, aiTone, chainOf, freshReply, isOpenSub, latestAt, useCloseSubmission, useSubmissionsAi, type SubRow } from '../lib/work';
+import { useGroups, type WorkGroup } from '../lib/groups';
+import { GroupModal } from '../components/work/GroupModal';
 import { cx, daysAgo, fmtDate, relDay } from '../lib/format';
 import { Avatar, Card, Empty, Pill, Spinner } from '../components/ui';
 import { AiBand, AiChip } from '../components/AiBar';
@@ -13,7 +15,7 @@ import { PlanBar } from '../components/goals/PlanBar';
 import { STATUS } from './MySubmissions';
 
 type F = 'in_review' | 'needs_work' | 'approved' | 'shared' | 'all';
-type V = 'people' | 'list' | 'goal';
+type V = 'people' | 'groups' | 'list' | 'goal';
 const KIND_ICON = { link: Link2, image: ImageIcon, number: Hash, note: MessageSquareText, document: FileText } as const;
 
 export default function Reviews() {
@@ -28,6 +30,7 @@ export default function Reviews() {
   const all = list.data ?? [];
   const rows = all.filter((s) => f === 'all' || s.status === f);
   const count = (k: F) => all.filter((s) => k === 'all' || s.status === k).length;
+  const [groupModal, setGroupModal] = useState<{ group?: WorkGroup | null } | null>(null);
 
   return (
     <div className="space-y-5">
@@ -44,7 +47,8 @@ export default function Reviews() {
       <AiDigest rows={all} loading={list.isLoading} />
 
       <div className="flex items-center gap-2 flex-wrap">
-        {view !== 'people' ? <div className="flex gap-1.5 overflow-x-auto">
+        {view === 'groups' ? <div className="flex items-center gap-2 min-w-0"><UsersRound size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">그룹별 업무스페이스</span><span className="text-xs text-slate-400 truncate">프로젝트·TF 그룹에 올라온 업무 — 그룹 멤버들이 함께 보고 대화합니다</span></div>
+        : view !== 'people' ? <div className="flex gap-1.5 overflow-x-auto">
           {([['in_review', '리뷰 대기'], ['needs_work', '보완 요청'], ['approved', '승인'], ['shared', '공유'], ['all', '전체']] as [F, string][]).map(([id, label]) => (
             <button key={id} onClick={() => set('f', id === 'in_review' ? null : id)}
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', f === id ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300')}>
@@ -52,17 +56,20 @@ export default function Reviews() {
           ))}
         </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">팀원별 업무스페이스</span><span className="text-xs text-slate-400 truncate">팀원별로 올라온 업무 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 개인 업무 스페이스에는 남습니다</span></div>}
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5">
-          {([['people', '사람별', Users], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
+          {([['people', '사람별', Users], ['groups', '그룹별', UsersRound], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
             <button key={id} onClick={() => set('view', id === 'people' ? null : id)} className={cx('text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1', view === id ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><I size={13} />{label}</button>
           ))}
         </div>
+        <button onClick={() => setGroupModal({})} className="text-xs rounded-lg px-2.5 py-1.5 bg-white ring-1 ring-slate-200 hover:ring-indigo-300 inline-flex items-center gap-1"><Plus size={13} />그룹 만들기</button>
       </div>
 
-      {view === 'people' ? <PeopleBoxes rows={all} loading={list.isLoading} byId={byId} /> : list.isLoading ? <Card><Spinner /></Card> : !rows.length ? (
+      {view === 'people' ? <PeopleBoxes rows={all} loading={list.isLoading} byId={byId} />
+        : view === 'groups' ? <GroupBoxes rows={all} loading={list.isLoading} byId={byId} onEdit={(g) => setGroupModal({ group: g })} onNew={() => setGroupModal({})} /> : list.isLoading ? <Card><Spinner /></Card> : !rows.length ? (
         <Card><Empty icon={<FileText size={18} />} title="아직 없습니다">팀원이 '업무플랫폼'에 올린 결과물·링크·캡처가 여기에 모입니다. 올리면 AI가 먼저 검토합니다.</Empty></Card>
       ) : view === 'list' ? (
         <Card className="overflow-hidden"><ListHead />{rows.map((s, i) => <Row key={s.id} s={s} byId={byId} no={i + 1} />)}</Card>
       ) : <ByGoal rows={rows} byId={byId} />}
+      {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={() => set('view', 'groups')} />}
     </div>
   );
 }
@@ -92,27 +99,72 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
             </Link>
             {!list.length ? <p className="px-5 py-5 text-sm text-slate-400">처리할 업무가 없습니다.</p> : (
               <ul className="divide-y divide-slate-100">
-                {list.map((s, i) => {
-                  const rq = REQ_TAG[s.request_type] ?? REQ_TAG.approval;
-                  return (
-                    <li key={s.id} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/70">
-                      <span className="shrink-0 w-6 h-6 rounded-md bg-slate-100 text-slate-500 text-[11px] font-bold num flex items-center justify-center">{i + 1}</span>
-                      <Link to={`/work/${s.id}`} className="min-w-0 flex-1 flex items-center gap-2">
-                        <span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>
-                        <span className="shrink-0 text-[10px] rounded px-1.5 py-0.5 ring-1 ring-slate-200 text-slate-500">{KIND_TAG[s.kind] ?? '문서'}</span>
-                        {s.status === 'needs_work' && <span className="shrink-0 text-[10px] font-semibold rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">보완 중</span>}
-                        <span className="truncate text-sm">{s.title}</span>
-                        {s.latest && s.latest.version > 1 && <span className="shrink-0 font-mono text-[10px] text-indigo-600">v{s.latest.version}</span>}
-                      </Link>
-                      <span className="shrink-0 text-[11px] text-slate-400 num w-12 text-right">{relDay(latestAt(s))}</span>
-                    </li>
-                  );
-                })}
+                {list.map((s) => <OpenLine key={s.id} s={s} />)}
               </ul>
             )}
           </section>
         );
       })}
+    </div>
+  );
+}
+
+/** 사람별·그룹별 카드의 한 줄 — AI 신호 · 요청 · 제목 · 답글 수 · 새 답글 */
+const TONE_DOT_LINE: Record<string, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
+function OpenLine({ s, showAuthor }: { s: SubRow; showAuthor?: boolean }) {
+  const { uid, nameOf } = useTeam();
+  const groups = useGroups();
+  const rq = REQ_TAG[s.request_type] ?? REQ_TAG.approval;
+  const tone = aiTone(s);
+  const n = s.review_comments?.length ?? 0;
+  const g = !showAuthor && s.group_id ? (groups.data ?? []).find((x) => x.id === s.group_id) : null;
+  return (
+    <li className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/70">
+      <span className={cx('shrink-0 w-2 h-2 rounded-full', tone ? TONE_DOT_LINE[tone] : 'bg-slate-200')} title={tone ? 'AI 1차 검토' : 'AI 검토 전'} />
+      {showAuthor && <Avatar name={nameOf(s.author_id)} size={7} />}
+      <Link to={`/work/${s.id}`} className="min-w-0 flex-1 flex items-center gap-2">
+        <span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>
+        {s.status === 'needs_work' && <span className="shrink-0 text-[10px] font-semibold rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">보완 중</span>}
+        <span className="truncate text-sm">{s.title}</span>
+        {s.latest && s.latest.version > 1 && <span className="shrink-0 font-mono text-[10px] text-indigo-600">v{s.latest.version}</span>}
+        {g && <span className="shrink-0 text-[10px] rounded px-1.5 py-0.5 bg-sky-50 text-sky-700 inline-flex items-center gap-0.5"><UsersRound size={10} />{g.name}</span>}
+        {freshReply(s, uid) && <span className="shrink-0 text-[10px] font-bold text-white bg-rose-500 rounded-full px-1.5">새 답글</span>}
+      </Link>
+      {n > 0 && <span className="shrink-0 text-[11px] text-slate-400 inline-flex items-center gap-0.5"><MessageSquare size={11} />{n}</span>}
+      <span className="shrink-0 text-[11px] text-slate-400 num w-12 text-right">{relDay(latestAt(s))}</span>
+    </li>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 그룹별 박스 — 그룹 이름 · 연결 목표 · 멤버, 그룹에 올라온 열린 업무
+// ---------------------------------------------------------------------
+function GroupBoxes({ rows, loading, byId, onEdit, onNew }: { rows: SubRow[]; loading: boolean; byId: Map<string, Node>; onEdit: (g: WorkGroup) => void; onNew: () => void }) {
+  const { nameOf } = useTeam();
+  const groups = useGroups();
+  if (loading || groups.isLoading) return <Card><Spinner /></Card>;
+  const list = groups.data ?? [];
+  return (
+    <div className="grid md:grid-cols-2 gap-4 items-start">
+      {list.map((g) => {
+        const open = rows.filter((s) => s.group_id === g.id && isOpenSub(s)).sort((a, b) => latestAt(b).localeCompare(latestAt(a)));
+        const goal = g.item_id ? byId.get(g.item_id) : null;
+        return (
+          <section key={g.id} className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
+            <div className="px-5 py-3.5 flex items-center gap-3 border-b border-sky-100/70 bg-gradient-to-r from-sky-50/80 via-indigo-50/40 to-white">
+              <span className="w-9 h-9 rounded-full bg-white ring-1 ring-sky-200 text-sky-600 inline-flex items-center justify-center shrink-0"><UsersRound size={17} /></span>
+              <span className="min-w-0"><span className="block font-semibold truncate">{g.name}</span><span className="block text-xs text-slate-500 truncate">{goal ? `목표 · ${goal.title}` : '연결 목표 없음'}</span></span>
+              <span className="ml-auto flex -space-x-2 shrink-0">{g.work_group_members.slice(0, 5).map((m) => <span key={m.user_id} className="ring-2 ring-white rounded-full" title={nameOf(m.user_id)}><Avatar name={nameOf(m.user_id)} size={7} /></span>)}</span>
+              <button onClick={() => onEdit(g)} className="text-slate-400 hover:text-indigo-700 shrink-0" aria-label="그룹 고치기"><Settings2 size={15} /></button>
+            </div>
+            {!open.length ? <p className="px-5 py-5 text-sm text-slate-400">처리할 업무가 없습니다.</p> : (
+              <ul className="divide-y divide-slate-100">{open.map((s) => <OpenLine key={s.id} s={s} showAuthor />)}</ul>
+            )}
+          </section>
+        );
+      })}
+      <button onClick={onNew} className="rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:text-indigo-700 hover:border-indigo-200 text-sm py-10 inline-flex flex-col items-center gap-1">
+        <Plus size={18} />그룹 만들기<span className="text-xs">프로젝트·TF 단위로 멤버를 묶습니다. 팀원도 직접 만들 수 있어요</span></button>
     </div>
   );
 }

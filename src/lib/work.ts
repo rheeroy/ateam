@@ -17,6 +17,7 @@ export interface AiReview {
 }
 export interface SubRow extends Submission {
   submission_versions: { id: string; version: number; created_at: string }[];
+  review_comments?: { author_id: string; created_at: string }[];
   latest: { id: string; version: number; created_at: string } | null;
   review: AiReview | null; reviewedAt: string | null;
 }
@@ -25,9 +26,9 @@ export function useSubmissionsAi(teamId: string, f: { authorId?: string; itemIds
   return useQuery({
     queryKey: ['subs', teamId, 'ai', f.authorId ?? '', (f.itemIds ?? []).length],
     queryFn: async () => {
-      let qb = supabase.from('submissions').select('*, submission_versions(id, version, created_at)').eq('team_id', teamId);
+      let qb = supabase.from('submissions').select('*, submission_versions(id, version, created_at), review_comments(author_id, created_at)').eq('team_id', teamId);
       if (f.authorId) qb = qb.eq('author_id', f.authorId);
-      const subs = await q<(Submission & { submission_versions: SubRow['submission_versions'] })[]>(qb.order('updated_at', { ascending: false }).limit(200));
+      const subs = await q<(Submission & { submission_versions: SubRow['submission_versions']; review_comments?: SubRow['review_comments'] })[]>(qb.order('updated_at', { ascending: false }).limit(200));
       const rows: SubRow[] = subs.map((s) => {
         const latest = [...s.submission_versions].sort((a, b) => b.version - a.version)[0] ?? null;
         return { ...s, latest, review: null, reviewedAt: null };
@@ -67,6 +68,21 @@ export const KIND_TAG: Record<string, string> = { document: '보고서·문서',
 /** 사람별 카드에 남는 것: 팀장이 완료하지 않았고, 아직 승인으로 끝나지 않은 것 */
 export const isOpenSub = (s: Pick<SubRow, 'closed_at' | 'status'>) => !s.closed_at && s.status !== 'approved';
 export const latestAt = (s: SubRow) => s.latest?.created_at ?? s.created_at;
+/** 팀장이 마지막으로 말한 뒤 다른 사람이 답했나 (새 답글) */
+export function freshReply(s: SubRow, me: string) {
+  const cs = s.review_comments ?? [];
+  const mine = cs.filter((c) => c.author_id === me).reduce((m, c) => (c.created_at > m ? c.created_at : m), '');
+  if (!mine) return false;
+  const other = [...cs.filter((c) => c.author_id !== me).map((c) => c.created_at), ...(s.latest ? [s.latest.created_at] : [])].reduce((m, t) => (t > m ? t : m), '');
+  return other > mine;
+}
+/** AI 1차 검토 신호 색 */
+export function aiTone(s: SubRow): 'risk' | 'watch' | 'good' | null {
+  const r = s.review;
+  if (!r) return null;
+  if (r.brief?.tone) return r.brief.tone;
+  return r.depth_score <= 2 ? 'risk' : r.depth_score < 3.5 ? 'watch' : 'good';
+}
 
 export function useCloseSubmission(teamId: string) {
   const qc = useQueryClient();

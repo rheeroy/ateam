@@ -96,7 +96,7 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
     },
     onSuccess: ({ sub, ver }) => {
       const reviewable = sub.request_type !== 'share' && sub.kind !== 'number' && sub.kind !== 'note' && hasFeature('ai_core');
-      toast(sub.request_type === 'share' ? '공유했습니다. 팀장에게 알림이 갑니다.' : `v${ver.version}을 올렸습니다.${reviewable ? ' AI가 1차 검토를 시작합니다.' : ''}`);
+      toast(sub.request_type === 'share' ? '공유했습니다. 팀장님께 알림이 갑니다.' : `v${ver.version}을 올렸습니다.${reviewable && isLeader ? ' AI가 1차 검토를 시작합니다.' : ' 팀장님께 알림이 갑니다.'}`);
       ['subs', 'sub', 'review-queue', 'items', 'home-insights'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       if (reviewable) {
         invoke('ai-review-submission', { version_id: ver.id })
@@ -176,7 +176,7 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
 
         <ErrorBox error={up.error ? errorText(up.error) : null} />
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">{req === 'share' || mode === 'number' ? '팀장님께 알림만 갑니다. 승인 절차는 없습니다.' : '올리면 AI가 먼저 읽고 팀장님께 1차 검토를 전달합니다.'}</p>
+          <p className="text-xs text-slate-500">{req === 'share' || mode === 'number' ? '팀장님께 알림만 갑니다. 승인 절차는 없습니다.' : (isLeader ? '올리면 AI가 먼저 읽고 1차 검토를 남깁니다.' : '올리면 팀장님께 알림이 갑니다.')}</p>
           <Button type="submit" loading={up.isPending}>{req === 'share' || mode === 'number' ? '공유' : '올리기'}</Button>
         </div>
       </form>

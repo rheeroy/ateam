@@ -3156,6 +3156,37 @@ begin
     update submissions set status = 'needs_work' where team_id = T and title = '11월 콘텐츠 캘린더';
   exception when others then null;
   end;
+  -- 그룹 스페이스 (23_work_groups 이후에만 들어감): 신제품 런칭 TF · 제휴 채널 확대
+  declare wg1 uuid; wg2 uuid; gs uuid; gv1 uuid; gv2 uuid; c1 uuid;
+  begin
+    insert into work_groups (team_id, name, item_id, created_by, created_at) values (T, '신제품 런칭 TF', g1, m_kim, now() - interval '20 days') returning id into wg1;
+    insert into work_groups (team_id, name, item_id, created_by, created_at) values (T, '제휴 채널 확대', g2, L, now() - interval '15 days') returning id into wg2;
+    insert into work_group_members (group_id, user_id, team_id) values (wg1, m_kim, T), (wg1, m_han, T), (wg1, m_choi, T), (wg2, m_jung, T), (wg2, m_lee, T);
+    -- TF: 김도현·한수진이 같이 다듬는 키비주얼 시안 (v1 김도현 → v2 한수진)
+    insert into submissions (team_id, author_id, item_id, group_id, title, kind, request_type, created_at)
+      values (T, m_kim, t1, wg1, '런칭 캠페인 키비주얼 시안', 'document', 'feedback', now() - interval '3 days') returning id into gs;
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+      (gs, T, 1, E'키비주얼 시안 2종\nA안: 제품 클로즈업 + 다크 톤 (프리미엄)\nB안: 일상 속 사용 장면 + 밝은 톤 (2030 공감)\n카피: "하루가 가벼워지는 첫 경험"', 'A/B 두 안', m_kim, now() - interval '3 days') returning id into gv1;
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at) values
+      (gs, gv1, T, m_han, 'FGI에서 2030은 B안 같은 사용 장면에 더 반응했어요. B안 색감을 조금 더 살려 보면 어떨까요?', now() - interval '2 days 20 hours') returning id into c1;
+    insert into review_comments (submission_id, version_id, team_id, author_id, parent_id, body, created_at) values
+      (gs, gv1, T, m_kim, c1, '좋아요. 그럼 B안 기준으로 톤 올려서 v2 만들어 볼게요.', now() - interval '2 days 18 hours'),
+      (gs, gv1, T, m_choi, c1, '콘텐츠 쪽에서도 B안이 SNS 썸네일로 쓰기 편해요.', now() - interval '2 days 16 hours');
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+      (gs, T, 2, E'키비주얼 시안 — B안 발전\n일상 속 사용 장면, 밝은 톤을 한 단계 올림\nSNS 썸네일 크롭 버전 포함 (1:1, 4:5)\n카피: "하루가 가벼워지는 첫 경험"', 'B안 톤 보강 · SNS 크롭 추가 (한수진)', m_han, now() - interval '1 day') returning id into gv2;
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at) values
+      (gs, gv2, T, L, '방향 좋습니다. 런칭 페이지 첫 화면에도 같은 컷을 쓸 수 있는지 디자인팀과 확인해 주세요.', now() - interval '20 hours'),
+      (gs, gv2, T, m_kim, '확인해서 내일까지 답 드릴게요.', now() - interval '6 hours');
+    update submissions set status = 'in_review' where id = gs;
+    -- 제휴: 공유만
+    insert into submissions (team_id, author_id, item_id, group_id, title, kind, request_type, created_at)
+      values (T, m_jung, t3, wg2, '제휴사 공동 프로모션 일정', 'note', 'share', now() - interval '2 days') returning id into gs;
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+      (gs, T, 1, E'A사 11/12~11/25, C사 11/19~12/2 공동 프로모션\nCRM 웰컴 메시지는 11/10까지 확정 필요', '', m_jung, now() - interval '2 days');
+    insert into review_comments (submission_id, team_id, author_id, body, created_at) values
+      (gs, T, m_lee, '웰컴 메시지는 A/B 결과 보고 11/8까지 확정할게요.', now() - interval '1 day');
+  exception when others then null;
+  end;
 end $fn$;
 revoke all on function public.seed_demo_team(uuid, uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.seed_demo_team(uuid, uuid, uuid[]) to service_role;
@@ -4175,6 +4206,138 @@ begin
       left(new.response, 120),
       case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end
            when v_up then '/my/one-on-ones' else '/' end);
+  end if;
+  return new;
+end $$;
+
+-- >>>>>>>>>> 20261027000023_work_groups.sql
+-- =====================================================================
+-- 업무플랫폼 그룹 스페이스 + 대화 첨부
+--   · work_groups / work_group_members : 프로젝트·TF 단위로 멤버를 묶는다 (팀원도 만들 수 있고, 팀장은 전부 본다)
+--   · submissions.group_id : 그룹에 올린 결과물 — 그룹 멤버 모두와 팀장이 보고 대화한다
+--       새 버전은 그룹 멤버 누구나 올릴 수 있다(버전마다 올린 사람 표시). AI 1차 검토는 지금처럼 팀장만 본다
+--   · review_comments 첨부(file_path …) : 팀장 피드백·대화에 참고 파일을 붙인다
+--   · 알림: 그룹에 새 글·새 버전·대화가 오면 그룹 멤버에게
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+create table if not exists public.work_groups (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  name       text not null check (length(trim(name)) > 0),
+  item_id    uuid references public.work_items(id) on delete set null,   -- 연결 목표 (선택)
+  created_by uuid references public.profiles(id) default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create index if not exists work_groups_team_idx on public.work_groups (team_id);
+
+create table if not exists public.work_group_members (
+  group_id uuid not null references public.work_groups(id) on delete cascade,
+  user_id  uuid not null references public.profiles(id) on delete cascade,
+  team_id  uuid not null references public.teams(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+create index if not exists work_group_members_user_idx on public.work_group_members (user_id);
+
+alter table public.submissions add column if not exists group_id uuid references public.work_groups(id) on delete set null;
+create index if not exists submissions_group_idx on public.submissions (group_id);
+alter table public.review_comments add column if not exists file_path text;
+alter table public.review_comments add column if not exists file_name text;
+alter table public.review_comments add column if not exists mime_type text;
+
+-- 내가 이 그룹 멤버인가
+create or replace function public.in_work_group(p_group uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from work_group_members where group_id = p_group and user_id = auth.uid());
+$$;
+grant execute on function public.in_work_group(uuid) to authenticated;
+
+-- 결과물 보기: 올린 사람 · 팀장 · (그룹 결과물이면) 그룹 멤버
+create or replace function public.can_see_submission(p_submission uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from submissions s
+                 where s.id = p_submission
+                   and (s.author_id = auth.uid() or public.is_team_leader(s.team_id)
+                        or (s.group_id is not null and public.in_work_group(s.group_id))));
+$$;
+
+drop policy if exists sub_select on public.submissions;
+create policy sub_select on public.submissions for select to authenticated
+  using (author_id = auth.uid() or public.is_team_leader(team_id) or (group_id is not null and public.in_work_group(group_id)));
+drop policy if exists sub_insert on public.submissions;
+create policy sub_insert on public.submissions for insert to authenticated
+  with check (author_id = auth.uid() and public.is_team_member(team_id)
+              and (group_id is null or public.in_work_group(group_id) or public.is_team_leader(team_id)));
+
+-- 파일 올리기: 그 결과물을 볼 수 있는 사람이면 (그룹 멤버의 새 버전, 팀장의 피드백 첨부)
+drop policy if exists "submissions upload" on storage.objects;
+create policy "submissions upload" on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'submissions'
+  and public.is_team_member(((storage.foldername(name))[1])::uuid)
+  and public.can_see_submission(((storage.foldername(name))[2])::uuid)
+);
+
+-- 그룹 권한
+alter table public.work_groups enable row level security;
+alter table public.work_group_members enable row level security;
+drop policy if exists wg_select on public.work_groups;
+create policy wg_select on public.work_groups for select to authenticated
+  using (public.is_team_leader(team_id) or public.in_work_group(id) or created_by = auth.uid());
+drop policy if exists wg_insert on public.work_groups;
+create policy wg_insert on public.work_groups for insert to authenticated
+  with check (public.is_team_member(team_id) and created_by = auth.uid());
+drop policy if exists wg_update on public.work_groups;
+create policy wg_update on public.work_groups for update to authenticated
+  using (public.is_team_leader(team_id) or created_by = auth.uid());
+drop policy if exists wg_delete on public.work_groups;
+create policy wg_delete on public.work_groups for delete to authenticated
+  using (public.is_team_leader(team_id) or created_by = auth.uid());
+
+drop policy if exists wgm_select on public.work_group_members;
+create policy wgm_select on public.work_group_members for select to authenticated
+  using (public.is_team_leader(team_id) or public.in_work_group(group_id));
+drop policy if exists wgm_write on public.work_group_members;
+create policy wgm_write on public.work_group_members for all to authenticated
+  using (public.is_team_leader(team_id) or exists (select 1 from work_groups g where g.id = group_id and g.created_by = auth.uid()))
+  with check (
+    (public.is_team_leader(team_id) or exists (select 1 from work_groups g where g.id = group_id and g.created_by = auth.uid()))
+    and exists (select 1 from work_groups g where g.id = group_id and g.team_id = work_group_members.team_id)
+    and exists (select 1 from team_members m where m.team_id = work_group_members.team_id and m.user_id = work_group_members.user_id and m.status = 'active'));
+
+-- 알림: 팀장 · 올린 사람 + 그룹이면 그룹 멤버에게
+create or replace function public.trg_submission_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_sub submissions; v_actor uuid; v_title text; v_body text; v_kind text;
+begin
+  select * into v_sub from submissions where id = new.submission_id;
+  if tg_table_name = 'submission_versions' then
+    v_actor := new.created_by;
+    v_kind := 'submission';
+    v_title := case v_sub.request_type when 'share' then '공유: ' when 'feedback' then '피드백 요청: ' else '리뷰 요청: ' end || v_sub.title;
+    v_body := coalesce((select full_name from profiles where id = v_actor), '');
+    perform public._notify(public._team_leader(v_sub.team_id), v_sub.team_id, v_kind, v_title, v_body, '/work/' || v_sub.id);
+    if v_actor is distinct from v_sub.author_id then
+      perform public._notify(v_sub.author_id, v_sub.team_id, v_kind, '새 버전: ' || v_sub.title, v_body, '/work/' || v_sub.id);
+    end if;
+  else
+    v_actor := new.author_id;
+    v_kind := case when new.author_id <> v_sub.author_id then 'review.comment' else 'review.reply' end;
+    v_title := case when new.author_id <> v_sub.author_id then '코멘트: ' else '답글: ' end || v_sub.title;
+    v_body := left(new.body, 120);
+    if new.author_id <> v_sub.author_id then
+      perform public._notify(v_sub.author_id, v_sub.team_id, v_kind, v_title, v_body, '/work/' || v_sub.id);
+    end if;
+    if not public.is_team_leader(v_sub.team_id) or new.author_id = v_sub.author_id then
+      perform public._notify(public._team_leader(v_sub.team_id), v_sub.team_id, v_kind, v_title, v_body, '/work/' || v_sub.id);
+    end if;
+  end if;
+  if v_sub.group_id is not null then
+    perform public._notify(m.user_id, v_sub.team_id, v_kind, '[' || g.name || '] ' || v_title, v_body, '/work/' || v_sub.id)
+      from work_group_members m join work_groups g on g.id = m.group_id
+     where m.group_id = v_sub.group_id and m.user_id <> v_actor and m.user_id <> v_sub.author_id
+       and m.user_id <> coalesce(public._team_leader(v_sub.team_id), '00000000-0000-0000-0000-000000000000'::uuid);
   end if;
   return new;
 end $$;

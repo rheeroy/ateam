@@ -622,6 +622,37 @@ begin
     update submissions set status = 'needs_work' where team_id = T and title = '11월 콘텐츠 캘린더';
   exception when others then null;
   end;
+  -- 그룹 스페이스 (23_work_groups 이후에만 들어감): 신제품 런칭 TF · 제휴 채널 확대
+  declare wg1 uuid; wg2 uuid; gs uuid; gv1 uuid; gv2 uuid; c1 uuid;
+  begin
+    insert into work_groups (team_id, name, item_id, created_by, created_at) values (T, '신제품 런칭 TF', g1, m_kim, now() - interval '20 days') returning id into wg1;
+    insert into work_groups (team_id, name, item_id, created_by, created_at) values (T, '제휴 채널 확대', g2, L, now() - interval '15 days') returning id into wg2;
+    insert into work_group_members (group_id, user_id, team_id) values (wg1, m_kim, T), (wg1, m_han, T), (wg1, m_choi, T), (wg2, m_jung, T), (wg2, m_lee, T);
+    -- TF: 김도현·한수진이 같이 다듬는 키비주얼 시안 (v1 김도현 → v2 한수진)
+    insert into submissions (team_id, author_id, item_id, group_id, title, kind, request_type, created_at)
+      values (T, m_kim, t1, wg1, '런칭 캠페인 키비주얼 시안', 'document', 'feedback', now() - interval '3 days') returning id into gs;
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+      (gs, T, 1, E'키비주얼 시안 2종\nA안: 제품 클로즈업 + 다크 톤 (프리미엄)\nB안: 일상 속 사용 장면 + 밝은 톤 (2030 공감)\n카피: "하루가 가벼워지는 첫 경험"', 'A/B 두 안', m_kim, now() - interval '3 days') returning id into gv1;
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at) values
+      (gs, gv1, T, m_han, 'FGI에서 2030은 B안 같은 사용 장면에 더 반응했어요. B안 색감을 조금 더 살려 보면 어떨까요?', now() - interval '2 days 20 hours') returning id into c1;
+    insert into review_comments (submission_id, version_id, team_id, author_id, parent_id, body, created_at) values
+      (gs, gv1, T, m_kim, c1, '좋아요. 그럼 B안 기준으로 톤 올려서 v2 만들어 볼게요.', now() - interval '2 days 18 hours'),
+      (gs, gv1, T, m_choi, c1, '콘텐츠 쪽에서도 B안이 SNS 썸네일로 쓰기 편해요.', now() - interval '2 days 16 hours');
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+      (gs, T, 2, E'키비주얼 시안 — B안 발전\n일상 속 사용 장면, 밝은 톤을 한 단계 올림\nSNS 썸네일 크롭 버전 포함 (1:1, 4:5)\n카피: "하루가 가벼워지는 첫 경험"', 'B안 톤 보강 · SNS 크롭 추가 (한수진)', m_han, now() - interval '1 day') returning id into gv2;
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at) values
+      (gs, gv2, T, L, '방향 좋습니다. 런칭 페이지 첫 화면에도 같은 컷을 쓸 수 있는지 디자인팀과 확인해 주세요.', now() - interval '20 hours'),
+      (gs, gv2, T, m_kim, '확인해서 내일까지 답 드릴게요.', now() - interval '6 hours');
+    update submissions set status = 'in_review' where id = gs;
+    -- 제휴: 공유만
+    insert into submissions (team_id, author_id, item_id, group_id, title, kind, request_type, created_at)
+      values (T, m_jung, t3, wg2, '제휴사 공동 프로모션 일정', 'note', 'share', now() - interval '2 days') returning id into gs;
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
+      (gs, T, 1, E'A사 11/12~11/25, C사 11/19~12/2 공동 프로모션\nCRM 웰컴 메시지는 11/10까지 확정 필요', '', m_jung, now() - interval '2 days');
+    insert into review_comments (submission_id, team_id, author_id, body, created_at) values
+      (gs, T, m_lee, '웰컴 메시지는 A/B 결과 보고 11/8까지 확정할게요.', now() - interval '1 day');
+  exception when others then null;
+  end;
 end $fn$;
 revoke all on function public.seed_demo_team(uuid, uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.seed_demo_team(uuid, uuid, uuid[]) to service_role;

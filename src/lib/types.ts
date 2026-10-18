@@ -21,11 +21,11 @@ export interface OneOnOne {
 }
 export interface ActionItem { id: string; team_id: string; one_on_one_id: string | null; owner_id: string; title: string; due_date: string | null; done_at: string | null; created_by: string; created_at: string }
 export interface Observation { id: string; team_id: string; author_id: string; subject_id: string; kind: 'praise' | 'concern' | 'note'; competency: string | null; body: string; occurred_at: string; created_at: string }
-export interface Submission { id: string; team_id: string; author_id: string; item_id: string | null; title: string; status: 'in_review' | 'needs_work' | 'approved' | 'shared'; kind: ShareKind; request_type: RequestType; link_url: string | null; approved_at: string | null; closed_at?: string | null; created_at: string; updated_at: string }
+export interface Submission { id: string; team_id: string; author_id: string; item_id: string | null; title: string; status: 'in_review' | 'needs_work' | 'approved' | 'shared'; kind: ShareKind; request_type: RequestType; link_url: string | null; approved_at: string | null; closed_at?: string | null; group_id?: string | null; created_at: string; updated_at: string }
 export type ShareKind = 'document' | 'link' | 'image' | 'number' | 'note';
 export type RequestType = 'approval' | 'feedback' | 'share';
 export interface SubmissionVersion { id: string; submission_id: string; team_id: string; version: number; file_path: string | null; file_name: string | null; mime_type: string | null; extracted_text: string; note: string; created_by: string; value: number | null; created_at: string }
-export interface ReviewComment { id: string; submission_id: string; version_id: string | null; team_id: string; parent_id: string | null; author_id: string; section_ref: string | null; body: string; provenance: string; created_at: string }
+export interface ReviewComment { id: string; submission_id: string; version_id: string | null; team_id: string; parent_id: string | null; author_id: string; section_ref: string | null; body: string; provenance: string; file_path?: string | null; file_name?: string | null; mime_type?: string | null; created_at: string }
 
 export interface Hypothesis { id: string; team_id: string; item_id: string | null; statement: string; signal: string; status: 'testing' | 'validated' | 'refuted'; created_at: string }
 export type ItemStatus = 'proposed' | 'changes_requested' | 'active' | 'blocked' | 'done' | 'dropped';
