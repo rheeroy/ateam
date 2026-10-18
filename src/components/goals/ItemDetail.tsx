@@ -44,7 +44,7 @@ function Sparkline({ logs }: { logs: WorkItemLog[] }) {
 const PENDING: string[] = ['proposed', 'changes_requested'];
 const PLAN_KEYS = ['title', 'note', 'start_date', 'due_date', 'num_target', 'measure', 'unit', 'higher_is_better', 'recur', 'parent_id'];
 
-/** 팀원 → 팀장: 수정 기간이 아닐 때 목표·과제를 바꿔 달라는 요청 */
+/** 팀원 → 팀장: 팀원 수정이 꺼져 있을 때 목표·과제를 바꿔 달라는 요청 */
 function ChangeRequestModal({ item, onClose }: { item: Node; onClose: () => void }) {
   const { team, uid } = useTeam();
   const leader = useLeaderId();
@@ -58,7 +58,7 @@ function ChangeRequestModal({ item, onClose }: { item: Node; onClose: () => void
   });
   return (
     <Modal open onClose={onClose} title={<span className="inline-flex items-center gap-2"><GitPullRequestArrow size={17} className="text-indigo-600" />변경 요청</span>}>
-      <p className="text-sm text-slate-600 rounded-lg bg-slate-50 px-3 py-2">'{item.title}'을(를) 어떻게 바꾸고 싶은지, 왜인지 적어 주세요. 팀장님이 보고 직접 고치거나 수정 기간을 열어 줍니다.</p>
+      <p className="text-sm text-slate-600 rounded-lg bg-slate-50 px-3 py-2">'{item.title}'을(를) 어떻게 바꾸고 싶은지, 왜인지 적어 주세요. 팀장님이 보고 직접 고치거나 팀원 수정을 켜 줍니다.</p>
       <textarea rows={4} className={`${inputCls} mt-3`} value={body} onChange={(e) => setBody(e.target.value)} autoFocus
         placeholder="예) 마감을 2주 미루고 싶어요 — 외주 일정이 밀렸습니다 / 목표값을 20건에서 15건으로 / 이 과제는 다음 분기로 넘기고 싶어요" />
       <Button className="mt-3 w-full" disabled={!body.trim() || !leader} loading={send.isPending} onClick={() => send.mutate()}>보내기</Button>
@@ -76,7 +76,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const qc = useQueryClient();
   const mine = item.owner_id === uid;
   const rules = usePlanRules();
-  const canPlan = rules.canEditPlan(item);           // 계획 자체 (목표·과제는 수정 기간에만)
+  const canPlan = rules.canEditPlan(item);           // 계획 자체 (목표·과제는 팀원 수정이 켜져 있을 때만)
   const canEdit = rules.canProgress(item);           // 진척·상태
   const canStructure = isLeader;
   const locked = !isLeader && mine && !canPlan;      // 기간이 닫혀 있는 내 목표·과제
@@ -154,10 +154,10 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
             <div className="font-semibold">{item.status === 'proposed' ? `${nameOf(item.owner_id) || '팀원'}님이 올린 계획입니다` : '팀장이 수정을 요청했습니다'}</div>
             <p className="text-xs text-slate-600 mt-0.5">{item.status === 'proposed'
               ? (isLeader ? '승인하면 지금 일정이 처음 계획(기준선)으로 저장되고, 이후 변경은 이력으로 남습니다.'
-                : rules.open ? '팀장 승인을 기다리고 있습니다. 수정 기간 동안에는 고칠 수 있습니다.' : '팀장 승인을 기다리고 있습니다. 수정 기간이 닫혀 있어 지금은 고칠 수 없습니다.')
+                : rules.open ? '팀장 승인을 기다리고 있습니다. 승인 전까지 고칠 수 있습니다.' : '팀장 승인을 기다리고 있습니다. 팀원 수정이 꺼져 있어 지금은 고칠 수 없습니다.')
               : (isLeader ? '팀원이 고치면 자동으로 다시 검토 대기로 올라옵니다.'
-                : rules.open ? '아래 코멘트를 보고 고치면 자동으로 다시 검토 요청됩니다.' : '아래 코멘트를 확인해 두세요. 팀장님이 수정 기간을 열면 고칠 수 있습니다.')}</p>
-            {isLeader && !rules.open && <p className="text-[11px] text-amber-800 mt-1">지금은 팀원 수정 기간이 닫혀 있어, 수정을 요청해도 팀원이 바로 고칠 수 없습니다. 위쪽 [팀원 수정]에서 기간을 열어 주세요.</p>}
+                : rules.open ? '아래 코멘트를 보고 고치면 자동으로 다시 검토 요청됩니다.' : '아래 코멘트를 확인해 두세요. 팀장님이 팀원 수정을 켜면 고칠 수 있습니다.')}</p>
+            {isLeader && !rules.open && <p className="text-[11px] text-amber-800 mt-1">지금은 팀원 목표 수정이 꺼져 있어, 수정을 요청해도 팀원이 바로 고칠 수 없습니다. 위쪽 토글로 켜 주세요.</p>}
             {isLeader && item.status === 'proposed' && (
               <div className="mt-3 space-y-2">
                 <textarea rows={2} className={inputCls} placeholder="피드백 (수정 요청 시 필수)" value={comment} onChange={(e) => setComment(e.target.value)} />
@@ -174,12 +174,12 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600 flex gap-2">
             <Lock size={13} className="mt-0.5 shrink-0 text-slate-400" />
             <span>{PENDING.includes(item.status)
-              ? <>지금은 {levelName(item.depth)} 수정 기간이 아니라 검토 중인 계획도 고칠 수 없어요. 팀장님이 기간을 열면 고칠 수 있습니다.</>
-              : <>지금은 {levelName(item.depth)} 수정 기간이 아니라 진척·상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
+              ? <>지금은 팀원 수정이 꺼져 있어 검토 중인 계획도 고칠 수 없어요. 팀장님이 켜면 고칠 수 있습니다.</>
+              : <>지금은 팀원 수정이 꺼져 있어 {levelName(item.depth)}는 진척·상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
           </div>
         )}
         {!isLeader && mine && canPlan && rules.reapproves(item) && item.status !== 'changes_requested' && (
-          <p className="rounded-xl bg-emerald-50 px-3.5 py-2 text-xs text-emerald-800">수정 기간입니다 ({rules.until?.slice(5).replace('-', '/')}까지). 계획을 고쳐 저장하면 팀장님 승인 후 반영됩니다.</p>
+          <p className="rounded-xl bg-emerald-50 px-3.5 py-2 text-xs text-emerald-800">계획을 고쳐 저장하면 팀장님 승인 후 반영됩니다.</p>
         )}
         <Field label="제목"><input className={inputCls} value={f.title} disabled={ro} onChange={(e) => S('title')(e.target.value)} /></Field>
         <Field label="설명"><textarea rows={3} className={inputCls} value={f.note} disabled={ro} placeholder="무엇을, 왜, 어떤 상태면 끝인지" onChange={(e) => S('note')(e.target.value)} /></Field>

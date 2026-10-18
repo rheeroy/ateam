@@ -16,7 +16,7 @@ begin
   end loop;
 end $$;
 alter table public.team_requests add constraint team_requests_kind_check
-  check (kind in ('plan', 'progress', 'share', 'meeting', 'other', 'grow', 'cheer'));
+  check (kind in ('plan', 'progress', 'share', 'meeting', 'other', 'grow', 'cheer', 'change'));   -- change: 22_plan_window (다시 Run 대비 미리 허용)
 
 -- 요청 완료 → 평가 근거. 격려(cheer)는 '확인'일 뿐이라 남기지 않는다
 create or replace function public.trg_request_evidence() returns trigger

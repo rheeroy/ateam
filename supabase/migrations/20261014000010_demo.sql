@@ -72,7 +72,7 @@ begin
 
   -- 목표·과제 (자유 계층)
   update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb
-    || jsonb_build_object('plan_open_until', to_char(current_date + 3, 'YYYY-MM-DD')) where id = T;   -- 정우성 계획 요청 기한까지 팀원 수정 기간
+    || '{"plan_open": true}'::jsonb where id = T;   -- 정우성 계획 요청 중이라 팀원 수정 켜 둠
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
     values (T, L, '하반기 신제품 런칭 캠페인 성공', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)

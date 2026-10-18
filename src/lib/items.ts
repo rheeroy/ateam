@@ -202,14 +202,12 @@ export async function applyOps(teamId: string, ops: PlanOp[], members: TeamMembe
   return errors;
 }
 
-// ---------- 팀원 수정 기간 ----------
-// 목표·과제(1·2단계)는 팀장이 열어 둔 기간에만 팀원이 고친다(승인 후 반영). 기간이 닫히면 검토 중인 제안도 잠긴다.
+// ---------- 팀원 목표 수정 (켜기·끄기) ----------
+// 목표·과제(1·2단계)는 팀장이 '팀원 수정'을 켜 둔 동안만 팀원이 고친다(승인 후 반영). 꺼지면 검토 중인 제안도 잠긴다.
 // 할 일(3단계~)은 내 과제 아래에서 언제든. 진척·상태는 승인된 항목이면 항상. DB 트리거와 같은 규칙.
-export const seoulToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-export const addDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const PENDING = ['proposed', 'changes_requested'];
 
-/** 수정 기간은 팀장이 다른 화면에서 바꾸므로 세션 값이 아니라 매번 새로 읽는다 */
+/** 팀원 수정 여부는 팀장이 다른 화면에서 바꾸므로 세션 값이 아니라 매번 새로 읽는다 */
 export function usePlanWindow() {
   const { team } = useTeam();
   const qy = useQuery({
@@ -217,15 +215,14 @@ export function usePlanWindow() {
     queryFn: () => q<{ settings: Record<string, unknown> }>(supabase.from('teams').select('settings').eq('id', team.id).single()),
     staleTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: true, refetchInterval: 60_000,
   });
-  const until = ((qy.data?.settings ?? team.settings)?.plan_open_until as string | undefined) || null;
-  return { until, open: !!until && until >= seoulToday() };
+  return { open: !!(qy.data?.settings ?? team.settings)?.plan_open };
 }
 
 export function usePlanRules() {
   const { uid, isLeader } = useTeam();
-  const { open, until } = usePlanWindow();
+  const { open } = usePlanWindow();
   return {
-    open, until,
+    open,
     /** 제목·설명·일정·목표값 등 계획 자체 */
     canEditPlan: (n: Pick<Node, 'depth' | 'owner_id' | 'status'>) => isLeader || (n.owner_id === uid && (n.depth >= 2 || open)),
     /** 진척·상태 (검토 중인 목표·과제는 기간이 열려 있을 때만) */

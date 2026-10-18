@@ -1,13 +1,13 @@
--- ATEAM 목표 수정 기간 (팀장이 열어 둔 동안만 팀원이 목표·과제 수정 · 할 일은 자유 · 변경 요청) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)
+-- ATEAM 팀원 목표 수정 켜기·끄기 (팀장이 켜 둔 동안만 팀원이 목표·과제 수정 · 할 일은 자유 · 변경 요청) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)
 
 -- =====================================================================
--- 목표 수정 기간 (팀장이 열어 둘 때만 팀원이 목표·과제를 고친다)
---   · 목표·과제(1·2단계)  : 팀장이 '수정 기간'을 열어 둔 동안만 팀원이 만들고 고친다 → 팀장 승인 후 반영
---                           기간이 닫혀 있으면 진척·상태만 남기고, 바꿀 게 있으면 [변경 요청](kind 'change')
---                           (검토 대기·수정 요청 중인 제안도 기간이 닫혀 있으면 고치거나 거둘 수 없다)
+-- 팀원 목표 수정 켜기·끄기 (팀장이 켜 둘 때만 팀원이 목표·과제를 고친다 · 승인 후 반영)
+--   · 목표·과제(1·2단계)  : 팀장이 '팀원 목표 수정'을 켜 둔 동안만 팀원이 만들고 고친다 → 팀장 승인 후 반영
+--                           꺼져 있으면 진척·상태만 남기고, 바꿀 게 있으면 [변경 요청](kind 'change')
+--                           (검토 대기·수정 요청 중인 제안도 꺼져 있으면 고치거나 거둘 수 없다)
 --   · 할 일(3단계 이하)    : 내 과제 아래에서는 언제든 자유롭게 (승인·재계획 기록 없음)
---   · 기간: teams.settings.plan_open_until (YYYY-MM-DD, 그날까지 열림 · 한국 날짜 기준)
---   · 팀장이 '계획 세우기' 요청을 보내면 기한(없으면 2주 뒤)까지 자동으로 열린다
+--   · 켜고 끄기: teams.settings.plan_open (true/false) — 팀장이 팀목표 수정 화면의 토글로 바꾼다
+--   · 팀장이 '계획 세우기' 요청을 보내면 자동으로 켜진다
 --   (이전 '팀원도 자유롭게 편집'(member_free_edit) 설정은 더 이상 쓰지 않는다)
 -- 다시 Run 해도 안전합니다.
 -- =====================================================================
@@ -23,11 +23,10 @@ language sql stable security definer set search_path = public as $$
   select coalesce(max(d), 0) from up;
 $$;
 
--- 지금 팀원 수정 기간인가
+-- 지금 팀원 수정이 켜져 있나
 create or replace function public.plan_open(p_team uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce((select nullif(settings->>'plan_open_until', '')::date >= (now() at time zone 'Asia/Seoul')::date
-                   from teams where id = p_team), false);
+  select coalesce((select coalesce((settings->>'plan_open')::boolean, false) from teams where id = p_team), false);
 $$;
 grant execute on function public.item_depth(uuid), public.plan_open(uuid) to authenticated;
 
@@ -42,7 +41,7 @@ declare
   v_old_depth int;
   v_plan_changed boolean := false;
   v_skip_replan boolean := false;
-  v_lock text := 'PLAN_LOCKED: 지금은 목표·과제 수정 기간이 아닙니다. 진척·상태만 남길 수 있어요. 바꿔야 할 게 있으면 팀장님께 변경 요청을 보내 주세요';
+  v_lock text := 'PLAN_LOCKED: 지금은 팀원 목표 수정이 꺼져 있습니다. 진척·상태만 남길 수 있어요. 바꿔야 할 게 있으면 팀장님께 변경 요청을 보내 주세요';
 begin
   if new.parent_id is not null then
     select * into v_parent from work_items where id = new.parent_id;
@@ -80,7 +79,7 @@ begin
         v_skip_replan := true;                            -- 할 일은 자유: 재계획 기록 안 남김
         if new.status in ('proposed', 'changes_requested') and old.status not in ('proposed', 'changes_requested') then new.status := old.status; end if;
       else
-        -- 검토 중인 제안: 기간이 닫혀 있으면 상태도 못 바꾼다(거두기 포함)
+        -- 검토 중인 제안: 꺼져 있으면 상태도 못 바꾼다(거두기 포함)
         if not v_open and old.status in ('proposed', 'changes_requested') and new.status is distinct from old.status then
           raise exception '%', v_lock;
         end if;
@@ -168,10 +167,10 @@ end $$;
 alter table public.team_requests add constraint team_requests_kind_check
   check (kind in ('plan', 'progress', 'share', 'meeting', 'other', 'grow', 'cheer', 'change'));
 
--- 알림 + 계획 요청 시 수정 기간 자동으로 열기
+-- 알림 + 계획 요청 시 팀원 목표 수정 자동으로 켜기
 create or replace function public.trg_request() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare v_up boolean; v_until date;
+declare v_up boolean;
 begin
   v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
   if tg_op = 'INSERT' then
@@ -184,10 +183,8 @@ begin
     if new.kind = 'plan' then
       if new.item_id is not null then update work_items set needs_plan = true where id = new.item_id; end if;
       if new.from_id = public._team_leader(new.team_id) then
-        v_until := coalesce(new.due_date, (now() at time zone 'Asia/Seoul')::date + 14);
-        update teams set settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('plan_open_until', to_char(v_until, 'YYYY-MM-DD'))
-         where id = new.team_id
-           and coalesce(nullif(settings->>'plan_open_until', '')::date, '1900-01-01'::date) < v_until;
+        update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": true}'::jsonb
+         where id = new.team_id and not public.plan_open(new.team_id);
       end if;
     end if;
   elsif new.status is distinct from old.status and new.status = 'done' then
