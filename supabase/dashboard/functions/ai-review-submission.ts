@@ -464,62 +464,13 @@ decisions \uB294 \uC2B9\uC778 \uC694\uCCAD\uC77C \uB54C \uD300\uC7A5\uC774 \uC81
 depth_score \uB294 1.0~4.0, 0.5 \uB2E8\uC704. strengths\xB7gaps \uB294 \uAC01\uAC01 \uCD5C\uB300 3\uAC1C.
 competency_signals \uC758 \uD0A4\uB294 \uC8FC\uC5B4\uC9C4 \uC5ED\uB7C9 \uC774\uB984\uB9CC \uC4F0\uACE0, \uAC12\uC740 -1(\uC57D\uD568 \uC2E0\uD638)/0/1(\uAC15\uD568 \uC2E0\uD638). \uC774 \uACB0\uACFC\uBB3C\uB85C \uC54C \uC218 \uC5C6\uB294 \uC5ED\uB7C9\uC740 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 criteria_check \uB294 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC8FC\uC5B4\uC84C\uC744 \uB54C\uB9CC, \uC774 \uACB0\uACFC\uBB3C\uC5D0 \uD574\uB2F9\uD558\uB294 \uAE30\uC900\uB9C8\uB2E4 \uD558\uB098\uC529(\uCD5C\uB300 5\uAC1C) \uC501\uB2C8\uB2E4. tag \uC5D0\uB294 \uADF8 \uAE30\uC900\uC758 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uB123\uC2B5\uB2C8\uB2E4. \uAE30\uC900\uC774 \uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4.`;
-var SELF_CHECK = `\uACFC\uC81C: \uD300\uC6D0\uC774 \uACB0\uACFC\uBB3C\uC744 \uD300\uC7A5\uC5D0\uAC8C \uC62C\uB9AC\uAE30 \uC804\uC5D0 \uC2A4\uC2A4\uB85C \uC810\uAC80\uD558\uB3C4\uB85D \uB3D5\uC2B5\uB2C8\uB2E4. \uC774 \uACB0\uACFC\uB294 \uD300\uC6D0 \uBCF8\uC778\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.
-'\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC5D0 \uB9DE\uB294\uC9C0\uB97C \uBA3C\uC800 \uBD05\uB2C8\uB2E4. \uC5C6\uAC70\uB098 \uADF8 \uC678\uC758 \uBD80\uBD84\uC740 \uACB0\uACFC\uBB3C \uAC80\uD1A0\uC640 \uAC19\uC740 \uAD00\uC810\uC73C\uB85C \uBD05\uB2C8\uB2E4:
-  \uC644\uC131\uB3C4(\uBAA9\uC801\xB7\uACB0\uB860\xB7\uB2E4\uC74C \uD589\uB3D9\uAE4C\uC9C0 \uB05D\uB9FA\uC5C8\uB294\uAC00, \uBE48 \uCE78\xB7\uBBF8\uC815\uC774 \uB0A8\uC558\uB294\uAC00) \xB7 \uACE0\uBBFC\uC758 \uAE4A\uC774(\uB300\uC548\uC744 \uBE44\uAD50\uD558\uACE0 \uBC84\uB9B0 \uC774\uC720\uB97C \uBC1D\uD614\uB294\uAC00) \xB7 \uB17C\uB9AC(\uC8FC\uC7A5\uB9C8\uB2E4 \uADFC\uAC70\uAC00 \uC788\uB294\uAC00) \xB7 \uC804\uB2EC\uB825(\uACB0\uB860\uC774 \uBA3C\uC800 \uC624\uB294\uAC00).
-\uADF8\uB9AC\uACE0 \uC62C\uB9AC\uAE30 \uC804\uC5D0 \uB450 \uAC00\uC9C0\uB97C \uAF2D \uD655\uC778\uD569\uB2C8\uB2E4: \uBC1B\uB294 \uC0AC\uB78C\uC774 \uACB0\uC815\uD558\uAC70\uB098 \uB2F5\uD574\uC57C \uD560 \uAC83\uC774 \uBD84\uBA85\uD55C\uAC00 / \uC138\uBD80 \uB370\uC774\uD130\uB294 \uBCF8\uBB38\uC5D0\uC11C \uBE7C\uC11C \uCC38\uACE0\uB85C \uB3CC\uB838\uB294\uAC00.
-\uAD00\uC810\uBCC4\uB85C \uB098\uB220 \uC4F0\uAC70\uB098 \uC810\uC218\uB97C \uB9E4\uAE30\uC9C0 \uC54A\uACE0, \uC774 \uACB0\uACFC\uBB3C\uC5D0\uC11C \uAC00\uC7A5 \uBA3C\uC800 \uACE0\uCE60 \uAC83\uBD80\uD130 \uC501\uB2C8\uB2E4. \uB9DE\uCDA4\uBC95\xB7\uC11C\uC2DD\uC740 \uC9C0\uC801\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-\uB9D0\uD22C\uB294 \uB3D9\uB8CC\uAC00 \uC606\uC5D0\uC11C \uC870\uC5B8\uD558\uB4EF \uBD80\uB4DC\uB7FD\uACE0 \uAD6C\uCCB4\uC801\uC73C\uB85C. \uD3C9\uAC00\uB098 \uC810\uC218\uB294 \uB9E4\uAE30\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-
-\uCD9C\uB825 JSON \uD615\uC2DD:
-{
-  "summary": "\uD55C\uB450 \uBB38\uC7A5 \uCD1D\uD3C9",
-  "ready": true,
-  "fixes": [{"where": "\xA72 \uB610\uB294 \uCCAB \uBB38\uB2E8 \uB4F1", "what": "\uACE0\uCE58\uBA74 \uC88B\uC744 \uC810 \uD55C \uBB38\uC7A5", "tag": "E1"}],
-  "good": ["\uC798 \uB41C \uC810 1~2\uAC1C"],
-  "criteria_check": [{"criterion": "\uD300\uC7A5 \uAE30\uC900 \uC774\uB984", "met": true, "note": "\uD55C \uBB38\uC7A5", "tag": "E2"}]
-}
-fixes \uB294 \uCD5C\uB300 4\uAC1C, \uC911\uC694\uD55C \uAC83\uBD80\uD130. \uD300\uC7A5 \uAE30\uC900\uC744 \uADFC\uAC70\uB85C \uD55C \uD56D\uBAA9\uC5D0\uB294 tag \uB97C \uB123\uACE0, \uC544\uB2C8\uBA74 \uBE48 \uBB38\uC790\uC5F4.
-ready \uB294 \uD070 \uBCF4\uC644 \uC5C6\uC774 \uC62C\uB824\uB3C4 \uB418\uBA74 true.`;
 
 // functions/ai-review-submission/index.ts
 var IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-async function selfCheck(caller, body) {
-  const { data: m } = await admin.from("team_members").select("role").eq("team_id", body.team_id).eq("user_id", caller.userId).eq("status", "active").maybeSingle();
-  if (!m) throw new HttpError(403, "forbidden");
-  const content = [];
-  if (!body.text?.trim()) throw new HttpError(422, "NO_TEXT", "\uC810\uAC80\uD560 \uBCF8\uBB38\uC774 \uC5C6\uC2B5\uB2C8\uB2E4");
-  const book = new SourceBook();
-  const n = await addKnowhow(book, body.team_id, "review", 2600, true);
-  content.push({ type: "text", text: [
-    `\uACB0\uACFC\uBB3C \uC81C\uBAA9: ${body.title}`,
-    n ? book.knowhowText() : "## \uD300\uC7A5\uC758 \uAE30\uC900\n(\uD300\uC7A5\uC774 \uACF5\uAC1C\uD55C \uAE30\uC900 \uC5C6\uC74C \u2014 \uC77C\uBC18\uC801\uC778 \uBCF4\uACE0\uC11C \uAE30\uC900\uC73C\uB85C \uC810\uAC80)",
-    `## \uBCF8\uBB38
-${body.text.slice(0, 4e4)}`
-  ].join("\n\n") });
-  const { output } = await runAi({
-    teamId: body.team_id,
-    kind: "self_check",
-    model: MODEL_SMART,
-    system: SELF_CHECK,
-    content,
-    book,
-    depth: 1,
-    level: "L1",
-    createdBy: caller.userId,
-    subjectUserId: caller.userId,
-    visibility: "subject",
-    maxTokens: 1e3
-  });
-  return output;
-}
 serve(async (req) => {
   const body = await readJson(req);
   const caller = await getCaller(req);
-  if (body.mode === "self") {
-    if (!body.team_id || !body.title) throw new HttpError(400, "MISSING_FIELDS");
-    return json(await selfCheck(caller, body));
-  }
+  if (body.mode === "self") throw new HttpError(410, "SELF_CHECK_REMOVED", "\uC140\uD504 \uC810\uAC80\uC740 \uB354 \uC774\uC0C1 \uC81C\uACF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4");
   const version_id = body.version_id;
   if (!version_id) throw new HttpError(400, "MISSING_ID");
   const ver = must(await admin.from("submission_versions").select("*").eq("id", version_id).maybeSingle());

@@ -43,7 +43,7 @@ export interface WorkItemLog { id: string; item_id: string; team_id: string; aut
 export interface WorkItemEvent { id: number; item_id: string; actor_id: string | null; kind: string; old: unknown; new: unknown; reason: string | null; created_at: string }
 export interface WorkItemComment { id: string; item_id: string; team_id: string; author_id: string; kind: 'comment' | 'feedback' | 'approve' | 'changes'; body: string; created_at: string }
 export interface TeamRequest {
-  id: string; team_id: string; from_id: string; to_id: string; kind: 'plan' | 'progress' | 'share' | 'meeting' | 'other' | 'grow' | 'cheer';
+  id: string; team_id: string; from_id: string; to_id: string; kind: 'plan' | 'progress' | 'share' | 'meeting' | 'other' | 'grow' | 'cheer' | 'change';
   item_id: string | null; title: string; body: string; due_date: string | null; status: 'open' | 'done' | 'canceled';
   response: string; responded_at: string | null; created_at: string;
 }

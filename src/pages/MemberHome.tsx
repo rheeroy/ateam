@@ -37,6 +37,7 @@ function Requests() {
     other: null,
     grow: null,
     cheer: null,
+    change: null,
   };
   const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인했어요' };
   return (

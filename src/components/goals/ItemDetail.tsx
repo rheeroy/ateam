@@ -2,15 +2,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, History, MessageSquare, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, GitPullRequestArrow, History, Lock, MessageSquare, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
 import { NotesBox } from '../notes/Notes';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { Hypothesis, ItemMeasure, ItemStatus, Metric, Submission, WorkItem, WorkItemComment, WorkItemEvent, WorkItemLog } from '../../lib/types';
-import { MEASURE_META, STATUS_META, slipDays, useItemMutations, useLevelNames, type Node } from '../../lib/items';
+import { MEASURE_META, STATUS_META, slipDays, useItemMutations, useLevelNames, usePlanRules, type Node } from '../../lib/items';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
-import { Avatar, Bar, Button, Field, Pill, inputCls, useToast } from '../ui';
+import { Avatar, Bar, Button, Field, Modal, Pill, inputCls, useToast } from '../ui';
 import { RequestModal } from '../RequestModal';
+import { useLeaderId } from '../member/Member';
 
 const EVENT_LABEL: Record<string, string> = {
   created: '만듦', replan: '일정 변경', target: '목표값 변경', status: '상태 변경', owner: '담당 변경', approved: '승인', changes_requested: '수정 요청',
@@ -40,8 +41,33 @@ function Sparkline({ logs }: { logs: WorkItemLog[] }) {
   );
 }
 
+const PENDING: string[] = ['proposed', 'changes_requested'];
+const PLAN_KEYS = ['title', 'note', 'start_date', 'due_date', 'num_target', 'measure', 'unit', 'higher_is_better', 'recur', 'parent_id'];
+
+/** 팀원 → 팀장: 수정 기간이 아닐 때 목표·과제를 바꿔 달라는 요청 */
+function ChangeRequestModal({ item, onClose }: { item: Node; onClose: () => void }) {
+  const { team, uid } = useTeam();
+  const leader = useLeaderId();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [body, setBody] = useState('');
+  const send = useMutation({
+    mutationFn: () => q(supabase.from('team_requests').insert({ team_id: team.id, from_id: uid, to_id: leader, kind: 'change', item_id: item.id, title: `${item.title} — 변경 요청`, body: body.trim() })),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); toast('팀장님께 변경 요청을 보냈습니다. 처리되면 알림이 갑니다.'); onClose(); },
+    onError: (e) => toast(errorText(e)),
+  });
+  return (
+    <Modal open onClose={onClose} title={<span className="inline-flex items-center gap-2"><GitPullRequestArrow size={17} className="text-indigo-600" />변경 요청</span>}>
+      <p className="text-sm text-slate-600 rounded-lg bg-slate-50 px-3 py-2">'{item.title}'을(를) 어떻게 바꾸고 싶은지, 왜인지 적어 주세요. 팀장님이 보고 직접 고치거나 수정 기간을 열어 줍니다.</p>
+      <textarea rows={4} className={`${inputCls} mt-3`} value={body} onChange={(e) => setBody(e.target.value)} autoFocus
+        placeholder="예) 마감을 2주 미루고 싶어요 — 외주 일정이 밀렸습니다 / 목표값을 20건에서 15건으로 / 이 과제는 다음 분기로 넘기고 싶어요" />
+      <Button className="mt-3 w-full" disabled={!body.trim() || !leader} loading={send.isPending} onClick={() => send.mutate()}>보내기</Button>
+    </Modal>
+  );
+}
+
 export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
-  item: Node; byId: Map<string, Node>; onClose: () => void; onAiPlan: (parentId: string) => void; mode: 'leader' | 'member';
+  item: Node; byId: Map<string, Node>; onClose: () => void; onAiPlan?: (parentId: string) => void; mode: 'leader' | 'member';
 }) {
   const { team, uid, members, nameOf, isLeader } = useTeam();
   const levelName = useLevelNames();
@@ -49,9 +75,12 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const toast = useToast();
   const qc = useQueryClient();
   const mine = item.owner_id === uid;
-  const free = !!team.settings?.member_free_edit;
-  const canEdit = isLeader || mine;
-  const canStructure = isLeader || free;
+  const rules = usePlanRules();
+  const canPlan = rules.canEditPlan(item);           // 계획 자체 (목표·과제는 수정 기간에만)
+  const canEdit = rules.canProgress(item);           // 진척·상태
+  const canStructure = isLeader;
+  const locked = !isLeader && mine && !canPlan;      // 기간이 닫혀 있는 내 목표·과제
+  const [changeOpen, setChangeOpen] = useState(false);
   const [f, setF] = useState(item);
   const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
@@ -74,7 +103,8 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
     const patch: Record<string, unknown> = {};
     for (const k of keys) if (JSON.stringify(f[k]) !== JSON.stringify(item[k])) patch[k] = f[k];
     if (planChanged && reason.trim()) patch.change_reason = reason.trim();
-    update.mutate({ id: item.id, patch: patch as Partial<WorkItem> }, { onSuccess: () => { inval(); toast('저장했습니다'); } });
+    const reapprove = rules.reapproves(item) && PLAN_KEYS.some((k) => k in patch);
+    update.mutate({ id: item.id, patch: patch as Partial<WorkItem> }, { onSuccess: () => { inval(); toast(reapprove ? '고친 계획을 팀장님께 올렸습니다. 승인 전까지 검토 대기로 표시됩니다.' : '저장했습니다'); } });
   };
   const decide = (status: ItemStatus, kind: WorkItemComment['kind'], body: string) => {
     update.mutate({ id: item.id, patch: { status } }, {
@@ -106,7 +136,8 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
 
   const slip = slipDays(item);
   const parentOptions = [...byId.values()].filter((n) => n.id !== item.id && !n.path.includes(item.id) && n.status !== 'dropped');
-  const ro = !canEdit;
+  const ro = !canPlan;
+  const pro = !canEdit;
   const S = (k: keyof WorkItem) => (v: unknown) => setF((p) => ({ ...p, [k]: v }));
 
   return (
@@ -136,6 +167,15 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           </div>
         )}
 
+        {locked && (
+          <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600 flex gap-2">
+            <Lock size={13} className="mt-0.5 shrink-0 text-slate-400" />
+            <span>지금은 {levelName(item.depth)} 수정 기간이 아니라 진척·상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</span>
+          </div>
+        )}
+        {!isLeader && mine && canPlan && rules.reapproves(item) && item.status !== 'changes_requested' && (
+          <p className="rounded-xl bg-emerald-50 px-3.5 py-2 text-xs text-emerald-800">수정 기간입니다 ({rules.until?.slice(5).replace('-', '/')}까지). 계획을 고쳐 저장하면 팀장님 승인 후 반영됩니다.</p>
+        )}
         <Field label="제목"><input className={inputCls} value={f.title} disabled={ro} onChange={(e) => S('title')(e.target.value)} /></Field>
         <Field label="설명"><textarea rows={3} className={inputCls} value={f.note} disabled={ro} placeholder="무엇을, 왜, 어떤 상태면 끝인지" onChange={(e) => S('note')(e.target.value)} /></Field>
 
@@ -146,8 +186,9 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
             </select>
           </Field>
           <Field label="상태">
-            <select className={inputCls} value={f.status} disabled={ro} onChange={(e) => S('status')(e.target.value)}>
-              {(Object.keys(STATUS_META) as ItemStatus[]).filter((s) => isLeader || free || (item.status === 'proposed' || item.status === 'changes_requested' ? ['proposed', 'changes_requested', 'dropped'].includes(s) : !['proposed', 'changes_requested'].includes(s)))
+            <select className={inputCls} value={f.status} disabled={pro} onChange={(e) => S('status')(e.target.value)}>
+              {(Object.keys(STATUS_META) as ItemStatus[]).filter((s) => isLeader || s === item.status || (PENDING.includes(item.status) ? [...PENDING, 'dropped'].includes(s)
+                : !PENDING.includes(s) && (item.depth >= 2 || s !== 'dropped')))
                 .map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
             </select>
           </Field>
@@ -169,11 +210,11 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           </Field>
           {f.measure === 'percent' && (
             <div><div className="flex justify-between text-xs text-slate-500"><span>진척률</span><span className="font-mono">{f.progress}%</span></div>
-              <input type="range" min={0} max={100} step={5} value={f.progress} disabled={ro} onChange={(e) => S('progress')(Number(e.target.value))} className="w-full accent-indigo-600" aria-label="진척률" /></div>
+              <input type="range" min={0} max={100} step={5} value={f.progress} disabled={pro} onChange={(e) => S('progress')(Number(e.target.value))} className="w-full accent-indigo-600" aria-label="진척률" /></div>
           )}
           {f.measure === 'number' && (
             <div className="grid grid-cols-3 gap-2">
-              <Field label="현재"><input type="number" className={inputCls} value={f.num_current ?? ''} disabled={ro || !!f.metric_id} onChange={(e) => S('num_current')(e.target.value === '' ? null : Number(e.target.value))} /></Field>
+              <Field label="현재"><input type="number" className={inputCls} value={f.num_current ?? ''} disabled={pro || !!f.metric_id} onChange={(e) => S('num_current')(e.target.value === '' ? null : Number(e.target.value))} /></Field>
               <Field label="목표"><input type="number" className={inputCls} value={f.num_target ?? ''} disabled={ro} onChange={(e) => S('num_target')(e.target.value === '' ? null : Number(e.target.value))} /></Field>
               <Field label="단위"><input className={inputCls} value={f.unit} disabled={ro} onChange={(e) => S('unit')(e.target.value)} placeholder="건, 억" /></Field>
               {isLeader && (
@@ -305,15 +346,17 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
         </section>
       </div>
       <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-2 flex-wrap">
-        {canEdit && <Button size="sm" variant="soft" onClick={() => onAiPlan(item.id)}><Sparkles size={13} />AI로 하위 계획</Button>}
+        {canEdit && onAiPlan && <Button size="sm" variant="soft" onClick={() => onAiPlan(item.id)}><Sparkles size={13} />AI로 하위 계획</Button>}
         {isLeader && item.owner_id && item.owner_id !== uid && <Button size="sm" variant="secondary" onClick={() => setReqOpen(true)}><Send size={13} />요청 보내기</Button>}
-        {(isLeader || (mine && (item.status === 'proposed' || item.status === 'changes_requested' || free))) && (
+        {locked && item.depth < 2 && <Button size="sm" variant="secondary" onClick={() => setChangeOpen(true)}><GitPullRequestArrow size={13} />변경 요청</Button>}
+        {rules.canDelete(item) && (
           <button className="ml-auto text-xs text-slate-400 hover:text-rose-600 inline-flex items-center gap-1"
             onClick={() => { if (confirm(item.children.length ? '하위 항목까지 모두 지웁니다. 계속할까요?' : '이 항목을 지울까요?')) { remove.mutate(item.id); onClose(); } }}>
             <Trash2 size={12} />삭제</button>
         )}
-        {mode === 'member' && !isLeader && <span className="ml-auto text-[11px] text-slate-400">고친 내용은 팀장에게 알림이 갑니다</span>}
+        {mode === 'member' && !isLeader && !locked && item.depth < 2 && <span className="ml-auto text-[11px] text-slate-400">고친 목표·과제는 팀장님 승인 후 반영됩니다</span>}
       </div>
+      {changeOpen && <ChangeRequestModal item={item} onClose={() => setChangeOpen(false)} />}
       <RequestModal open={reqOpen} onClose={() => setReqOpen(false)} toId={item.owner_id} itemId={item.id}
         defaultKind={item.children.length ? 'progress' : 'plan'} defaultTitle={item.children.length ? `${item.title} — 진척 공유 부탁해요` : `${item.title} — 하위 계획을 세워 주세요`} />
     </aside>

@@ -16,6 +16,7 @@ export const REQUEST_KIND: Record<TeamRequest['kind'], { label: string; example:
   other: { label: '기타', example: '' },
   grow: { label: '성장 제안', example: '다음에 맡아 볼 성장 과제를 같이 정해 봐요' },
   cheer: { label: '팀장님 격려', example: '요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요' },
+  change: { label: '목표 변경 요청', example: '' },
 };
 /** 일반 '요청 보내기' 창의 탭 — 성장 제안·격려는 팀원 상세의 육성·지원·격려 버튼 전용 */
 const GENERAL_KINDS: TeamRequest['kind'][] = ['plan', 'progress', 'share', 'meeting', 'other'];

@@ -16,12 +16,14 @@ interface Props {
   toggle: (id: string) => void;
   onOpen: (id: string) => void;
   canEditItem: (n: WorkItem) => boolean;
+  /** 진척·상태 (없으면 canEditItem) */
+  canProgress?: (n: WorkItem) => boolean;
   canAddUnder: (parent: Node | null) => boolean;
   canStructure: boolean;
   dim?: (n: Node) => boolean;         // 맥락용으로만 보이는 항목
 }
 
-export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, canAddUnder, canStructure, dim, rootDefaults, addRootSignal }: Props) {
+export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, canProgress = canEditItem, canAddUnder, canStructure, dim, rootDefaults, addRootSignal }: Props) {
   const { team, uid, isLeader, members, nameOf } = useTeam();
   const levelName = useLevelNames();
   const { update, create } = useItemMutations(team.id);
@@ -52,7 +54,7 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
     create.mutate({
       parent_id: parentId, title, owner_id: owner, sort: sortBetween(kids.at(-1)?.sort, undefined),
       measure: parent && parent.depth >= 1 ? 'check' : parent ? 'percent' : 'children',
-      status: isLeader ? 'active' : 'proposed',
+      status: isLeader || (parent && parent.depth >= 1) ? 'active' : 'proposed',   // 팀원의 할 일은 바로 진행, 목표·과제는 승인 대기
       ...(parentId ? {} : rootDefaults ?? {}),
     });
     if (parentId && collapsed.has(parentId)) toggle(parentId);
@@ -102,7 +104,7 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
               </button>
               {/* 진척 */}
               {n.measure === 'check' ? (
-                <input type="checkbox" className="accent-indigo-600 w-4 h-4 shrink-0" checked={n.status === 'done'} disabled={!editable || n.status === 'proposed' || n.status === 'changes_requested'}
+                <input type="checkbox" className="accent-indigo-600 w-4 h-4 shrink-0" checked={n.status === 'done'} disabled={!canProgress(n) || n.status === 'proposed' || n.status === 'changes_requested'}
                   aria-label="완료" onChange={(e) => update.mutate({ id: n.id, patch: { status: e.target.checked ? 'done' : 'active' } })} />
               ) : (
                 <span className="relative w-4 h-4 shrink-0" title={measureText(n)}>

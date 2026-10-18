@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileUp, Hash, Link2, MessageSquareText, Sparkles, XCircle } from 'lucide-react';
+import { FileUp, Hash, Link2, MessageSquareText } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { MAX_BYTES, extractText, safeName } from '../lib/extract';
-import type { AiOutput, RequestType, ShareKind, Submission, SubmissionVersion, WorkItem } from '../lib/types';
+import type { RequestType, ShareKind, Submission, SubmissionVersion, WorkItem } from '../lib/types';
 import { cx } from '../lib/format';
 import { Button, ErrorBox, Field, Modal, inputCls, useToast } from './ui';
 
@@ -31,8 +31,6 @@ const REQ: { id: RequestType; label: string; desc: string }[] = [
   { id: 'share', label: '공유만', desc: '확인용, 답 불필요' },
 ];
 
-interface SelfOut { summary: string; ready: boolean; fixes: { where: string; what: string }[]; good: string[]; criteria_check?: { criterion: string; met: boolean; note: string }[] }
-
 /** 결과물·업무 공유 / 새 버전 올리기 */
 export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
   open: boolean; onClose: () => void; submission?: Submission | null; onDone?: (submissionId: string) => void; presetItem?: string | null;
@@ -49,8 +47,6 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
   const [note, setNote] = useState('');
   const [url, setUrl] = useState('');
   const [value, setValue] = useState('');
-  const [self, setSelf] = useState<AiOutput<SelfOut> | null>(null);
-  const [checking, setChecking] = useState(false);
   const isNew = !submission;
   const items = useQuery({
     queryKey: ['items', team.id, 'upload', uid], enabled: open && isNew,
@@ -61,18 +57,8 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
     },
   });
   const numberItems = (items.data ?? []).filter((i) => i.measure === 'number' && !i.metric_id);
-  const pick = (m: typeof mode) => { setMode(m); setReq(m === 'file' ? 'approval' : 'share'); setSelf(null); };
-  const reset = () => { setTitle(''); setFile(null); setText(''); setNote(''); setUrl(''); setValue(''); setItemId(presetItem ?? ''); setSelf(null); };
-
-  const selfCheck = async () => {
-    setChecking(true); setSelf(null);
-    try {
-      let body = text;
-      if (file) { const r = await readFile(file); body = r.text || text; }
-      if (!body.trim()) throw new Error('텍스트를 읽을 수 있는 문서(Word·PPT·텍스트)나 붙여 넣은 본문만 점검할 수 있습니다');
-      setSelf(await invoke<AiOutput<SelfOut>>('ai-review-submission', { mode: 'self', team_id: team.id, title: title || submission?.title || '결과물', text: body }));
-    } catch (e) { toast(errorText(e)); } finally { setChecking(false); }
-  };
+  const pick = (m: typeof mode) => { setMode(m); setReq(m === 'file' ? 'approval' : 'share'); };
+  const reset = () => { setTitle(''); setFile(null); setText(''); setNote(''); setUrl(''); setValue(''); setItemId(presetItem ?? ''); };
 
   const up = useMutation({
     mutationFn: async () => {
@@ -121,9 +107,6 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
     },
   });
 
-  const selfRes = self?.content;
-  const canSelfCheck = useMemo(() => (mode === 'file' || mode === 'note' || !isNew) && (!!text.trim() || (!!file && !IMAGE.test(file.type) && !file.name.toLowerCase().endsWith('.pdf') && !file.name.toLowerCase().endsWith('.xlsx'))), [mode, isNew, text, file]);
-
   return (
     <Modal open={open} onClose={onClose} title={submission ? `새 버전 올리기 · ${submission.title}` : '공유하기'} wide>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); up.mutate(); }}>
@@ -154,7 +137,7 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
               <label className="flex items-center gap-3 border border-dashed border-slate-300 rounded-xl px-4 py-5 cursor-pointer hover:border-indigo-400">
                 <FileUp size={20} className="text-indigo-600" />
                 <span className="text-sm text-slate-600 flex-1 truncate">{file ? file.name : '파일을 고르세요'}</span>
-                <input type="file" accept={FILE_ACCEPT} className="sr-only" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setSelf(null); }} />
+                <input type="file" accept={FILE_ACCEPT} className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </label>
             </Field>
             {!file && <Field label="또는 본문 붙여 넣기"><textarea rows={5} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="전문 프로그램에서 작업했다면 핵심 내용을 붙여 넣어도 됩니다." /></Field>}
@@ -190,26 +173,6 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
         <Field label={submission ? '이번 버전에서 바뀐 점' : '메모'} hint="선택">
           <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={submission ? '예) 가격 전략을 침투가로 전면 수정' : '팀장님께 남길 말'} />
         </Field>
-
-        {/* 셀프 점검 */}
-        {!isLeader && hasFeature('ai_core') && (canSelfCheck || selfRes) && (
-          <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3.5">
-            <div className="flex items-center gap-2">
-              <Sparkles size={15} className="text-violet-600" />
-              <span className="text-sm font-semibold flex-1">올리기 전에 AI 셀프 점검</span>
-              <Button type="button" size="sm" variant="soft" loading={checking} onClick={selfCheck}>{selfRes ? '다시 점검' : '점검하기'}</Button>
-            </div>
-            {selfRes ? (
-              <div className="mt-2.5 text-sm space-y-2">
-                <p className={cx('font-medium', selfRes.ready ? 'text-emerald-700' : 'text-amber-800')}>{selfRes.summary}</p>
-                {selfRes.criteria_check?.map((c, i) => (
-                  <div key={i} className="flex gap-1.5 text-xs">{c.met ? <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" /> : <XCircle size={13} className="text-rose-500 shrink-0 mt-0.5" />}<span><b>{c.criterion}</b> · {c.note}</span></div>
-                ))}
-                {!!selfRes.fixes?.length && <ul className="list-disc pl-5 text-xs text-slate-700 space-y-0.5">{selfRes.fixes.map((f, i) => <li key={i}><b>{f.where}</b> {f.what}</li>)}</ul>}
-              </div>
-            ) : <p className="text-xs text-slate-500 mt-1">팀장님이 공개한 기준으로 미리 봐 드립니다. 결과는 나만 봅니다.</p>}
-          </div>
-        )}
 
         <ErrorBox error={up.error ? errorText(up.error) : null} />
         <div className="flex items-center justify-between gap-3">

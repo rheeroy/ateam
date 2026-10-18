@@ -13,7 +13,7 @@ import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner
 const FEATURE_LABEL: Record<string, string> = {
   checkin: '주간 체크인', one_on_one: '1:1 노트·액션아이템', review_room: '공유·리뷰 (문서·링크·캡처·숫자)', goals: '목표·과제 (팀원 계획·승인·계획 대비)',
   requests: '팀원에게 요청', knowhow: '내 노하우 저장', signals_basic: '관리 영역 현황 + 급한 신호 2건',
-  signals: '자동 감지 신호 전체', ai_core: '기본 AI 무제한급: 일·주·월 인사이트, 1차 검토, 1:1 준비, 주간보고, 셀프 점검, 말로 계획 수정',
+  signals: '자동 감지 신호 전체', ai_core: '기본 AI 무제한급: 일·주·월 인사이트, 1차 검토, 1:1 준비, 주간보고',
   ai_premium: '프리미엄 AI (크레딧): 평가 초안, 계획서 초안, 노하우 정리, 전망·시나리오 해석',
   perf_map: '팀 성과 지도', forecast: '실적 전망', strategy: '팀 전략·포트폴리오', simulation: 'What-if 시뮬레이션', evaluation: '근거 기반 평가 초안',
   insight: 'AI 인사이트 레벨', care_radar: '케어 레이더', integrations: '캘린더·메신저 연동 (예정)', multi_team: '겸직 팀장 (최대 3팀)', priority_model: '상위 모델 우선 배정',

@@ -2605,7 +2605,8 @@ begin
     (T, m_han, 'member', '마케팅 기획 (신규)', now() - interval '42 days');
 
   -- 목표·과제 (자유 계층)
-  update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb where id = T;
+  update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb
+    || jsonb_build_object('plan_open_until', to_char(current_date + 3, 'YYYY-MM-DD')) where id = T;   -- 정우성 계획 요청 기한까지 팀원 수정 기간
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
     values (T, L, '하반기 신제품 런칭 캠페인 성공', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
@@ -2664,6 +2665,13 @@ begin
     -- 팀원 → 팀장 1:1 요청 (팀원 앱에서 '1:1 요청하기')
     insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
       (T, m_lee, L, 'meeting', 'CRM 연계 방향이 맞는지 한번 같이 보고 싶어요', '', now() - interval '5 hours');
+  exception when others then null;
+  end;
+  -- 팀원 → 팀장 목표 변경 요청 (22_plan_window 이후에만 들어감)
+  begin
+    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, created_at) values
+      (T, m_choi, L, 'change', t5, '콘텐츠 제작 프로세스 개선 — 마감 2주 연장 요청',
+       '외주 제작사 교체로 템플릿 정비가 늦어졌습니다. 마감을 2주 미루고, 목표 범위에서 영상 가이드는 다음 분기로 넘기고 싶어요.', now() - interval '1 day');
   exception when others then null;
   end;
   insert into work_item_allocations (item_id, user_id, team_id, share_pct) values
@@ -3684,8 +3692,8 @@ begin
     if v_lee is null or exists (select 1 from coaching_notes where team_id = r.team_id) then continue; end if;
     alter table coaching_notes disable trigger t_coaching_notify;
     insert into coaching_notes (team_id, member_id, title, body, created_at) values (r.team_id, v_lee,
-      '제휴 목표, 혼자 끌기보다 방향부터 맞추고 가요',
-      E'요즘 흐름\n제휴 채널 목표 아래 CRM 연계를 혼자 맡고 있어요. 웰컴 메시지 A/B안처럼 실험을 먼저 설계하는 점은 좋은데, 맡은 일의 진척이 계획보다 조금 늦고 최근 3주 동안 진척 공유가 없었어요.\n\n특히 짚고 싶은 것\n· ''CRM 웰컴 메시지 A/B안''에 어느 안을 권하는지와 무엇으로 승자를 정할지가 빠져 있어요\n· ''제휴 유입 고객 CRM 연계''는 마감이 다가오는데 지난 업데이트가 3주 전이에요\n\n왜 중요해요\n제휴 목표와 바로 이어진 일이라 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요. 이 팀은 평소 결론을 첫 줄에 쓰고, 막히면 이틀 안에 공유하는 걸 중요하게 봐요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· A/B안 첫 줄에 "저는 A안을 권합니다 — 2주 뒤 재방문율로 판단"처럼 결론과 기준을 쓰기\n· 막힌 게 있으면 "필요한 것: ○○, ○일까지"로 한 줄 남기기\n\n권장 시점 · 이번 주 금요일까지',
+      'CRM 연계, 방향을 한 번 맞추고 가면 훨씬 수월해져요',
+      E'지금 보이는 것\n· ''제휴 유입 고객 CRM 연계''가 계획보다 조금 늦어지고 있어요\n· 혼자 맡은 과제인데 최근 3주 동안 진척 공유가 없었어요\n\n왜 중요해요\n제휴 목표와 이어진 과제라, 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· 막힌 부분이 있으면 ''무엇이 필요한지''를 한 줄로 같이 적기\n· 다음 결과물은 초안 단계에서 한 번 먼저 올려 방향 확인받기\n\n권장 시점 · 이번 주 금요일까지',
       now() - interval '2 days');
     alter table coaching_notes enable trigger t_coaching_notify;
   end loop;
@@ -3746,6 +3754,14 @@ begin
   return new;
 end $$;
 
+-- >>>>>>>>>> 20261023000019_work_brief.sql
+-- =====================================================================
+-- 업무플랫폼 Core Insight — AI가 리뷰 대기 결과물을 먼저 읽고 한 줄씩 판단 (ai-work-brief)
+-- AI 결과 종류 'work_brief' 추가. 다시 Run 해도 안전합니다.
+-- (결과물 1차 검토의 '질 평가 다섯 축'은 AI 결과 안에 담겨 DB 변경이 필요 없습니다)
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'work_brief';
+
 -- >>>>>>>>>> 20261024000020_member_app.sql
 -- =====================================================================
 -- 팀원 앱 정비
@@ -3796,6 +3812,368 @@ begin
         || case when coalesce(new.response, '') <> '' then ' · 답: ' || left(new.response, 120) else '' end,
       case when v_late is not null and v_late <= 0 then 'positive'::public.polarity else 'neutral'::public.polarity end,
       null, coalesce(new.responded_at, now()));
+  end if;
+  return new;
+end $$;
+
+-- >>>>>>>>>> 20261025000021_consulting_cards.sql
+-- =====================================================================
+-- ATEAM · 0021 컨설팅 기준 카드 (기본 제공 노하우)
+--   · 모든 팀에 '컨설팅 기준' 카드 21장을 기본으로 넣는다 (knowhow_cards.source = 'consulting')
+--   · 팀장 카드와 똑같이 켜고 끄고, 고치고, 지울 수 있다. AI는 팀장 카드를 먼저 읽고 남는 자리에 컨설팅 기준을 싣는다
+--   · 평가 시뮬레이션·팀원 액션에는 싣지 않는다 (카드에 evaluation 적용처 없음, 팀원 액션은 함수에서 제외)
+--   · 지운 카드는 '내 노하우 › 컨설팅 기준 다시 받기'로 되살릴 수 있다
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+alter table public.knowhow_cards add column if not exists source text not null default 'team';
+alter table public.knowhow_cards add column if not exists template_key text;
+do $$ begin
+  alter table public.knowhow_cards add constraint knowhow_cards_source_chk check (source in ('team', 'consulting'));
+exception when duplicate_object then null; end $$;
+create unique index if not exists knowhow_cards_team_template on public.knowhow_cards (team_id, template_key) where template_key is not null;
+
+-- ---------- 원본 (팀마다 복사되는 기준) ----------
+create table if not exists public.knowhow_templates (
+  key         text primary key,
+  kind        public.knowhow_kind not null,
+  title       text not null,
+  body        text not null default '',
+  rules       jsonb not null default '[]'::jsonb,
+  applies_to  text[] not null default '{}',
+  keywords    text[] not null default '{}',
+  sort        int not null default 0,
+  updated_at  timestamptz not null default now()
+);
+alter table public.knowhow_templates enable row level security;
+drop policy if exists kt_read on public.knowhow_templates;
+create policy kt_read on public.knowhow_templates for select to authenticated using (true);
+
+insert into public.knowhow_templates (key, kind, title, body, rules, applies_to, keywords, sort) values
+('goal_state', 'framework', '목표는 이루려는 상태로',
+ '목표는 하는 일의 목록이 아니라 이루려는 상태다. 새로 만들 것(Build), 개선할 것(Improve), 다르게 바꿀 것(Innovate) 중 무엇인지가 드러나야 한다. 늘 하던 일, 무난히 되는 수치, 작년과 같은 목표는 목표가 아니다.',
+ '["목표 제목에 이루려는 상태를 쓴다", "만들기·개선·혁신 중 성격을 밝힌다", "일상 업무 나열은 목표로 올리지 않는다", "작년 목표의 반복이면 무엇이 다른지 묻는다"]',
+ '{plan,strategy}', '{목표,BII,목표수립}', 1),
+('goal_check', 'rubric', '목표 점검 네 가지',
+ '목표를 세운 뒤 네 가지를 본다. 집중(3~5개로 추렸는가), 정렬(상위 목표·전사 방침과 이어지는가), 도전(최선을 다하면 60~70% 달성할 수준인가), 추적(달성 여부를 무엇으로 알 수 있는가).',
+ '["팀 목표는 3~5개", "상위 목표와 연결을 밝힌다", "60~70% 달성 수준으로 도전적으로", "달성 판단 기준이 없으면 붙인다"]',
+ '{plan,strategy}', '{목표점검,집중,정렬,도전}', 2),
+('measure_outcome', 'rubric', '결과를 재는 지표',
+ '달성 지표는 한 일이 아니라 일어난 결과를 잰다. "~실시, ~수행, ~관리"는 과제다. 지표 하나에는 한 가지만 담고, 하위로 갈수록 과정 지표(선행), 팀 목표에는 결과 지표(후행)를 둔다.',
+ '["활동이면 과제로 내리고 결과 지표를 찾는다", "지표 하나에 한 가지 내용만", "팀 목표엔 결과, 하위엔 과정 지표", "과정 지표만으로 성과를 판단하지 않는다"]',
+ '{plan}', '{KR,지표,측정}', 3),
+('kpi_five', 'rubric', '좋은 지표의 다섯 조건',
+ '전략과 이어지는가(전략 연계), 자의적으로 부풀릴 수 없는가(객관성), 데이터를 쉽게 얻는가(측정 용이), 담당자가 결과를 움직일 수 있는가(통제 가능), 중요한 업무를 재는가(업무 대표). 통제가 어려운 지표는 기여 정도로 바꿔 잰다.',
+ '["다섯 조건 중 빠진 것을 짚는다", "통제 어려운 지표는 기여도로 바꾼다", "질·양·비용·시간 중 두 축 이상"]',
+ '{plan,strategy}', '{KPI,지표품질}', 4),
+('qual_measure', 'framework', '정성 성과를 재는 다섯 방법',
+ '숫자로 안 나오는 성과도 잴 수 있다. 고객·사용자 만족 조사(Survey), 난이도·적시성·완결성 점수(표준화), 수준별 행동 기준(행동기준), 단계별 완료와 가중치(마일스톤), 필수 요소 유무(체크리스트). 어느 방법이든 등급별 판단 기준을 미리 정한다.',
+ '["정성 목표엔 측정 방법을 고른다", "등급별 판단 기준을 함께 쓴다", "마일스톤은 단계별 가중치를 둔다"]',
+ '{plan}', '{정성지표,마일스톤,측정방식}', 5),
+('goal_change', 'principle', '목표 수정은 세 가지 경우에만',
+ '목표는 상위 목표가 바뀌었을 때, 업무 분장이 바뀌었을 때, 중대한 새 과업이 생겼을 때 고친다. "달성이 어려워서"는 수정 이유가 아니다. 고칠 때는 이유를 남긴다.',
+ '["수정 이유가 세 경우인지 확인한다", "어렵다는 이유로 목표를 낮추지 않는다", "수정할 때 사유를 기록한다"]',
+ '{plan,prep,strategy}', '{목표수정,재계획}', 6),
+('keep_stop', 'framework', '지속·보완·중단 회고',
+ '분기마다 목표를 지속·보완·중단 중 하나로 정한다. 일찍·크게 넘었다면 목표가 쉬웠는지, 실제로 상위 목표에 기여했는지 본다. 통제할 수 없는 이유로 막혔다면 수정·중단을, 순항이면 지속을. 중단할 때는 배운 것을 남긴다.',
+ '["초과 달성이면 목표 난이도를 되묻는다", "외부 요인 막힘이면 수정·중단 검토", "중단할 때 배운 점을 기록한다"]',
+ '{strategy,briefing}', '{회고,분기점검}', 7),
+('task_naming', 'principle', '과제 이름은 효과가 보이게',
+ '과제 이름은 "(효과)를 위한 (활동)" 또는 "(활동)을 통한 (효과)"로 쓴다. "검토 철저", "관리 강화"처럼 끝을 알 수 없는 이름은 무엇이 되면 끝인지 드러나게 고친다. 할 일은 담당자가 바로 손댈 수 있는 행동 단위로.',
+ '["과제명에 효과와 활동을 함께", "끝이 안 보이는 이름은 고친다", "할 일은 행동 단위로 쪼갠다"]',
+ '{plan}', '{과제명,과제설계}', 8),
+('depth_scale', 'rubric', '고민의 깊이 눈금',
+ '1 지시된 것을 정리해 사실을 나열한다. 2 표준 기준으로 구조화한다(빠짐·겹침 없음). 3 상황에 맞게 해석해 원인과 시사점을 낸다. 4 정답이 없는 문제에서 선택지를 설계·비교하고 권고와 리스크를 밝힌다.',
+ '["현상→원인→시사점→권고 중 어디까지 왔는지 본다", "빠진 단계를 보완점으로 짚는다", "대안 비교와 버린 이유가 있으면 높게 본다"]',
+ '{review}', '{판단깊이,결과물품질}', 9),
+('doc_check', 'rubric', '문서 유형별 점검',
+ '기획서: 풀 질문·범위·일정·역할·리스크·성공 기준. 진행 보고: 결론과 요청 먼저, 계획 대비 숫자, 이슈는 원인→영향→대응. 분석: 질문과 가설, 출처·기간·표본, 비교 기준, 한계. 제안: 진단과 처방의 연결, 대안 2개 이상, 실행 계획, 기대 효과.',
+ '["문서 유형에 맞는 빠진 요소를 짚는다", "수치와 인용엔 출처가 있는지 본다", "세부 데이터는 참고로 분리했는지 본다"]',
+ '{review}', '{기획서,보고서,분석,제안서}', 10),
+('upward_report', 'framework', '상향 보고의 순서',
+ '첫 줄에 결론과 요청, 그다음 근거 숫자, 마지막에 필요한 결정과 지원. 결정이 필요하면 선택지 두 개 이상을 장단점과 함께. 한 장에 한 메시지, 세부는 참고로 뺀다.',
+ '["결론과 요청을 첫 줄에", "결정 사항은 선택지 2개 이상으로", "한 장에 한 메시지"]',
+ '{report}', '{보고,임원보고,상향관리}', 11),
+('bad_news', 'principle', '나쁜 소식은 먼저, 대응안과 함께',
+ '위에서 다른 경로로 듣기 전에 팀장이 먼저 말한다. 원인 → 영향 → 대응안 순서로, 대응안이 여럿이면 권하는 안을 밝힌다. 목표 대비 부족이 구조적이면 추세·바뀐 환경·필요한 자원을 근거로 재협의를 준비한다.',
+ '["나쁜 소식은 원인→영향→대응안", "권하는 대응안을 밝힌다", "구조적 부족은 재협의 근거를 준비"]',
+ '{report,briefing}', '{리스크보고,에스컬레이션}', 12),
+('oo_flow', 'coaching', '1:1 대화 순서',
+ '근황과 지난 이후 변화 → 잘된 것과 어려웠던 것(그 원인) → 앞으로의 우선순위와 목표 유지·수정 → 내가 도울 것. 팀장이 지키지 못한 약속이 있으면 그것부터 꺼낸다. 진척 확인은 체크인으로 보고, 1:1에서는 사람과 막힘을 본다.',
+ '["밀린 팀장 약속을 첫 안건으로", "마지막 질문은 내가 도울 것", "1:1에서 진척 점검만 하지 않는다"]',
+ '{prep}', '{1on1,면담}', 13),
+('ask_or_tell', 'coaching', '팀원 수준에 맞춘 대화',
+ '스스로 판단할 수 있는 팀원에게는 질문으로 깨닫게 하는 대화를 80%, 아직 기준이 서지 않은 팀원에게는 기대와 방법을 직접 알려 주는 대화를 80%로 한다. 질문은 무엇을·어떻게로 열고, 추궁형(언제까지, 왜 안 했나)은 쓰지 않는다.',
+ '["판단 깊이 높으면 질문형으로", "판단 깊이 낮으면 방법과 예시 먼저", "추궁형 질문은 쓰지 않는다"]',
+ '{prep,review}', '{코칭,질문}', 14),
+('feedback_four', 'coaching', '피드백은 관찰→영향→기대→질문',
+ '관찰한 행동을 사실로 말하고, 그 행동이 일이나 팀에 준 영향을 말하고, 기대하는 다음 행동을 말한 뒤, 상대의 생각을 묻는다. "항상, 늘" 같은 일반화와 성격·태도 판단은 쓰지 않는다.',
+ '["사실→영향→기대→질문 순서로", "일반화·성격 판단은 쓰지 않는다", "기대는 관찰 가능한 행동으로"]',
+ '{prep,review}', '{피드백,SBI}', 15),
+('recognition', 'coaching', '인정은 구체적으로, 고르게',
+ '인정은 구체적 행동과 그 결과를 짚어 바로 한다. 성과가 있는데 인정이 끊기면 사람은 "내가 뭘 했지"를 느낀다. 인정이 한두 사람에게 몰리지 않게 고르게 나누고, 위로 보고할 때 기여한 사람의 이름을 넣는다.',
+ '["행동과 결과를 짚어 칭찬한다", "인정이 몰리지 않게 고르게", "상향 보고에 기여자 이름을 넣는다"]',
+ '{prep,briefing}', '{칭찬,인정,동기}', 16),
+('demotivation', 'coaching', '동기 저하 원인별 대응',
+ '비판에 민감해진 사람에게는 구체적인 기준과 지침을, 소외감을 느끼는 사람에게는 핵심 업무에 참여할 기회를, 일의 의미를 잃은 사람에게는 그 일이 목표와 고객에 어떻게 이어지는지를 준다. 성장하고 싶은 사람에게는 성공 가능성 50~70% 정도의 한 단계 어려운 일을 맡긴다.',
+ '["원인을 먼저 구분하고 대응한다", "도전 과제는 성공 가능성 50~70%로", "컨디션이 낮을 때는 독려보다 지원"]',
+ '{prep}', '{동기부여,몰입,이탈}', 17),
+('work_ecs', 'framework', '업무를 핵심·공통·지원으로 나누기',
+ '업무를 중요도와 난이도로 나누면 핵심(강화·집중), 공통(표준화·매뉴얼), 지원(축소·자동화·외부)으로 갈린다. 사람이 아니라 업무 기준으로 본다. 경험 많은 사람이 지원 업무를 오래 들고 있거나, 신입이 핵심 업무에 과부하면 배분을 다시 본다.',
+ '["업무를 핵심·공통·지원으로 나눈다", "지원 업무부터 줄이거나 넘긴다", "업무 가치와 담당자 수준을 맞춘다"]',
+ '{strategy,scenario,briefing}', '{업무분류,재배분,업무량}', 18),
+('delegation', 'principle', '위임 판단 세 가지 축',
+ '팀 안에서 끝나는 일인가, 해 본 적 있는 일인가, 실행 성격의 일인가. 셋 다 맞으면 팀원이 결정하게 넘긴다. 처음 하는 일·방향을 정하는 일은 팀장이 쥐고, 돈·법·인사가 걸린 일은 한 단계 위로 올린다. 과제마다 최종 책임자는 한 명이다.',
+ '["팀 내·기존·실행 업무는 팀원에게 위임", "신규·기획 업무는 팀장이 쥔다", "과제마다 최종 책임자는 한 명"]',
+ '{briefing,strategy}', '{위임,권한,RACI}', 19),
+('staffing', 'principle', '충원 요청 전에 먼저 볼 것',
+ '충원을 말하기 전에 축소·중단, 재배분, 위임, 프로세스 개선·자동화를 먼저 검토하고 남는 부족분만 요청한다. 요청에는 지금 업무량과 필요한 인원, 늘어난 이유, 내부에서 해 본 것, 선택지(정규·한시·지원), 충원하지 않으면 생길 일을 담는다.',
+ '["충원 전에 내부 해소안을 먼저", "부족분은 숫자로 보인다", "미충원 시 영향을 함께 쓴다"]',
+ '{briefing,report,scenario}', '{충원,인력운영,채용}', 20),
+('meeting_default', 'framework', '회의·지시의 기본값',
+ '회의는 결정·공유·논의 중 목적을 정하고, 공유가 목적이면 글로 대신한다. 끝날 때 결정·담당·기한을 남긴다. 지시할 때는 목적, 결과물 모양, 기한, 판단 기준 네 가지를 함께 준다. 같은 결과물이 여러 번 다시 돌아오면 착수 때 결론과 목차를 먼저 맞춘다.',
+ '["공유 목적 회의는 글로 대신한다", "회의마다 결정·담당·기한을 남긴다", "지시엔 목적·결과물·기한·기준", "재작업 반복이면 목차부터 합의"]',
+ '{briefing}', '{회의,지시,운영체계}', 21)
+on conflict (key) do update set kind = excluded.kind, title = excluded.title, body = excluded.body, rules = excluded.rules,
+  applies_to = excluded.applies_to, keywords = excluded.keywords, sort = excluded.sort, updated_at = now();
+
+-- ---------- 팀에 넣기 ----------
+-- 없는 것만 넣는다 (팀장이 고친 카드는 덮어쓰지 않음)
+create or replace function public._install_consulting_cards(p_team uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare v_owner uuid; v_n int;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then return 0; end if;
+  insert into knowhow_cards (team_id, owner_id, kind, title, body, rules, applies_to, keywords, active, pinned, shared, provenance, source, template_key)
+  select p_team, v_owner, t.kind, t.title, t.body, t.rules, t.applies_to, t.keywords, true, false, false, 'human', 'consulting', t.key
+  from knowhow_templates t
+  where not exists (select 1 from knowhow_cards c where c.team_id = p_team and c.template_key = t.key)
+  order by t.sort;
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+revoke all on function public._install_consulting_cards(uuid) from public, anon, authenticated;
+
+-- 팀장이 '컨설팅 기준 다시 받기'를 누를 때
+create or replace function public.restore_consulting_cards(p_team uuid) returns int
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_team_leader(p_team) then raise exception 'forbidden'; end if;
+  return public._install_consulting_cards(p_team);
+end $$;
+grant execute on function public.restore_consulting_cards(uuid) to authenticated;
+
+-- 새 팀이 만들어지면 자동으로
+create or replace function public.trg_team_consulting_cards() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public._install_consulting_cards(new.id);
+  return new;
+end $$;
+drop trigger if exists t_team_consulting_cards on public.teams;
+create trigger t_team_consulting_cards after insert on public.teams for each row execute function public.trg_team_consulting_cards();
+
+-- 지금 있는 팀 전부
+do $$ declare r record; begin
+  for r in select id from public.teams loop perform public._install_consulting_cards(r.id); end loop;
+end $$;
+
+-- >>>>>>>>>> 20261026000022_plan_window.sql
+-- =====================================================================
+-- 목표 수정 기간 (팀장이 열어 둘 때만 팀원이 목표·과제를 고친다)
+--   · 목표·과제(1·2단계)  : 팀장이 '수정 기간'을 열어 둔 동안만 팀원이 만들고 고친다 → 팀장 승인 후 반영
+--                           기간이 닫혀 있으면 진척·상태만 남기고, 바꿀 게 있으면 [변경 요청](kind 'change')
+--                           (검토 대기·수정 요청 중인 내 제안은 기간과 상관없이 고칠 수 있다)
+--   · 할 일(3단계 이하)    : 내 과제 아래에서는 언제든 자유롭게 (승인·재계획 기록 없음)
+--   · 기간: teams.settings.plan_open_until (YYYY-MM-DD, 그날까지 열림 · 한국 날짜 기준)
+--   · 팀장이 '계획 세우기' 요청을 보내면 기한(없으면 2주 뒤)까지 자동으로 열린다
+--   (이전 '팀원도 자유롭게 편집'(member_free_edit) 설정은 더 이상 쓰지 않는다)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+-- 항목 깊이 (최상위 = 0)
+create or replace function public.item_depth(p_id uuid) returns int
+language sql stable security definer set search_path = public as $$
+  with recursive up(id, parent_id, d) as (
+    select id, parent_id, 0 from work_items where id = p_id
+    union all
+    select w.id, w.parent_id, up.d + 1 from work_items w join up on w.id = up.parent_id where up.d < 20
+  )
+  select coalesce(max(d), 0) from up;
+$$;
+
+-- 지금 팀원 수정 기간인가
+create or replace function public.plan_open(p_team uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select nullif(settings->>'plan_open_until', '')::date >= (now() at time zone 'Asia/Seoul')::date
+                   from teams where id = p_team), false);
+$$;
+grant execute on function public.item_depth(uuid), public.plan_open(uuid) to authenticated;
+
+-- 항목 저장 전: 권한 정리 · 진척 계산 · 기준선 · 재계획 기록
+create or replace function public.trg_work_item_before() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_leader boolean := coalesce(auth.role(), 'service') <> 'authenticated' or public.is_team_leader(new.team_id);
+  v_open boolean;
+  v_parent work_items;
+  v_depth int;          -- 저장 후 깊이
+  v_old_depth int;
+  v_plan_changed boolean := false;
+  v_skip_replan boolean := false;
+  v_lock text := 'PLAN_LOCKED: 지금은 목표·과제 수정 기간이 아닙니다. 진척·상태만 남길 수 있어요. 바꿔야 할 게 있으면 팀장님께 변경 요청을 보내 주세요';
+begin
+  if new.parent_id is not null then
+    select * into v_parent from work_items where id = new.parent_id;
+    if v_parent.team_id <> new.team_id then raise exception '다른 팀 항목 아래에 둘 수 없습니다'; end if;
+    v_depth := public.item_depth(new.parent_id) + 1;
+  else
+    v_depth := 0;
+  end if;
+
+  if not v_leader then
+    v_open := public.plan_open(new.team_id);
+    if tg_op = 'INSERT' then
+      if new.owner_id is distinct from auth.uid() then raise exception '팀원은 본인 담당 항목만 만들 수 있습니다'; end if;
+      new.needs_plan := false;
+      if v_depth >= 2 then
+        -- 할 일: 내 과제 아래라면 언제든, 승인 없이
+        if v_parent.owner_id is distinct from auth.uid() then raise exception '할 일은 내 과제 아래에만 만들 수 있습니다'; end if;
+        if new.status in ('proposed', 'changes_requested') then new.status := 'active'; end if;
+      elsif not v_open then
+        raise exception '%', v_lock;
+      else
+        new.status := 'proposed';                         -- 목표·과제: 팀장 승인 후 진행
+      end if;
+    else
+      v_old_depth := case when old.parent_id is null then 0 else public.item_depth(old.parent_id) + 1 end;
+      if new.owner_id is distinct from old.owner_id then raise exception '담당자는 팀장만 바꿀 수 있습니다'; end if;
+      if new.parent_id is distinct from old.parent_id
+         and not (v_old_depth >= 2 and v_depth >= 2 and v_parent.owner_id = auth.uid()) then
+        raise exception '항목 위치는 팀장만 바꿀 수 있습니다';
+      end if;
+      -- 진척·상태 말고 계획 자체가 바뀌었나
+      v_plan_changed := (to_jsonb(new) - array['progress', 'num_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort'])
+                     is distinct from (to_jsonb(old) - array['progress', 'num_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort']);
+      if v_old_depth >= 2 then
+        v_skip_replan := true;                            -- 할 일은 자유: 재계획 기록 안 남김
+        if new.status in ('proposed', 'changes_requested') and old.status not in ('proposed', 'changes_requested') then new.status := old.status; end if;
+      else
+        -- 승인은 팀장만: 제안·수정 요청 상태에서 진행 상태로 바로 못 간다
+        if old.status in ('proposed', 'changes_requested') and new.status not in ('proposed', 'changes_requested', 'dropped') then
+          raise exception '팀장 승인 전에는 진행 상태로 바꿀 수 없습니다';
+        end if;
+        if new.status = 'dropped' and old.status not in ('proposed', 'changes_requested', 'dropped') then
+          raise exception '목표·과제 중단은 팀장님께 변경 요청으로 알려 주세요';
+        end if;
+        if v_plan_changed then
+          if not v_open and old.status not in ('proposed', 'changes_requested') then raise exception '%', v_lock; end if;   -- 검토 중인 제안은 언제든 고친다
+          if old.status in ('active', 'blocked', 'changes_requested') then new.status := 'proposed'; end if;   -- 고친 계획은 다시 승인
+        end if;
+      end if;
+      new.needs_plan := old.needs_plan and not exists (select 1 from work_items c where c.parent_id = new.id);
+    end if;
+  end if;
+
+  -- 진척 계산
+  if new.status = 'done' then
+    new.done_at := coalesce(new.done_at, now());
+    if new.measure in ('check', 'percent') then new.progress := 100; end if;
+  elsif tg_op = 'UPDATE' and old.status = 'done' then
+    new.done_at := null;
+    if new.measure = 'check' then new.progress := 0; end if;
+  end if;
+  if new.measure = 'check' then new.progress := case when new.status = 'done' then 100 else 0 end; end if;
+  if new.measure = 'number' and new.num_target is not null and new.num_target <> 0 and new.num_current is not null then
+    new.progress := greatest(0, least(100, round(
+      case when new.higher_is_better then 100 * new.num_current / new.num_target
+           else 100 * new.num_target / nullif(new.num_current, 0) end)))::smallint;
+  end if;
+
+  -- 기준선: 처음 '진행'이 되는 순간의 계획을 보관
+  if new.baselined_at is null and new.status in ('active', 'blocked', 'done') then
+    new.base_start := new.start_date; new.base_due := new.due_date; new.base_target := new.num_target;
+    new.baselined_at := now();
+  elsif tg_op = 'UPDATE' and old.baselined_at is not null and not v_skip_replan then
+    if new.due_date is distinct from old.due_date or new.start_date is distinct from old.start_date then
+      new.replan_count := old.replan_count + 1;
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(), 'replan',
+              jsonb_build_object('start', old.start_date, 'due', old.due_date),
+              jsonb_build_object('start', new.start_date, 'due', new.due_date), new.change_reason);
+    end if;
+    if new.num_target is distinct from old.num_target then
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(), 'target', to_jsonb(old.num_target), to_jsonb(new.num_target), new.change_reason);
+    end if;
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.status is distinct from old.status then
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(),
+              case when old.status in ('proposed', 'changes_requested') and new.status = 'active' then 'approved'
+                   when new.status = 'changes_requested' then 'changes_requested' else 'status' end,
+              to_jsonb(old.status), to_jsonb(new.status), new.change_reason);
+    end if;
+    if new.owner_id is distinct from old.owner_id then
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(), 'owner', to_jsonb(old.owner_id), to_jsonb(new.owner_id), new.change_reason);
+    end if;
+  end if;
+  new.change_reason := null;
+  return new;
+end $$;
+
+-- 삭제: 팀장 / 내 할 일 / 아직 승인 안 된 내 제안
+drop policy if exists wi_delete on public.work_items;
+create policy wi_delete on public.work_items for delete to authenticated
+  using (public.is_team_leader(team_id)
+         or (owner_id = auth.uid() and (public.item_depth(id) >= 2
+             or (status in ('proposed', 'changes_requested') and baselined_at is null))));
+
+-- 요청 종류: 변경 요청(change) — 팀원 → 팀장, 목표·과제를 바꿔 달라는 요청
+do $$
+declare c text;
+begin
+  for c in select conname from pg_constraint
+           where conrelid = 'public.team_requests'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%kind%' loop
+    execute format('alter table public.team_requests drop constraint %I', c);
+  end loop;
+end $$;
+alter table public.team_requests add constraint team_requests_kind_check
+  check (kind in ('plan', 'progress', 'share', 'meeting', 'other', 'grow', 'cheer', 'change'));
+
+-- 알림 + 계획 요청 시 수정 기간 자동으로 열기
+create or replace function public.trg_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_up boolean; v_until date;
+begin
+  v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
+  if tg_op = 'INSERT' then
+    perform public._notify(new.to_id, new.team_id, 'request',
+      case when v_up and new.kind = 'meeting' then '1:1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
+           when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
+      left(new.body, 120),
+      case when new.kind = 'change' then '/goals/edit' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/people/' || new.from_id || '?oo=1' else '/' end);
+    if new.kind = 'plan' then
+      if new.item_id is not null then update work_items set needs_plan = true where id = new.item_id; end if;
+      if new.from_id = public._team_leader(new.team_id) then
+        v_until := coalesce(new.due_date, (now() at time zone 'Asia/Seoul')::date + 14);
+        update teams set settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('plan_open_until', to_char(v_until, 'YYYY-MM-DD'))
+         where id = new.team_id
+           and coalesce(nullif(settings->>'plan_open_until', '')::date, '1900-01-01'::date) < v_until;
+      end if;
+    end if;
+  elsif new.status is distinct from old.status and new.status = 'done' then
+    new.responded_at := coalesce(new.responded_at, now());
+    perform public._notify(new.from_id, new.team_id, 'request.done',
+      case when v_up and new.kind = 'meeting' then '1:1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
+           when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
+      left(new.response, 120),
+      case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/my/one-on-ones' else '/' end);
   end if;
   return new;
 end $$;

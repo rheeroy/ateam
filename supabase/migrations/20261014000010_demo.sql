@@ -71,7 +71,8 @@ begin
     (T, m_han, 'member', '마케팅 기획 (신규)', now() - interval '42 days');
 
   -- 목표·과제 (자유 계층)
-  update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb where id = T;
+  update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb
+    || jsonb_build_object('plan_open_until', to_char(current_date + 3, 'YYYY-MM-DD')) where id = T;   -- 정우성 계획 요청 기한까지 팀원 수정 기간
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
     values (T, L, '하반기 신제품 런칭 캠페인 성공', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
@@ -130,6 +131,13 @@ begin
     -- 팀원 → 팀장 1:1 요청 (팀원 앱에서 '1:1 요청하기')
     insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
       (T, m_lee, L, 'meeting', 'CRM 연계 방향이 맞는지 한번 같이 보고 싶어요', '', now() - interval '5 hours');
+  exception when others then null;
+  end;
+  -- 팀원 → 팀장 목표 변경 요청 (22_plan_window 이후에만 들어감)
+  begin
+    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, created_at) values
+      (T, m_choi, L, 'change', t5, '콘텐츠 제작 프로세스 개선 — 마감 2주 연장 요청',
+       '외주 제작사 교체로 템플릿 정비가 늦어졌습니다. 마감을 2주 미루고, 목표 범위에서 영상 가이드는 다음 분기로 넘기고 싶어요.', now() - interval '1 day');
   exception when others then null;
   end;
   insert into work_item_allocations (item_id, user_id, team_id, share_pct) values

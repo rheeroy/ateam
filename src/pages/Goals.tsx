@@ -3,12 +3,12 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, ClipboardPaste, ListTree, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
+import { CalendarRange, ClipboardPaste, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { yearOf } from '../lib/plan';
 import type { TeamRequest, WorkItem } from '../lib/types';
-import { buildTree, flatten, isOverdue, useItemMutations, useItems, useLevelNames, DEFAULT_LEVELS, type Node } from '../lib/items';
+import { addDays, buildTree, flatten, isOverdue, seoulToday, useItemMutations, useItems, useLevelNames, usePlanRules, DEFAULT_LEVELS, type Node } from '../lib/items';
 import { cx, fmtShort } from '../lib/format';
 import { Button, Card, Empty, Field, Modal, PageHeader, Spinner, inputCls, useToast } from '../components/ui';
 import { Outline } from '../components/goals/Outline';
@@ -35,10 +35,9 @@ function LevelSettings({ open, onClose }: { open: boolean; onClose: () => void }
   const { team, refresh } = useTeam();
   const toast = useToast();
   const [levels, setLevels] = useState(((team.settings?.level_names as string[]) ?? DEFAULT_LEVELS).join(', '));
-  const [free, setFree] = useState(!!team.settings?.member_free_edit);
   const save = async () => {
     const l = levels.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 5);
-    const { error } = await supabase.from('teams').update({ settings: { ...team.settings, level_names: l.length ? l : DEFAULT_LEVELS, member_free_edit: free } }).eq('id', team.id);
+    const { error } = await supabase.from('teams').update({ settings: { ...team.settings, level_names: l.length ? l : DEFAULT_LEVELS } }).eq('id', team.id);
     if (error) toast(error.message); else { refresh(); toast('저장했습니다'); onClose(); }
   };
   return (
@@ -48,11 +47,39 @@ function LevelSettings({ open, onClose }: { open: boolean; onClose: () => void }
           <input className={inputCls} value={levels} onChange={(e) => setLevels(e.target.value)} placeholder="목표, 과제, 할 일" />
         </Field>
         <p className="text-xs text-slate-500 -mt-2">예) Objective, Key Result, 이니셔티브 / 본부과제, 세부과제, 실행 항목 — 회사에서 쓰는 말 그대로 쓰세요.</p>
-        <label className="flex items-start gap-2.5 text-sm cursor-pointer">
-          <input type="checkbox" className="mt-1 accent-indigo-600" checked={free} onChange={(e) => setFree(e.target.checked)} />
-          <span>팀원도 자유롭게 편집<span className="block text-xs text-slate-500">끄면(기본) 팀원이 만든 항목은 팀장 승인 후 진행됩니다. 켜면 승인 없이 바로 진행되고 위치도 옮길 수 있습니다.</span></span>
-        </label>
+        <p className="text-xs text-slate-500 rounded-lg bg-slate-50 px-3 py-2">팀원이 목표·과제를 고칠 수 있는 때는 위쪽 [팀원 수정] 버튼에서 기간으로 엽니다. 할 일은 팀원이 자기 과제 아래에서 언제든 씁니다.</p>
         <Button className="w-full" onClick={save}>저장</Button>
+      </div>
+    </Modal>
+  );
+}
+
+/** 팀원 수정 기간 — 열어 둔 동안만 팀원이 목표·과제를 만들고 고친다 (승인 후 반영) */
+function PlanWindowModal({ onClose }: { onClose: () => void }) {
+  const { team, refresh } = useTeam();
+  const { open, until } = usePlanRules();
+  const toast = useToast();
+  const [date, setDate] = useState(open && until ? until : addDays(seoulToday(), 14));
+  const save = useMutation({
+    mutationFn: (v: string | null) => q(supabase.from('teams').update({ settings: { ...team.settings, plan_open_until: v } }).eq('id', team.id)),
+    onSuccess: (_d, v) => { refresh(); toast(v ? `${fmtShort(v)}까지 팀원 수정 기간을 열었습니다` : '팀원 수정 기간을 닫았습니다'); onClose(); },
+    onError: (e) => toast(errorText(e)),
+  });
+  return (
+    <Modal open onClose={onClose} title={<span className="inline-flex items-center gap-2"><LockOpen size={16} className="text-indigo-600" />팀원 수정 기간</span>}>
+      <div className="space-y-3 text-sm">
+        <ul className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600 space-y-1 list-disc pl-6">
+          <li>열려 있는 동안 팀원이 목표·과제를 새로 쓰거나 고칩니다. 고친 것은 <b>검토 대기</b>로 올라와 팀장 승인 후 반영됩니다.</li>
+          <li>닫혀 있으면 팀원은 진척·상태만 남기고, 바꿀 게 있으면 <b>변경 요청</b>을 보냅니다.</li>
+          <li>할 일은 기간과 상관없이 팀원이 자기 과제 아래에서 자유롭게 씁니다.</li>
+          <li>팀원에게 계획 요청을 보내면 요청 기한(없으면 2주)까지 자동으로 열립니다.</li>
+        </ul>
+        <p className={cx('font-semibold', open ? 'text-emerald-700' : 'text-slate-600')}>{open ? `지금 열림 · ${fmtShort(until!)}까지` : '지금 닫힘'}</p>
+        <Field label="언제까지 열까요" hint="그날까지 열림"><input type="date" className={inputCls} min={seoulToday()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        <div className="flex gap-2">
+          <Button className="flex-1" disabled={!date} loading={save.isPending} onClick={() => save.mutate(date)}>{open ? '기간 바꾸기' : '열기'}</Button>
+          {open && <Button variant="secondary" loading={save.isPending} onClick={() => save.mutate(null)}>지금 닫기</Button>}
+        </div>
       </div>
     </Modal>
   );
@@ -60,7 +87,7 @@ function LevelSettings({ open, onClose }: { open: boolean; onClose: () => void }
 
 /** 팀장 → 팀원: 처음부터 목표·과제를 세워 달라고 요청 (특정 항목 없이도) */
 function PlanRequestModal({ year, roots, onClose }: { year: number; roots: Node[]; onClose: () => void }) {
-  const { team, uid, members } = useTeam();
+  const { team, uid, members, refresh } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
   const people = members.filter((m) => m.user_id !== uid);
@@ -73,14 +100,14 @@ function PlanRequestModal({ year, roots, onClose }: { year: number; roots: Node[
     mutationFn: () => q(supabase.from('team_requests').insert([...who].map((to) => ({
       team_id: team.id, from_id: uid, to_id: to, kind: 'plan', item_id: parent || null, title: title.trim() || `${year}년 내 목표와 과제를 세워 주세요`, body, due_date: due || null,
     })))),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); toast(`${who.size}명에게 계획 요청을 보냈습니다. 팀원 화면 팀목표에 뜹니다.`); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); refresh(); toast(`${who.size}명에게 계획 요청을 보냈습니다. 팀원 수정 기간도 ${fmtShort(due || addDays(seoulToday(), 14))}까지 열렸습니다.`); onClose(); },
     onError: (e) => toast(errorText(e)),
   });
   const flip = (id: string) => setWho((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   return (
     <Modal open onClose={onClose} title={<span className="inline-flex items-center gap-2"><Send size={16} className="text-indigo-600" />팀원에게 계획 요청</span>}>
       <div className="space-y-3">
-        <p className="text-sm text-slate-600 rounded-lg bg-slate-50 px-3 py-2">팀원이 자기 목표·과제를 직접 세우도록 요청합니다. 팀원은 AI로 초안을 만들어 올리고, 올라온 계획은 '검토 대기'에서 승인합니다.</p>
+        <p className="text-sm text-slate-600 rounded-lg bg-slate-50 px-3 py-2">팀원이 자기 목표·과제를 직접 세우도록 요청합니다. 팀원이 올린 계획은 '검토 대기'에서 승인합니다. 보내면 팀원 수정 기간이 기한(없으면 2주 뒤)까지 자동으로 열립니다.</p>
         <Field label="받는 사람">
           <div className="flex flex-wrap gap-1.5">
             {people.map((m) => <button key={m.user_id} type="button" onClick={() => flip(m.user_id)}
@@ -103,8 +130,10 @@ function PlanRequestModal({ year, roots, onClose }: { year: number; roots: Node[
 }
 
 export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' }) {
-  const { team, uid, isLeader, members } = useTeam();
+  const { team, uid, isLeader, members, nameOf } = useTeam();
   const levelName = useLevelNames();
+  const rules = usePlanRules();
+  const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const view = (params.get('view') as View) ?? 'outline';
   const filter = (params.get('filter') as Filter) ?? (mode === 'member' ? 'mine' : 'all');
@@ -121,9 +150,20 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
   const [paste, setPaste] = useState(false);
   const [settings, setSettings] = useState(false);
   const [askPlan, setAskPlan] = useState(false);
+  const [windowOpen, setWindowOpen] = useState(false);
   const [addRoot, setAddRoot] = useState(0);
   const nowYear = new Date().getFullYear();
   const year = Number(params.get('year') ?? nowYear);
+  // 팀장: 팀원이 보낸 목표 변경 요청
+  const changeReqs = useQuery({
+    queryKey: ['requests', team.id, 'change', uid], enabled: isLeader && mode === 'leader',
+    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').eq('kind', 'change').order('created_at', { ascending: false })),
+  });
+  const closeChange = useMutation({
+    mutationFn: (id: string) => q(supabase.from('team_requests').update({ status: 'done', response: '반영했습니다' }).eq('id', id)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requests'] }); toast('처리함으로 표시했습니다. 팀원에게 알림이 갑니다.'); },
+    onError: (e) => toast(errorText(e)),
+  });
   const requests = useQuery({
     queryKey: ['requests', team.id, 'to', uid], enabled: mode === 'member',
     queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').eq('kind', 'plan')),
@@ -135,10 +175,10 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
   const roots = useMemo(() => allRoots.filter((r) => yearOf(r) === year), [allRoots, year]);
   const inYear = useMemo(() => new Set(roots.flatMap((r) => { const out: string[] = []; const walk = (n: Node) => { out.push(n.id); n.children.forEach(walk); }; walk(r); return out; })), [roots]);
   const rootDefaults = year !== nowYear ? { start_date: `${year}-01-01`, due_date: `${year}-12-31` } : undefined;
-  const free = !!team.settings?.member_free_edit;
-  const canEditItem = (n: WorkItem) => isLeader || n.owner_id === uid;
-  const canAddUnder = (p: Node | null) => isLeader || free || !p || p.owner_id === uid;
-  const canStructure = isLeader || free;
+  const canEditItem = (n: WorkItem) => rules.canEditPlan(byId.get(n.id) ?? { ...n, depth: 0 });
+  const canProgress = rules.canProgress;
+  const canAddUnder = rules.canAddUnder;
+  const canStructure = isLeader;
 
   // 필터: 걸린 항목 + 그 위 단계(맥락) + (내 담당일 때) 그 아래
   const f = FILTERS.find((x) => x.id === filter) ?? FILTERS[0];
@@ -177,13 +217,48 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
             {years.map((y) => <option key={y} value={y}>{y}년{y > nowYear ? ' (준비)' : y < nowYear ? ' (지난)' : ''}</option>)}
           </select></span>}
         back={mode === 'leader' ? <Link to={`/goals${year !== nowYear ? `?year=${year}` : ''}`} className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link> : undefined}
-        sub={mode === 'member' ? '팀 목표 안에서 내 목표·과제를 세우고 진척을 남깁니다. 처음부터 AI로 만들 수 있고, 만든 계획은 팀장 검토 후 진행됩니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
+        sub={mode === 'member' ? '팀 목표 안에서 내 목표·과제의 진척을 남기고, 내 과제 아래 할 일을 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
         right={<>
+          {isLeader && mode === 'leader' && (
+            <button onClick={() => setWindowOpen(true)} title="팀원이 목표·과제를 고칠 수 있는 기간"
+              className={cx('text-xs font-semibold rounded-lg px-3 py-2 ring-1 inline-flex items-center gap-1.5', rules.open ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-white text-slate-600 ring-slate-200 hover:ring-indigo-300')}>
+              {rules.open ? <><LockOpen size={13} />팀원 수정 열림 · ~{fmtShort(rules.until!)}</> : <><Lock size={13} />팀원 수정 닫힘 · 열기</>}
+            </button>
+          )}
           {isLeader && mode === 'leader' && <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={15} />팀원에게 계획 요청</Button>}
-          <Button variant="soft" onClick={() => setDraft({ open: true, parent: mode === 'member' ? (requests.data?.find((r) => r.item_id)?.item_id ?? null) : null })}><Sparkles size={15} />AI로 계획 만들기</Button>
-          <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>
+          {isLeader && <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={15} />AI로 계획 만들기</Button>}
+          {(isLeader || rules.open) && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>}
           {isLeader && <Button variant="ghost" onClick={() => setSettings(true)} aria-label="설정"><Settings2 size={15} /></Button>}
         </>} />
+
+      {/* 팀원: 지금 고칠 수 있는 것 */}
+      {mode === 'member' && !isLeader && (
+        <div className={cx('mb-3 rounded-xl px-4 py-2.5 text-sm flex items-start gap-2.5', rules.open ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-700')}>
+          {rules.open ? <LockOpen size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <Lock size={15} className="mt-0.5 shrink-0 text-slate-400" />}
+          <p>{rules.open
+            ? <><b>목표·과제 수정 기간 · {fmtShort(rules.until!)}까지.</b> 새로 쓰거나 고친 목표·과제는 팀장님 승인 후 반영됩니다. 할 일은 언제든 자유롭게 쓰세요.</>
+            : <><b>지금은 목표·과제 수정 기간이 아닙니다.</b> 진척·상태 업데이트와 내 과제 아래 할 일은 언제든 할 수 있어요. 목표·과제를 바꿔야 하면 항목을 열어 [변경 요청]을 보내세요.</>}</p>
+        </div>
+      )}
+
+      {/* 팀장: 팀원이 보낸 목표 변경 요청 */}
+      {mode === 'leader' && !!changeReqs.data?.length && (
+        <div className="mb-4 space-y-2">
+          {changeReqs.data.map((r) => {
+            const it = r.item_id ? byId.get(r.item_id) : null;
+            return (
+              <div key={r.id} className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-center gap-3 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">{nameOf(r.from_id)} 님의 변경 요청 · {it?.title ?? r.title}</div>
+                  <div className="text-xs text-slate-600">{r.body || r.title} · {fmtShort(r.created_at)}</div>
+                </div>
+                {it && <Button size="sm" variant="secondary" onClick={() => setParam('item', it.id)}>열기</Button>}
+                <Button size="sm" variant="ghost" loading={closeChange.isPending && closeChange.variables === r.id} onClick={() => closeChange.mutate(r.id)}>처리함</Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* 팀원: 계획 요청 */}
       {mode === 'member' && !!requests.data?.length && (
@@ -194,8 +269,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
               <div key={r.id} className="rounded-xl bg-violet-50 border border-violet-100 px-4 py-3 flex items-center gap-3 flex-wrap">
                 <div className="flex-1 min-w-0"><div className="font-semibold text-sm">팀장 요청 · {r.title}</div>
                   <div className="text-xs text-slate-600">{it ? `'${it.title}' 아래에 계획을 세워 주세요` : '처음부터 내 목표·과제를 세워 주세요'}{r.body && ` · ${r.body}`}{r.due_date && ` · ${fmtShort(r.due_date)}까지`}</div></div>
-                <Button size="sm" onClick={() => setDraft({ open: true, parent: it?.id ?? null })}><Sparkles size={13} />AI로 초안</Button>
-                <Button size="sm" variant="secondary" onClick={() => { if (it) setParam('item', it.id); else { setParam('view', null); setAddRoot((x) => x + 1); } }}>직접 쓰기</Button>
+                <Button size="sm" onClick={() => { if (it) setParam('item', it.id); else { setParam('view', null); setAddRoot((x) => x + 1); } }}>직접 쓰기</Button>
                 <Button size="sm" variant="ghost" onClick={async () => { await supabase.from('team_requests').update({ status: 'done', response: '계획을 올렸습니다' }).eq('id', r.id); requests.refetch(); }}>완료</Button>
               </div>
             );
@@ -238,23 +312,24 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
         {items.isLoading ? <Spinner /> : !all.length && !addRoot ? (
           <Empty title={mode === 'member' ? '아직 내 목표·과제가 없습니다' : `${year}년 목표를 세워 보세요`}
             action={<div className="flex gap-2 justify-center flex-wrap">
-              <Button onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={14} />{mode === 'member' ? 'AI로 내 목표 만들기' : '계획서로 AI 초안'}</Button>
-              <Button variant="secondary" onClick={() => { setParam('view', null); setAddRoot((x) => x + 1); }}>직접 쓰기</Button>
+              {isLeader && <Button onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={14} />계획서로 AI 초안</Button>}
+              {canAddUnder(null) && <Button variant={isLeader ? 'secondary' : 'primary'} onClick={() => { setParam('view', null); setAddRoot((x) => x + 1); }}>직접 쓰기</Button>}
               {isLeader && mode === 'leader' && <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={14} />팀원에게 계획 요청</Button>}
-              <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={14} />붙여 넣기</Button>
+              {(isLeader || rules.open) && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={14} />붙여 넣기</Button>}
             </div>}>
-            {mode === 'member' ? `${year}년 내 목표·과제가 아직 없습니다. AI로 처음부터 초안을 만들거나 붙여 넣어 시작하세요.` : '계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다. 한 줄씩 직접 써도 됩니다.'}
+            {mode === 'member' ? (rules.open ? `${year}년 내 목표·과제가 아직 없습니다. 직접 쓰거나 정리해 둔 내용을 붙여 넣어 시작하세요.` : `${year}년 목표·과제가 아직 없습니다. 팀장님이 수정 기간을 열거나 계획을 요청하면 직접 세울 수 있어요.`) : '계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다. 한 줄씩 직접 써도 됩니다.'}
           </Empty>
-        ) : view === 'table' ? <TableView rows={flatten(roots, new Set(), (n) => rows.some((r) => r.id === n.id))} onOpen={(id) => setParam('item', id)} canEditItem={canEditItem} />
+        ) : view === 'table' ? <TableView rows={flatten(roots, new Set(), (n) => rows.some((r) => r.id === n.id))} onOpen={(id) => setParam('item', id)} canEditItem={canEditItem} canProgress={canProgress} />
           : view === 'timeline' ? <Timeline rows={rows} collapsed={collapsed} toggle={toggle} onOpen={(id) => setParam('item', id)} canEditItem={canEditItem} />
             : <Outline rows={rows} byId={byId} collapsed={collapsed} toggle={toggle} onOpen={(id) => setParam('item', id)}
-              canEditItem={canEditItem} canAddUnder={canAddUnder} canStructure={canStructure} dim={(n) => context.has(n.id)} rootDefaults={rootDefaults} addRootSignal={addRoot} />}
+              canEditItem={canEditItem} canProgress={canProgress} canAddUnder={canAddUnder} canStructure={canStructure} dim={(n) => context.has(n.id)} rootDefaults={rootDefaults} addRootSignal={addRoot} />}
       </Card>
       {view === 'outline' && !!all.length && <p className="mt-2 text-[11px] text-slate-400">제목을 눌러 바로 고칩니다 · Enter 다음 줄 · Tab 들여쓰기 · Shift+Tab 내어쓰기 · 왼쪽 손잡이로 끌어서 옮기기</p>}
       {view === 'timeline' && <p className="mt-2 text-[11px] text-slate-400">회색 선은 처음 계획(승인 시점)입니다 · 막대를 끌면 일정이 옮겨지고 변경 이력이 남습니다</p>}
 
-      {open && <ItemDetail key={open.id} item={open} byId={byId} mode={mode} onClose={() => setParam('item', null)} onAiPlan={(pid) => setDraft({ open: true, parent: pid })} />}
-      <PlanDraftModal open={draft.open} onClose={() => setDraft({ open: false, parent: null })} byId={byId} parentId={draft.parent} year={year} />
+      {open && <ItemDetail key={open.id} item={open} byId={byId} mode={mode} onClose={() => setParam('item', null)} onAiPlan={isLeader ? (pid) => setDraft({ open: true, parent: pid }) : undefined} />}
+      {isLeader && <PlanDraftModal open={draft.open} onClose={() => setDraft({ open: false, parent: null })} byId={byId} parentId={draft.parent} year={year} />}
+      {windowOpen && <PlanWindowModal onClose={() => setWindowOpen(false)} />}
       {askPlan && <PlanRequestModal year={year} roots={roots} onClose={() => setAskPlan(false)} />}
       <PasteModal open={paste} onClose={() => setPaste(false)} byId={byId} defaultParent={mode === 'member' ? (all.find((n) => n.owner_id === uid)?.id ?? null) : null} />
       {isLeader && <LevelSettings open={settings} onClose={() => setSettings(false)} />}

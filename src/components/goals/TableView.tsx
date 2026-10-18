@@ -10,7 +10,7 @@ import { Button, Field, Modal, inputCls, useToast } from '../ui';
 
 const cell = 'w-full bg-transparent text-sm px-1.5 py-1 rounded focus:outline-none focus:ring-1 focus:ring-indigo-300 disabled:text-slate-500';
 
-export function TableView({ rows, onOpen, canEditItem }: { rows: Node[]; onOpen: (id: string) => void; canEditItem: (n: WorkItem) => boolean }) {
+export function TableView({ rows, onOpen, canEditItem, canProgress = canEditItem }: { rows: Node[]; onOpen: (id: string) => void; canEditItem: (n: WorkItem) => boolean; canProgress?: (n: WorkItem) => boolean }) {
   const { team, members, isLeader } = useTeam();
   const levelName = useLevelNames();
   const { update } = useItemMutations(team.id);
@@ -27,6 +27,7 @@ export function TableView({ rows, onOpen, canEditItem }: { rows: Node[]; onOpen:
         <tbody>
           {rows.map((n) => {
             const ed = canEditItem(n);
+            const edp = canProgress(n);
             return (
               <tr key={`${n.id}-${n.updated_at}`} className="border-t border-slate-100 hover:bg-slate-50/60">
                 <td className="px-2 py-1 min-w-[260px]" style={{ paddingLeft: 8 + n.depth * 16 }}>
@@ -43,16 +44,16 @@ export function TableView({ rows, onOpen, canEditItem }: { rows: Node[]; onOpen:
                   </select>
                 </td>
                 <td className="px-2 w-28">
-                  <select className={cell} value={n.status} disabled={!ed} aria-label="상태" onChange={(e) => save(n, { status: e.target.value as ItemStatus })}>
+                  <select className={cell} value={n.status} disabled={!edp} aria-label="상태" onChange={(e) => save(n, { status: e.target.value as ItemStatus })}>
                     {(Object.keys(STATUS_META) as ItemStatus[]).map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
                   </select>
                 </td>
                 <td className="px-2 w-24">
                   {n.measure === 'percent' ? (
-                    <input type="number" min={0} max={100} className={cell} defaultValue={n.progress} disabled={!ed} aria-label="진척"
+                    <input type="number" min={0} max={100} className={cell} defaultValue={n.progress} disabled={!edp} aria-label="진척"
                       onBlur={(e) => save(n, { progress: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} />
                   ) : n.measure === 'number' ? (
-                    <input type="number" className={cell} defaultValue={n.num_current ?? ''} disabled={!ed || !!n.metric_id} aria-label="현재값" title={`목표 ${n.num_target ?? '-'}${n.unit}`}
+                    <input type="number" className={cell} defaultValue={n.num_current ?? ''} disabled={!edp || !!n.metric_id} aria-label="현재값" title={`목표 ${n.num_target ?? '-'}${n.unit}`}
                       onBlur={(e) => save(n, { num_current: e.target.value === '' ? null : Number(e.target.value) })} />
                   ) : <span className="text-xs text-slate-500 px-1.5">{n.progress}%</span>}
                 </td>

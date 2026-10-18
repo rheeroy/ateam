@@ -4,35 +4,14 @@ import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART, toBase64, type Block } from '../_shared/anthropic.ts';
-import { REVIEW, SELF_CHECK } from '../_shared/prompts/index.ts';
+import { REVIEW } from '../_shared/prompts/index.ts';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-
-/** 팀원이 올리기 전에 받는 셀프 점검 (팀장이 공개한 기준만 사용, 결과는 팀원에게 바로 돌려준다) */
-async function selfCheck(caller: { userId: string | null }, body: { team_id: string; title: string; text?: string }) {
-  const { data: m } = await admin.from('team_members').select('role')
-    .eq('team_id', body.team_id).eq('user_id', caller.userId!).eq('status', 'active').maybeSingle();
-  if (!m) throw new HttpError(403, 'forbidden');
-  const content: Block[] = [];
-  if (!body.text?.trim()) throw new HttpError(422, 'NO_TEXT', '점검할 본문이 없습니다');
-  const book = new SourceBook();
-  const n = await addKnowhow(book, body.team_id, 'review', 2600, true);
-  content.push({ type: 'text', text: [`결과물 제목: ${body.title}`, n ? book.knowhowText() : '## 팀장의 기준\n(팀장이 공개한 기준 없음 — 일반적인 보고서 기준으로 점검)',
-    `## 본문\n${body.text.slice(0, 40000)}`].join('\n\n') });
-  const { output } = await runAi({
-    teamId: body.team_id, kind: 'self_check', model: MODEL_SMART, system: SELF_CHECK, content, book,
-    depth: 1, level: 'L1', createdBy: caller.userId, subjectUserId: caller.userId, visibility: 'subject', maxTokens: 1000,
-  });
-  return output;
-}
 
 serve(async (req) => {
   const body = await readJson<{ version_id?: string; mode?: string; team_id?: string; title?: string; text?: string }>(req);
   const caller = await getCaller(req);
-  if (body.mode === 'self') {
-    if (!body.team_id || !body.title) throw new HttpError(400, 'MISSING_FIELDS');
-    return json(await selfCheck(caller, body as { team_id: string; title: string }));
-  }
+  if (body.mode === 'self') throw new HttpError(410, 'SELF_CHECK_REMOVED', '셀프 점검은 더 이상 제공하지 않습니다');
   const version_id = body.version_id;
   if (!version_id) throw new HttpError(400, 'MISSING_ID');
 
