@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, FileUp, Sparkles, Wand2 } from 'lucide-react';
+import { yearOf } from '../../lib/plan';
 import { useTeam } from '../../state/session';
 import { supabase, invoke, errorText } from '../../lib/supabase';
 import type { AiOutput } from '../../lib/types';
@@ -22,7 +23,7 @@ const OP_META = {
 const FIELD_LABEL: Record<string, string> = { title: '제목', note: '설명', owner: '담당', start_date: '시작', due_date: '마감', status: '상태', measure: '측정', num_target: '목표값', progress: '진척', priority: '우선순위', contribution: '기여도' };
 
 /** 변경안 검토 화면 (항목별 체크 → 반영) */
-function OpsReview({ out, byId, onDone, parentId }: { out: AiOutput<PlanOut>; byId: Map<string, Node>; onDone: () => void; parentId?: string | null }) {
+function OpsReview({ out, byId, onDone, parentId, year }: { out: AiOutput<PlanOut>; byId: Map<string, Node>; onDone: () => void; parentId?: string | null; year?: number }) {
   const { team, members, isLeader, uid, nameOf } = useTeam();
   const levelName = useLevelNames();
   const toast = useToast();
@@ -42,7 +43,7 @@ function OpsReview({ out, byId, onDone, parentId }: { out: AiOutput<PlanOut>; by
     // 부모를 빼고 자식만 고르면 자식은 상위(범위)로 붙는다
     const refs = new Set(chosen.filter((o) => o.op === 'add').map((o) => o.ref));
     const fixed = chosen.map((o) => (o.op === 'add' && o.parent && !byId.has(o.parent) && !refs.has(o.parent) ? { ...o, parent: null } : o));
-    const errs = await applyOps(team.id, fixed, members, { asMember: isLeader ? undefined : uid, fallbackParent: parentId ?? null });
+    const errs = await applyOps(team.id, fixed, members, { asMember: isLeader ? undefined : uid, fallbackParent: parentId ?? null, rootYear: year });
     setBusy(false);
     qc.invalidateQueries({ queryKey: ['items', team.id] });
     qc.invalidateQueries({ queryKey: ['home-insights'] });
@@ -102,8 +103,8 @@ function OpsReview({ out, byId, onDone, parentId }: { out: AiOutput<PlanOut>; by
 }
 
 /** 자료 → 계획 초안 */
-export function PlanDraftModal({ open, onClose, byId, parentId }: { open: boolean; onClose: () => void; byId: Map<string, Node>; parentId?: string | null }) {
-  const { team, isLeader, credits } = useTeam();
+export function PlanDraftModal({ open, onClose, byId, parentId, year }: { open: boolean; onClose: () => void; byId: Map<string, Node>; parentId?: string | null; year?: number }) {
+  const { team, isLeader, credits, uid } = useTeam();
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [scope, setScope] = useState<string>(parentId ?? '');
@@ -115,7 +116,7 @@ export function PlanDraftModal({ open, onClose, byId, parentId }: { open: boolea
   const run = async () => {
     setBusy(true); setErr(null);
     try {
-      let body: Record<string, unknown> = { team_id: team.id, mode: 'draft', parent_id: scope || null, text };
+      let body: Record<string, unknown> = { team_id: team.id, mode: 'draft', parent_id: scope || null, text, year: year ?? null };
       if (file) {
         if (file.type === 'application/pdf') {
           if (!isLeader) throw new Error('PDF는 팀장만 올릴 수 있습니다. 내용을 붙여 넣어 주세요.');
@@ -131,20 +132,23 @@ export function PlanDraftModal({ open, onClose, byId, parentId }: { open: boolea
       setOut(await invoke<AiOutput<PlanOut>>('ai-plan', body));
     } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   };
-  const roots = [...byId.values()].filter((n) => n.status !== 'dropped' && n.depth <= 1);
+  const inYear = (n: Node) => !year || yearOf(byId.get(n.path[0] ?? n.id) ?? n) === year;
+  // 팀장: 팀 전체 목표·과제 / 팀원: 내가 담당한 것 + 요청받은 항목(parentId)
+  const roots = [...byId.values()].filter((n) => n.status !== 'dropped' && n.depth <= 1 && inYear(n) && (isLeader || n.owner_id === uid || n.id === parentId));
   return (
     <Modal open={open} onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-600" />AI로 계획 만들기</span>}>
-      {out ? <OpsReview out={out} byId={byId} parentId={scope || null} onDone={onClose} /> : (
+      {out ? <OpsReview out={out} byId={byId} parentId={scope || null} year={year} onDone={onClose} /> : (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">사업계획서, 업무 분장표, 회의 메모를 그대로 넣으세요. AI가 단계별 계획 초안을 만들고, 반영할 것만 고르면 됩니다.</p>
+          <p className="text-sm text-slate-600">{isLeader ? '사업계획서, 업무 분장표, 회의 메모를 그대로 넣으세요. AI가 단계별 계획 초안을 만들고, 반영할 것만 고르면 됩니다.'
+            : '올해 내가 맡은 일, 하고 싶은 것, 팀장님과 이야기한 내용을 편하게 적으세요. AI가 내 목표 › 과제 › 할 일 초안을 만들고, 고른 것만 팀장님께 검토 요청합니다.'}</p>
           <Field label="어디 아래에 만들까요?">
-            <select className={inputCls} value={scope} onChange={(e) => setScope(e.target.value)} disabled={!isLeader && !!parentId}>
-              {isLeader && <option value="">팀 전체 (새 목표부터)</option>}
+            <select className={inputCls} value={scope} onChange={(e) => setScope(e.target.value)}>
+              <option value="">{isLeader ? `팀 전체 (새 목표부터${year ? ` · ${year}년` : ''})` : `내 목표 새로 만들기 (처음부터${year ? ` · ${year}년` : ''})`}</option>
               {roots.map((n) => <option key={n.id} value={n.id}>{'— '.repeat(n.depth)}{n.title}</option>)}
             </select>
           </Field>
           <textarea rows={8} className={inputCls} value={text} onChange={(e) => setText(e.target.value)}
-            placeholder={'예) 하반기 목표: 파트너 채널 매출 20억\n- 10월까지 파트너 후보 10곳 발굴 (정우성)\n- 11월 제안서 3건 (김도현) ...'} />
+            placeholder={isLeader ? '예) 하반기 목표: 파트너 채널 매출 20억\n- 10월까지 파트너 후보 10곳 발굴 (정우성)\n- 11월 제안서 3건 (김도현) ...' : '예) 제휴 채널 신규 고객 확대를 맡음 — 상반기 A·C사 제휴 오픈, 월 1만 명 유입\n- CRM 웰컴 메시지 개편으로 재방문율 높이기\n- 데이터 분석 역량 키우고 싶음'} />
           <label className="flex items-center gap-2 text-sm cursor-pointer w-fit text-slate-600 hover:text-indigo-700">
             <FileUp size={15} />{file ? file.name : '파일 첨부 (Word·PowerPoint·텍스트' + (isLeader ? '·PDF' : '') + ')'}
             <input type="file" className="sr-only" accept={ACCEPT_KNOWHOW} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />

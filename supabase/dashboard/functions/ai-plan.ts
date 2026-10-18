@@ -483,13 +483,14 @@ serve(async (req) => {
     if (!scopeRoot) throw new HttpError(404, "NOT_FOUND");
   }
   const memberOwn = !leader && !scopeRoot && body.mode === "edit";
-  if (!leader && !memberOwn) {
+  const memberNew = !leader && !scopeRoot && body.mode === "draft";
+  if (!leader && !memberOwn && !memberNew) {
     if (!scopeRoot) throw new HttpError(403, "forbidden", "\uD300\uC6D0\uC740 \uB2F4\uB2F9 \uD56D\uBAA9 \uC544\uB798\uC5D0\uC11C\uB9CC AI \uACC4\uD68D \uCD08\uC548\uC744 \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
     const { data: rq } = await admin.from("team_requests").select("id").eq("team_id", body.team_id).eq("to_id", caller.userId).eq("item_id", scopeRoot.id).limit(1);
     if (scopeRoot.owner_id !== caller.userId && !rq?.length) throw new HttpError(403, "forbidden");
   }
   const inScope = (id) => {
-    if (memberOwn) {
+    if (memberOwn || memberNew) {
       let cur2 = items.find((i) => i.id === id);
       while (cur2) {
         if (cur2.owner_id === caller.userId) return true;
@@ -525,6 +526,10 @@ serve(async (req) => {
     `\uD300\uC6D0: ${people.map((p) => `${p.name}(${p.job || "-"})`).join(", ")}`,
     !leader ? `\uC694\uCCAD\uD55C \uC0AC\uB78C: ${nameOf.get(caller.userId)} (\uBCF8\uC778\uC744 \uB2F4\uB2F9\uC790\uB85C \uB461\uB2C8\uB2E4)` : "",
     scopeRoot ? `\uC0C1\uC704 \uD56D\uBAA9: [${scopeRoot.id}] ${scopeRoot.title} \u2014 \uC774 \uC544\uB798\uB9CC \uB2E4\uB8F9\uB2C8\uB2E4` : "",
+    memberNew ? `\uD300\uC6D0 \uBCF8\uC778\uC758 \uBAA9\uD45C\xB7\uACFC\uC81C\uB97C \uCC98\uC74C\uBD80\uD130 \uB9CC\uB4ED\uB2C8\uB2E4. \uCD5C\uC0C1\uC704(parent null)\uB294 \uC774 \uD300\uC6D0\uC758 \uBAA9\uD45C\uC774\uACE0, \uBAA8\uB4E0 \uD56D\uBAA9\uC758 \uB2F4\uB2F9\uC740 \uBCF8\uC778\uC785\uB2C8\uB2E4. \uC544\uB798 '\uD300 \uBAA9\uD45C'\uC640 \uC774\uC5B4\uC9C0\uAC8C \uC501\uB2C8\uB2E4.
+## \uD300 \uBAA9\uD45C (\uCC38\uACE0)
+${items.filter((i) => !i.parent_id).map((i) => `- ${i.title}`).join("\n") || "(\uC5C6\uC74C)"}` : "",
+    body.year ? `\uACC4\uD68D \uC5F0\uB3C4: ${body.year}\uB144 \u2014 \uB0A0\uC9DC\uB294 \uC774 \uD574 \uC548\uC5D0\uC11C \uC7A1\uC2B5\uB2C8\uB2E4` : "",
     book.knowhowText(),
     `## \uD604\uC7AC \uBAA9\uD45C\xB7\uACFC\uC81C
 ${tree || "(\uC5C6\uC74C)"}`
@@ -560,7 +565,7 @@ ${body.instruction.slice(0, 2e3)}` });
     depth: 1,
     level: "L1",
     createdBy: caller.userId,
-    credits: scoped ? 0 : void 0,
+    credits: scoped || !leader ? 0 : void 0,
     refTable: scopeRoot ? "work_items" : void 0,
     refId: scopeRoot?.id,
     visibility: leader ? "leader" : "subject",

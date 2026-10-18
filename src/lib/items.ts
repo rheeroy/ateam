@@ -146,7 +146,7 @@ export function ownerIdOf(name: string | undefined, members: TeamMember[]): stri
 }
 
 /** 수락한 변경안을 순서대로 반영한다. 추가 → 수정 → 이동 → 중단 */
-export async function applyOps(teamId: string, ops: PlanOp[], members: TeamMember[], opts: { asMember?: string; fallbackParent?: string | null } = {}) {
+export async function applyOps(teamId: string, ops: PlanOp[], members: TeamMember[], opts: { asMember?: string; fallbackParent?: string | null; rootYear?: number } = {}) {
   const refMap = new Map<string, string>();
   const resolve = (p: string | null | undefined) => (p == null ? opts.fallbackParent ?? null : refMap.get(p) ?? p);
   let sort = Date.now() / 1000;
@@ -161,7 +161,13 @@ export async function applyOps(teamId: string, ops: PlanOp[], members: TeamMembe
     const { data, error } = await supabase.from('work_items').insert({
       team_id: teamId, parent_id: resolve(o.parent), title: String(o.title ?? '').slice(0, 200) || '새 항목', note: o.note ?? '',
       owner_id: owner, measure: MEASURES.includes(o.measure as ItemMeasure) ? o.measure : 'percent',
-      start_date: dateOrNull(o.start_date), due_date: dateOrNull(o.due_date),
+      ...(() => {
+        // 다른 연도 판에서 만든 최상위 항목은 그 해에 속하도록 시작일을 그 해로 (날짜가 없을 때만)
+        const top = resolve(o.parent) == null;
+        const sd = dateOrNull(o.start_date), dd = dateOrNull(o.due_date);
+        if (top && opts.rootYear && opts.rootYear !== new Date().getFullYear() && !sd && !dd) return { start_date: `${opts.rootYear}-01-01`, due_date: `${opts.rootYear}-12-31` };
+        return { start_date: sd, due_date: dd };
+      })(),
       num_target: typeof o.num_target === 'number' ? o.num_target : null, unit: o.unit ?? '',
       recur: o.recur === 'weekly' || o.recur === 'monthly' ? o.recur : null, sort: sort++,
     }).select('id').single();

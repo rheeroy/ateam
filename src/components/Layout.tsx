@@ -131,7 +131,7 @@ export default function Layout() {
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/" label="홈" icon={Home} />
-            <NavItem to="/my/goals" label="내 목표" icon={ListTree} />
+            <NavItem to="/my/goals" label="팀목표" icon={ListTree} />
             <NavItem to="/checkin" label="체크인" icon={PenLine} />
             <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
             <NavItem to="/my/one-on-ones" label="내 1:1" icon={MessageSquare} badge={mb.data?.promises ? `약속 ${mb.data.promises}` : undefined} />
@@ -218,7 +218,7 @@ export default function Layout() {
 /** 팀원 모바일 하단 탭 */
 function MemberTabBar({ needsWork }: { needsWork: number }) {
   const tabs = [
-    { to: '/', label: '홈', I: Home }, { to: '/my/goals', label: '내 목표', I: ListTree }, { to: '/checkin', label: '체크인', I: PenLine },
+    { to: '/', label: '홈', I: Home }, { to: '/my/goals', label: '팀목표', I: ListTree }, { to: '/checkin', label: '체크인', I: PenLine },
     { to: '/my/submissions', label: '업무', I: FileUp, dot: needsWork > 0 }, { to: '/my/one-on-ones', label: '1:1', I: MessageSquare },
   ];
   return (

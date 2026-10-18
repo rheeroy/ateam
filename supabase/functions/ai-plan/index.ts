@@ -9,7 +9,7 @@ import { MODEL_SMART, toBase64, type Block } from '../_shared/anthropic.ts';
 import { PLAN_DRAFT, PLAN_EDIT } from '../_shared/prompts/index.ts';
 import { kstToday } from '../_shared/signals.ts';
 
-interface Body { team_id: string; mode: 'draft' | 'edit'; text?: string; file_path?: string; parent_id?: string | null; instruction?: string }
+interface Body { team_id: string; mode: 'draft' | 'edit'; text?: string; file_path?: string; parent_id?: string | null; instruction?: string; year?: number | null }
 interface Item { id: string; parent_id: string | null; owner_id: string | null; title: string; status: string; measure: string; progress: number; start_date: string | null; due_date: string | null; num_target: number | null; unit: string }
 
 const ST: Record<string, string> = { proposed: '제안', changes_requested: '수정요청', active: '진행', blocked: '막힘', done: '완료' };
@@ -40,13 +40,14 @@ serve(async (req) => {
     if (!scopeRoot) throw new HttpError(404, 'NOT_FOUND');
   }
   const memberOwn = !leader && !scopeRoot && body.mode === 'edit';
-  if (!leader && !memberOwn) {
+  const memberNew = !leader && !scopeRoot && body.mode === 'draft';   // 팀원이 처음부터 내 목표·과제를 만든다
+  if (!leader && !memberOwn && !memberNew) {
     if (!scopeRoot) throw new HttpError(403, 'forbidden', '팀원은 담당 항목 아래에서만 AI 계획 초안을 쓸 수 있습니다');
     const { data: rq } = await admin.from('team_requests').select('id').eq('team_id', body.team_id).eq('to_id', caller.userId!).eq('item_id', scopeRoot.id).limit(1);
     if (scopeRoot.owner_id !== caller.userId && !rq?.length) throw new HttpError(403, 'forbidden');
   }
   const inScope = (id: string): boolean => {
-    if (memberOwn) {   // 팀원의 '말로 고치기': 내가 담당한 항목과 그 아래만
+    if (memberOwn || memberNew) {   // 팀원: 내가 담당한 항목과 그 아래만
       let cur = items.find((i) => i.id === id);
       while (cur) { if (cur.owner_id === caller.userId) return true; cur = items.find((i) => i.id === cur!.parent_id); }
       return false;
@@ -70,6 +71,8 @@ serve(async (req) => {
     `팀원: ${people.map((p) => `${p.name}(${p.job || '-'})`).join(', ')}`,
     !leader ? `요청한 사람: ${nameOf.get(caller.userId!)} (본인을 담당자로 둡니다)` : '',
     scopeRoot ? `상위 항목: [${scopeRoot.id}] ${scopeRoot.title} — 이 아래만 다룹니다` : '',
+    memberNew ? `팀원 본인의 목표·과제를 처음부터 만듭니다. 최상위(parent null)는 이 팀원의 목표이고, 모든 항목의 담당은 본인입니다. 아래 '팀 목표'와 이어지게 씁니다.\n## 팀 목표 (참고)\n${items.filter((i) => !i.parent_id).map((i) => `- ${i.title}`).join('\n') || '(없음)'}` : '',
+    body.year ? `계획 연도: ${body.year}년 — 날짜는 이 해 안에서 잡습니다` : '',
     book.knowhowText(),
     `## 현재 목표·과제\n${tree || '(없음)'}`,
   ].filter(Boolean).join('\n\n');
@@ -93,7 +96,7 @@ serve(async (req) => {
   const { output } = await runAi({
     teamId: body.team_id, kind: body.mode === 'draft' ? 'plan_draft' : 'plan_edit', model: MODEL_SMART,
     system: body.mode === 'draft' ? PLAN_DRAFT : PLAN_EDIT, content, book, depth: 1, level: 'L1',
-    createdBy: caller.userId, credits: scoped ? 0 : undefined, refTable: scopeRoot ? 'work_items' : undefined, refId: scopeRoot?.id,
+    createdBy: caller.userId, credits: scoped || !leader ? 0 : undefined, refTable: scopeRoot ? 'work_items' : undefined, refId: scopeRoot?.id,
     visibility: leader ? 'leader' : 'subject', maxTokens: 3500,
     extra: { scope: scopeRoot?.id ?? null, people: people.map((p) => ({ id: p.id, name: p.name })) },
   });

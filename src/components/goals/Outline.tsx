@@ -8,6 +8,8 @@ import { cx, fmtShort } from '../../lib/format';
 import { Avatar, Pill } from '../ui';
 
 interface Props {
+  rootDefaults?: Partial<WorkItem>;   // 최상위 항목을 새로 만들 때 덧붙일 값 (연도 판의 날짜 등)
+  addRootSignal?: number;              // 바뀌면 최상위 추가 줄을 연다
   rows: Node[];                       // 화면에 보일 순서 (접힘·필터 반영)
   byId: Map<string, Node>;
   collapsed: Set<string>;
@@ -19,12 +21,13 @@ interface Props {
   dim?: (n: Node) => boolean;         // 맥락용으로만 보이는 항목
 }
 
-export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, canAddUnder, canStructure, dim }: Props) {
+export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, canAddUnder, canStructure, dim, rootDefaults, addRootSignal }: Props) {
   const { team, uid, isLeader, members, nameOf } = useTeam();
   const levelName = useLevelNames();
   const { update, create } = useItemMutations(team.id);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | 'root' | null>(null);  // 부모 id
+  useEffect(() => { if (addRootSignal) setAdding('root'); }, [addRootSignal]);
   const [drag, setDrag] = useState<{ id: string; over?: string; pos?: 'before' | 'after' | 'inside' } | null>(null);
 
   const siblingsOf = (n: Node) => (n.parent_id ? byId.get(n.parent_id)?.children ?? [] : [...byId.values()].filter((x) => !x.parent_id).sort((a, b) => a.sort - b.sort));
@@ -50,6 +53,7 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
       parent_id: parentId, title, owner_id: owner, sort: sortBetween(kids.at(-1)?.sort, undefined),
       measure: parent && parent.depth >= 1 ? 'check' : parent ? 'percent' : 'children',
       status: isLeader ? 'active' : 'proposed',
+      ...(parentId ? {} : rootDefaults ?? {}),
     });
     if (parentId && collapsed.has(parentId)) toggle(parentId);
   };

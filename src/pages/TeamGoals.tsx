@@ -40,6 +40,7 @@ export default function TeamGoals() {
     const m = new Map<number, Node[]>();
     for (const r of roots) { const y = yearOf(r); m.set(y, [...(m.get(y) ?? []), r]); }
     if (!m.has(nowYear)) m.set(nowYear, []);
+    if (!m.has(nowYear + 1)) m.set(nowYear + 1, []);   // 내년 판 미리 세우기
     return [...m.entries()].sort((a, b) => b[0] - a[0]).map(([y, rs]) => ({
       y, roots: rs, done: rs.filter((r) => r.status === 'done').length,
       avg: rs.length ? Math.round(rs.reduce((a, r) => a + (r.status === 'done' ? 100 : r.progress), 0) / rs.length) : null,
@@ -67,7 +68,7 @@ export default function TeamGoals() {
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">팀목표
               <select aria-label="연도" value={cur.y} onChange={(e) => setParam('year', Number(e.target.value) === nowYear ? null : e.target.value)}
                 className="text-base font-semibold rounded-lg border border-slate-200 bg-white px-2 py-0.5">
-                {years.map((x) => <option key={x.y} value={x.y}>{x.y}년</option>)}
+                {years.map((x) => <option key={x.y} value={x.y}>{x.y}년{x.y > nowYear ? ' (준비)' : ''}</option>)}
               </select>
               {past && <span className="text-xs font-semibold rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 inline-flex items-center gap-1"><History size={12} />지난 기록</span>}
             </h1>
@@ -76,7 +77,7 @@ export default function TeamGoals() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><Sparkles size={15} />AI로 계획 만들기</button>}
-          <Link to={proposed && !past ? '/goals/edit?filter=proposed' : '/goals/edit'} className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정{proposed > 0 && !past && <span className="ml-1 text-[10px] font-bold rounded-full bg-violet-500 px-1.5 py-0.5" title="팀원이 올린 계획 검토 대기">검토 {proposed}</span>}</Link>
+          <Link to={`/goals/edit?${new URLSearchParams({ ...(proposed && !past ? { filter: 'proposed' } : {}), ...(cur.y !== nowYear ? { year: String(cur.y) } : {}) }).toString()}`} className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정{proposed > 0 && !past && <span className="ml-1 text-[10px] font-bold rounded-full bg-violet-500 px-1.5 py-0.5" title="팀원이 올린 계획 검토 대기">검토 {proposed}</span>}</Link>
         </div>
       </div>
 
@@ -113,7 +114,7 @@ export default function TeamGoals() {
       </Card>
 
       {open && <ItemDetail key={open.id} item={open} byId={byId} mode="leader" onClose={() => setParam('item', null)} onAiPlan={(pid) => setDraft({ open: true, parent: pid })} />}
-      <PlanDraftModal open={draft.open} onClose={() => setDraft({ open: false, parent: null })} byId={byId} parentId={draft.parent} />
+      <PlanDraftModal open={draft.open} onClose={() => setDraft({ open: false, parent: null })} byId={byId} parentId={draft.parent} year={cur.y} />
     </div>
   );
 }
