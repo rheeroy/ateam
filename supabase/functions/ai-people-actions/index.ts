@@ -5,7 +5,7 @@ import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, addKnowhow, weekLabel } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { PEOPLE_ACTIONS } from '../_shared/prompts/index.ts';
-import { kstToday, kstMonday, addDaysYmd } from '../_shared/signals.ts';
+import { kstToday, kstMonday, addDaysYmd, loadRaw, flagsFor } from '../_shared/signals.ts';
 import { NOTE_RULE, addNote, loadLeaderNotes } from '../_shared/notes.ts';
 
 const DAY = 86400000;
@@ -37,6 +37,8 @@ async function actionsFor(teamId: string, createdBy: string | null) {
   // 팀장 개인 메모 중 AI 참고를 허용한 것 (팀원에 붙인 것만)
   const leaderId = (tm ?? []).find((x) => x.role === 'leader')?.user_id;
   const myNotes = leaderId ? await loadLeaderNotes(teamId, leaderId, { types: ['member'], limit: 40 }) : [];
+  // 팀원별 선행 신호 (인정 공백 · 의지는 있는데 막힘 · 성장 정체 · 팀장 약속 밀림 · 참여 위축) — 홈·팀원 지수와 같은 규칙
+  const raw = leaderId ? await loadRaw(admin, teamId, leaderId, 8).catch(() => null) : null;
   for (const m of members) {
     const uid = m.user_id;
     const name = (m.profiles as unknown as { full_name: string })?.full_name ?? '팀원';
@@ -74,6 +76,7 @@ async function actionsFor(teamId: string, createdBy: string | null) {
       `요청 45일 ${rq.length}건 (기한 안 완료 ${rqOnTime.length} · 기한 지남 ${rqLate.length})`,
       ...(attn.get(uid) ? [(() => { const a = attn.get(uid)!; return `팀장 접점 28일 ${a.touch} (팀 중앙값 ${medTouch ?? '-'}; 1:1 ${a.oo} · 리뷰 코멘트 ${a.comments} · 관찰 ${a.obs} · 칭찬 ${a.praise} · 요청 ${a.reqs} · 과제 코멘트 ${a.item_comments}) · 리뷰 첫 반응 평균 ${a.resp_hours ?? '-'}시간 · 반응 기다리는 결과물 ${a.waiting}`; })()] : []),
       `입사 ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}일`,
+      (() => { const f = raw ? flagsFor(raw, uid) : []; return `선행 신호 ${f.length ? f.map((x) => `${x.label}(${x.detail})`).join(' · ') : '없음'}`; })(),
     ].join(' / ');
     const tag = book.add('member', uid, `${name} 이번 주 사실`, facts);
     const extra: string[] = [];
