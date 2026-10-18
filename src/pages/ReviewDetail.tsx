@@ -157,7 +157,13 @@ function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionVersion;
   const long = (v.extracted_text ?? '').length > (older ? 160 : 600);
   return (
     <div className="mt-3">
-      {url && v.file_name && <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm rounded-lg ring-1 ring-slate-200 px-2.5 py-1.5 hover:bg-slate-50"><Paperclip size={13} className="text-slate-400" />{v.file_name}<ExternalLink size={12} className="text-slate-400" /></a>}
+      {v.file_name && (
+        <a href={url ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl ring-1 ring-slate-200 bg-white px-3 py-2.5 hover:ring-indigo-300 hover:bg-indigo-50/30 max-w-md">
+          <span className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><Paperclip size={16} /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-slate-800 truncate">{v.file_name}</span><span className="block text-[11px] text-slate-400 uppercase">{(v.file_name.split('.').pop() ?? '').slice(0, 5)} 파일</span></span>
+          <span className="text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 shrink-0">열기<ExternalLink size={12} /></span>
+        </a>
+      )}
       {v.mime_type === 'application/pdf' && url && <iframe title="PDF" src={url} className="mt-3 w-full h-[520px] rounded-lg border border-slate-200" />}
       {url && v.mime_type && IMAGE.test(v.mime_type) && <img src={url} alt={sub.title} className="mt-3 max-h-[480px] rounded-lg border border-slate-200" />}
       {v.version === 1 && sub.link_url && <a href={sub.link_url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-indigo-700 font-semibold break-all hover:underline">{sub.link_url} ↗</a>}
@@ -236,7 +242,7 @@ export default function ReviewDetail() {
   const rq = REQ_TAG[sub.request_type] ?? REQ_TAG.approval;
   const makers = [...new Set(versions.map((v) => v.created_by))];
   const back = isLeader
-    ? (group ? { to: '/work?view=groups', label: '그룹별 업무' } : isAuthor ? { to: '/work', label: '업무플랫폼' } : { to: `/work/u/${sub.author_id}`, label: `${nameOf(sub.author_id)} 업무 스페이스` })
+    ? (group ? { to: '/work', label: '업무플랫폼' } : isAuthor ? { to: '/work', label: '업무플랫폼' } : { to: `/work/u/${sub.author_id}`, label: `${nameOf(sub.author_id)} 업무 스페이스` })
     : (group ? { to: `/my/submissions?g=${group.id}`, label: group.name } : { to: '/my/submissions', label: '내 스페이스' });
 
   return (
@@ -337,24 +343,27 @@ export default function ReviewDetail() {
   );
 }
 
-/** 대화 흐름 속 버전 카드 — 누가 올렸고 무엇이 바뀌었는지 + 본문 (이전 버전은 접힘) */
+/** 대화 흐름 속 버전 카드 — 누가 몇 번째 버전을 올렸고 무엇이 바뀌었는지 + 파일·본문 (이전 버전은 흐리게·접힘) */
 function VersionCard({ sub, v, latest, ai }: { sub: Submission; v: SubmissionVersion; latest: boolean; ai?: { has: boolean; on: boolean; open: () => void } }) {
   const { nameOf } = useTeam();
   return (
-    <div>
-      <div className="flex items-center gap-3 text-xs text-slate-500">
-        <span className="flex-1 h-px bg-slate-200" />
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white ring-1 ring-slate-200 px-3 py-1">
-          <FileUp size={12} className="text-indigo-600" /><b className="text-slate-700 font-mono">v{v.version}</b>{nameOf(v.created_by)} {v.version === 1 ? '올림' : '새 버전'} · {fmtDate(v.created_at)}
-          {ai && <button onClick={ai.open} className={cx('ml-1 font-semibold inline-flex items-center gap-0.5 rounded-full px-1.5', ai.on ? 'bg-violet-600 text-white' : ai.has ? 'text-violet-700 hover:bg-violet-50' : 'text-slate-400 hover:text-slate-600')}><Sparkles size={11} />{ai.has ? 'AI 검토' : 'AI 검토 전'}</button>}
+    <article className={cx('rounded-2xl bg-white overflow-hidden ring-1', latest ? 'ring-indigo-200 shadow-[0_2px_8px_rgba(79,70,229,0.08)]' : 'ring-slate-200')}>
+      <div className={cx('px-4 py-3 flex items-center gap-3 border-b', latest ? 'bg-indigo-50/70 border-indigo-100' : 'bg-slate-50 border-slate-100')}>
+        <span className={cx('w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 text-white', latest ? 'bg-indigo-600' : 'bg-slate-400')}>
+          <FileUp size={15} /><span className="text-[10px] font-bold font-mono leading-none mt-0.5">v{v.version}</span>
         </span>
-        <span className="flex-1 h-px bg-slate-200" />
+        <div className="min-w-0">
+          <div className="text-sm text-slate-800"><b>{nameOf(v.created_by)}</b> 님이 {v.version === 1 ? '처음 올렸습니다' : <><b className="text-indigo-700">새 버전 v{v.version}</b>을 올렸습니다</>}</div>
+          <div className="text-xs text-slate-500">{fmtDate(v.created_at)}{latest ? <span className="ml-1.5 text-[10px] font-semibold text-white bg-indigo-600 rounded px-1.5 py-0.5">최신</span> : <span className="ml-1.5 text-[10px] text-slate-400">이전 버전</span>}</div>
+        </div>
+        {ai && <button onClick={ai.open} className={cx('ml-auto shrink-0 text-[11px] font-semibold rounded-full px-2.5 py-1 inline-flex items-center gap-1 ring-1',
+          ai.on ? 'bg-violet-600 text-white ring-violet-600' : ai.has ? 'bg-white text-violet-700 ring-violet-200 hover:bg-violet-50' : 'bg-white text-slate-400 ring-slate-200 hover:text-slate-600')}><Sparkles size={11} />{ai.has ? 'AI 검토' : 'AI 검토 전'}</button>}
       </div>
-      <article className={cx('mt-2 rounded-2xl bg-white ring-1 px-4 pb-4 pt-1', latest ? 'ring-indigo-200' : 'ring-slate-200')}>
-        {v.note && <p className="mt-3 text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{v.note}</p>}
+      <div className="px-4 pb-4">
+        {v.note && <p className="mt-3 text-sm text-slate-700"><span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded px-1.5 py-0.5 mr-1.5">{v.version === 1 ? '메모' : '바뀐 점'}</span>{v.note}</p>}
         <VersionBody sub={sub} v={v} older={!latest} />
-      </article>
-    </div>
+      </div>
+    </article>
   );
 }
 
