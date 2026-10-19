@@ -1,6 +1,7 @@
 // 아웃라인: 문서 쓰듯 편집 (Enter 저장·다음 줄 · Tab 들여쓰기 · Shift+Tab 내어쓰기 · 끌어서 이동)
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, CircleAlert, GripVertical, MoreHorizontal, Plus, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleAlert, Crosshair, GripVertical, MoreHorizontal, Plus, RotateCcw } from 'lucide-react';
+import { currentLabel, usePendingCheckins } from '../../lib/checkin';
 import { useTeam } from '../../state/session';
 import type { WorkItem } from '../../lib/types';
 import { STATUS_META, isOverdue, measureText, slipDays, sortBetween, useItemMutations, useLevelNames, type Node } from '../../lib/items';
@@ -26,6 +27,7 @@ interface Props {
 export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, canProgress = canEditItem, canAddUnder, canStructure, dim, rootDefaults, addRootSignal }: Props) {
   const { team, uid, isLeader, members, nameOf } = useTeam();
   const levelName = useLevelNames();
+  const pendingCk = usePendingCheckins();
   const { update, create } = useItemMutations(team.id);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | 'root' | null>(null);  // 부모 id
@@ -132,6 +134,8 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
                 {n.needs_plan && <Pill tone="violet" className="shrink-0">계획 요청됨</Pill>}
                 {n.measure === 'number' && <span className="text-xs text-slate-500 shrink-0 num">{measureText(n)}</span>}
                 {n.measure === 'recurring' && <span className="text-xs text-slate-500 shrink-0">{measureText(n)}</span>}
+                {n.measure === 'stage' && <span className="text-xs text-slate-500 shrink-0">{currentLabel(n)}{n.stages?.length ? ` · ${n.stage_current ?? 0}/${n.stages.length}` : ''}</span>}
+                {!!pendingCk.data?.get(n.id) && <button onClick={() => onOpen(n.id)} className="shrink-0 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 px-1.5 py-0.5 inline-flex items-center gap-0.5"><Crosshair size={10} />체크인 대기</button>}
               </div>
               {/* 계획 대비 */}
               {(slip ?? 0) !== 0 && <span className={cx('text-[11px] shrink-0 inline-flex items-center gap-0.5', (slip ?? 0) > 0 ? 'text-amber-700' : 'text-emerald-700')} title={`처음 계획 ${fmtShort(n.base_due)} · 변경 ${n.replan_count}회`}>

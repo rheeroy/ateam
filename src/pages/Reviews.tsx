@@ -1,7 +1,7 @@
 // 업무플랫폼 — 팀원이 올린 결과물을 목표(없으면 루틴)와 연결해 보고, AI 1차 검토를 미리 보며 피드백
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Briefcase, Check, ChevronDown, ChevronRight, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, UsersRound } from 'lucide-react';
+import { Briefcase, Check, Crosshair, ChevronDown, ChevronRight, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, UsersRound } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { buildTree, useItems, type Node } from '../lib/items';
@@ -16,7 +16,7 @@ import { STATUS } from './MySubmissions';
 
 type F = 'in_review' | 'needs_work' | 'approved' | 'shared' | 'all';
 type V = 'people' | 'list' | 'goal';
-const KIND_ICON = { link: Link2, image: ImageIcon, number: Hash, note: MessageSquareText, document: FileText } as const;
+const KIND_ICON = { link: Link2, image: ImageIcon, number: Hash, note: MessageSquareText, document: FileText, checkin: Crosshair } as const;
 
 export default function Reviews() {
   const { team } = useTeam();

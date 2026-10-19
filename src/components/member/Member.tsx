@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Award, Circle, ListTodo, MessageSquarePlus, RotateCcw } from 'lucide-react';
+import { Award, CheckCircle2, Circle, Inbox, ListTodo, MessageSquarePlus, RotateCcw } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
-import type { ActionItem, Submission } from '../../lib/types';
+import type { ActionItem, Submission, TeamRequest } from '../../lib/types';
+import { REQUEST_KIND } from '../RequestModal';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
-import { Button, Card, CardHead, Field, Modal, inputCls, useToast } from '../ui';
+import { Avatar, Button, Card, CardHead, Field, Modal, Pill, inputCls, useToast } from '../ui';
 
 type Promise_ = ActionItem & { one_on_ones: { member_id: string; leader_id: string } | null };
 
@@ -191,12 +192,69 @@ export function useMemberBadges(enabled: boolean) {
   return useQuery({
     queryKey: ['member-badges', team?.id, uid], enabled: enabled && !!team, staleTime: 60_000,
     queryFn: async () => {
-      const [nw, ai] = await Promise.all([
+      const [nw, ai, rq] = await Promise.all([
         supabase.from('submissions').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('author_id', uid).eq('status', 'needs_work').is('closed_at', null),
         supabase.from('action_items').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('owner_id', uid).is('done_at', null),
+        supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open'),
       ]);
-      return { needsWork: nw.count ?? 0, promises: ai.count ?? 0 };
+      return { needsWork: nw.count ?? 0, promises: ai.count ?? 0, requests: rq.count ?? 0 };
     },
   });
 }
 
+/** 팀장님 요청·메시지 — 바로 답하거나 해야 할 곳으로 */
+export function MyRequests() {
+  const { team, uid, nameOf } = useTeam();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [reply, setReply] = useState<Record<string, string>>({});
+  const list = useQuery({
+    queryKey: ['requests', team.id, 'to', uid, 'all'],
+    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').order('created_at', { ascending: false })),
+  });
+  const done = useMutation({
+    mutationFn: (r: TeamRequest) => q(supabase.from('team_requests').update({ status: 'done', response: reply[r.id] ?? '' }).eq('id', r.id)),
+    onSuccess: (_d, r) => { qc.invalidateQueries({ queryKey: ['requests'] }); toast(r.kind === 'cheer' ? '확인했다고 팀장님께 알렸어요.' : r.kind === 'grow' ? '답을 보냈어요. 팀장님께 알림이 갑니다.' : '완료로 표시했습니다. 팀장에게 알림이 갑니다.'); },
+    onError: (e) => toast(errorText(e)),
+  });
+  if (!list.data?.length) return null;
+  const CTA: Record<TeamRequest['kind'], { label: string; to: (r: TeamRequest) => string } | null> = {
+    plan: { label: '계획 세우기', to: (r) => `/my/goals${r.item_id ? `?item=${r.item_id}` : ''}` },
+    progress: { label: '체크인하기', to: (r) => `/my/goals${r.item_id ? `?item=${r.item_id}` : ''}` },
+    share: { label: '업무플랫폼에 올리기', to: () => '/my/submissions' },
+    meeting: null,
+    other: null,
+    grow: null,
+    cheer: null,
+    change: null,
+  };
+  const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인했어요' };
+  return (
+    <Card className="border-violet-200">
+      <CardHead icon={<Inbox size={16} className="text-violet-600" />} title={`팀장님 요청 ${list.data.length}건`} />
+      <ul className="divide-y divide-slate-100">
+        {list.data.map((r) => {
+          const late = r.due_date && r.due_date < new Date().toISOString().slice(0, 10);
+          const cta = CTA[r.kind];
+          return (
+            <li key={r.id} className="px-5 py-3.5">
+              <div className="flex items-start gap-3">
+                <Avatar name={nameOf(r.from_id)} size={8} tone="indigo" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap"><span className="font-semibold">{r.title}</span><Pill tone="violet">{REQUEST_KIND[r.kind].label}</Pill></div>
+                  {r.body && <p className="text-sm text-slate-600 mt-0.5">{r.body}</p>}
+                  <div className={cx('text-xs mt-0.5', late ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{fmtDate(r.created_at)} 요청{r.due_date && ` · ${fmtShort(r.due_date)}까지`}</div>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {cta && <Link to={cta.to(r)}><Button size="sm">{cta.label}</Button></Link>}
+                    <input className="flex-1 min-w-[140px] text-xs border border-slate-200 rounded-lg px-2.5 py-1.5" placeholder={r.kind === 'grow' ? '해 보고 싶은 일 · 생각 (선택)' : r.kind === 'cheer' ? '한 줄 답장 (선택)' : '한 줄 답 (선택)'} value={reply[r.id] ?? ''} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })} />
+                    <Button size="sm" variant="secondary" onClick={() => done.mutate(r)}><CheckCircle2 size={13} />{DONE[r.kind] ?? '완료'}</Button>
+                  </div>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}

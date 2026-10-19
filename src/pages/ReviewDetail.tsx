@@ -1,7 +1,7 @@
 // 업무 상세 — 대화창: 올린 버전과 말풍선이 시간순으로 한 흐름. 맨 아래 대화창 하나로 보내기·파일(새 버전/첨부)
 //   말풍선의 [답글]은 오른쪽 스레드에서 이어 간다. 팀장은 오른쪽에서 AI 1차 검토를 본다(팀원에게는 보이지 않음).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Check, CheckCircle2, ChevronDown, CornerDownRight, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -237,6 +237,13 @@ export default function ReviewDetail() {
   if (subQ.isLoading || (subQ.data && versQ.isPending)) return <Spinner />;
   const sub = subQ.data;
   if (!sub || !latest) return <Empty title="업무를 찾을 수 없습니다" />;
+  // 체크인은 업무플랫폼 대화 안에서 본다 (알림 링크도 여기로)
+  if (sub.kind === 'checkin') {
+    const to = isLeader
+      ? (sub.group_id ? `/work/g/${sub.group_id}?open=${sub.id}` : `/work/u/${sub.space_id ?? sub.author_id}?open=${sub.id}`)
+      : `/my/submissions?${sub.group_id ? `g=${sub.group_id}&` : ''}open=${sub.id}`;
+    return <Navigate to={to} replace />;
+  }
   const isAuthor = sub.author_id === uid;
   const group = sub.group_id ? (groups.data ?? []).find((g) => g.id === sub.group_id) ?? null : null;
   const inGroup = !!group?.work_group_members.some((m) => m.user_id === uid);

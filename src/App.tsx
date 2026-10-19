@@ -18,13 +18,11 @@ const Advisor = lazy(() => import('./pages/Advisor'));
 const Evaluation = lazy(() => import('./pages/Evaluation'));
 const Insight = lazy(() => import('./pages/Insight'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
-const Checkin = lazy(() => import('./pages/Checkin'));
 const MySubmissions = lazy(() => import('./pages/MySubmissions'));
 const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Goals = lazy(() => import('./pages/Goals'));
-const MemberHome = lazy(() => import('./pages/MemberHome'));
 const MyRecord = lazy(() => import('./pages/MyRecord'));
 const Brief = lazy(() => import('./pages/Brief'));
 const People = lazy(() => import('./pages/People'));
@@ -98,7 +96,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
-        <Route index element={isLeader ? <Home /> : <MemberHome />} />
+        <Route index element={isLeader ? <Home /> : <Navigate to="/my/submissions" replace />} />
         <Route path="brief/org" element={<Moved to="/upward" />} />
         <Route path="brief/:section" element={L(<Brief />)} />
         <Route path="goals" element={L(<TeamGoals />)} />
@@ -127,7 +125,7 @@ export default function App() {
         <Route path="notes" element={L(<Notes />)} />
         <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="checkin" element={<Checkin />} />
+        <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
         <Route path="my/record" element={<MyRecord />} />

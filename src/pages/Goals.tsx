@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, ClipboardPaste, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
+import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
+import { CheckinModal } from '../components/checkin/Checkin';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { yearOf } from '../lib/plan';
@@ -145,6 +146,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
   const [owner, setOwner] = useState('');
   const [draft, setDraft] = useState<{ open: boolean; parent: string | null }>({ open: false, parent: null });
   const [paste, setPaste] = useState(false);
+  const [ck, setCk] = useState(false);
   const [settings, setSettings] = useState(false);
   const [askPlan, setAskPlan] = useState(false);
   const [addRoot, setAddRoot] = useState(0);
@@ -217,8 +219,11 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
             <Link to={`/goals${year !== nowYear ? `?year=${year}` : ''}`} className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link>
             {isLeader && <PlanToggle />}
           </div>) : undefined}
-        sub={mode === 'member' ? '팀 목표 안에서 내 목표·과제의 진척을 남기고, 내 과제 아래 할 일을 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
-        right={mode === 'member' && rules.open ? <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button> : undefined} />
+        sub={mode === 'member' ? '성과가 나면 [체크인]으로 목표에 점을 찍으세요 — 팀장님이 승인하면 공식 진척이 됩니다. 내 과제 아래 할 일은 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
+        right={mode === 'member' && !isLeader ? <div className="flex gap-2">
+          {rules.open && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>}
+          <Button onClick={() => setCk(true)}><Crosshair size={15} />체크인</Button></div> : undefined} />
+      {ck && <CheckinModal open onClose={() => setCk(false)} spaceId={uid} />}
       {/* 팀장 도구 — 제목 아래 줄에 고정 (오른쪽 위는 팀원 목표수정 토글) */}
       {mode === 'leader' && isLeader && (
         <div className="-mt-2 mb-6 flex gap-2 flex-wrap">
@@ -235,7 +240,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
           {rules.open ? <LockOpen size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <Lock size={15} className="mt-0.5 shrink-0 text-slate-400" />}
           <p>{rules.open
             ? <><b>지금은 목표·과제를 고칠 수 있어요.</b> 새로 쓰거나 고친 목표·과제는 팀장님 승인 후 반영됩니다. 할 일은 언제든 자유롭게 쓰세요.</>
-            : <><b>지금은 목표·과제 수정이 꺼져 있습니다.</b> 진척·상태 업데이트와 내 과제 아래 할 일은 언제든 할 수 있어요. 목표·과제를 바꿔야 하면 항목을 열어 [변경 요청]을 보내세요.</>}</p>
+            : <><b>지금은 목표·과제 수정이 꺼져 있습니다.</b> 성과 체크인과 내 과제 아래 할 일은 언제든 할 수 있어요. 목표·과제를 바꿔야 하면 항목을 열어 [변경 요청]을 보내세요.</>}</p>
         </div>
       )}
 

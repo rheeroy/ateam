@@ -21,19 +21,23 @@ export interface OneOnOne {
 }
 export interface ActionItem { id: string; team_id: string; one_on_one_id: string | null; owner_id: string; title: string; due_date: string | null; done_at: string | null; created_by: string; created_at: string }
 export interface Observation { id: string; team_id: string; author_id: string; subject_id: string; kind: 'praise' | 'concern' | 'note'; competency: string | null; body: string; occurred_at: string; created_at: string }
-export interface Submission { id: string; team_id: string; author_id: string; item_id: string | null; title: string; status: 'in_review' | 'needs_work' | 'approved' | 'shared'; kind: ShareKind; request_type: RequestType; link_url: string | null; approved_at: string | null; closed_at?: string | null; group_id?: string | null; created_at: string; updated_at: string }
-export type ShareKind = 'document' | 'link' | 'image' | 'number' | 'note';
+export interface Submission { id: string; team_id: string; author_id: string; item_id: string | null; title: string; status: 'in_review' | 'needs_work' | 'approved' | 'shared'; kind: ShareKind; request_type: RequestType; link_url: string | null; approved_at: string | null; closed_at?: string | null; group_id?: string | null; space_id?: string | null; created_at: string; updated_at: string }
+export type ShareKind = 'document' | 'link' | 'image' | 'number' | 'note' | 'checkin';
 export type RequestType = 'approval' | 'feedback' | 'share';
-export interface SubmissionVersion { id: string; submission_id: string; team_id: string; version: number; file_path: string | null; file_name: string | null; mime_type: string | null; extracted_text: string; note: string; created_by: string; value: number | null; created_at: string }
+export interface SubmissionVersion { id: string; submission_id: string; team_id: string; version: number; file_path: string | null; file_name: string | null; mime_type: string | null; extracted_text: string; note: string; created_by: string; value: number | null; created_at: string; checkin?: CheckinPayload | null }
+/** 성과 체크인 — 목표 하나에 성과를 점찍는다. 승인되면 그 항목의 공식 값이 된다 */
+export type CheckinType = 'number' | 'percent' | 'stage' | 'done' | 'note';
+export interface CheckinPayload { type: CheckinType; value?: number | null; stage?: number | null; progress?: number | null; prev?: string | null; label?: string | null; evidence?: { t: 'sub' | 'msg'; id: string; title: string }[] }
 export interface ReviewComment { id: string; submission_id: string; version_id: string | null; team_id: string; parent_id: string | null; author_id: string; section_ref: string | null; body: string; provenance: string; file_path?: string | null; file_name?: string | null; mime_type?: string | null; created_at: string }
 
 export interface Hypothesis { id: string; team_id: string; item_id: string | null; statement: string; signal: string; status: 'testing' | 'validated' | 'refuted'; created_at: string }
 export type ItemStatus = 'proposed' | 'changes_requested' | 'active' | 'blocked' | 'done' | 'dropped';
-export type ItemMeasure = 'check' | 'children' | 'percent' | 'number' | 'recurring';
+export type ItemMeasure = 'check' | 'children' | 'percent' | 'number' | 'recurring' | 'stage';
 export interface WorkItem {
   id: string; team_id: string; parent_id: string | null; owner_id: string | null; created_by: string | null;
   title: string; note: string; status: ItemStatus; measure: ItemMeasure; progress: number;
   num_current: number | null; num_target: number | null; unit: string; higher_is_better: boolean; recur: 'weekly' | 'monthly' | null;
+  stages?: string[]; stage_current?: number | null;
   start_date: string | null; due_date: string | null; done_at: string | null;
   base_start: string | null; base_due: string | null; base_target: number | null; baselined_at: string | null; replan_count: number;
   tags: string[]; contribution: number; priority: number; est_hours_per_week: number | null; metric_id: string | null;

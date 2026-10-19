@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
-  PenLine, ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Trophy } from 'lucide-react';
+  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -132,12 +132,9 @@ export default function Layout() {
           </nav>
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <NavItem to="/" label="홈" icon={Home} />
-            <NavItem to="/my/goals" label="팀목표" icon={ListTree} />
-            <NavItem to="/checkin" label="체크인" icon={PenLine} />
             <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
-            <NavItem to="/my/one-on-ones" label="내 1:1" icon={MessageSquare} badge={mb.data?.promises ? `약속 ${mb.data.promises}` : undefined} />
-            <NavItem to="/my/record" label="내 기록" icon={Trophy} />
+            <NavItem to="/my/goals" label="팀목표" icon={ListTree} />
+            <NavItem to="/my/one-on-ones" label="팀장님과" icon={MessageSquare} badge={(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0) ? `${(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0)}` : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -217,13 +214,13 @@ export default function Layout() {
 /** 팀원 모바일 하단 탭 */
 function MemberTabBar({ needsWork }: { needsWork: number }) {
   const tabs = [
-    { to: '/', label: '홈', I: Home }, { to: '/my/goals', label: '팀목표', I: ListTree }, { to: '/checkin', label: '체크인', I: PenLine },
-    { to: '/my/submissions', label: '업무', I: FileUp, dot: needsWork > 0 }, { to: '/my/one-on-ones', label: '1:1', I: MessageSquare },
+    { to: '/my/submissions', label: '업무플랫폼', I: FileUp, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: ListTree },
+    { to: '/my/one-on-ones', label: '팀장님과', I: MessageSquare, dot: false },
   ];
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
       {tabs.map((t) => (
-        <NavLink key={t.to} to={t.to} end={t.to === '/'} className={({ isActive }) => cx('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-indigo-700 font-semibold' : 'text-slate-500')}>
+        <NavLink key={t.to} to={t.to} className={({ isActive }) => cx('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-indigo-700 font-semibold' : 'text-slate-500')}>
           <t.I size={20} />{t.label}
           {t.dot && <span className="absolute top-1.5 right-[30%] w-2 h-2 rounded-full bg-rose-500" />}
         </NavLink>

@@ -14,7 +14,7 @@ begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
   if not exists (select 1 from subscriptions where owner_id = auth.uid()) then
     insert into subscriptions (owner_id, plan_id, status, trial_ends_at, current_period_start, current_period_end)
-    values (auth.uid(), 'pro', 'trialing', now() + interval '30 days', now(), now() + interval '30 days');
+    values (auth.uid(), 'pro_plus', 'trialing', now() + interval '14 days', now(), now() + interval '14 days');  -- 요금제 v3: 체험 14일 · Pro+ 전체
   end if;
   v_plan := public.effective_plan_for_owner(auth.uid());
   select count(*) into v_owned from teams where owner_id = auth.uid() and not is_demo;
@@ -674,6 +674,23 @@ begin
       insert into space_messages (team_id, group_id, author_id, body, created_at) values
         (T, wg, m_choi, '사전 예약 페이지 카피 초안은 이번 주 금요일까지 올릴게요.', now() - interval '5 hours');
     end if;
+  exception when others then null;
+  end;
+  -- 성과 체크인 (22_checkin 이후에만 들어감): 최민아 '콘텐츠 제작 프로세스 개선' 승인 3건 + 승인 대기 1건
+  declare ck uuid; r record;
+  begin
+    for r in select * from (values (45, '30%', 21, '디자인팀 고정 슬롯 확보, 1차 프로세스 문서 공유'), (55, '45%', 14, '리드타임 측정 시작 — 평균 9일'), (66, '55%', 5, '월 제작 건수 지표 추가, 4건 시범 적용'))
+                    as x(v, prev, ago, note) loop
+      insert into submissions (team_id, author_id, item_id, space_id, title, kind, request_type, created_at)
+        values (T, m_choi, t5, m_choi, '체크인 · 콘텐츠 제작 프로세스 개선 ' || r.v || '%', 'checkin', 'approval', now() - (r.ago || ' days')::interval) returning id into ck;
+      insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, value, checkin, created_at)
+        values (ck, T, 1, r.note, r.note, m_choi, r.v, jsonb_build_object('type', 'percent', 'value', r.v, 'prev', r.prev, 'label', r.v || '%'), now() - (r.ago || ' days')::interval);
+      update submissions set status = 'approved', approved_by = L, updated_at = now() - (r.ago || ' days')::interval + interval '4 hours' where id = ck;
+    end loop;
+    insert into submissions (team_id, author_id, item_id, space_id, title, kind, request_type, created_at)
+      values (T, m_choi, t5, m_choi, '체크인 · 콘텐츠 제작 프로세스 개선 75%', 'checkin', 'approval', now() - interval '3 hours') returning id into ck;
+    insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, value, checkin, created_at)
+      values (ck, T, 1, '샘플 3건 리드타임 9일 → 6일', '샘플 3건 리드타임 9일 → 6일', m_choi, 75, jsonb_build_object('type', 'percent', 'value', 75, 'prev', '66%', 'label', '75%'), now() - interval '3 hours');
   exception when others then null;
   end;
 end $fn$;

@@ -19,6 +19,7 @@ export const MEASURE_META: Record<ItemMeasure, { label: string; hint: string }> 
   percent: { label: '퍼센트', hint: '진척률을 직접 입력' },
   number: { label: '숫자 목표', hint: '현재값 / 목표값 (예: 리드 120 / 500건)' },
   recurring: { label: '정기 업무', hint: '매주·매달 해야 하는 일 (기한 준수율)' },
+  stage: { label: '단계 (정성)', hint: '정해 둔 단계 중 어디까지 왔는지 (예: 착수 › 초안 › 검증 › 확정)' },
 };
 
 export const DEFAULT_LEVELS = ['목표', '과제', '할 일'];
@@ -115,6 +116,7 @@ export function measureText(n: WorkItem) {
   if (n.measure === 'number') return `${n.num_current ?? 0}${n.unit} / ${n.num_target ?? '-'}${n.unit}`;
   if (n.measure === 'check') return n.status === 'done' ? '완료' : '미완료';
   if (n.measure === 'recurring') return `${n.recur === 'weekly' ? '매주' : '매달'} · 준수 ${n.progress}%`;
+  if (n.measure === 'stage') return n.stage_current ? `${(n.stages ?? [])[n.stage_current - 1] ?? `${n.stage_current}단계`} (${n.stage_current}/${n.stages?.length ?? '-'})` : '시작 전';
   return `${n.progress}%`;
 }
 

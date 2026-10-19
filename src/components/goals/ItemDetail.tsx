@@ -7,6 +7,7 @@ import { NotesBox } from '../notes/Notes';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { Hypothesis, ItemMeasure, ItemStatus, Metric, Submission, WorkItem, WorkItemComment, WorkItemEvent, WorkItemLog } from '../../lib/types';
+import { CheckinHistory, CheckinModal } from '../checkin/Checkin';
 import { MEASURE_META, STATUS_META, slipDays, useItemMutations, useLevelNames, usePlanRules, type Node } from '../../lib/items';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
 import { Avatar, Bar, Button, Field, Modal, Pill, inputCls, useToast } from '../ui';
@@ -85,6 +86,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
   const [reqOpen, setReqOpen] = useState(false);
+  const [ck, setCk] = useState(false);
   useEffect(() => { setF(item); setReason(''); }, [item]);
 
   const logs = useQuery({ queryKey: ['item-logs', item.id], queryFn: () => q<WorkItemLog[]>(supabase.from('work_item_logs').select('*').eq('item_id', item.id).order('period', { ascending: false }).limit(40)) });
@@ -98,7 +100,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const dirty = useMemo(() => (Object.keys(f) as (keyof WorkItem)[]).some((k) => JSON.stringify(f[k]) !== JSON.stringify(item[k])), [f, item]);
   const planChanged = !!item.baselined_at && (f.due_date !== item.due_date || f.start_date !== item.start_date || f.num_target !== item.num_target);
   const save = () => {
-    const keys: (keyof WorkItem)[] = ['title', 'note', 'owner_id', 'status', 'measure', 'progress', 'num_current', 'num_target', 'unit', 'higher_is_better', 'recur',
+    const keys: (keyof WorkItem)[] = ['title', 'note', 'owner_id', 'status', 'measure', 'progress', 'num_current', 'num_target', 'unit', 'higher_is_better', 'recur', 'stages', 'stage_current',
       'start_date', 'due_date', 'contribution', 'priority', 'est_hours_per_week', 'metric_id', 'tags', 'parent_id'];
     const patch: Record<string, unknown> = {};
     for (const k of keys) if (JSON.stringify(f[k]) !== JSON.stringify(item[k])) patch[k] = f[k];
@@ -138,6 +140,9 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const parentOptions = [...byId.values()].filter((n) => n.id !== item.id && !n.path.includes(item.id) && n.status !== 'dropped');
   const ro = !canPlan;
   const pro = !canEdit;
+  // 목표·과제의 성과 값(숫자·진척률·단계)은 팀원이 직접 못 바꾼다 — 체크인 → 팀장 승인
+  const valLock = pro || (!isLeader && item.depth < 2);
+  const canCheckin = !isLeader && mine && item.depth < 2 && ['active', 'blocked'].includes(item.status);
   const S = (k: keyof WorkItem) => (v: unknown) => setF((p) => ({ ...p, [k]: v }));
 
   return (
@@ -175,7 +180,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
             <Lock size={13} className="mt-0.5 shrink-0 text-slate-400" />
             <span>{PENDING.includes(item.status)
               ? <>지금은 팀원 수정이 꺼져 있어 검토 중인 계획도 고칠 수 없어요. 팀장님이 켜면 고칠 수 있습니다.</>
-              : <>지금은 팀원 수정이 꺼져 있어 {levelName(item.depth)}는 진척·상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
+              : <>지금은 팀원 수정이 꺼져 있어 {levelName(item.depth)}는 체크인과 상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
           </div>
         )}
         {!isLeader && mine && canPlan && rules.reapproves(item) && item.status !== 'changes_requested' && (
@@ -206,6 +211,9 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           </Field>
         )}
 
+        {item.depth < 2 && !PENDING.includes(item.status) && <CheckinHistory item={item} canCheckin={canCheckin} onCheckin={() => setCk(true)} />}
+        {ck && <CheckinModal open onClose={() => setCk(false)} itemId={item.id} spaceId={uid} />}
+
         {/* 측정 방식 */}
         <div className="rounded-xl border border-slate-200 p-3.5 space-y-3">
           <Field label="진척을 재는 방식">
@@ -215,11 +223,11 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           </Field>
           {f.measure === 'percent' && (
             <div><div className="flex justify-between text-xs text-slate-500"><span>진척률</span><span className="font-mono">{f.progress}%</span></div>
-              <input type="range" min={0} max={100} step={5} value={f.progress} disabled={pro} onChange={(e) => S('progress')(Number(e.target.value))} className="w-full accent-indigo-600" aria-label="진척률" /></div>
+              <input type="range" min={0} max={100} step={5} value={f.progress} disabled={valLock} onChange={(e) => S('progress')(Number(e.target.value))} className="w-full accent-indigo-600" aria-label="진척률" /></div>
           )}
           {f.measure === 'number' && (
             <div className="grid grid-cols-3 gap-2">
-              <Field label="현재"><input type="number" className={inputCls} value={f.num_current ?? ''} disabled={pro || !!f.metric_id} onChange={(e) => S('num_current')(e.target.value === '' ? null : Number(e.target.value))} /></Field>
+              <Field label="현재"><input type="number" className={inputCls} value={f.num_current ?? ''} disabled={valLock || !!f.metric_id} onChange={(e) => S('num_current')(e.target.value === '' ? null : Number(e.target.value))} /></Field>
               <Field label="목표"><input type="number" className={inputCls} value={f.num_target ?? ''} disabled={ro} onChange={(e) => S('num_target')(e.target.value === '' ? null : Number(e.target.value))} /></Field>
               <Field label="단위"><input className={inputCls} value={f.unit} disabled={ro} onChange={(e) => S('unit')(e.target.value)} placeholder="건, 억" /></Field>
               {isLeader && (
@@ -242,6 +250,24 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
               )}
             </div>
           )}
+          {f.measure === 'stage' && (
+            <div className="space-y-2">
+              <Field label="단계" hint="한 줄에 하나씩 · 3~5개 · 순서대로">
+                <textarea rows={4} className={inputCls} value={(f.stages ?? []).join('\n')} disabled={ro} placeholder={'착수\n초안\n검증\n확정\n확산'}
+                  onChange={(e) => S('stages')(e.target.value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 8))} />
+              </Field>
+              {!!(f.stages ?? []).length && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-slate-500 mr-1">지금</span>
+                  {(f.stages ?? []).map((st, i) => (
+                    <button key={i} type="button" disabled={valLock} onClick={() => S('stage_current')(f.stage_current === i + 1 ? null : i + 1)}
+                      className={cx('rounded-full px-2.5 py-0.5 ring-1', (f.stage_current ?? 0) >= i + 1 ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-600 ring-slate-200', valLock && 'cursor-default')}>{i + 1}. {st}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!isLeader && item.depth < 2 && ['number', 'percent', 'stage'].includes(f.measure) && <p className="text-[11px] text-slate-400">성과 값은 위의 [체크인]으로 남기고, 팀장님이 승인하면 바뀝니다.</p>}
           {f.measure === 'children' && <p className="text-xs text-slate-500">하위 항목 {item.children.length}개의 평균 진척 {item.progress}% (제안·중단 제외)</p>}
         </div>
 

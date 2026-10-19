@@ -4,11 +4,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCircle2, CircleDot, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
+import { Check, CheckCircle2, CircleDot, Crosshair, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import { buildTree, useItems, type Node } from '../../lib/items';
 import { REQ_TAG, useCloseSubmission } from '../../lib/work';
+import { CheckinCard, CheckinDetail, CheckinModal } from '../checkin/Checkin';
 import { baseName, createPost, isUrl, namedPaste, startReview } from '../../lib/post';
 import { buildEntries, lastOther, useSendMessage, useSpace, useSpaceRead, type Entry, type SpaceMessage, type SpaceRef, type SpaceSub } from '../../lib/space';
 import type { WorkGroup } from '../../lib/groups';
@@ -190,7 +191,8 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
             );
           })}
         </div>
-        <SpaceComposer space={space} tasks={tasks} defaultTag={defaultTag} file={file} setFile={setFile} answering={answering} clearAnswer={() => setAnswering(null)} />
+        <SpaceComposer space={space} tasks={tasks} defaultTag={defaultTag} file={file} setFile={setFile} answering={answering} clearAnswer={() => setAnswering(null)}
+          recent={subs.filter((x) => x.author_id === uid && x.kind !== 'checkin').slice(-10).reverse().map((x) => ({ id: x.id, title: x.title }))} />
       </section>
 
       {/* 오른쪽 스레드 — 좁은 화면에선 덮어서 */}
@@ -218,7 +220,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
   const who = e.t === 'msg' ? e.m.author_id : e.t === 'req' ? e.r.from_id : e.t === 'ver' ? e.v.created_by : e.s.author_id;
   const me = who === uid;
   const nm = (w: string) => (w === uid ? '나' : w === leaderId ? `${nameOf(w)} 팀장님` : nameOf(w));
-  const tag = (() => { const it = e.t === 'msg' ? e.m.item_id : e.t === 'req' ? e.r.item_id : e.s.item_id; return it ? byId.get(it)?.title ?? null : null; })();
+  const tag = (() => { if ((e.t === 'post' || e.t === 'ver') && e.s.kind === 'checkin') return null; const it = e.t === 'msg' ? e.m.item_id : e.t === 'req' ? e.r.item_id : e.s.item_id; return it ? byId.get(it)?.title ?? null : null; })();
   const thread = (() => {
     if (!showThread) return null;
     if (e.t === 'msg') { const r = msgs.filter((m) => m.parent_id === e.m.id); return r.length ? { n: r.length, last: r[r.length - 1].author_id, body: r[r.length - 1].body, open: () => onSel({ t: 'msg', id: e.m.id }) } : { n: 0, open: () => onSel({ t: 'msg', id: e.m.id }) }; }
@@ -255,8 +257,10 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
         {(e.t === 'post' || e.t === 'ver') && (
           <>
             {e.t === 'post' && e.v?.note && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm')}>{e.v.note}</div>}
-            {e.t === 'ver' && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm')}><b>새 버전 v{e.v.version}</b>을 올렸어요{e.v.note ? ` — ${e.v.note}` : ''}</div>}
-            <WorkCard s={e.s} v={e.t === 'ver' ? e.v : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />
+            {e.t === 'ver' && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm')}>{e.s.kind === 'checkin' ? <><b>체크인</b>을 고쳐 다시 올렸어요</> : <><b>새 버전 v{e.v.version}</b>을 올렸어요</>}{e.v.note ? ` — ${e.v.note}` : ''}</div>}
+            {e.s.kind === 'checkin'
+              ? <CheckinCard s={e.s} item={e.s.item_id ? byId.get(e.s.item_id) : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />
+              : <WorkCard s={e.s} v={e.t === 'ver' ? e.v : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />}
           </>
         )}
 
@@ -296,9 +300,11 @@ function WorkCard({ s, v, on, onClick }: { s: SpaceSub; v: { version: number; fi
 // ---------------------------------------------------------------------
 // 입력창 — 평소엔 메시지. 파일·링크가 붙으면 업무 카드(요청 종류 선택)
 // ---------------------------------------------------------------------
-function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, clearAnswer }: {
+function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, clearAnswer, recent }: {
   space: SpaceRef; tasks: Node[]; defaultTag: string | null; file: File | null; setFile: (f: File | null) => void; answering: TeamRequest | null; clearAnswer: () => void;
+  recent: { id: string; title: string }[];
 }) {
+  const [ck, setCk] = useState(false);
   const { team, uid, isLeader, hasFeature } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -377,9 +383,13 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
             <button key={r} onClick={() => setReq(r)} className={cx('rounded-full border px-2.5 py-1', req === r ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500')}>{REQ_TAG[r].label}</button>
           ))}
           {work && isLeader && <span className="text-slate-400">팀장님이 올린 자료는 '공유'로 올라갑니다</span>}
+          {!isLeader && !work && <button onClick={() => setCk(true)} title="목표에 성과를 점찍고 팀장님 승인을 받습니다"
+            className="rounded-full px-2.5 py-1 font-semibold inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"><Crosshair size={12} />체크인</button>}
           <Button size="sm" className="ml-auto" disabled={!ready} loading={post.isPending} onClick={() => post.mutate()}>{work ? <><FileUp size={13} />올리기</> : <><Send size={13} />보내기</>}</Button>
         </div>
       </div>
+      {ck && <CheckinModal open onClose={() => setCk(false)} itemId={tag || null} recent={recent}
+        spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
     </div>
   );
 }
@@ -419,6 +429,7 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
   });
   const aiOf = (vid: string) => aiQ.data?.find((a) => a.ref_id === vid)?.content;
   const [tab, setTab] = useState<'talk' | 'ai'>('talk');
+  const [ck, setCk] = useState(false);
   const [aiVer, setAiVer] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
@@ -442,14 +453,16 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
   const tag = sub.item_id ? byId.get(sub.item_id)?.title : null;
   const flow = [...versions.map((v) => ({ at: v.created_at, v, c: null as ReviewComment | null })), ...(comQ.data ?? []).map((c) => ({ at: c.created_at, v: null as SubmissionVersion | null, c }))].sort((a, b) => a.at.localeCompare(b.at));
   const isLeaderPost = leaderView && sub.author_id === uid;
+  const isCheckin = sub.kind === 'checkin';
+  const canCk = !leaderView && !isCheckin && sub.status !== 'needs_work';
   return (
     <PanelShell onClose={onClose}
-      title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
+      title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', isCheckin ? 'bg-indigo-600 text-white' : rq.cls)}>{isCheckin ? '체크인' : rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
         <Link to={`/work/${sub.id}`} className="shrink-0 text-slate-400 hover:text-indigo-700" title="크게 보기" aria-label="크게 보기"><Maximize2 size={14} /></Link></>}
       sub={<>{tag && <span className="inline-flex items-center gap-0.5"><Hash size={11} />{tag}</span>}
-        {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}
+        {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{isCheckin && sub.status === 'in_review' ? '승인 대기' : STATUS[sub.status].label}</Pill>}
         <span>{nameOf(sub.author_id)} · {fmtDate(sub.created_at)}</span></>}
-      actions={leaderView && !isLeaderPost ? <>
+      actions={canCk ? <Button size="sm" variant="soft" onClick={() => setCk(true)}><Crosshair size={12} />이걸로 체크인</Button> : leaderView && !isLeaderPost && !isCheckin ? <>
         <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs">
           <button onClick={() => setTab('talk')} className={cx('px-2.5 py-1 rounded-md', tab === 'talk' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>대화</button>
           <button onClick={() => setTab('ai')} className={cx('px-2.5 py-1 rounded-md inline-flex items-center gap-1', tab === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={11} className="text-violet-600" />AI 검토</button>
@@ -465,12 +478,14 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
       </> : undefined}
       footer={tab === 'talk' ? <div onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }} onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }} className={cx(drag && 'ring-2 ring-inset ring-indigo-400')}>
-        <Composer sub={sub} latest={latest} canUpload={canUploadFor(sub)} file={file} setFile={setFile} /></div> : undefined}>
+        <Composer sub={sub} latest={latest} canUpload={canUploadFor(sub) && !isCheckin} file={file} setFile={setFile} /></div> : undefined}>
+      {ck && <CheckinModal open onClose={() => setCk(false)} itemId={sub.item_id} evidence={{ t: 'sub', id: sub.id, title: sub.title }} spaceId={sub.space_id ?? null} groupId={sub.group_id ?? null} />}
       {tab === 'ai' ? (
         <div className="p-3"><AiReview teamId={sub.team_id} version={versions.find((v) => v.id === aiVer) ?? latest} versions={versions} reviewOf={aiOf} onPick={setAiVer} onToComments={(qs) => toComments.mutate(qs)} /></div>
       ) : (
         <div ref={scroller} className="p-3.5 space-y-3 bg-slate-50/50 min-h-full">
-          {flow.map((x) => x.v ? <VersionMini key={x.v.id} sub={sub} v={x.v} latest={x.v.id === latest.id} /> : <Bubble key={x.c!.id} c={x.c!} mine={x.c!.author_id === uid} />)}
+          {isCheckin && <CheckinDetail sub={sub} versions={versions} leaderView={leaderView} />}
+          {flow.map((x) => x.v ? (isCheckin ? null : <VersionMini key={x.v.id} sub={sub} v={x.v} latest={x.v.id === latest.id} />) : <Bubble key={x.c!.id} c={x.c!} mine={x.c!.author_id === uid} />)}
         </div>
       )}
     </PanelShell>
@@ -495,9 +510,10 @@ function VersionMini({ sub, v, latest }: { sub: Submission; v: SubmissionVersion
 
 /** 대화 스레드 */
 function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; root?: SpaceMessage; replies: SpaceMessage[]; byId: Map<string, Node>; onClose: () => void }) {
-  const { uid, nameOf } = useTeam();
+  const { uid, nameOf, isLeader } = useTeam();
   const send = useSendMessage(space);
   const [body, setBody] = useState('');
+  const [ck, setCk] = useState(false);
   if (!root) return null;
   const Msg = ({ m }: { m: SpaceMessage }) => {
     const me = m.author_id === uid;
@@ -514,6 +530,7 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
   const submit = () => { if (body.trim()) send.mutate({ body, parent_id: root.id }, { onSuccess: () => setBody('') }); };
   return (
     <PanelShell onClose={onClose} title={<><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">스레드</span></>}
+      actions={!isLeader ? <Button size="sm" variant="soft" onClick={() => setCk(true)}><Crosshair size={12} />이걸로 체크인</Button> : undefined}
       sub={root.item_id && byId.get(root.item_id) ? <span className="inline-flex items-center gap-0.5"><Hash size={11} />{byId.get(root.item_id)!.title}</span> : undefined}
       footer={<div className="p-3 border-t border-slate-100 flex gap-2">
         <textarea rows={1} ref={(el) => { if (el && !el.dataset.f) { el.dataset.f = '1'; el.focus({ preventScroll: true }); } }} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글 — Enter 보내기"
@@ -525,6 +542,8 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
         <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
         {replies.map((r) => <Msg key={r.id} m={r} />)}
       </div>
+      {ck && <CheckinModal open onClose={() => setCk(false)} itemId={root.item_id} evidence={{ t: 'msg', id: root.id, title: root.body.slice(0, 40) }}
+        spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
     </PanelShell>
   );
 }

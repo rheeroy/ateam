@@ -28,6 +28,7 @@ export function TableView({ rows, onOpen, canEditItem, canProgress = canEditItem
           {rows.map((n) => {
             const ed = canEditItem(n);
             const edp = canProgress(n);
+            const edv = edp && (isLeader || n.depth >= 2);   // 목표·과제의 성과 값은 체크인 → 승인으로만
             return (
               <tr key={`${n.id}-${n.updated_at}`} className="border-t border-slate-100 hover:bg-slate-50/60">
                 <td className="px-2 py-1 min-w-[260px]" style={{ paddingLeft: 8 + n.depth * 16 }}>
@@ -50,10 +51,10 @@ export function TableView({ rows, onOpen, canEditItem, canProgress = canEditItem
                 </td>
                 <td className="px-2 w-24">
                   {n.measure === 'percent' ? (
-                    <input type="number" min={0} max={100} className={cell} defaultValue={n.progress} disabled={!edp} aria-label="진척"
+                    <input type="number" min={0} max={100} className={cell} defaultValue={n.progress} disabled={!edv} aria-label="진척"
                       onBlur={(e) => save(n, { progress: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} />
                   ) : n.measure === 'number' ? (
-                    <input type="number" className={cell} defaultValue={n.num_current ?? ''} disabled={!edp || !!n.metric_id} aria-label="현재값" title={`목표 ${n.num_target ?? '-'}${n.unit}`}
+                    <input type="number" className={cell} defaultValue={n.num_current ?? ''} disabled={!edv || !!n.metric_id} aria-label="현재값" title={`목표 ${n.num_target ?? '-'}${n.unit}`}
                       onBlur={(e) => save(n, { num_current: e.target.value === '' ? null : Number(e.target.value) })} />
                   ) : <span className="text-xs text-slate-500 px-1.5">{n.progress}%</span>}
                 </td>
