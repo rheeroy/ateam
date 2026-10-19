@@ -139,14 +139,13 @@ function usePicks(c: AdvisorOut | null, week: string): { list: Pick[]; more: num
 }
 
 function TopPicks({ c, week }: { c: AdvisorOut | null; week: string }) {
-  const { list, more, loading } = usePicks(c, week);
+  const { list, loading } = usePicks(c, week);
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return (
     <div>
       <div className="flex items-end gap-2 flex-wrap">
         <span className="text-[15px] font-bold tracking-tight">이번 주 가장 먼저 챙길 것</span>
         <span className="text-xs text-slate-400">결정 · 챙길 것 · 주의를 한 순위로 · 성과 영향과 시급성 순 · 에이전트가 매일 다시 매깁니다</span>
-        <Link to="/decide" className="ml-auto text-xs font-semibold text-violet-200 hover:text-white inline-flex items-center">의사결정 보드{more ? ` (+${more})` : ''}<ChevronRight size={13} /></Link>
       </div>
       {loading ? <p className="mt-3 text-sm text-slate-400">팀 기록을 살펴보는 중…</p> : !list.length ? <p className="mt-3 text-sm text-slate-300">지금 따로 챙길 것이 없습니다.</p> : (
         <ol className="mt-2.5 space-y-1">
