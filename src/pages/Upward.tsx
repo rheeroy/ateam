@@ -28,7 +28,6 @@ export default function Upward() {
         <div className="flex items-center gap-3">
           <span className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm"><UserRound size={20} /></span>
           <div>
-            <div className="text-[11px] font-bold tracking-wide text-slate-400">상향 관리</div>
             <h1 className="text-2xl font-bold tracking-tight leading-tight">임원 브리핑</h1>
             <p className="text-sm text-slate-500">위가 이번 주 궁금해하거나 챌린지할 것을 미리 챙깁니다 — 보고는 팀장이 직접 합니다</p>
           </div>
