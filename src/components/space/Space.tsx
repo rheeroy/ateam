@@ -45,7 +45,11 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const loaded = !data.subs.isLoading && !data.msgs.isLoading;
   const latest = useMemo(() => [...entries.map((e) => e.at), ...msgs.map((m) => m.created_at), ...subs.flatMap((s) => (s.review_comments ?? []).map((c) => c.created_at))].reduce((m, t) => (t > m ? t : m), ''), [entries, msgs, subs]);
   const seenAt = useSpaceRead(space, loaded, latest);
-  const unread = (e: Entry) => lastOther(e, uid, msgs) > seenAt;
+  // 읽음은 바로 반영: 스레드를 열면 그 글은 읽음, '모두 읽음'을 누르면 전부 읽음 (새로고침 없이)
+  const [opened, setOpened] = useState<Record<string, string>>({});
+  const [allReadAt, setAllReadAt] = useState('');
+  const threadKey = (e: Entry) => (e.t === 'msg' ? `m:${e.m.id}` : e.t === 'req' ? `r:${e.r.id}` : `s:${e.s.id}`);
+  const unread = (e: Entry) => { const t = lastOther(e, uid, msgs); return t > seenAt && t > allReadAt && t > (opened[threadKey(e)] ?? ''); };
 
   const [filter, setFilter] = useState<Filter>('all');
   const [sel, setSelState] = useState<Sel>(() => (params.get('open') ? { t: 'sub', id: params.get('open')! } : null));
@@ -53,7 +57,13 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [answering, setAnswering] = useState<TeamRequest | null>(null);
-  useEffect(() => { setFilter('all'); setSelState(params.get('open') ? { t: 'sub', id: params.get('open')! } : null); setFile(null); setAnswering(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [space.kind, space.id]);
+  // 열어 둔 스레드는 새 글이 와도 읽음으로
+  useEffect(() => {
+    if (!sel) return;
+    const k = `${sel.t === 'sub' ? 's' : sel.t === 'msg' ? 'm' : 'r'}:${sel.id}`;
+    setOpened((o) => ({ ...o, [k]: new Date(Date.now() + 1000).toISOString() }));
+  }, [sel, latest]);
+  useEffect(() => { setOpened({}); setAllReadAt(''); setFilter('all'); setSelState(params.get('open') ? { t: 'sub', id: params.get('open')! } : null); setFile(null); setAnswering(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [space.kind, space.id]);
 
   const inGroup = !!group?.work_group_members.some((m) => m.user_id === uid);
   const canUpload = (s: Pick<Submission, 'author_id'>) => s.author_id === uid || inGroup;
@@ -126,6 +136,8 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           <RailItem on={filter === 'wait'} onClick={() => setFilter('wait')} icon={<CircleDot size={14} className="text-indigo-500" />} label="결론 대기" n={counts.wait} />
           <RailItem on={filter === 'fix'} onClick={() => setFilter('fix')} icon={<RotateCcw size={14} className="text-amber-500" />} label="보완 중" n={counts.fix} />
           <RailItem on={filter === 'unread'} onClick={() => setFilter('unread')} icon={<MessageSquare size={14} className="text-rose-500" />} label="안 읽음" n={counts.unread} dot={counts.unread > 0} />
+          {counts.unread > 0 && <button onClick={() => { setAllReadAt(new Date(Date.now() + 1000).toISOString()); if (filter === 'unread') setFilter('all'); }}
+            className="hidden lg:block w-full text-left pl-9 pr-2 pb-1 text-[11px] text-slate-400 hover:text-indigo-700">모두 읽음으로</button>}
         </div>
         <div className="mt-2 border-t border-slate-100 pt-2">
           <div className="px-2 pb-1.5 text-[11px] font-semibold text-slate-400 flex items-center gap-1"><Target size={11} />{space.kind === 'user' ? '맡은 과제' : '그룹 과제'}</div>
