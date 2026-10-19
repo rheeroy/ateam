@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, BookOpen, FileUp, GraduationCap, Pencil, Pin, PinOff, Plus, RefreshCw, Sparkles, Trash2, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, BookOpen, FileUp, GraduationCap, Lock, Pencil, Pin, PinOff, Plus, RefreshCw, Sparkles, Trash2, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_KNOWHOW, MAX_BYTES, extractText, safeName } from '../lib/extract';
@@ -199,7 +200,8 @@ function QuickAdd() {
 }
 
 export default function Knowhow() {
-  const { team } = useTeam();
+  const { team, hasFeature } = useTeam();
+  const conOn = hasFeature('consulting_knowhow');
   const qc = useQueryClient();
   const toast = useToast();
   const [kind, setKind] = useState<KnowhowKind | 'all'>('all');
@@ -226,13 +228,15 @@ export default function Knowhow() {
     onSuccess: (n) => { toast(n ? `컨설팅 기준 카드 ${n}장을 다시 넣었습니다` : '빠진 컨설팅 기준 카드가 없습니다'); qc.invalidateQueries({ queryKey: ['knowhow-cards'] }); },
     onError: (e) => toast(errorText(e).includes('restore_consulting_cards') ? '컨설팅 기준 테이블이 아직 없습니다. 16_consulting_knowhow.sql 을 실행해 주세요.' : errorText(e)),
   });
-  const bySrc = useMemo(() => (cards.data ?? []).filter((c) => src === 'all' || (src === 'consulting' ? isConsulting(c) : !isConsulting(c))), [cards.data, src]);
+  // Starter: 컨설팅 기준 DB 없음 — 카드는 잠겨(꺼져) 있고 화면에서도 뺀다
+  const all = useMemo(() => (cards.data ?? []).filter((c) => conOn || !isConsulting(c)), [cards.data, conOn]);
+  const bySrc = useMemo(() => all.filter((c) => src === 'all' || (src === 'consulting' ? isConsulting(c) : !isConsulting(c))), [all, src]);
   // 내 카드 먼저, 컨설팅 기준은 뒤로
   const list = useMemo(() => bySrc.filter((c) => kind === 'all' || c.kind === kind).sort((a, b) => Number(isConsulting(a)) - Number(isConsulting(b))), [bySrc, kind]);
-  const nCon = (cards.data ?? []).filter(isConsulting).length;
+  const nCon = all.filter(isConsulting).length;
   const counts = useMemo(() => bySrc.reduce((a, c) => ((a[c.kind] = (a[c.kind] ?? 0) + 1), a), {} as Record<string, number>), [bySrc]);
-  const active = (cards.data ?? []).filter((c) => c.active).length;
-  const used = (cards.data ?? []).reduce((a, c) => a + c.use_count, 0);
+  const active = all.filter((c) => c.active).length;
+  const used = all.reduce((a, c) => a + c.use_count, 0);
 
   return (
     <section>
@@ -276,20 +280,25 @@ export default function Knowhow() {
 
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm text-slate-600">카드 <b className="font-mono">{cards.data?.length ?? 0}</b>{nCon > 0 && <span className="text-slate-400"> (컨설팅 기준 {nCon})</span>} · AI가 사용 <b className="font-mono">{active}</b> · 지금까지 AI 결과에 <b className="font-mono">{used}</b>번 반영</div>
-            <Button size="sm" variant="ghost" loading={restore.isPending} onClick={() => restore.mutate()} title="지웠던 컨설팅 기준 카드를 다시 넣습니다 (고친 카드는 그대로)"><GraduationCap size={14} />컨설팅 기준 다시 받기</Button>
+            <div className="text-sm text-slate-600">카드 <b className="font-mono">{all.length}</b>{nCon > 0 && <span className="text-slate-400"> (컨설팅 기준 {nCon})</span>} · AI가 사용 <b className="font-mono">{active}</b> · 지금까지 AI 결과에 <b className="font-mono">{used}</b>번 반영</div>
+            {conOn && <Button size="sm" variant="ghost" loading={restore.isPending} onClick={() => restore.mutate()} title="지웠던 컨설팅 기준 카드를 다시 넣습니다 (고친 카드는 그대로)"><GraduationCap size={14} />컨설팅 기준 다시 받기</Button>}
           </div>
-          <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
+          {!conOn ? (
+            <div className="rounded-xl bg-violet-50 border border-violet-200 px-4 py-2.5 text-xs text-violet-900 leading-relaxed flex items-start gap-2">
+              <Lock size={13} className="shrink-0 mt-0.5" /><span><b>컨설팅 기준 DB</b>(성과관리 컨설팅에서 써 온 목표·리뷰·1:1·보고·팀 운영 기준 카드 21장)는 Pro부터 AI가 함께 봅니다. 내가 넣은 노하우는 지금 요금제에서도 그대로 씁니다.</span>
+              <Link to="/settings?tab=billing" className="shrink-0 font-semibold text-violet-700 hover:text-violet-900 whitespace-nowrap">요금제 보기 →</Link>
+            </div>
+          ) : <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
             <b>컨설팅 기준</b>은 성과관리 컨설팅에서 써 온 목표·리뷰·1:1·보고·팀 운영 기준을 ATEAM이 기본으로 넣어 둔 카드입니다.
             AI는 팀장님 카드를 먼저 읽고, 남는 자리에 컨설팅 기준을 함께 봅니다. 둘이 어긋나면 팀장님 카드를 따릅니다. 평가 시뮬레이션과 팀원 액션에는 쓰지 않습니다.
-          </div>
-          <div className="flex gap-1.5 flex-wrap text-xs">
+          </div>}
+          {conOn && <div className="flex gap-1.5 flex-wrap text-xs">
             {([['all', '전체'], ['team', '내 카드'], ['consulting', '컨설팅 기준']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setSrc(k)} className={cx('rounded-lg border px-3 py-1', src === k ? 'border-slate-700 bg-slate-800 text-white font-semibold' : 'border-slate-200 bg-white')}>
-                {l} {k === 'all' ? cards.data?.length ?? 0 : k === 'consulting' ? nCon : (cards.data?.length ?? 0) - nCon}
+                {l} {k === 'all' ? all.length : k === 'consulting' ? nCon : all.length - nCon}
               </button>
             ))}
-          </div>
+          </div>}
           <div className="flex gap-1.5 flex-wrap text-xs">
             <button onClick={() => setKind('all')} className={cx('rounded-full border px-3 py-1', kind === 'all' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 bg-white')}>전체 {bySrc.length}</button>
             {(Object.keys(KIND) as KnowhowKind[]).map((k) => (
