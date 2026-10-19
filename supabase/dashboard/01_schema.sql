@@ -2548,7 +2548,7 @@ begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
   if not exists (select 1 from subscriptions where owner_id = auth.uid()) then
     insert into subscriptions (owner_id, plan_id, status, trial_ends_at, current_period_start, current_period_end)
-    values (auth.uid(), 'pro', 'trialing', now() + interval '30 days', now(), now() + interval '30 days');
+    values (auth.uid(), 'pro_plus', 'trialing', now() + interval '14 days', now(), now() + interval '14 days');  -- 요금제 v3: 체험 14일 · Pro+ 전체
   end if;
   v_plan := public.effective_plan_for_owner(auth.uid());
   select count(*) into v_owned from teams where owner_id = auth.uid() and not is_demo;
@@ -3057,7 +3057,7 @@ begin
     using T, $j${"headline": "실행은 순항하지만 사람 관리의 리듬이 느슨해지고 있습니다 — 1:1과 기준 공유로 다시 조이는 주입니다.", "focus": "제휴 목표 — 고객사 데이터 수급이 공식 경로로 요청되지 않았습니다.", "levers": {"exec": {"state": "watch", "note": "제휴 과제가 2주째 같은 막힘입니다."}, "staffing": {"state": "good", "note": "부하는 고른 편입니다."}, "people": {"state": "act", "note": "1:1 간격이 평균 19일로 벌어졌습니다."}, "external": {"state": "watch", "note": "데이터 수급이 비공식 경로에만 의존합니다."}, "self": {"state": "good", "note": "특이 신호 없음."}, "system": {"state": "watch", "note": "결과물 보완점이 같은 주제로 반복됩니다."}}, "advice": [{"id": "a1", "lever": "people", "urgency": 3, "effort": "low", "title": "1:1 간격을 2주 이내로 되돌리세요", "why": "1:1 평균 간격이 19일로 벌어졌습니다.", "effect": "막힘을 일찍 듣게 됩니다.", "if_not": "컨디션 하락을 늦게 알게 됩니다.", "route": "one_on_one", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "system", "urgency": 2, "effort": "mid", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "why": "보완점이 같은 주제로 반복됩니다.", "effect": "수정 횟수가 줄어듭니다.", "if_not": "리뷰 시간이 계속 늘어납니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a3", "lever": "external", "urgency": 2, "effort": "low", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "why": "비공식 경로로 2주를 기다렸습니다.", "effect": "회신 날짜가 정해집니다.", "if_not": "막힘이 계속됩니다.", "route": "report", "target_user_id": "", "script": ""}], "review": [], "watch_next": "이정규 님 컨디션."}$j$::jsonb, L;
     execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
       values ($1, 'advisor_weekly', 'draft', 'leader', 'L3', 3, $2, '[]'::jsonb, $3, now() - interval '20 minutes', date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 6)$q$
-    using T, replace($j${"headline": "성과는 외부 의존 하나에 묶여 있고, 운영은 팀장 시간이 순항하는 사람 쪽으로 쏠려 있습니다 — 이번 주는 '막힌 곳으로 사람과 시간을 옮기는 주'입니다.", "focus": "제휴 목표(20만 명) — 고객사 데이터 수급이 풀리지 않으면 4분기 전망이 18.6만 명 근처에서 멈춥니다.", "levers": {"exec": {"state": "act", "note": "제휴 과제가 3주째 같은 막힘(고객사 데이터)으로 멈춰 있고, 계획에 대체 경로가 없습니다."}, "staffing": {"state": "watch", "note": "제휴 목표의 하위 일 3건이 모두 정우성 님 한 사람에게 있고, 김도현 님은 가용 시간의 70%만 쓰고 있습니다."}, "people": {"state": "watch", "note": "최근 4주 칭찬·관찰이 김도현·박서연 님에게 몰렸고, 이정규 님은 컨디션이 3주째 내려가는데 팀장 접점이 가장 적습니다."}, "external": {"state": "act", "note": "전사 비용 15% 절감 방침이 런칭 캠페인 예산과 부딪히는데, 아직 위로 방향을 확인하지 않았습니다."}, "self": {"state": "watch", "note": "리뷰 대기 6건(가장 오래 5일)과 검토 중 결정 3건이 겹쳐 있고, 최근 2주 앱 활동의 31%가 밤 10시 이후·주말입니다."}, "system": {"state": "good", "note": "체크인 제출 5/6명으로 주간 리듬은 유지됩니다. 다만 결과물 보완점이 '근거·데이터'에 반복됩니다."}}, "advice": [{"id": "a1", "lever": "exec", "urgency": 3, "effort": "low", "title": "제휴 과제에 '대체 데이터 경로'를 이번 주 안에 계획으로 넣으세요 — 고객사 데이터를 기다리는 동안 공개 데이터와 파일럿 고객 2곳으로 1차안을 만들게 하세요.", "why": "같은 막힘이 3주째 체크인에 반복되고, 제휴 목표 달성 가능성이 12%까지 내려왔습니다.", "effect": "데이터 회신이 늦어져도 11월 첫 주에 1차 제안이 가능해지고, 목표 전망의 바닥이 올라갑니다.", "if_not": "회신이 2주 더 밀리면 4분기 제휴 목표는 조정이 불가피합니다.", "route": "decide", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "staffing", "urgency": 2, "effort": "mid", "title": "제휴 과제의 '데이터 정리' 1건을 김도현 님에게 옮겨 정우성 님 한 사람 의존을 푸세요.", "why": "제휴 하위 일 3건이 한 사람에게 몰려 있고(주 46시간/가용 40시간), 김도현 님은 여유가 있습니다.", "effect": "정우성 님은 파트너 협상에 집중하고, 막힘이 한 곳에서 전체로 번지는 걸 막습니다.", "if_not": "정우성 님 과부하가 이어지면 이탈 주의 신호가 '높음'으로 올라갈 수 있습니다.", "route": "request", "target_user_id": "{{KIM}}", "script": "도현 님, 제휴 제안서의 데이터 정리 파트를 이번 주부터 맡아 줄 수 있을까요? 우성 님이 파트너 협상에 집중할 수 있게 하려는 거예요. 필요한 시간은 같이 조정할게요."}, {"id": "a3", "lever": "external", "urgency": 3, "effort": "low", "title": "비용 절감 방침과 런칭 예산의 충돌을 이번 주 본부장 보고에 먼저 올리세요 — 결정권은 위에 있습니다.", "why": "전사 방침(비용 15% 절감)이 런칭 캠페인 광고 집행과 부딪히는데, 팀 안에서 결론을 내기 어려운 사안입니다.", "effect": "예산 축소 범위가 일찍 정해지면 4분기 실행계획 초안을 다시 쓰지 않아도 됩니다.", "if_not": "실행계획 확정 직전에 예산이 깎이면 런칭 일정 전체가 밀립니다.", "route": "report", "target_user_id": "", "script": "전사 비용 15% 절감 방침에 맞춰 런칭 캠페인 광고 예산을 CAC 기준으로 재배분하려 합니다. 다만 제휴 목표(20만 명)에 필요한 최소 예산은 유지가 필요해, 이번 주 안에 방향 확인 부탁드립니다."}, {"id": "a4", "lever": "self", "urgency": 2, "effort": "low", "title": "리뷰 대기 6건 중 정기 보고 2건은 박서연 님에게 1차 리뷰를 맡기고, 아낀 시간을 이정규·정우성 님에게 쓰세요.", "why": "최근 4주 팀장 접점의 48%가 김도현·박서연 님 두 사람에게 갔고, 필요도가 높은 이정규 님은 팀 평균의 0.6배입니다.", "effect": "리뷰 적체가 절반으로 줄고, 이탈 주의 두 사람에게 이번 주 1:1 시간이 생깁니다.", "if_not": "적체와 늦은 시간 작업이 이어지면 결정이 더 미뤄지는 악순환이 됩니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a5", "lever": "people", "urgency": 1, "effort": "low", "title": "이번 주 금요일 점심을 '런칭 준비 중간 점검 + 김도현 님 기획서 통과 축하' 자리로 잡으세요.", "why": "팀 컨디션이 3.6으로 내려가는 중이고, 인정이 일부에게만 보이는 상태입니다.", "effect": "짧고 부담 없는 자리로 팀 전체가 진척을 함께 보고, 인정이 팀 전체의 이야기가 됩니다.", "if_not": "막힌 사람과 순항하는 사람 사이의 온도 차가 커집니다.", "route": "calendar", "target_user_id": "", "script": "금요일 점심은 다 같이 먹어요 — 런칭 준비 중간 점검 겸, 도현 님 기획서 통과도 축하해요."}], "review": [{"id": "a1", "title": "1:1 간격을 2주 이내로 되돌리세요", "verdict": "partial", "observed": "정우성·한수진 님과는 1:1을 했지만, 이정규 님은 아직 3주째 1:1이 없습니다."}, {"id": "a2", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "verdict": "not_done", "observed": "기준 카드가 공개되지 않았고, 이번 주에도 보완점 2건이 '근거·데이터'였습니다."}, {"id": "a3", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "verdict": "done", "observed": "영업본부 요청이 기록됐고, 파트너사 회신은 '11월 둘째 주 이후 가능'으로 왔습니다."}], "watch_next": "고객사 데이터 회신 날짜와 이정규 님 다음 체크인의 컨디션."}$j$, '{{KIM}}', m_kim::text)::jsonb, L;
+    using T, replace($j${"headline": "성과는 외부 의존 하나에 묶여 있고, 운영은 팀장 시간이 순항하는 사람 쪽으로 쏠려 있습니다 — 이번 주는 '막힌 곳으로 사람과 시간을 옮기는 주'입니다.", "focus": "제휴 목표(20만 명) — 고객사 데이터 수급이 풀리지 않으면 4분기 전망이 18.6만 명 근처에서 멈춥니다.", "levers": {"exec": {"state": "act", "note": "제휴 과제가 3주째 같은 막힘(고객사 데이터)으로 멈춰 있고, 계획에 대체 경로가 없습니다."}, "staffing": {"state": "watch", "note": "제휴 목표의 하위 일 3건이 모두 정우성 님 한 사람에게 있고, 김도현 님은 가용 시간의 70%만 쓰고 있습니다."}, "people": {"state": "watch", "note": "최근 4주 칭찬·관찰이 김도현·박서연 님에게 몰렸고, 이정규 님은 컨디션이 3주째 내려가는데 팀장 접점이 가장 적습니다."}, "external": {"state": "act", "note": "전사 비용 15% 절감 방침이 런칭 캠페인 예산과 부딪히는데, 아직 위로 방향을 확인하지 않았습니다."}, "self": {"state": "watch", "note": "리뷰 대기 6건(가장 오래 5일)과 검토 중 결정 3건이 겹쳐 있고, 최근 2주 앱 활동의 31%가 밤 10시 이후·주말입니다."}, "system": {"state": "good", "note": "체크인 제출 5/6명으로 주간 리듬은 유지됩니다. 다만 결과물 보완점이 '근거·데이터'에 반복됩니다."}}, "advice": [{"id": "a1", "lever": "exec", "urgency": 3, "effort": "low", "title": "제휴 과제에 '대체 데이터 경로'를 이번 주 안에 계획으로 넣으세요 — 고객사 데이터를 기다리는 동안 공개 데이터와 파일럿 고객 2곳으로 1차안을 만들게 하세요.", "why": "같은 막힘이 3주째 체크인에 반복되고, 제휴 목표 달성 가능성이 12%까지 내려왔습니다.", "effect": "데이터 회신이 늦어져도 11월 첫 주에 1차 제안이 가능해지고, 목표 전망의 바닥이 올라갑니다.", "if_not": "회신이 2주 더 밀리면 4분기 제휴 목표는 조정이 불가피합니다.", "route": "decide", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "staffing", "urgency": 2, "effort": "mid", "title": "제휴 과제의 '데이터 정리' 1건을 김도현 님에게 옮겨 정우성 님 한 사람 의존을 푸세요.", "why": "제휴 하위 일 3건이 한 사람에게 몰려 있고(주 46시간/가용 40시간), 김도현 님은 여유가 있습니다.", "effect": "정우성 님은 파트너 협상에 집중하고, 막힘이 한 곳에서 전체로 번지는 걸 막습니다.", "if_not": "정우성 님 과부하가 이어지면 이탈 주의 신호가 '높음'으로 올라갈 수 있습니다.", "route": "request", "target_user_id": "{{KIM}}", "script": "도현 님, 제휴 제안서의 데이터 정리 파트를 이번 주부터 맡아 줄 수 있을까요? 우성 님이 파트너 협상에 집중할 수 있게 하려는 거예요. 필요한 시간은 같이 조정할게요."}, {"id": "a3", "lever": "external", "urgency": 3, "effort": "low", "title": "비용 절감 방침과 런칭 예산의 충돌을 이번 주 본부장 보고에 먼저 올리세요 — 결정권은 위에 있습니다.", "why": "전사 방침(비용 15% 절감)이 런칭 캠페인 광고 집행과 부딪히는데, 팀 안에서 결론을 내기 어려운 사안입니다.", "effect": "예산 축소 범위가 일찍 정해지면 4분기 실행계획 초안을 다시 쓰지 않아도 됩니다.", "if_not": "실행계획 확정 직전에 예산이 깎이면 런칭 일정 전체가 밀립니다.", "route": "report", "target_user_id": "", "script": "전사 비용 15% 절감 방침에 맞춰 런칭 캠페인 광고 예산을 CAC 기준으로 재배분하려 합니다. 다만 제휴 목표(20만 명)에 필요한 최소 예산은 유지가 필요해, 이번 주 안에 방향 확인 부탁드립니다."}, {"id": "a4", "lever": "self", "urgency": 2, "effort": "low", "title": "리뷰 대기 6건 중 정기 보고 2건은 박서연 님에게 1차 리뷰를 맡기고, 아낀 시간을 이정규·정우성 님에게 쓰세요.", "why": "최근 4주 팀장 접점의 48%가 김도현·박서연 님 두 사람에게 갔고, 필요도가 높은 이정규 님은 팀 평균의 0.6배입니다.", "effect": "리뷰 적체가 절반으로 줄고, 이탈 주의 두 사람에게 이번 주 1:1 시간이 생깁니다.", "if_not": "적체와 늦은 시간 작업이 이어지면 결정이 더 미뤄지는 악순환이 됩니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a5", "lever": "people", "urgency": 1, "effort": "low", "title": "이번 주 금요일 점심을 '런칭 준비 중간 점검 + 김도현 님 기획서 통과 축하' 자리로 잡으세요.", "why": "팀 컨디션이 3.6으로 내려가는 중이고, 인정이 일부에게만 보이는 상태입니다.", "effect": "짧고 부담 없는 자리로 팀 전체가 진척을 함께 보고, 인정이 팀 전체의 이야기가 됩니다.", "if_not": "막힌 사람과 순항하는 사람 사이의 온도 차가 커집니다.", "route": "calendar", "target_user_id": "", "script": "금요일 점심은 다 같이 먹어요 — 런칭 준비 중간 점검 겸, 도현 님 기획서 통과도 축하해요."}], "review": [{"id": "a1", "title": "1:1 간격을 2주 이내로 되돌리세요", "verdict": "partial", "observed": "정우성·한수진 님과는 1:1을 했지만, 이정규 님은 아직 3주째 1:1이 없습니다."}, {"id": "a2", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "verdict": "not_done", "observed": "기준 카드가 공개되지 않았고, 이번 주에도 보완점 2건이 '근거·데이터'였습니다."}, {"id": "a3", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "verdict": "done", "observed": "영업본부 요청이 기록됐고, 파트너사 회신은 '11월 둘째 주 이후 가능'으로 왔습니다."}], "watch_next": "고객사 데이터 회신 날짜와 이정규 님 다음 체크인의 컨디션.", "perspective": {"big": {"lens": "목표 구성 · 다가오는 시기", "text": "팀 목표 중 새로 만드는 일은 신제품 런칭 하나이고, 나머지는 지금 하는 일을 지키고 넓히는 목표입니다. 런칭이 끝나는 11월 이후 팀의 다음 성장 축이 비어 있습니다.", "why": "11~12월은 평가와 내년 목표 수립이 겹치는 시기입니다. 내년 목표에 넣을 '새로 만들 일' 후보를 지금부터 모아 두면 목표를 서둘러 정하지 않게 됩니다."}, "reframe": {"lens": "관심과 기회의 쏠림", "text": "일의 배분이 곧 동기의 배분이 되고 있습니다 — 런칭·기획처럼 성장이 보이는 일은 김도현·박서연 님에게, 막힌 일은 정우성·이정규 님에게 가 있습니다.", "why": "최근 4주 칭찬·관찰도 같은 두 사람에게 몰렸습니다. 막힌 사람에게 시간을 더 쓰는 것과 별개로, 다음 배분 때 '보이는 일'을 한 번 돌려 볼 만합니다."}, "experiment": {"title": "주간 회의 첫 10분을 '막힌 것만' 말하는 시간으로 바꿔 보기", "how": "진행 보고는 업무플랫폼에 미리 올리고, 회의에서는 한 사람씩 막힌 것 하나와 필요한 도움만 말합니다. 팀장은 답보다 '누가 도울 수 있나'를 먼저 묻습니다.", "check": "2주 뒤 막힘이 공유되기까지 걸린 날짜와 회의 시간"}, "question": "내년 이맘때 우리 팀이 '그때 시작하길 잘했다'고 말할 일은 무엇일까요?"}}$j$, '{{KIM}}', m_kim::text)::jsonb, L;
     execute $q$insert into public.advice_status (team_id, advice_key, status, updated_by) values
       ($1, (date_trunc('week', current_date)::date - 7)::text || ':a1', 'adopted', $2),
       ($1, (date_trunc('week', current_date)::date - 7)::text || ':a2', 'held', $2),
@@ -4601,3 +4601,216 @@ begin
   return jsonb_build_object('cost_usd', v_cost, 'cap_usd', v_cap);
 end $$;
 revoke all on function public.ai_budget(uuid) from public, anon, authenticated;
+
+-- >>>>>>>>>> 20261030000026_plans_v3.sql
+-- =====================================================================
+-- 요금제 v3 — 팀원 수로 나눈 세 단계, 모두 팀 1개 (여러 팀은 계정을 따로 결제)
+--   Starter 팀원 4명까지 ₩19,000 · Pro 10명까지 ₩29,000 · Pro+ 20명까지 ₩49,000 (월, VAT 별도 / 연간은 10개월 값)
+--   · Free 없음 — 체험(14일, Pro+ 전체 · 원가 상한 $5 · 크레딧 30)이 끝나고 결제하지 않으면 '체험 종료'(잠금, 기록은 보관)
+--   · Starter 는 평가 시뮬레이션 · 컨설팅 기준 DB(내 노하우의 기본 카드) 제외
+--   · 원가 상한은 팀원을 한도까지 채운 팀도 한 달 내내 자동 1차 검토가 돌도록 (자동 검토는 상한의 75%까지)
+--   · 기본 AI는 횟수로 막지 않는다 — 월 횟수 상한은 오작동 대비 안전선(보통의 10배)만, 실제 한도는 월 AI 원가 상한 + 하루·시간당 상한
+--     팀장 화면에는 숫자 대신 '구독에 포함'과, 원가 상한에 가까워질 때만 안내 (credit_status.ai_usage_pct)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+insert into public.plans (id, name, price_month_krw, price_year_krw, max_members, max_teams, monthly_credits, features, sort, active)
+values ('starter', 'Starter', 19000, 190000, 4, 1, 30, array[]::text[], 1, true) on conflict (id) do nothing;
+
+update public.plans set name = 'Starter', price_month_krw = 19000, price_year_krw = 190000, max_members = 4, max_teams = 1,
+  monthly_credits = 30, core_monthly_cap = 3000, ai_hourly_cap = 20, ai_daily_cap = 60, ai_cost_cap_usd = 6, sort = 1, active = true,
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar'] where id = 'starter';
+update public.plans set name = 'Pro', price_month_krw = 29000, price_year_krw = 290000, max_members = 10, max_teams = 1,
+  monthly_credits = 100, core_monthly_cap = 4000, ai_hourly_cap = 30, ai_daily_cap = 80, ai_cost_cap_usd = 10, sort = 2, active = true,
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow'] where id = 'pro';
+update public.plans set name = 'Pro+', price_month_krw = 49000, price_year_krw = 490000, max_members = 20, max_teams = 1,
+  monthly_credits = 200, core_monthly_cap = 6000, ai_hourly_cap = 45, ai_daily_cap = 120, ai_cost_cap_usd = 18, sort = 3, active = true,
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow'] where id = 'pro_plus';
+-- 'free' 행은 '체험 종료' 상태로만 쓴다 (요금제 목록에 안 보임 · 모든 기능 잠금 · 초대 불가)
+update public.plans set name = '체험 종료', price_month_krw = 0, price_year_krw = 0, max_members = 0, max_teams = 1,
+  monthly_credits = 0, core_monthly_cap = 0, ai_hourly_cap = 0, ai_daily_cap = 0, ai_cost_cap_usd = 0, sort = 9, active = false,
+  features = array[]::text[] where id = 'free';
+
+-- 진행 중인 체험은 Pro+ 로 (체험은 가장 큰 요금제 전체)
+update public.subscriptions set plan_id = 'pro_plus' where status = 'trialing' and plan_id in ('pro', 'free');
+
+-- 이번 달 AI 원가 상한 — 체험은 5달러
+create or replace function public.ai_cost_cap(p_owner uuid) returns numeric
+language sql stable security definer set search_path = public as $$
+  select case when s.status = 'trialing' then least((public.effective_plan_for_owner(p_owner)).ai_cost_cap_usd, 5)
+              else (public.effective_plan_for_owner(p_owner)).ai_cost_cap_usd end
+    from (select (select status from subscriptions where owner_id = p_owner) as status) s;
+$$;
+revoke all on function public.ai_cost_cap(uuid) from public, anon, authenticated;
+
+create or replace function public.ai_guard(p_team uuid, p_kind text, p_ref uuid default null,
+  p_period date default null, p_subject uuid default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_owner uuid; v_plan plans; v_bal credit_balances; v_sub subscriptions;
+  v_hour int; v_day int; v_cost numeric; v_cap numeric; v_same int;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then raise exception 'TEAM_NOT_FOUND' using errcode = 'P0001'; end if;
+  v_plan := public.effective_plan_for_owner(v_owner);
+  v_bal := public._ensure_credit_period(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+
+  select count(*) filter (where created_at > now() - interval '1 hour'),
+         count(*) filter (where created_at > now() - interval '24 hours')
+    into v_hour, v_day
+    from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'usage', 'ai_error') and created_at > now() - interval '24 hours';
+  if v_hour >= v_plan.ai_hourly_cap then
+    raise exception 'AI_RATE_HOUR' using errcode = 'P0001', hint = v_plan.ai_hourly_cap::text;
+  end if;
+  if v_day >= v_plan.ai_daily_cap then
+    raise exception 'AI_RATE_DAY' using errcode = 'P0001', hint = v_plan.ai_daily_cap::text;
+  end if;
+
+  -- 월 원가 상한 (체험 중이면 5달러 ≈ 7,250원)
+  v_cap := public.ai_cost_cap(v_owner);
+  select coalesce(sum(cost_usd), 0) into v_cost from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'ai_error') and created_at >= v_bal.period_start;
+  if v_cost >= v_cap then
+    raise exception 'AI_COST_CAP' using errcode = 'P0001';
+  end if;
+
+  -- 같은 대상 다시 만들기: 24시간에 3번까지
+  if p_ref is not null or p_period is not null then
+    select count(*) into v_same from ai_outputs
+     where team_id = p_team and kind::text = p_kind
+       and ref_id is not distinct from p_ref and period_start is not distinct from p_period
+       and subject_user_id is not distinct from p_subject
+       and created_at > now() - interval '24 hours';
+    if v_same >= 3 then raise exception 'AI_REPEAT' using errcode = 'P0001'; end if;
+  end if;
+
+  return jsonb_build_object('hour', v_hour, 'day', v_day, 'cost_usd', v_cost, 'cost_cap_usd', v_cap);
+end $$;
+revoke all on function public.ai_guard(uuid, text, uuid, date, uuid) from public, anon, authenticated;
+
+create or replace function public.ai_budget(p_team uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_owner uuid; v_plan plans; v_bal credit_balances; v_sub subscriptions; v_cost numeric; v_cap numeric;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then return null; end if;
+  v_plan := public.effective_plan_for_owner(v_owner);
+  v_bal := public._ensure_credit_period(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+  v_cap := public.ai_cost_cap(v_owner);
+  select coalesce(sum(cost_usd), 0) into v_cost from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'ai_error') and created_at >= v_bal.period_start;
+  return jsonb_build_object('cost_usd', v_cost, 'cap_usd', v_cap);
+end $$;
+revoke all on function public.ai_budget(uuid) from public, anon, authenticated;
+
+-- 새 팀: 체험은 14일, Pro+ 전체
+create or replace function public.create_team(p_name text, p_mission text default '', p_job_title text default '')
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_team uuid; v_plan plans; v_owned int;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  if not exists (select 1 from subscriptions where owner_id = auth.uid()) then
+    insert into subscriptions (owner_id, plan_id, status, trial_ends_at, current_period_start, current_period_end)
+    values (auth.uid(), 'pro_plus', 'trialing', now() + interval '14 days', now(), now() + interval '14 days');
+  end if;
+  v_plan := public.effective_plan_for_owner(auth.uid());
+  select count(*) into v_owned from teams where owner_id = auth.uid() and not is_demo;
+  if v_owned >= v_plan.max_teams then
+    raise exception 'PLAN_LIMIT_TEAMS' using errcode = 'P0001', hint = v_plan.max_teams::text;
+  end if;
+  insert into teams (name, mission, owner_id, settings) values (p_name, coalesce(p_mission, ''), auth.uid(),
+    jsonb_build_object('level_names', '["목표","과제","할 일"]'::jsonb, 'member_free_edit', false)) returning id into v_team;
+  insert into team_members (team_id, user_id, role, job_title) values (v_team, auth.uid(), 'leader', coalesce(p_job_title, ''));
+  perform log_event(v_team, 'team.created', 'teams', v_team);
+  return v_team;
+end $$;
+
+
+-- 요금제 정보에 '체험 종료' 여부
+create or replace function public.credit_status(p_team uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_owner uuid; v_bal credit_balances; v_plan plans; v_sub subscriptions; v_core int;
+begin
+  if not public.is_team_member(p_team) and auth.role() <> 'service_role' then raise exception 'forbidden'; end if;
+  select owner_id into v_owner from teams where id = p_team;
+  v_bal := public._ensure_credit_period(v_owner);
+  v_plan := public.effective_plan_for_owner(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+  select count(*) into v_core from credit_ledger where owner_id = v_owner and reason = 'core_usage' and created_at >= v_bal.period_start;
+  return jsonb_build_object(
+    'plan_id', v_plan.id, 'plan_name', v_plan.name, 'features', to_jsonb(v_plan.features),
+    'max_members', v_plan.max_members, 'monthly_credits', v_plan.monthly_credits,
+    'monthly_remaining', v_bal.monthly_remaining, 'topup_remaining', v_bal.topup_remaining,
+    'core_used', v_core, 'core_cap', v_plan.core_monthly_cap,
+    'ai_usage_pct', case when public.ai_cost_cap(v_owner) > 0 then round(100 * (select coalesce(sum(cost_usd), 0) from credit_ledger
+       where owner_id = v_owner and reason in ('core_usage', 'ai_error') and created_at >= v_bal.period_start) / public.ai_cost_cap(v_owner)) else 0 end,
+    'period_start', v_bal.period_start, 'period_end', v_bal.period_start + interval '1 month',
+    'status', case when v_plan.id = 'free' then 'expired' else coalesce(v_sub.status::text, 'expired') end,
+    'expired', v_plan.id = 'free',
+    'was_trial', v_sub.status = 'trialing' or v_sub.status is null,
+    'trial_ends_at', v_sub.trial_ends_at,
+    'trial_expired', v_sub.status = 'trialing' and v_sub.trial_ends_at < now(),
+    'is_owner', v_owner = auth.uid());
+end $$;
+
+-- ---------- 컨설팅 기준 DB 는 Pro 부터 ----------
+--   요금제에 consulting_knowhow 가 없으면 컨설팅 기준 카드를 끈다(AI가 읽지 않음). 끄기 전 상태는 locked_active 에 두었다가
+--   Pro 이상으로 바뀌면 그대로 되돌린다. 팀장이 고친 카드 내용은 그대로 남는다.
+alter table public.knowhow_cards add column if not exists source text not null default 'team';  -- 16_consulting_knowhow 와 같음 (먼저 안 돌렸어도 되게)
+alter table public.knowhow_cards add column if not exists locked_active boolean;
+
+-- 잠긴 동안에는 컨설팅 카드를 켤 수 없다 (켜려 하면 '되돌릴 때 켜기'로만 기억)
+create or replace function public.trg_consulting_card_lock() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.source = 'consulting' and new.active and not public.team_has_feature(new.team_id, 'consulting_knowhow') then
+    new.locked_active := true;
+    new.active := false;
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_consulting_card_lock on public.knowhow_cards;
+create trigger t_consulting_card_lock before insert or update on public.knowhow_cards for each row execute function public.trg_consulting_card_lock();
+
+create or replace function public._sync_consulting_lock(p_owner uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  for r in select id from teams where owner_id = p_owner loop
+    if public.team_has_feature(r.id, 'consulting_knowhow') then
+      update knowhow_cards set active = locked_active, locked_active = null where team_id = r.id and source = 'consulting' and locked_active is not null;
+    else
+      update knowhow_cards set locked_active = active, active = false where team_id = r.id and source = 'consulting' and locked_active is null;
+    end if;
+  end loop;
+end $$;
+revoke all on function public._sync_consulting_lock(uuid) from public, anon, authenticated;
+
+-- 요금제가 바뀔 때마다 (가입 · 변경 · 체험 시작)
+create or replace function public.trg_sub_consulting_lock() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public._sync_consulting_lock(new.owner_id);
+  return new;
+end $$;
+drop trigger if exists t_sub_consulting_lock on public.subscriptions;
+create trigger t_sub_consulting_lock after insert or update of plan_id, status on public.subscriptions
+  for each row execute function public.trg_sub_consulting_lock();
+
+-- '컨설팅 기준 다시 받기'는 Pro 부터
+create or replace function public.restore_consulting_cards(p_team uuid) returns int
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_team_leader(p_team) then raise exception 'forbidden'; end if;
+  if not public.team_has_feature(p_team, 'consulting_knowhow') then raise exception 'PLAN_FEATURE' using errcode = 'P0001'; end if;
+  return public._install_consulting_cards(p_team);
+end $$;
+grant execute on function public.restore_consulting_cards(uuid) to authenticated;
+
+-- 지금 있는 팀장 전부 맞추기
+do $$ declare r record; begin
+  for r in select distinct owner_id from public.teams loop perform public._sync_consulting_lock(r.owner_id); end loop;
+end $$;
+
