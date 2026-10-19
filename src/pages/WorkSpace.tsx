@@ -28,8 +28,11 @@ export default function WorkSpace() {
           <Link to="/work" className="text-sm text-slate-500 hover:text-indigo-700 inline-flex items-center gap-1"><ArrowLeft size={14} />업무플랫폼</Link>
           <div className="mt-1 flex items-center gap-2.5">
             <Avatar name={name} size={9} />
-            <h1 className="text-2xl font-bold tracking-tight">{name} <span className="text-base font-medium text-slate-400">업무 스페이스</span></h1>
-            <span className="text-sm text-slate-500 hidden sm:inline">{mb.job_title || ''}</span>
+            <div className="flex items-baseline gap-2 min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight leading-none">{name}</h1>
+              <span className="text-[15px] font-medium text-slate-400 leading-none whitespace-nowrap">업무 스페이스</span>
+              {mb.job_title && <span className="text-sm text-slate-500 leading-none whitespace-nowrap hidden sm:inline"><span className="text-slate-300 mr-2">|</span>{mb.job_title}</span>}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
