@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CreditCard } from 'lucide-react';
+import { Check, CreditCard, Minus, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import type { Plan } from '../lib/types';
@@ -10,20 +10,16 @@ import { PasswordForm } from '../components/PasswordForm';
 import TeamPage from './Team';
 import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
-const FEATURE_LABEL: Record<string, string> = {
-  checkin: '주간 체크인', one_on_one: '1:1 노트·액션아이템', review_room: '공유·리뷰 (문서·링크·캡처·숫자)', goals: '목표·과제 (팀원 계획·승인·계획 대비)',
-  requests: '팀원에게 요청', knowhow: '내 노하우 저장', signals_basic: '관리 영역 현황 + 급한 신호 2건',
-  signals: '자동 감지 신호 전체', ai_core: '기본 AI 무제한급: 일·주·월 인사이트, 1차 검토, 1:1 준비, 주간보고',
-  ai_premium: '프리미엄 AI (크레딧): 평가 초안, 계획서 초안, 노하우 정리, 전망·시나리오 해석',
-  perf_map: '팀 성과 지도', forecast: '실적 전망', strategy: '팀 전략·포트폴리오', simulation: 'What-if 시뮬레이션', evaluation: '근거 기반 평가 초안',
-  insight: 'AI 인사이트 레벨', care_radar: '케어 레이더', integrations: '캘린더·메신저 연동 (예정)', multi_team: '겸직 팀장 (최대 3팀)', priority_model: '상위 모델 우선 배정',
-  weekly_report: '주간보고 초안', briefing: '팀 브리핑', prep: '1:1 준비 노트', ai_review: 'AI 1차 검토',
-};
 const KIND_LABEL: Record<string, string> = {
-  briefing: '팀 브리핑', one_on_one_prep: '1:1 준비 노트', review: '1차 검토', weekly_report: '주간보고', evaluation_draft: '평가 초안',
-  forecast_note: '전망 해석', strategy_check: '전략 점검', scenario_note: '시나리오 해석', knowhow_ingest: '노하우 정리',
-  insight_daily: '일간 인사이트', insight_weekly: '주간 인사이트', insight_monthly: '월간 인사이트', plan_draft: '계획서 초안', plan_edit: '말로 계획 수정', self_check: '팀원 셀프 점검',
+  evaluation_draft: '평가 시뮬레이션', plan_draft: '목표 초안', forecast_note: '성과 해석', strategy_check: '전략 점검', scenario_note: '시나리오 해석', knowhow_ingest: '노하우 정리',
 };
+
+/** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · 크레딧뿐 */
+const INCLUDED: { title: string; sub: string; items: string[] }[] = [
+  { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제 (팀원 계획 · 승인)', '업무플랫폼 (개인 · 그룹 스페이스)', '체크인 · 1:1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '내 노하우 · 내 메모'] },
+  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트 (매일 · 매주 · 매월)', 'ATEAM의 제안 (매주 월요일)', '팀원관리 액션', '결과물 AI 1차 검토', '1:1 준비 · ATEAM의 코칭', '임원 브리핑', '컨설팅 기준 DB (Pro부터)'] },
+  { title: '프리미엄', sub: '월 크레딧으로', items: ['평가 시뮬레이션 5 (Pro부터)', '목표 초안 2', '노하우 정리 2', '성과 해석 1'] },
+];
 
 // 토스페이먼츠 v2 SDK (자동결제 카드 등록)
 declare global { interface Window { TossPayments?: (clientKey: string) => { payment: (o: { customerKey: string }) => { requestBillingAuth: (o: Record<string, unknown>) => Promise<void> } } } }
@@ -51,6 +47,8 @@ function Billing() {
       supabase.from('subscriptions').select('*').eq('owner_id', profile!.id).maybeSingle()),
     enabled: !!profile,
   });
+  const { team } = useTeam();
+  const seats = useQuery({ queryKey: ['seats', team.id], queryFn: () => q<{ members: number; pending: number; max_members: number }>(supabase.rpc('team_seat_usage', { p_team: team.id })) });
   const payments = useQuery({ queryKey: ['payments'], queryFn: () => q<{ id: string; order_name: string; amount_krw: number; status: string; paid_at: string | null; created_at: string; receipt_url: string | null }[]>(supabase.from('payments').select('*').order('created_at', { ascending: false }).limit(12)) });
   const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').neq('reason', 'core_usage').order('created_at', { ascending: false }).limit(15)) });
 
@@ -94,38 +92,56 @@ function Billing() {
   if (!credits.is_owner) return <Card className="p-5 text-sm text-slate-600">요금제는 팀을 만든 팀장 계정에서 관리합니다.</Card>;
   const total = credits.monthly_remaining + credits.topup_remaining;
   const s = sub.data;
+  const expired = credits.plan_id === 'free';
+  const trialing = !expired && credits.status === 'trialing';
+  const active = !expired && !trialing;
+  const members = seats.data?.members ?? 0;
+  const list = plans.data ?? [];
+  const fit = list.find((p) => p.max_members >= members)?.id;
+  const trialLeft = credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="grid lg:grid-cols-3 gap-5">
-        <Card className="p-5 lg:col-span-2">
+        <Card className={cx('p-5 lg:col-span-2', expired && 'ring-1 ring-amber-300 bg-amber-50/40')}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <div className="text-xs text-slate-500">현재 요금제</div>
-              <div className="mt-1 text-2xl font-bold">{credits.plan_name} {credits.status === 'trialing' && <Pill tone="amber">체험 중 · {fmtDate(credits.trial_ends_at)}까지</Pill>}</div>
-              {credits.plan_id === 'free' && <p className="text-sm text-slate-600 mt-1">{credits.trial_expired ? '30일 체험이 끝났습니다. ' : ''}체크인·1:1·공유·목표 관리는 계속 무료이고, 기록도 그대로 쌓입니다. AI 해석과 초안은 Pro에서 열립니다.</p>}
-              {s && s.plan_id !== 'free' && credits.status !== 'trialing' && (
-                <div className="text-sm text-slate-500 mt-1">{s.billing_cycle === 'year' ? '연간' : '월간'} · 다음 결제 {fmtDate(s.current_period_end)}{s.card_last4 && ` · ${s.card_company ?? '카드'} ****${s.card_last4}`}
-                  {s.cancel_at_period_end && <Pill tone="rose" className="ml-2">기간 끝나면 해지</Pill>}</div>
-              )}
+              {expired ? <>
+                <div className="mt-1 text-2xl font-bold">{credits.was_trial ? '체험이 끝났습니다' : '구독이 끝났습니다'}</div>
+                <p className="mt-1 text-sm text-slate-600">그동안의 기록은 그대로 보관돼 있습니다. 아래에서 팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</p>
+              </> : trialing ? <>
+                <div className="mt-1 text-2xl font-bold flex items-center gap-2 flex-wrap">무료 체험 <Pill tone="amber">{trialLeft != null ? `D-${trialLeft}` : ''} · {fmtDate(credits.trial_ends_at)}까지</Pill></div>
+                <p className="mt-1 text-sm text-slate-600">체험 중에는 Pro+ 전체를 씁니다. 끝나기 전에 요금제를 고르면 끊김 없이 이어집니다.</p>
+              </> : <>
+                <div className="mt-1 text-2xl font-bold">{credits.plan_name} <span className="text-base font-medium text-slate-400">팀원 {credits.max_members}명까지</span></div>
+                {s && <div className="text-sm text-slate-500 mt-1">{s.billing_cycle === 'year' ? '연간' : '월간'} · 다음 결제 {fmtDate(s.current_period_end)}{s.card_last4 && ` · ${s.card_company ?? '카드'} ****${s.card_last4}`}
+                  {s.cancel_at_period_end && <Pill tone="rose" className="ml-2">기간 끝나면 해지</Pill>}</div>}
+              </>}
             </div>
-            {s && s.plan_id !== 'free' && credits.status === 'active' && (
+            {active && s && (
               <Button variant="ghost" size="sm" loading={subscribe.isPending} onClick={() => subscribe.mutate({ action: s.cancel_at_period_end ? 'resume' : 'cancel' })}>
                 {s.cancel_at_period_end ? '해지 취소' : '해지 예약'}
               </Button>
             )}
           </div>
-          {credits.plan_id !== 'free' && (
+          {!expired && (
             <div className="mt-5 grid sm:grid-cols-2 gap-5">
               <div>
-                <div className="flex justify-between text-sm"><span>기본 AI 사용</span><span className="font-mono num">{credits.core_used ?? 0} / {credits.core_cap ?? '-'}회</span></div>
-                <div className="mt-2"><Bar value={((credits.core_used ?? 0) / Math.max(1, credits.core_cap ?? 1)) * 100} tone="indigo" h="h-2" /></div>
-                <div className="mt-1 text-xs text-slate-500">구독에 포함 · 크레딧 차감 없음 · 보통 팀은 한도의 1/4도 쓰지 않습니다</div>
+                <div className="flex justify-between text-sm"><span>기본 AI</span><span className="font-semibold text-emerald-700">구독에 포함</span></div>
+                {(() => {
+                  const pct = credits.ai_usage_pct ?? 0;
+                  const [cls, text] = pct >= 100 ? ['bg-rose-50 text-rose-800', '이번 달 기본 AI를 모두 썼습니다. 다음 결제일에 다시 열립니다.']
+                    : pct >= 75 ? ['bg-amber-50 text-amber-800', '사용이 많은 달이라 자동 1차 검토는 다음 결제일까지 쉽니다. 결과물에서 직접 \'검토\'를 누르면 됩니다.']
+                    : pct >= 60 ? ['bg-amber-50 text-amber-800', '이번 달은 평소보다 AI를 많이 쓰고 있습니다. 이대로면 월말에 자동 1차 검토가 쉴 수 있습니다.']
+                    : ['bg-slate-50 text-slate-600', '인사이트 · ATEAM의 제안 · 1차 검토 · 1:1 준비 · 임원 브리핑은 횟수를 신경 쓰지 않고 씁니다.'];
+                  return <p className={cx('mt-2 rounded-lg px-3 py-2 text-xs leading-relaxed', cls)}>{text}</p>;
+                })()}
               </div>
               <div>
                 <div className="flex justify-between text-sm"><span>프리미엄 크레딧</span><span className="font-mono num"><b>{total}</b> 남음 · 월 {credits.monthly_credits}</span></div>
                 <div className="mt-2"><Bar value={(credits.monthly_remaining / Math.max(1, credits.monthly_credits)) * 100} tone="violet" h="h-2" /></div>
-                <div className="mt-1 text-xs text-slate-500">평가 초안 5 · 계획서 초안 2 · 노하우 정리 2 · 해석 1 · {fmtDate(credits.period_end)}에 다시 채워집니다{credits.topup_remaining > 0 && ` · 추가분 ${credits.topup_remaining}`}</div>
+                <div className="mt-1 text-xs text-slate-500">{fmtDate(credits.period_end)}에 다시 채워집니다{credits.topup_remaining > 0 && ` · 추가분 ${credits.topup_remaining}`}</div>
               </div>
             </div>
           )}
@@ -135,45 +151,71 @@ function Billing() {
           <p className="text-xs text-slate-500 mt-1">평가 시즌처럼 프리미엄 AI를 많이 쓰는 달에만 필요합니다. 등록된 카드로 바로 결제되고 소멸하지 않습니다.</p>
           <div className="mt-4 space-y-2">
             {[['100', 6900], ['300', 19900]].map(([n, p]) => (
-              <Button key={n} variant="secondary" className="w-full justify-between" loading={subscribe.isPending && subscribe.variables?.pack === n}
+              <Button key={n} variant="secondary" className="w-full justify-between" disabled={!active} loading={subscribe.isPending && subscribe.variables?.pack === n}
                 onClick={() => subscribe.mutate({ action: 'topup', pack: n })}>
                 <span>{n} 크레딧</span><span className="font-mono">{won(Number(p))} <span className="text-xs text-slate-400">+VAT</span></span>
               </Button>
             ))}
           </div>
+          {!active && <p className="mt-2 text-[11px] text-slate-400">요금제를 시작한 뒤 쓸 수 있습니다.</p>}
         </Card>
       </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="font-semibold">요금제</div>
-        <div className="flex bg-slate-100 rounded-lg p-0.5 text-[13px]">
-          <button onClick={() => setCycle('month')} className={cx('px-3 py-1 rounded-md', cycle === 'month' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>월간</button>
-          <button onClick={() => setCycle('year')} className={cx('px-3 py-1 rounded-md', cycle === 'year' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>연간 <span className="text-emerald-600">2개월 무료</span></button>
+      <section id="plans">
+        <div className="flex items-end justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">팀 크기에 맞게 고르세요</h2>
+            <p className="text-sm text-slate-500">기능은 같고 팀원 수가 다릅니다 (Starter는 평가 시뮬레이션 · 컨설팅 기준 DB 제외) · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
+          </div>
+          <div className="flex bg-slate-100 rounded-lg p-0.5 text-[13px]">
+            <button onClick={() => setCycle('month')} className={cx('px-3 py-1 rounded-md', cycle === 'month' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>월간</button>
+            <button onClick={() => setCycle('year')} className={cx('px-3 py-1 rounded-md', cycle === 'year' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>연간 <span className="text-emerald-600">2개월 무료</span></button>
+          </div>
         </div>
-      </div>
-      <div className="grid md:grid-cols-3 gap-4">
-        {(plans.data ?? []).map((p) => {
-          const current = credits.plan_id === p.id && credits.status !== 'trialing';
-          const price = cycle === 'year' ? p.price_year_krw : p.price_month_krw;
-          return (
-            <Card key={p.id} className={cx('p-5 flex flex-col', p.id === 'pro' && 'border-indigo-400 ring-1 ring-indigo-200')}>
-              <div className="flex items-center justify-between"><div className="font-bold text-lg">{p.name}</div>{p.id === 'pro' && <Pill tone="indigo">추천</Pill>}</div>
-              <div className="mt-2"><span className="text-2xl font-bold">{price === 0 ? '무료' : won(price)}</span>{price > 0 && <span className="text-sm text-slate-500"> / {cycle === 'year' ? '년' : '월'} · VAT 별도</span>}</div>
-              {cycle === 'year' && price > 0 && <div className="text-xs text-slate-500">월 {won(Math.round(price / 12))} 꼴</div>}
-              <div className="mt-3 text-sm text-slate-600">팀원 {p.max_members}명{p.monthly_credits > 0 ? ` · 프리미엄 ${p.monthly_credits} 크레딧/월` : ' · AI 없음'}{p.max_teams > 1 && ` · 팀 ${p.max_teams}개`}</div>
-              <ul className="mt-4 space-y-1.5 text-sm flex-1">
-                {p.features.filter((f) => !(p.id !== 'free' && f === 'signals_basic')).map((f) => <li key={f} className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />{FEATURE_LABEL[f] ?? f}</li>)}
-              </ul>
-              <div className="mt-5">
-                {p.id === 'free' ? <Button variant="ghost" disabled className="w-full">{credits.plan_id === 'free' ? '현재 요금제' : '기본'}</Button>
-                  : current ? <Button variant="secondary" disabled className="w-full">현재 요금제</Button>
-                  : <Button className="w-full" onClick={() => start(p)}><CreditCard size={15} />{p.name} 시작하기</Button>}
+        <div className="mt-4 grid md:grid-cols-3 gap-4">
+          {list.map((p) => {
+            const current = active && credits.plan_id === p.id;
+            const small = p.max_members < members;
+            const best = p.id === fit && !current;
+            const price = cycle === 'year' ? p.price_year_krw : p.price_month_krw;
+            const monthly = cycle === 'year' ? Math.round(p.price_year_krw / 12) : p.price_month_krw;
+            const evalOn = p.features.includes('evaluation');
+            const conOn = p.features.includes('consulting_knowhow');
+            return (
+              <Card key={p.id} className={cx('p-5 flex flex-col relative', best && 'ring-2 ring-indigo-500', current && 'ring-2 ring-slate-900', small && 'opacity-60')}>
+                {(best || current) && <span className={cx('absolute -top-2.5 left-5 text-[11px] font-bold rounded-full px-2 py-0.5 text-white', current ? 'bg-slate-900' : 'bg-indigo-600')}>{current ? '현재 요금제' : '우리 팀에 맞음'}</span>}
+                <div className="font-bold text-lg">{p.name}</div>
+                <div className="mt-0.5 text-sm font-semibold text-indigo-700 flex items-center gap-1.5"><Users size={14} />팀원 {p.max_members}명까지</div>
+                <div className="mt-3"><span className="text-[28px] font-bold tracking-tight num">{won(price)}</span><span className="text-sm text-slate-500"> / {cycle === 'year' ? '년' : '월'}</span></div>
+                <div className="text-xs text-slate-500">VAT 별도{cycle === 'year' ? ` · 월 ${won(monthly)} 꼴` : ''} · 팀원 1인당 월 {won(Math.round(monthly / p.max_members / 100) * 100)}</div>
+                <ul className="mt-4 space-y-2 text-sm flex-1">
+                  <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />기록·협업 · AI 참모 전체</li>
+                  <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
+                  <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{!evalOn && ' 없음'}</li>
+                  <li className={cx('flex gap-2', !conOn && 'text-slate-400')}>{conOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}컨설팅 기준 DB{conOn ? ' (기본 카드 21장)' : ' 없음'}</li>
+                </ul>
+                <div className="mt-5">
+                  {current ? <Button variant="secondary" disabled className="w-full">현재 요금제</Button>
+                    : small ? <Button variant="ghost" disabled className="w-full">팀원 {members}명이라 고를 수 없음</Button>
+                    : <Button className="w-full" variant={best ? 'primary' : 'secondary'} onClick={() => start(p)}><CreditCard size={15} />{active ? `${p.name}로 바꾸기` : `${p.name} 시작하기`}</Button>}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+        <Card className="mt-4 p-5">
+          <div className="text-sm font-semibold">모든 요금제에 들어 있는 것</div>
+          <div className="mt-3 grid md:grid-cols-3 gap-5">
+            {INCLUDED.map((g) => (
+              <div key={g.title}>
+                <div className="text-[13px] font-bold text-slate-800">{g.title} <span className="font-normal text-xs text-slate-400">· {g.sub}</span></div>
+                <ul className="mt-2 space-y-1.5 text-sm text-slate-600">{g.items.map((x) => <li key={x} className="flex gap-2"><Check size={14} className="text-emerald-600 mt-0.5 shrink-0" />{x}</li>)}</ul>
               </div>
-            </Card>
-          );
-        })}
-      </div>
-      <p className="text-xs text-slate-500">크레딧 차감: 1:1 준비 노트·해석 1 · 브리핑·주간보고·노하우 정리 2 · 결과물 1차 검토 3 · 평가 초안 5. 근거가 모자라 '판단 보류'된 요청은 차감하지 않습니다.</p>
+            ))}
+          </div>
+          <p className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 leading-relaxed">요금제 하나에 팀 하나입니다. 여러 팀을 맡았다면 팀마다 계정을 만들어 구독합니다 · 팀원이 늘면 언제든 큰 요금제로 바꿀 수 있고, 바꾸는 날부터 새 주기가 시작됩니다 · 근거가 모자라 '판단 보류'된 요청은 크레딧을 쓰지 않습니다</p>
+        </Card>
+      </section>
 
       <div className="grid lg:grid-cols-2 gap-5">
         <Card>
