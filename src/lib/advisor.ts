@@ -18,6 +18,14 @@ export interface AdviceReview { id: string; title: string; verdict: 'done' | 'pa
 export interface AdvisorOut {
   headline: string; focus?: string; levers: Partial<Record<Lever, { state: LeverState; note: string }>>;
   advice: Advice[]; review?: AdviceReview[]; watch_next?: string;
+  perspective?: Perspective;
+}
+/** 한 걸음 물러서 보기 — 미시 처방과 별도로, 큰 그림 · 다른 관점 · 작은 실험 하나씩 (렌즈는 매주 바뀜) */
+export interface Perspective {
+  big?: { lens: string; text: string; why?: string };
+  reframe?: { lens: string; text: string; why?: string };
+  experiment?: { title: string; how: string; check?: string };
+  question?: string;
 }
 
 export const LEVERS: { key: Lever; label: string; hint: string; icon: typeof Rocket }[] = [
@@ -55,6 +63,7 @@ export function normalizeAdvisor(c: unknown): AdvisorOut {
     levers: o.levers && typeof o.levers === 'object' ? o.levers : {},
     advice: arr<Advice>(o.advice).filter((a) => a && a.title).map((a, i) => ({ ...a, id: a.id || `a${i + 1}`, lever: a.lever || 'exec', urgency: Number(a.urgency) || 1, effort: a.effort || 'mid', route: a.route || 'none', why: a.why || '' })),
     review: arr<AdviceReview>(o.review).filter((r) => r && r.title),
+    perspective: o.perspective && typeof o.perspective === 'object' && (o.perspective.big || o.perspective.reframe || o.perspective.experiment) ? o.perspective : undefined,
   };
 }
 const fix = (o: AiOutput<AdvisorOut> | null | undefined) => (o ? { ...o, content: normalizeAdvisor(o.content) } : o);

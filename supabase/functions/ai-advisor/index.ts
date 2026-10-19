@@ -104,6 +104,17 @@ async function adviceFor(teamId: string, createdBy: string | null) {
     const adv = ((prev.content as { advice?: { id: string; title: string; lever: string }[] }).advice ?? []);
     if (adv.length) book.add('advice_prev', prev.id, `지난주(${prev.period_start}) 제안과 팀장의 선택`, adv.map((a) => `${a.id} [${a.lever}] ${a.title.replace(/\s*\[E\d+\]/g, '')} → ${LBL[stOf.get(a.id) ?? ''] ?? '표시 없음'}`).join(' / '));
   }
+  // 한 걸음 물러서 보기 — 최근 4주에 쓴 관점(반복 금지) · 다가오는 시기
+  const { data: recent } = await admin.from('ai_outputs').select('content, period_start').eq('team_id', teamId).eq('kind', 'advisor_weekly').lt('period_start', mon).order('period_start', { ascending: false }).limit(4);
+  type Pv = { big?: { lens?: string }; reframe?: { lens?: string }; experiment?: { title?: string } };
+  const used = (recent ?? []).flatMap((r) => { const p = (r.content as { perspective?: Pv }).perspective; return p ? [p.big?.lens, p.reframe?.lens, p.experiment?.title].filter(Boolean) as string[] : []; });
+  const month = Number(today.slice(5, 7));
+  const season = [
+    [3, 6, 9, 12].includes(month) ? '이번 달이 분기 말' : [2, 5, 8, 11].includes(month) ? '다음 달이 분기 말' : '',
+    month >= 10 ? '연말 평가와 내년 목표 수립이 다가오는 시기' : month <= 2 ? '올해 목표를 세우고 시작하는 시기' : month === 6 || month === 7 ? '상반기를 돌아보고 하반기를 조정하는 시기' : '',
+  ].filter(Boolean).join(' · ');
+  parts.push(`## 한 걸음 물러서 보기 참고\n다가오는 시기: ${season || '특이 시기 없음'}\n최근 쓴 관점(다시 쓰지 않음): ${used.length ? used.join(' / ') : '없음'}`);
+
   // 목표 진척 (기록으로 변화 확인용)
   if (raw.goals?.length) book.add("goals", null, "목표 진척 · 달성 가능성(모델)", raw.goals.slice(0, 6).map((g) => `${g.title} 진척 ${g.progress}% · 달성 가능성 ${g.probability ?? "-"}% · 막힘 ${g.blocked}`).join(" / "));
 
