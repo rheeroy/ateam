@@ -98,7 +98,7 @@ export function MyTodo() {
             <ul className="space-y-1.5">
               {nw.data.map((s) => (
                 <li key={s.id}>
-                  <Link to={`/work/${s.id}`} className="flex items-center gap-2 rounded-lg bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm hover:bg-amber-100">
+                  <Link to={`/my/submissions?open=${s.id}`} className="flex items-center gap-2 rounded-lg bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-sm hover:bg-amber-100">
                     <RotateCcw size={14} className="text-amber-700 shrink-0" /><span className="flex-1 truncate font-medium">{s.title}</span>
                     <span className="text-xs text-amber-800 font-semibold shrink-0">고쳐서 다시 올리기 →</span>
                   </Link>

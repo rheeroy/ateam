@@ -17,7 +17,7 @@ import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/P
 import { FILE_ACCEPT, IMAGE } from '../components/Upload';
 import { STATUS } from './MySubmissions';
 
-interface Review {
+export interface Review {
   depth_score: number; summary: string; decisions?: string[];
   brief?: { tone: 'risk' | 'watch' | 'good'; text: string; why?: string };
   strengths: { section: string; text: string }[]; gaps: { section: string; text: string }[];
@@ -35,7 +35,7 @@ const shortOf = (r?: Review) => {
   return tail || r.summary?.split(/[.。]/)[0] || '검토됨';
 };
 
-function AiReview({ teamId, version, versions, reviewOf, onPick, onToComments }: {
+export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComments }: {
   teamId: string; version: SubmissionVersion; versions: SubmissionVersion[]; reviewOf: (vid: string) => Review | undefined; onPick: (vid: string) => void; onToComments: (qs: string[]) => void;
 }) {
   const rv = useLatestAi<Review>(teamId, 'review', { ref_table: 'submission_versions', ref_id: version.id });
@@ -144,14 +144,14 @@ function AiReview({ teamId, version, versions, reviewOf, onPick, onToComments }:
 }
 
 
-function useSignedUrl(path: string | null) {
+export function useSignedUrl(path: string | null) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => { setUrl(null); if (path) supabase.storage.from('submissions').createSignedUrl(path, 600).then(({ data }) => setUrl(data?.signedUrl ?? null)); }, [path]);
   return url;
 }
 
 /** 올린 것 한 건(버전)의 본문 — 길면 접어 둔다 */
-function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionVersion; older?: boolean }) {
+export function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionVersion; older?: boolean }) {
   const url = useSignedUrl(v.file_path);
   const [open, setOpen] = useState(false);
   const long = (v.extracted_text ?? '').length > (older ? 160 : 600);
@@ -380,7 +380,7 @@ function Attachment({ c, mine }: { c: ReviewComment; mine?: boolean }) {
 }
 
 /** 말풍선 — 내 말은 오른쪽 */
-function Bubble({ c, mine, replies = [], active, onThread }: { c: ReviewComment; mine: boolean; replies?: ReviewComment[]; active?: boolean; onThread?: () => void }) {
+export function Bubble({ c, mine, replies = [], active, onThread }: { c: ReviewComment; mine: boolean; replies?: ReviewComment[]; active?: boolean; onThread?: () => void }) {
   const { nameOf } = useTeam();
   return (
     <div className={cx('flex gap-2.5 group', mine && 'flex-row-reverse')}>
@@ -401,7 +401,7 @@ function Bubble({ c, mine, replies = [], active, onThread }: { c: ReviewComment;
 }
 
 /** 대화창 — Enter 보내기 · 파일은 끌어다 놓기/📎/붙여넣기. 올린 사람(그룹 멤버)이 파일을 보내면 새 버전 */
-function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submission; latest: SubmissionVersion; canUpload: boolean; file: File | null; setFile: (f: File | null) => void }) {
+export function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submission; latest: SubmissionVersion; canUpload: boolean; file: File | null; setFile: (f: File | null) => void }) {
   const { uid, team, hasFeature } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();

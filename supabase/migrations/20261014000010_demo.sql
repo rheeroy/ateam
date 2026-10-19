@@ -653,6 +653,29 @@ begin
       (gs, T, m_lee, '웰컴 메시지는 A/B 결과 보고 11/8까지 확정할게요.', now() - interval '1 day');
   exception when others then null;
   end;
+  -- 업무 스페이스 대화 (24_work_space 이후에만 들어감)
+  declare c1 uuid; wg uuid;
+  begin
+    select id into wg from work_groups where team_id = T and name = '신제품 런칭 TF';
+    insert into space_messages (team_id, space_user, author_id, item_id, body, created_at)
+      values (T, m_choi, m_choi, t5, '디자인팀 주간 고정 슬롯 확정됐어요 — 매주 화 오후 2시간', now() - interval '26 hours') returning id into c1;
+    insert into space_messages (team_id, space_user, author_id, parent_id, body, created_at)
+      values (T, m_choi, L, c1, '좋아요, 이걸로 리드타임이 얼마나 줄지 다음 주에 같이 봐요.', now() - interval '25 hours');
+    insert into space_messages (team_id, space_user, author_id, body, created_at) values
+      (T, m_choi, L, '내일 오전 주간회의 10시로 당겨졌어요. 참고하세요!', now() - interval '22 hours'),
+      (T, m_choi, m_choi, '네 확인했습니다 👍', now() - interval '21 hours'),
+      (T, m_jung, L, 'B사 회신 오면 바로 알려 줘요. 급하면 메시지로 먼저 줘도 됩니다.', now() - interval '30 hours');
+    if wg is not null then
+      insert into space_messages (team_id, group_id, author_id, item_id, body, created_at)
+        values (T, wg, m_han, t1, 'FGI 2차 4명 다음 주 화요일로 확정됐어요. 키비주얼 B안도 같이 보여 줄게요.', now() - interval '28 hours') returning id into c1;
+      insert into space_messages (team_id, group_id, author_id, parent_id, body, created_at) values
+        (T, wg, m_kim, c1, '좋아요! 반응 좋으면 B안으로 바로 굳히죠.', now() - interval '27 hours'),
+        (T, wg, m_choi, c1, '썸네일 크롭본도 같이 보여 주면 좋을 것 같아요.', now() - interval '26 hours');
+      insert into space_messages (team_id, group_id, author_id, body, created_at) values
+        (T, wg, m_choi, '사전 예약 페이지 카피 초안은 이번 주 금요일까지 올릴게요.', now() - interval '5 hours');
+    end if;
+  exception when others then null;
+  end;
 end $fn$;
 revoke all on function public.seed_demo_team(uuid, uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.seed_demo_team(uuid, uuid, uuid[]) to service_role;

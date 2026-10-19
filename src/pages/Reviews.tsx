@@ -118,6 +118,10 @@ function PeopleBoxes({ rows, loading }: { rows: SubRow[]; loading: boolean; byId
   );
 }
 
+/** 결과물이 있는 스페이스에서 그 카드 스레드를 연 채로 */
+export const spaceLink = (s: Pick<SubRow, 'id' | 'group_id' | 'author_id'> & { space_id?: string | null }) =>
+  s.group_id ? `/work/g/${s.group_id}?open=${s.id}` : `/work/u/${s.space_id ?? s.author_id}?open=${s.id}`;
+
 /** 사람별·그룹별 카드의 한 줄 — AI 신호 · 요청 · 제목 · 답글 수 · 새 답글 */
 const TONE_DOT_LINE: Record<string, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
 function OpenLine({ s, showAuthor }: { s: SubRow; showAuthor?: boolean }) {
@@ -131,7 +135,7 @@ function OpenLine({ s, showAuthor }: { s: SubRow; showAuthor?: boolean }) {
     <li className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/70">
       <span className={cx('shrink-0 w-2 h-2 rounded-full', tone ? TONE_DOT_LINE[tone] : 'bg-slate-200')} title={tone ? 'AI 1차 검토' : 'AI 검토 전'} />
       {showAuthor && <Avatar name={nameOf(s.author_id)} size={7} />}
-      <Link to={`/work/${s.id}`} className="min-w-0 flex-1 flex items-center gap-2">
+      <Link to={spaceLink(s)} className="min-w-0 flex-1 flex items-center gap-2">
         <span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span>
         {s.status === 'needs_work' && <span className="shrink-0 text-[10px] font-semibold rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">보완 중</span>}
         <span className="truncate text-sm">{s.title}</span>
@@ -161,8 +165,10 @@ function GroupBoxes({ rows, loading, byId, onEdit, onNew }: { rows: SubRow[]; lo
         return (
           <section key={g.id} className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
             <div className="px-5 py-3.5 flex items-center gap-3 border-b border-sky-100/70 bg-gradient-to-r from-sky-50/80 via-indigo-50/40 to-white">
+              <Link to={`/work/g/${g.id}`} className="contents">
               <span className="w-9 h-9 rounded-full bg-white ring-1 ring-sky-200 text-sky-600 inline-flex items-center justify-center shrink-0"><UsersRound size={17} /></span>
               <span className="min-w-0"><span className="block font-semibold truncate">{g.name}</span><span className="block text-xs text-slate-500 truncate">{goal ? `목표 · ${goal.title}` : '연결 목표 없음'}</span></span>
+              </Link>
               <span className="ml-auto flex -space-x-2 shrink-0">{g.work_group_members.slice(0, 5).map((m) => <span key={m.user_id} className="ring-2 ring-white rounded-full" title={nameOf(m.user_id)}><Avatar name={nameOf(m.user_id)} size={7} /></span>)}</span>
               <button onClick={() => onEdit(g)} className="text-slate-400 hover:text-indigo-700 shrink-0" aria-label="그룹 고치기"><Settings2 size={15} /></button>
             </div>
@@ -183,7 +189,7 @@ function GroupBoxes({ rows, loading, byId, onEdit, onNew }: { rows: SubRow[]; lo
 //   예전 검토처럼 한 줄이 없으면 검토 점수로 같은 톤의 문장을 만든다
 // ---------------------------------------------------------------------
 type Tone = 'risk' | 'watch' | 'good';
-interface Line { id: string; tone: Tone; text: string; why?: string; rank: number }
+interface Line { id: string; tone: Tone; text: string; why?: string; rank: number; to?: string }
 const TONE_DOT: Record<Tone, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
 /** 받침 있으면 앞 조사, 없으면 뒤 조사 */
 function josa(word: string, withB: string, without: string) {
@@ -208,7 +214,7 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
   const { nameOf } = useTeam();
   const waiting = rows.filter((s) => s.status === 'in_review');
   const reviewed = waiting.filter((s) => s.review);
-  const lines = waiting.map((s) => lineOf(s, nameOf(s.author_id))).filter((x): x is Line => !!x).sort((a, b) => a.rank - b.rank);
+  const lines: Line[] = waiting.flatMap((s) => { const l = lineOf(s, nameOf(s.author_id)); return l ? [{ ...l, to: spaceLink(s) as string | undefined }] : []; }).sort((a, b) => a.rank - b.rank);
   const [more, setMore] = useState(false);
   const shown = more ? lines : lines.slice(0, 3);
   return (
@@ -223,7 +229,7 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
         <ul className="rounded-xl bg-white ring-1 ring-slate-200 divide-y divide-slate-100">
           {shown.map((x) => (
             <li key={x.id}>
-              <Link to={`/work/${x.id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
+              <Link to={x.to ?? `/work/${x.id}`} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-violet-50/50">
                 <span className={cx('mt-[7px] w-2 h-2 rounded-full shrink-0', TONE_DOT[x.tone] ?? 'bg-slate-400')} />
                 <span className="min-w-0 flex-1">
                   <span className="text-sm text-slate-800">{x.text}</span>

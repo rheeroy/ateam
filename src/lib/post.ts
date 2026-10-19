@@ -27,17 +27,17 @@ export async function addVersion(p: { teamId: string; uid: string; sub: Pick<Sub
 
 /** 새 글: 결과물 + v1 */
 export async function createPost(p: {
-  teamId: string; uid: string; groupId?: string | null; itemId?: string | null; req: RequestType;
-  title: string; file?: File | null; text?: string; link?: string | null; kind?: ShareKind;
+  teamId: string; uid: string; groupId?: string | null; spaceId?: string | null; itemId?: string | null; req: RequestType;
+  title: string; file?: File | null; text?: string; link?: string | null; kind?: ShareKind; note?: string;
 }) {
   let kind: ShareKind = p.kind ?? 'note';
   const read = p.file ? await readFile(p.file) : undefined;
   if (read) kind = read.kind;
   const sub = await q<Submission>(supabase.from('submissions').insert({
-    team_id: p.teamId, author_id: p.uid, item_id: p.itemId || null, ...(p.groupId ? { group_id: p.groupId } : {}),
+    team_id: p.teamId, author_id: p.uid, item_id: p.itemId || null, ...(p.groupId ? { group_id: p.groupId } : {}), ...(p.spaceId ? { space_id: p.spaceId } : {}),
     kind, request_type: p.req, link_url: p.link ?? null, title: p.title.trim() || '공유',
   }).select().single());
-  const ver = await addVersion({ teamId: p.teamId, uid: p.uid, sub, version: 1, file: p.file, text: p.text, read });
+  const ver = await addVersion({ teamId: p.teamId, uid: p.uid, sub, version: 1, file: p.file, text: p.text, note: p.note, read });
   return { sub, ver };
 }
 

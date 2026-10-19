@@ -32,6 +32,7 @@ const PersonDetail = lazy(() => import('./pages/PersonDetail'));
 const TeamGoals = lazy(() => import('./pages/TeamGoals'));
 const Decide = lazy(() => import('./pages/Decide'));
 const WorkSpace = lazy(() => import('./pages/WorkSpace'));
+const GroupSpace = lazy(() => import('./pages/GroupSpace'));
 const Notes = lazy(() => import('./pages/Notes'));
 
 function NotConfigured() {
@@ -110,6 +111,7 @@ export default function App() {
         <Route path="one-on-ones/:id" element={<OneOnOneDetail />} />
         <Route path="work" element={L(<Reviews />)} />
         <Route path="work/u/:id" element={L(<WorkSpace />)} />
+        <Route path="work/g/:id" element={L(<GroupSpace />)} />
         <Route path="work/:id" element={<ReviewDetail />} />
         <Route path="reviews" element={<Moved to="/work" />} />
         <Route path="reviews/:id" element={<ReviewDetail />} />
