@@ -133,8 +133,13 @@ export function useSpaceRead(ref: SpaceRef, ready: boolean, latest: string) {
     if (!ready || read.data === undefined || read.data === null || document.visibilityState !== 'visible') return;
     if (latest && latest === last.current) return;
     last.current = latest;
-    supabase.from('space_reads').upsert({ user_id: uid, team_id: team.id, space_key: key, read_at: new Date().toISOString() })
-      .then(() => qc.invalidateQueries({ queryKey: ['space-unread'] }));
+    const now = new Date().toISOString();
+    supabase.from('space_reads').upsert({ user_id: uid, team_id: team.id, space_key: key, read_at: now })
+      .then(() => {
+        // 다른 탭·스페이스에 갔다 돌아와도 새로고침 없이 읽음 상태가 맞도록 캐시도 바꾼다
+        qc.setQueryData(['space-read', key, uid], now);
+        qc.invalidateQueries({ queryKey: ['space-unread'] });
+      });
   }, [ready, latest, read.data, key, uid, team.id, qc]);
   return seenAt ?? '9999-12-31';
 }
