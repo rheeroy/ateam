@@ -120,7 +120,7 @@ export default function Evaluation() {
   const d = draft.data;
   const view: Draft | null = d ? { ...d.content, ...(d.edited_content ?? {}) } : null;
 
-  if (!hasFeature('evaluation')) return <section><PageHeader title="평가 시뮬레이션" /><Upsell feature="근거 기반 평가 초안" /></section>;
+  if (!hasFeature('evaluation')) return <section><PageHeader title="평가 시뮬레이션" /><Upsell feature="평가 시뮬레이션" /></section>;
   const run = () => sel && gen.mutate({ team_id: team.id, member_id: sel, period_start: period.start, period_end: period.end });
 
   return (

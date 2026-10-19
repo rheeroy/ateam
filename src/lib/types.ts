@@ -83,9 +83,12 @@ export interface Forecast {
 export interface GoalOutlook { goal_id: string; title: string; progress: number; probability: number | null; basis: 'metric' | 'schedule' | 'insufficient'; blocked: number; task_count: number }
 export interface PortfolioRow { task_id: string; title: string; goal_id: string | null; mission_contribution: number; hours: number; share_pct: number | null; owner_name: string | null; status: string }
 export interface CreditStatus {
-  plan_id: 'free' | 'pro' | 'pro_plus'; plan_name: string; features: string[]; max_members: number; monthly_credits: number;
+  /** 'free' = 체험·구독 종료(잠금) */
+  plan_id: 'free' | 'starter' | 'pro' | 'pro_plus'; plan_name: string; features: string[]; max_members: number; monthly_credits: number;
   monthly_remaining: number; topup_remaining: number; period_start: string; period_end: string;
-  status: string; trial_ends_at: string | null; trial_expired?: boolean; is_owner: boolean; core_used?: number; core_cap?: number;
+  status: string; trial_ends_at: string | null; trial_expired?: boolean; expired?: boolean; was_trial?: boolean; is_owner: boolean; core_used?: number; core_cap?: number;
+  /** 이번 달 AI 원가 / 원가 상한 (%) — 기본 AI 안내용, 숫자는 화면에 보이지 않음 */
+  ai_usage_pct?: number;
 }
 export interface Plan { id: string; name: string; price_month_krw: number; price_year_krw: number; max_members: number; max_teams: number; monthly_credits: number; core_monthly_cap?: number; features: string[]; sort: number }
 

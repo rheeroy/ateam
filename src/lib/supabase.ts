@@ -24,11 +24,11 @@ export class AppError extends Error {
 
 const KNOWN: Record<string, string> = {
   INSUFFICIENT_CREDITS: '프리미엄 크레딧이 부족합니다. 설정 > 요금제에서 추가할 수 있습니다.',
-  AI_LOCKED: 'AI 기능은 Pro에서 쓸 수 있습니다. 설정 > 요금제에서 시작하세요.',
+  AI_LOCKED: '지금은 AI를 쓸 수 없습니다. 설정 > 요금제에서 요금제를 시작하세요.',
   CORE_LIMIT: '이번 달 기본 AI 사용량을 모두 썼습니다. 다음 달에 다시 채워집니다.',
   NO_REVIEW: '공유·숫자 업데이트는 AI 검토 대상이 아닙니다.',
   PLAN_FEATURE: '현재 요금제에서는 쓸 수 없는 기능입니다.',
-  PLAN_LIMIT_MEMBERS: '요금제의 팀원 수 한도에 도달했습니다.',
+  PLAN_LIMIT_MEMBERS: '요금제의 팀원 수 한도에 도달했습니다. 설정 > 요금제에서 더 큰 요금제로 바꿀 수 있습니다.',
   PLAN_LIMIT_TEAMS: '요금제에서 만들 수 있는 팀 수를 넘었습니다.',
   INVITE_EXPIRED: '초대 링크가 만료됐습니다. 팀장에게 새 링크를 요청하세요.',
   INVITE_USED: '이미 사용된 초대 링크입니다.',

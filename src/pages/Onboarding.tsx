@@ -50,7 +50,7 @@ export default function Onboarding() {
           </div>
           <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">이 계정에는 아직 팀이 없습니다. 팀원으로 초대받았다면 팀장이 보낸 초대 링크로 들어오세요.</p>
           <h1 className="mt-2 text-2xl font-bold">팀을 만들어 주세요</h1>
-          <p className="mt-1 text-sm text-slate-500">30일 동안 Pro 전체를 무료로 씁니다. 카드 등록은 필요 없고, 체험이 끝나도 기록 도구는 계속 무료입니다.</p>
+          <p className="mt-1 text-sm text-slate-500">14일 동안 모든 기능을 무료로 씁니다. 카드 등록은 필요 없고, 체험이 끝난 뒤 팀 크기에 맞는 요금제를 고르면 기록 그대로 이어서 씁니다.</p>
         </div>
         <Field label="내 이름"><input required className={inputCls} value={myName} onChange={(e) => setMyName(e.target.value)} /></Field>
         <div className="grid grid-cols-3 gap-3">

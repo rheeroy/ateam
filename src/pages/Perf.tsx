@@ -16,7 +16,7 @@ import { BoxTitle, GoalMapSection, type ForecastScope } from '../components/perf
 export function Upsell({ feature }: { feature: string }) {
   return (
     <Card><Empty icon={<Sparkles size={18} />} title={`${feature}은(는) Pro 요금제부터 쓸 수 있습니다`} action={<Link to="/settings?tab=billing"><Button>요금제 보기</Button></Link>}>
-      팀장 1명 기준 월 29,000원(VAT 별도)이며, 팀원은 무료로 초대됩니다.
+      Pro는 팀원 10명까지 월 29,000원(VAT 별도)이고, 요금제를 바꾸면 바로 열립니다.
     </Empty></Card>
   );
 }

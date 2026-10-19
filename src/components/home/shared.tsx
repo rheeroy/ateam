@@ -339,9 +339,9 @@ export function SectionAiCard({ teamId, period, section, out, loading }: { teamI
       </div>
       {!ai ? (
         <div className="mt-3 text-sm">
-          <div className="font-semibold flex items-center gap-1.5"><Lock size={14} className="text-violet-600" />AI 해석은 Pro에서 열립니다</div>
-          <p className="mt-1 text-slate-600">{credits?.trial_expired ? '30일 체험이 끝났습니다. 기록은 그대로 쌓이고 있고, ' : ''}AI가 신호를 엮어 원인과 순서, 할 일을 정리합니다.</p>
-          <Link to="/settings?tab=billing"><Button size="sm" className="mt-2">Pro 시작하기</Button></Link>
+          <div className="font-semibold flex items-center gap-1.5"><Lock size={14} className="text-violet-600" />AI 해석은 요금제를 시작하면 열립니다</div>
+          <p className="mt-1 text-slate-600">{credits?.trial_expired ? '무료 체험이 끝났습니다. 기록은 그대로 보관돼 있고, ' : ''}AI가 신호를 엮어 원인과 순서, 할 일을 정리합니다.</p>
+          <Link to="/settings?tab=billing"><Button size="sm" className="mt-2">요금제 고르기</Button></Link>
         </div>
       ) : loading ? <Spinner /> : !out ? (
         <p className="mt-2 text-sm text-slate-600">아직 {PERIOD_LABEL[period]} 해석이 없습니다. '지금 만들기'를 누르면 30초 안에 네 섹션을 한 번에 정리합니다 (구독 포함, 크레딧 없음).</p>

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileUp, MessageSquare, Sparkles } from 'lucide-react';
+import { CheckCircle2, FileUp, MessageSquare } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { supabase, q, invoke, errorText } from '../lib/supabase';
-import type { AiOutput, Checkin as C } from '../lib/types';
+import { supabase, q, errorText } from '../lib/supabase';
+import type { Checkin as C } from '../lib/types';
 import { PromiseList } from '../components/member/Member';
 import { MyProgress } from '../components/goals/MyProgress';
 import { cx, fmtDate, mondayOf, weekLabel, weekRangeLabel } from '../lib/format';
@@ -33,17 +33,6 @@ export default function Checkin() {
   }, [mine]);
 
   const [nudge, setNudge] = useState(false);
-  const draft = useMutation({
-    mutationFn: () => invoke<AiOutput<{ did?: string; blocked?: string; next?: string }>>('ai-checkin-draft', { team_id: team.id }),
-    onSuccess: (o) => {
-      const c = o.content ?? {};
-      if (!did.trim() && c.did) setDid(c.did);
-      if (!blocked.trim() && c.blocked) setBlocked(c.blocked);
-      if (!next.trim() && c.next) setNext(c.next);
-      toast(did.trim() || next.trim() ? '비어 있던 칸만 채웠습니다. 고쳐서 보내세요.' : '이번 주 기록으로 초안을 채웠습니다. 고쳐서 보내세요.');
-    },
-    onError: (e) => toast(errorText(e)),
-  });
   const submit = () => { if (cond == null && !nudge) { setNudge(true); return; } save.mutate(); };
   const save = useMutation({
     mutationFn: () => q(supabase.from('checkins').upsert({ team_id: team.id, user_id: uid, week_start: week, did, blocked, next, condition: cond }, { onConflict: 'team_id,user_id,week_start' })),
@@ -57,10 +46,6 @@ export default function Checkin() {
           <PageHeader title="이번 주 체크인" sub={`${weekRangeLabel(week)} · 1분이면 됩니다`} />
           <Card className="p-6 space-y-5">
             {mine && <div className="text-xs text-emerald-700 inline-flex items-center gap-1"><CheckCircle2 size={13} />{fmtDate(mine.updated_at)}에 보냈습니다. 고쳐서 다시 보낼 수 있습니다.</div>}
-            <div className="flex items-center justify-between gap-2 -mb-2">
-              <span className="text-xs text-slate-500">이번 주 앱 기록(올린 결과물·진척·요청)으로 초안을 만들 수 있어요</span>
-              <Button size="sm" variant="soft" loading={draft.isPending} onClick={() => draft.mutate()}><Sparkles size={13} />AI로 초안 채우기</Button>
-            </div>
             <Field label="이번 주에 한 일"><textarea rows={3} className={inputCls} value={did} onChange={(e) => setDid(e.target.value)} placeholder={history.data?.[0]?.next ? `지난주 계획: ${history.data[0].next}` : '예) 신제품 기획서 v3 제출, 사용자 인터뷰 설계 시작'} /></Field>
             <Field label="막힌 일" hint="(없으면 비워두세요)"><textarea rows={2} className={inputCls} value={blocked} onChange={(e) => setBlocked(e.target.value)} placeholder="예) 영업팀 인터뷰 대상 섭외가 늦어지고 있음" /></Field>
             <Field label="다음 주에 할 일"><textarea rows={2} className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} placeholder="예) 인터뷰 8명 진행" /></Field>

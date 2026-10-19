@@ -112,6 +112,8 @@ export default function Layout() {
     queryFn: async () => (await supabase.from('work_items').select('id', { count: 'exact', head: true }).eq('team_id', team!.id).eq('status', 'proposed')).count ?? 0,
   });
   const proposedN = proposedQ.data ?? 0;
+  // 체험·구독이 끝나면 잠금 (기록은 보관) — 팀장은 설정(요금제)만 열린다
+  const locked = credits?.plan_id === 'free' && !team?.is_demo && !loc.pathname.startsWith('/settings');
   const trialDays = credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
@@ -157,10 +159,7 @@ export default function Layout() {
               <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 shrink-0">데모</span>
             )}
             {trialDays != null && isLeader && (
-              <NavLink to="/settings?tab=billing" className="hidden sm:inline text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">Pro 체험 D-{trialDays}</NavLink>
-            )}
-            {credits?.plan_id === 'free' && isLeader && (
-              <NavLink to="/settings?tab=billing" className="hidden sm:inline text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 shrink-0">Free · AI 잠김</NavLink>
+              <NavLink to="/settings?tab=billing" className="hidden sm:inline text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">무료 체험 D-{trialDays}</NavLink>
             )}
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -205,7 +204,7 @@ export default function Layout() {
           </div>
         </div>
         <div ref={mainRef} className={cx('px-4 md:px-8 py-6 md:py-8 max-w-[1240px]', !isLeader && 'pb-24 md:pb-8')}>
-          <Suspense fallback={<Spinner />}><Outlet /></Suspense>
+          {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
         </div>
       </main>
       {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} />}
@@ -232,3 +231,20 @@ function MemberTabBar({ needsWork }: { needsWork: number }) {
     </nav>
   );
 }
+
+/** 체험·구독 종료 — Free 요금제가 없으므로 결제 전까지 잠근다. 기록은 지우지 않는다 */
+function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
+  return (
+    <div className="max-w-xl mx-auto mt-10 rounded-2xl bg-white ring-1 ring-slate-200 p-8 text-center">
+      <LogoBlock size={44} className="mx-auto" />
+      <h1 className="mt-4 text-xl font-bold">{leader ? (trial ? '무료 체험이 끝났습니다' : '구독이 끝났습니다') : '지금은 ATEAM을 쓸 수 없습니다'}</h1>
+      <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+        {leader
+          ? <>그동안 쌓인 목표 · 업무 · 1:1 · 체크인 기록은 그대로 보관돼 있습니다.<br />팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</>
+          : <>팀장님의 구독이 끝나 잠시 멈췄습니다. 내 기록은 그대로 보관되고,<br />팀장님이 다시 시작하면 바로 이어집니다.</>}
+      </p>
+      {leader && <Link to="/settings?tab=billing" className="mt-5 inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700">요금제 고르기</Link>}
+    </div>
+  );
+}
+
