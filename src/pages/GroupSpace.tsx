@@ -19,7 +19,7 @@ export default function GroupSpace() {
     <div className="space-y-3">
       <div>
         <Link to="/work" className="text-sm text-slate-500 hover:text-indigo-700 inline-flex items-center gap-1"><ArrowLeft size={14} />업무플랫폼</Link>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">{g.name} <span className="text-base font-medium text-slate-400">그룹방</span></h1>
+        <div className="mt-1 flex items-baseline gap-2"><h1 className="text-2xl font-bold tracking-tight leading-none">{g.name}</h1><span className="text-[15px] font-medium text-slate-400 leading-none whitespace-nowrap">그룹방</span></div>
       </div>
       <GroupBar g={g} onEdit={() => setEdit(g)} />
       <Space space={{ kind: 'group', id: g.id }} group={g} leaderView offset="18rem" />
