@@ -260,7 +260,7 @@ export default function ReviewDetail() {
           <p className="mt-1 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
             {group && <span className="inline-flex items-center gap-1 text-indigo-700 font-medium"><Users size={13} />{group.name}</span>}
             {makers.length > 1 ? `${makers.map(nameOf).join(' · ')} 공동` : nameOf(sub.author_id)} · 처음 올림 {fmtDate(sub.created_at)} · {KIND_TAG[sub.kind] ?? '문서'}
-            {sub.closed_at ? <span className="text-[11px] font-semibold rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5">완료함</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}</p>
+            {sub.closed_at ? <span className="text-[11px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}</p>
         </div>
         {leaderView && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -270,7 +270,7 @@ export default function ReviewDetail() {
             </>}
             {sub.closed_at
               ? <Button variant="ghost" onClick={() => close.mutate({ id: sub.id, close: false, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Undo2 size={14} />다시 열기</Button>
-              : <Button variant="ghost" onClick={() => close.mutate({ id: sub.id, close: true, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Check size={14} />완료</Button>}
+              : sub.status !== 'approved' && <Button variant="ghost" title="승인 없이 목록에서 정리합니다 (스페이스에는 남습니다)" onClick={() => close.mutate({ id: sub.id, close: true, uid }, { onSuccess: () => qc.invalidateQueries({ queryKey: ['sub', id] }) })}><Check size={14} />정리</Button>}
           </div>
         )}
       </div>

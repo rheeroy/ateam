@@ -53,7 +53,7 @@ export default function Reviews() {
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', f === id ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300')}>
               {label} <span className="num">{count(id)}</span></button>
           ))}
-        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">업무스페이스</span><span className="text-xs text-slate-400 truncate">왼쪽은 팀원별, 오른쪽은 그룹별 — 최신이 위. 상세에서 '완료'하면 카드에서 빠지고 스페이스에는 남습니다</span></div>}
+        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">업무스페이스</span><span className="text-xs text-slate-400 truncate">왼쪽은 팀원별, 오른쪽은 그룹별 — 최신이 위. 승인하거나 '정리'하면 카드에서 빠지고 스페이스에는 남습니다</span></div>}
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5">
           {([['people', '업무스페이스', Users], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
             <button key={id} onClick={() => set('view', id === 'people' ? null : id)} className={cx('text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1', view === id ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><I size={13} />{label}</button>
@@ -310,10 +310,10 @@ export function Row({ s, byId, no, closable }: { s: SubRow; byId: Map<string, No
           ) : <span className="text-[11px] text-slate-400">{pending ? 'AI 검토 전' : '—'}</span>}
         </span>
         <span className="md:text-right flex md:flex-col md:items-end gap-1">
-          {s.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5">완료함</span> : <Pill tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Pill>}
+          {s.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Pill>}
           {closable && (s.closed_at
             ? <button onClick={() => close.mutate({ id: s.id, close: false, uid })} className="text-[10px] text-slate-400 hover:text-slate-700">다시 열기</button>
-            : s.status !== 'approved' && <button onClick={() => close.mutate({ id: s.id, close: true, uid })} className="text-[10px] font-semibold rounded-md ring-1 ring-slate-200 px-1.5 py-0.5 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:ring-emerald-200 inline-flex items-center gap-0.5"><Check size={10} />완료 처리</button>)}
+            : s.status !== 'approved' && <button title="승인 없이 목록에서 정리합니다 (스페이스에는 남습니다)" onClick={() => close.mutate({ id: s.id, close: true, uid })} className="text-[10px] font-semibold rounded-md ring-1 ring-slate-200 px-1.5 py-0.5 text-slate-600 hover:bg-slate-50 hover:text-slate-800 inline-flex items-center gap-0.5"><Check size={10} />정리</button>)}
         </span>
       </div>
       {r && open && (

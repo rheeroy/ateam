@@ -65,7 +65,7 @@ export const REQ_TAG: Record<string, { label: string; cls: string }> = {
   share: { label: '공유', cls: 'bg-slate-100 text-slate-600' },
 };
 export const KIND_TAG: Record<string, string> = { document: '보고서·문서', link: '링크', image: '캡처', number: '숫자', note: '메모' };
-/** 사람별 카드에 남는 것: 팀장이 완료하지 않았고, 아직 승인으로 끝나지 않은 것 */
+/** 사람별 카드에 남는 것: 팀장이 정리하지 않았고, 아직 승인으로 끝나지 않은 것 */
 export const isOpenSub = (s: Pick<SubRow, 'closed_at' | 'status'>) => !s.closed_at && s.status !== 'approved';
 export const latestAt = (s: SubRow) => s.latest?.created_at ?? s.created_at;
 /** 팀장이 마지막으로 말한 뒤 다른 사람이 답했나 (새 답글) */
@@ -92,7 +92,7 @@ export function useCloseSubmission(teamId: string) {
       const { error } = await supabase.from('submissions').update(p.close ? { closed_at: new Date().toISOString(), closed_by: p.uid } : { closed_at: null, closed_by: null }).eq('id', p.id).eq('team_id', teamId);
       if (error) throw error;
     },
-    onSuccess: (_d, p) => { qc.invalidateQueries({ queryKey: ['subs'] }); toast(p.close ? '완료로 정리했습니다. 개인 업무 스페이스에는 남아 있습니다.' : '다시 열었습니다.'); },
-    onError: (e) => toast(errorText(e).includes('closed_at') ? '완료 칸이 아직 없습니다. 08_people_work.sql 을 실행해 주세요.' : errorText(e)),
+    onSuccess: (_d, p) => { qc.invalidateQueries({ queryKey: ['subs'] }); toast(p.close ? '목록에서 정리했습니다. 업무 스페이스에는 그대로 남아 있습니다.' : '다시 열었습니다.'); },
+    onError: (e) => toast(errorText(e).includes('closed_at') ? '정리 칸이 아직 없습니다. 08_people_work.sql 을 실행해 주세요.' : errorText(e)),
   });
 }

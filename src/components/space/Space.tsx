@@ -276,7 +276,7 @@ function WorkCard({ s, v, on, onClick }: { s: SpaceSub; v: { version: number; fi
         <span className="flex items-center gap-1.5"><span className="text-sm font-semibold text-slate-800 truncate">{s.title}</span><span className="shrink-0 font-mono text-[10px] text-indigo-600">v{v?.version ?? latestV?.version ?? 1}</span></span>
         <span className="block text-[11px] text-slate-500 truncate"><span className={cx('font-semibold', s.request_type === 'approval' ? 'text-indigo-700' : s.request_type === 'feedback' ? 'text-sky-700' : 'text-slate-500')}>{rq.label}</span>{fileName ? ` · ${fileName}` : s.link_url ? ` · ${s.link_url}` : ''}</span>
       </span>
-      {s.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 shrink-0">완료</span> : <Pill tone={STATUS[s.status].tone} className="shrink-0">{STATUS[s.status].label}</Pill>}
+      {s.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5 shrink-0">정리됨</span> : <Pill tone={STATUS[s.status].tone} className="shrink-0">{STATUS[s.status].label}</Pill>}
     </button>
   );
 }
@@ -435,7 +435,7 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
       title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', rq.cls)}>{rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
         <Link to={`/work/${sub.id}`} className="shrink-0 text-slate-400 hover:text-indigo-700" title="크게 보기" aria-label="크게 보기"><Maximize2 size={14} /></Link></>}
       sub={<>{tag && <span className="inline-flex items-center gap-0.5"><Hash size={11} />{tag}</span>}
-        {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5">완료함</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}
+        {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Pill>}
         <span>{nameOf(sub.author_id)} · {fmtDate(sub.created_at)}</span></>}
       actions={leaderView && !isLeaderPost ? <>
         <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs">
@@ -448,7 +448,7 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
             <Button size="sm" loading={setStatus.isPending && setStatus.variables === 'approved'} onClick={() => setStatus.mutate('approved')}><CheckCircle2 size={12} />승인</Button>
           </>}
           {sub.closed_at ? <Button size="sm" variant="ghost" onClick={() => close.mutate({ id: sub.id, close: false, uid })}><Undo2 size={12} />다시 열기</Button>
-            : <Button size="sm" variant="ghost" onClick={() => close.mutate({ id: sub.id, close: true, uid })}><Check size={12} />완료</Button>}
+            : sub.status !== 'approved' && <Button size="sm" variant="ghost" title="승인 없이 목록에서 정리합니다 (스페이스에는 남습니다)" onClick={() => close.mutate({ id: sub.id, close: true, uid })}><Check size={12} />정리</Button>}
         </span>
       </> : undefined}
       footer={tab === 'talk' ? <div onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true); } }} onDragLeave={() => setDrag(false)}
