@@ -44,7 +44,7 @@ export async function createPost(p: {
 /** 승인·의견 요청 문서면 AI 1차 검토를 조용히 시작 (결과는 팀장만 본다) */
 export function startReview(sub: Pick<Submission, 'request_type' | 'kind'>, versionId: string, aiOn: boolean, onDone?: () => void) {
   if (!aiOn || sub.request_type === 'share' || sub.kind === 'number' || sub.kind === 'note') return;
-  invoke('ai-review-submission', { version_id: versionId }).then(() => onDone?.()).catch(() => { /* 팀장 화면에서 다시 시작할 수 있다 */ });
+  invoke('ai-review-submission', { version_id: versionId, auto: true }).then(() => onDone?.()).catch(() => { /* 팀장 화면에서 다시 시작할 수 있다 */ });
 }
 
 /** 대화에 붙이는 파일 */

@@ -21,29 +21,65 @@ export type Entry =
   | { t: 'ver'; at: string; id: string; s: SpaceSub; v: SpaceVersion }
   | { t: 'req'; at: string; id: string; r: TeamRequest };
 
-const LIVE = { refetchInterval: 15_000 };
+const SUBSEL = '*, submission_versions(id, version, created_at, created_by, note, file_name, mime_type), review_comments(id, author_id, body, created_at, parent_id, file_name)';
+const iso = (ms: number) => new Date(ms).toISOString().slice(0, 19) + 'Z';
+const byCreated = <T extends { id: string; created_at: string }>(rows: T[]) => [...new Map(rows.map((r) => [r.id, r])).values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
+/**
+ * 스페이스 데이터 — 처음엔 최근 30일만(이전은 '더 보기'), 그 뒤엔 15초마다 '바뀐 것만' 받아 합친다.
+ *   (예전처럼 15초마다 전체 목록을 다시 받지 않는다 → 전송량·DB 부하 절감. 창이 숨겨지면 멈춘다)
+ */
 export function useSpace(ref: SpaceRef) {
   const { team } = useTeam();
+  const qc = useQueryClient();
   const key = spaceKey(ref);
+  const [days, setDays] = useState(30);
+  useEffect(() => { setDays(30); }, [key]);
+  const since0 = useMemo(() => iso(Date.now() - days * 86400000), [days, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const col = ref.kind === 'user' ? 'space_id' : 'group_id';
+  const mcol = ref.kind === 'user' ? 'space_user' : 'group_id';
+  const subsKey = ['subs', team.id, 'space', key, days];
+  const msgsKey = ['space-msgs', team.id, key, days];
   const subs = useQuery({
-    queryKey: ['subs', team.id, 'space', key],
-    queryFn: () => q<SpaceSub[]>(supabase.from('submissions')
-      .select('*, submission_versions(id, version, created_at, created_by, note, file_name, mime_type), review_comments(id, author_id, body, created_at, parent_id, file_name)')
-      .eq('team_id', team.id).eq(ref.kind === 'user' ? 'space_id' : 'group_id', ref.id).order('created_at').limit(300)),
-    ...LIVE,
+    queryKey: subsKey,
+    queryFn: () => q<SpaceSub[]>(supabase.from('submissions').select(SUBSEL).eq('team_id', team.id).eq(col, ref.id)
+      .or(`created_at.gte.${since0},updated_at.gte.${since0}`).order('created_at').limit(300)),
   });
   const msgs = useQuery({
-    queryKey: ['space-msgs', team.id, key],
-    queryFn: () => q<SpaceMessage[]>(supabase.from('space_messages').select('*').eq('team_id', team.id).eq(ref.kind === 'user' ? 'space_user' : 'group_id', ref.id).order('created_at').limit(600)),
-    ...LIVE,
+    queryKey: msgsKey,
+    queryFn: () => q<SpaceMessage[]>(supabase.from('space_messages').select('*').eq('team_id', team.id).eq(mcol, ref.id).gte('created_at', since0).order('created_at').limit(800)),
   });
   const reqs = useQuery({
-    queryKey: ['requests', team.id, 'space', key], enabled: ref.kind === 'user',
-    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', ref.id).not('kind', 'in', '(meeting,change)').order('created_at').limit(200)),
-    ...LIVE,
+    queryKey: ['requests', team.id, 'space', key, days], enabled: ref.kind === 'user', refetchInterval: 60_000,
+    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', ref.id).not('kind', 'in', '(meeting,change)')
+      .or(`created_at.gte.${since0},status.eq.open`).order('created_at').limit(100)),
   });
-  return { subs, msgs, reqs, missing: !!subs.error && errorText(subs.error).includes('space_id') };
+
+  // 바뀐 것만: 새 대화 · 바뀐 결과물(상태·새 버전) · 새 댓글이 달린 결과물
+  const synced = useRef('');
+  useEffect(() => { synced.current = ''; }, [key, days]);
+  useQuery({
+    queryKey: ['space-delta', team.id, key, days], enabled: subs.isSuccess && msgs.isSuccess, refetchInterval: 15_000,
+    queryFn: async () => {
+      const since = synced.current || iso(Math.min(subs.dataUpdatedAt, msgs.dataUpdatedAt) - 5000);
+      const next = iso(Date.now() - 5000);
+      const [nm, ns, nc] = await Promise.all([
+        q<SpaceMessage[]>(supabase.from('space_messages').select('*').eq('team_id', team.id).eq(mcol, ref.id).gt('created_at', since).order('created_at')),
+        q<{ id: string }[]>(supabase.from('submissions').select('id').eq('team_id', team.id).eq(col, ref.id).gt('updated_at', since)),
+        q<{ submission_id: string }[]>(supabase.from('review_comments').select('submission_id').eq('team_id', team.id).gt('created_at', since)),
+      ]);
+      synced.current = next;
+      if (nm.length) qc.setQueryData<SpaceMessage[]>(msgsKey, (old) => byCreated([...(old ?? []), ...nm]));
+      const have = new Set((qc.getQueryData<SpaceSub[]>(subsKey) ?? []).map((x) => x.id));
+      const changed = [...new Set([...ns.map((x) => x.id), ...nc.map((x) => x.submission_id).filter((x) => have.has(x))])];
+      if (changed.length) {
+        const rows = await q<SpaceSub[]>(supabase.from('submissions').select(SUBSEL).in('id', changed.slice(0, 50)));
+        qc.setQueryData<SpaceSub[]>(subsKey, (old) => byCreated([...(old ?? []), ...rows]));
+      }
+      return nm.length + changed.length;
+    },
+  });
+  return { subs, msgs, reqs, days, more: () => setDays((d) => d + 60), missing: !!subs.error && errorText(subs.error).includes('space_id') };
 }
 
 /** 흐름 만들기 — 답글(스레드)은 빠지고, v2부터는 '새 버전'으로 따로 올라온다 */
@@ -103,36 +139,16 @@ export function useSpaceRead(ref: SpaceRef, ready: boolean, latest: string) {
   return seenAt ?? '9999-12-31';
 }
 
-/** 탭 배지용: 스페이스마다 안 읽은 수 (내 마지막 읽은 때 이후 다른 사람이 쓴 것) */
+/** 탭 배지용: 스페이스마다 안 읽은 수 — DB 함수 한 번 (25_cost_guard.sql) */
 export function useSpaceUnread(refs: SpaceRef[]) {
   const { team, uid } = useTeam();
   const keys = refs.map(spaceKey);
   return useQuery({
-    queryKey: ['space-unread', team.id, uid, keys.join(',')], enabled: refs.length > 0, refetchInterval: 30_000,
+    queryKey: ['space-unread', team.id, uid, keys.join(',')], enabled: refs.length > 0, refetchInterval: 60_000,
     queryFn: async () => {
-      const { data: reads } = await supabase.from('space_reads').select('space_key, read_at').eq('user_id', uid).in('space_key', keys);
-      const at = (k: string) => reads?.find((r) => r.space_key === k)?.read_at ?? '1970-01-01T00:00:00Z';
-      const out: Record<string, number> = {};
-      await Promise.all(refs.map(async (r) => {
-        const k = spaceKey(r); const since = at(k);
-        const col = r.kind === 'user' ? 'space_user' : 'group_id';
-        const scol = r.kind === 'user' ? 'space_id' : 'group_id';
-        const [m, subs] = await Promise.all([
-          supabase.from('space_messages').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq(col, r.id).neq('author_id', uid).gt('created_at', since),
-          supabase.from('submissions').select('id').eq('team_id', team.id).eq(scol, r.id).gt('updated_at', since).limit(100),
-        ]);
-        let n = m.count ?? 0;
-        const ids = (subs.data ?? []).map((s) => s.id as string);
-        if (ids.length) {
-          const [c, v] = await Promise.all([
-            supabase.from('review_comments').select('id', { count: 'exact', head: true }).in('submission_id', ids).neq('author_id', uid).gt('created_at', since),
-            supabase.from('submission_versions').select('id', { count: 'exact', head: true }).in('submission_id', ids).neq('created_by', uid).gt('created_at', since),
-          ]);
-          n += (c.count ?? 0) + (v.count ?? 0);
-        }
-        out[k] = n;
-      }));
-      return out;
+      const { data, error } = await supabase.rpc('space_unread', { p_team: team.id, p_keys: keys });
+      if (error) return {} as Record<string, number>;
+      return Object.fromEntries(((data ?? []) as { space_key: string; n: number }[]).map((r) => [r.space_key, r.n]));
     },
   });
 }
@@ -146,7 +162,7 @@ export function useSendMessage(ref: SpaceRef) {
       team_id: team.id, author_id: uid, body: p.body.trim(), item_id: p.item_id ?? null, parent_id: p.parent_id ?? null,
       ...(ref.kind === 'user' ? { space_user: ref.id } : { group_id: ref.id }),
     })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['space-msgs', team.id, spaceKey(ref)] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['space-delta', team.id, spaceKey(ref)] }),
     onError: (e) => toast(errorText(e).includes('space_messages') ? '업무 스페이스 SQL(19_work_space.sql)을 먼저 실행해 주세요.' : errorText(e)),
   });
 }

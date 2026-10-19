@@ -1,5 +1,7 @@
 // 결과물 AI 1차 검토 — 판단의 깊이, 고민이 담긴 부분, 보완점, 캐물어 볼 질문
-// 팀원이 버전을 올리면 클라이언트가 호출한다(버전당 1회). 결과는 팀장에게만 보인다.
+// 팀원이 버전을 올리면 클라이언트가 호출한다(버전당 1회, auto). 결과는 팀장에게만 보인다.
+// 비용: ① 본문이 이전 버전과 거의 같으면 AI를 부르지 않고 이전 검토를 이어 쓴다
+//       ② 자동 검토는 이번 달 AI 원가 상한의 60%까지만 — 나머지는 팀장이 직접 누르는 AI 몫
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, addKnowhow } from '../_shared/gateway.ts';
@@ -7,9 +9,23 @@ import { MODEL_SMART, toBase64, type Block } from '../_shared/anthropic.ts';
 import { REVIEW } from '../_shared/prompts/index.ts';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+const AUTO_SHARE = 0.6;
+
+/** 두 본문이 얼마나 같은가 (줄 단위, 공백 무시) — 0~1 */
+function sameness(a: string, b: string) {
+  const lines = (t: string) => t.split(/\n+/).map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const A = lines(a), B = lines(b);
+  if (!A.length || !B.length) return 0;
+  const setB = new Map<string, number>();
+  for (const x of B) setB.set(x, (setB.get(x) ?? 0) + 1);
+  let hit = 0;
+  for (const x of A) { const c = setB.get(x) ?? 0; if (c) { hit++; setB.set(x, c - 1); } }
+  const lenA = A.join('').length, lenB = B.join('').length;
+  return Math.min(hit / Math.max(A.length, B.length), Math.min(lenA, lenB) / Math.max(lenA, lenB));
+}
 
 serve(async (req) => {
-  const body = await readJson<{ version_id?: string; mode?: string; team_id?: string; title?: string; text?: string }>(req);
+  const body = await readJson<{ version_id?: string; mode?: string; team_id?: string; title?: string; text?: string; auto?: boolean; force?: boolean }>(req);
   const caller = await getCaller(req);
   if (body.mode === 'self') throw new HttpError(410, 'SELF_CHECK_REMOVED', '셀프 점검은 더 이상 제공하지 않습니다');
   const version_id = body.version_id;
@@ -18,23 +34,57 @@ serve(async (req) => {
   const ver = must(await admin.from('submission_versions').select('*').eq('id', version_id).maybeSingle());
   const sub = must(await admin.from('submissions').select('*').eq('id', ver.submission_id).maybeSingle());
 
-  // 권한: 작성자 또는 팀장
-  if (!caller.isService && caller.userId !== sub.author_id) {
+  // 권한: 작성자 또는 팀장 (다시 검토(force)는 팀장만)
+  let isLeader = caller.isService;
+  if (!caller.isService) {
     const { data: m } = await admin.from('team_members').select('role')
       .eq('team_id', sub.team_id).eq('user_id', caller.userId!).maybeSingle();
-    if (m?.role !== 'leader') throw new HttpError(403, 'forbidden');
+    isLeader = m?.role === 'leader';
+    if (caller.userId !== sub.author_id && !isLeader) throw new HttpError(403, 'forbidden');
   }
+  const force = !!body.force && isLeader;
 
-  // 버전당 한 번만
-  const { data: existing } = await admin.from('ai_outputs').select('*')
-    .eq('kind', 'review').eq('ref_table', 'submission_versions').eq('ref_id', ver.id).maybeSingle();
-  if (existing) return json(existing);
+  // 버전당 한 번만 (팀장이 '다시 검토'를 누르면 새로)
+  if (!force) {
+    const { data: existing } = await admin.from('ai_outputs').select('*')
+      .eq('kind', 'review').eq('ref_table', 'submission_versions').eq('ref_id', ver.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (existing) return json(existing);
+  }
 
   const book = new SourceBook();
   const content: Block[] = [];
 
   // 공유(승인·피드백 없음)와 숫자 업데이트는 검토하지 않는다
   if (sub.request_type === 'share' || sub.kind === 'number') throw new HttpError(422, 'NO_REVIEW', '공유·숫자 업데이트는 AI 검토 대상이 아닙니다');
+
+  // ② 자동 검토는 월 상한의 60%까지 (팀장이 직접 누르면 상한까지)
+  if (body.auto && !force) {
+    const { data: bud, error: be } = await admin.rpc('ai_budget', { p_team: sub.team_id });
+    const b = bud as { cost_usd: number; cap_usd: number } | null;
+    if (!be && b && Number(b.cap_usd) > 0 && Number(b.cost_usd) >= Number(b.cap_usd) * AUTO_SHARE) {
+      return json({ skipped: 'budget', message: '이번 달 자동 검토 몫을 다 써서 건너뜁니다. 팀장 화면에서 직접 검토할 수 있습니다.' });
+    }
+  }
+
+  // ① 본문이 이전 버전과 거의 같으면 이전 검토를 이어 쓴다 (AI 호출 없음)
+  if (!force && ver.version > 1 && ver.extracted_text?.trim()) {
+    const { data: pv } = await admin.from('submission_versions').select('id, version, extracted_text')
+      .eq('submission_id', sub.id).lt('version', ver.version).order('version', { ascending: false }).limit(1).maybeSingle();
+    const { data: prevAi } = pv ? await admin.from('ai_outputs').select('*').eq('kind', 'review').eq('ref_table', 'submission_versions').eq('ref_id', pv.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle() : { data: null };
+    const same = pv?.extracted_text ? sameness(ver.extracted_text, pv.extracted_text) : 0;
+    if (prevAi && same >= 0.97) {
+      const pct = Math.max(0, Math.round((1 - same) * 100));
+      const content0 = prevAi.edited_content ?? prevAi.content;
+      const { data: row, error: ce } = await admin.from('ai_outputs').insert({
+        team_id: sub.team_id, kind: 'review', subject_user_id: sub.author_id, ref_table: 'submission_versions', ref_id: ver.id,
+        status: 'draft', visibility: prevAi.visibility ?? 'leader', level: prevAi.level, depth: prevAi.depth,
+        content: { ...content0, carried_from: pv!.id, change_from_previous: `v${pv!.version}과 본문이 거의 같습니다(바뀐 분량 약 ${pct}%) — 이전 검토를 이어 씁니다. 크게 고쳤다면 '다시 검토'를 눌러 주세요.` },
+        sources: prevAi.sources ?? [], model: 'carried', input_tokens: 0, output_tokens: 0, created_by: caller.userId,
+      }).select().single();
+      if (!ce) return json(row);
+    }
+  }
 
   // 본문: docx/txt 는 추출 텍스트, pdf·이미지는 직접 읽힌다, 링크는 설명과 주소
   if ((ver.mime_type === 'application/pdf' || IMAGE_TYPES.includes(ver.mime_type ?? '')) && ver.file_path) {
@@ -98,6 +148,7 @@ serve(async (req) => {
     refTable: 'submission_versions',
     refId: ver.id,
     maxTokens: 2200,
+    force,
   });
 
   const score = Math.max(1, Math.min(4, Math.round((Number(parsed.depth_score) || 2) * 2) / 2));

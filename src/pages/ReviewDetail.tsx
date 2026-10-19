@@ -79,7 +79,7 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
       {rv.isLoading ? <Spinner /> : !r ? (
         <Empty icon={<Sparkles size={18} />} title="아직 1차 검토가 없습니다"
           action={<Button loading={gen.isPending} onClick={() => gen.mutate({ version_id: version.id })}>지금 검토하기 · 구독 포함</Button>}>
-          팀원이 올릴 때 자동으로 시작되지만, 이번 달 기본 AI 사용량을 다 썼거나 오류가 났다면 여기서 다시 요청할 수 있습니다.
+          팀원이 올릴 때 자동으로 시작됩니다. 자동 검토는 이번 달 AI 사용량의 60%까지만 쓰고 나머지는 팀장님 몫으로 남겨 두니, 비어 있으면 여기서 직접 요청하세요.
         </Empty>
       ) : (
         <>
@@ -121,6 +121,9 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
                 {r.content.questions.map((qq, i) => <p key={i} className="text-slate-700">· {qq}</p>)}</div>
             )}
             {r.content.change_from_previous && <p className="text-xs text-slate-600"><b>이전 버전 대비</b> · {r.content.change_from_previous}</p>}
+            {(r.content as Review & { carried_from?: string }).carried_from && (
+              <Button size="sm" variant="secondary" loading={gen.isPending} onClick={() => gen.mutate({ version_id: version.id, force: true })}><Sparkles size={13} />이 버전으로 다시 검토</Button>
+            )}
           </div>
           <div className="mt-4 rounded-lg border border-violet-100 bg-violet-50/50 p-3 text-xs space-y-2.5">
             <div className="font-semibold text-violet-800">기록이 쌓여 새로 보이는 것</div>
@@ -188,7 +191,8 @@ export default function ReviewDetail() {
   const toast = useToast();
   const live = { refetchInterval: 15_000 };
   const subQ = useQuery({ queryKey: ['sub', id], queryFn: () => q<Submission>(supabase.from('submissions').select('*').eq('id', id!).single()), ...live });
-  const versQ = useQuery({ queryKey: ['sub', id, 'versions'], queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id!).order('version')), ...live });
+  // 버전(본문 포함)은 15초마다 다시 받지 않는다 — 결과물 행(가벼움)의 updated_at 이 바뀔 때만
+  const versQ = useQuery({ queryKey: ['sub', id, 'versions', subQ.data?.updated_at ?? ''], enabled: !!subQ.data, queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id!).order('version')), placeholderData: (p) => p });
   const comQ = useQuery({ queryKey: ['comments', id], queryFn: () => q<ReviewComment[]>(supabase.from('review_comments').select('*').eq('submission_id', id!).order('created_at')), ...live });
   const groups = useGroups();
   const versions = versQ.data ?? [];
@@ -230,7 +234,7 @@ export default function ReviewDetail() {
     requestAnimationFrame(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: first ? 'auto' : 'smooth' }));
   }, [stream.length]);
 
-  if (subQ.isLoading || versQ.isLoading) return <Spinner />;
+  if (subQ.isLoading || (subQ.data && versQ.isPending)) return <Spinner />;
   const sub = subQ.data;
   if (!sub || !latest) return <Empty title="업무를 찾을 수 없습니다" />;
   const isAuthor = sub.author_id === uid;
@@ -426,9 +430,12 @@ export function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submi
       qc.invalidateQueries({ queryKey: ['comments', sub.id] });
       if (r.kind === 'version') {
         toast(`v${r.ver.version}을 올렸습니다`);
-        ['subs', 'sub', 'review-queue', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+        ['sub', 'review-queue', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
         startReview(sub, r.ver.id, hasFeature('ai_core'), () => qc.invalidateQueries({ queryKey: ['ai'] }));
-      } else qc.invalidateQueries({ queryKey: ['subs'] });
+      }
+      // 업무 스페이스 흐름은 '바뀐 것만' 받고, 다른 목록만 새로
+      qc.invalidateQueries({ queryKey: ['space-delta'] });
+      qc.invalidateQueries({ queryKey: ['subs'], predicate: (x) => x.queryKey[2] !== 'space' });
     },
     onError: (e) => toast(errorText(e).includes('file_path') ? '대화 첨부는 18_work_groups.sql 실행 후 쓸 수 있습니다.' : errorText(e)),
   });

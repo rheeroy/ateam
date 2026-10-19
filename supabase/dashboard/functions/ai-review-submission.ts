@@ -467,6 +467,24 @@ criteria_check \uB294 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC774 \uC8FC\uC5B4\uC84C
 
 // functions/ai-review-submission/index.ts
 var IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+var AUTO_SHARE = 0.6;
+function sameness(a, b) {
+  const lines = (t) => t.split(/\n+/).map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const A = lines(a), B = lines(b);
+  if (!A.length || !B.length) return 0;
+  const setB = /* @__PURE__ */ new Map();
+  for (const x of B) setB.set(x, (setB.get(x) ?? 0) + 1);
+  let hit = 0;
+  for (const x of A) {
+    const c = setB.get(x) ?? 0;
+    if (c) {
+      hit++;
+      setB.set(x, c - 1);
+    }
+  }
+  const lenA = A.join("").length, lenB = B.join("").length;
+  return Math.min(hit / Math.max(A.length, B.length), Math.min(lenA, lenB) / Math.max(lenA, lenB));
+}
 serve(async (req) => {
   const body = await readJson(req);
   const caller = await getCaller(req);
@@ -475,15 +493,54 @@ serve(async (req) => {
   if (!version_id) throw new HttpError(400, "MISSING_ID");
   const ver = must(await admin.from("submission_versions").select("*").eq("id", version_id).maybeSingle());
   const sub = must(await admin.from("submissions").select("*").eq("id", ver.submission_id).maybeSingle());
-  if (!caller.isService && caller.userId !== sub.author_id) {
+  let isLeader = caller.isService;
+  if (!caller.isService) {
     const { data: m } = await admin.from("team_members").select("role").eq("team_id", sub.team_id).eq("user_id", caller.userId).maybeSingle();
-    if (m?.role !== "leader") throw new HttpError(403, "forbidden");
+    isLeader = m?.role === "leader";
+    if (caller.userId !== sub.author_id && !isLeader) throw new HttpError(403, "forbidden");
   }
-  const { data: existing } = await admin.from("ai_outputs").select("*").eq("kind", "review").eq("ref_table", "submission_versions").eq("ref_id", ver.id).maybeSingle();
-  if (existing) return json(existing);
+  const force = !!body.force && isLeader;
+  if (!force) {
+    const { data: existing } = await admin.from("ai_outputs").select("*").eq("kind", "review").eq("ref_table", "submission_versions").eq("ref_id", ver.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (existing) return json(existing);
+  }
   const book = new SourceBook();
   const content = [];
   if (sub.request_type === "share" || sub.kind === "number") throw new HttpError(422, "NO_REVIEW", "\uACF5\uC720\xB7\uC22B\uC790 \uC5C5\uB370\uC774\uD2B8\uB294 AI \uAC80\uD1A0 \uB300\uC0C1\uC774 \uC544\uB2D9\uB2C8\uB2E4");
+  if (body.auto && !force) {
+    const { data: bud, error: be } = await admin.rpc("ai_budget", { p_team: sub.team_id });
+    const b = bud;
+    if (!be && b && Number(b.cap_usd) > 0 && Number(b.cost_usd) >= Number(b.cap_usd) * AUTO_SHARE) {
+      return json({ skipped: "budget", message: "\uC774\uBC88 \uB2EC \uC790\uB3D9 \uAC80\uD1A0 \uBAAB\uC744 \uB2E4 \uC368\uC11C \uAC74\uB108\uB701\uB2C8\uB2E4. \uD300\uC7A5 \uD654\uBA74\uC5D0\uC11C \uC9C1\uC811 \uAC80\uD1A0\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4." });
+    }
+  }
+  if (!force && ver.version > 1 && ver.extracted_text?.trim()) {
+    const { data: pv } = await admin.from("submission_versions").select("id, version, extracted_text").eq("submission_id", sub.id).lt("version", ver.version).order("version", { ascending: false }).limit(1).maybeSingle();
+    const { data: prevAi } = pv ? await admin.from("ai_outputs").select("*").eq("kind", "review").eq("ref_table", "submission_versions").eq("ref_id", pv.id).order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+    const same = pv?.extracted_text ? sameness(ver.extracted_text, pv.extracted_text) : 0;
+    if (prevAi && same >= 0.97) {
+      const pct = Math.max(0, Math.round((1 - same) * 100));
+      const content0 = prevAi.edited_content ?? prevAi.content;
+      const { data: row, error: ce } = await admin.from("ai_outputs").insert({
+        team_id: sub.team_id,
+        kind: "review",
+        subject_user_id: sub.author_id,
+        ref_table: "submission_versions",
+        ref_id: ver.id,
+        status: "draft",
+        visibility: prevAi.visibility ?? "leader",
+        level: prevAi.level,
+        depth: prevAi.depth,
+        content: { ...content0, carried_from: pv.id, change_from_previous: `v${pv.version}\uACFC \uBCF8\uBB38\uC774 \uAC70\uC758 \uAC19\uC2B5\uB2C8\uB2E4(\uBC14\uB010 \uBD84\uB7C9 \uC57D ${pct}%) \u2014 \uC774\uC804 \uAC80\uD1A0\uB97C \uC774\uC5B4 \uC501\uB2C8\uB2E4. \uD06C\uAC8C \uACE0\uCCE4\uB2E4\uBA74 '\uB2E4\uC2DC \uAC80\uD1A0'\uB97C \uB20C\uB7EC \uC8FC\uC138\uC694.` },
+        sources: prevAi.sources ?? [],
+        model: "carried",
+        input_tokens: 0,
+        output_tokens: 0,
+        created_by: caller.userId
+      }).select().single();
+      if (!ce) return json(row);
+    }
+  }
   if ((ver.mime_type === "application/pdf" || IMAGE_TYPES.includes(ver.mime_type ?? "")) && ver.file_path) {
     const { data: file, error } = await admin.storage.from("submissions").download(ver.file_path);
     if (error) throw error;
@@ -528,7 +585,8 @@ ${ver.extracted_text.slice(0, 6e4)}` : "## \uBCF8\uBB38\n(\uCCA8\uBD80 \uD30C\uC
     subjectUserId: sub.author_id,
     refTable: "submission_versions",
     refId: ver.id,
-    maxTokens: 2200
+    maxTokens: 2200,
+    force
   });
   const score = Math.max(1, Math.min(4, Math.round((Number(parsed.depth_score) || 2) * 2) / 2));
   await admin.from("judgment_scores").insert({

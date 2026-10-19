@@ -35,4 +35,5 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM 팀원 목표 수정 켜기·끄기 (팀장이 켜 둔 동안만 팀원이 목표·과제 수정 · 할 일은 자유 · 변경 요청) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261026000022_plan_window.sql; } > dashboard/17_plan_window.sql
 { echo "-- ATEAM 업무플랫폼 그룹 스페이스 + 대화 첨부 (그룹 멤버가 함께 보고 대화 · 새 버전 · 그룹 알림) — SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261027000023_work_groups.sql; } > dashboard/18_work_groups.sql
 { echo "-- ATEAM 업무 스페이스 채팅형 (스페이스 칸 · 대화 메시지 · 읽음 표시 · 팀장 글) — 18 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261028000024_work_space.sql; } > dashboard/19_work_space.sql
+{ echo "-- ATEAM 비용 줄이기 (안 읽음 수 함수 · AI 자동 검토 예산 확인) — 19 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261029000025_cost_guard.sql; } > dashboard/20_cost_guard.sql
 echo "done: supabase/dashboard"

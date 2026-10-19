@@ -157,6 +157,9 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           {filter !== 'all' && <button onClick={() => setFilter('all')} className="ml-auto text-xs text-slate-500 hover:text-indigo-700 shrink-0">전체 보기</button>}
         </div>
         <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3.5">
+          {loaded && data.days < 400 && (
+            <div className="text-center"><button onClick={data.more} className="text-xs text-slate-500 hover:text-indigo-700 rounded-full bg-white ring-1 ring-slate-200 px-3 py-1">이전 기록 더 보기 · 지금은 최근 {data.days}일</button></div>
+          )}
           {!loaded ? <Spinner /> : !shown.length ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-sm text-slate-500 py-10">
               <MessageSquare size={22} className="text-slate-300" />
@@ -319,7 +322,10 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
       setText(''); setFile(null); setTitle('');
       if (answering) { clearAnswer(); qc.invalidateQueries({ queryKey: ['requests'] }); toast('요청에 답했습니다. 완료로 바뀝니다.'); }
       if (r.kind === 'work') {
-        ['subs', 'review-queue', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+        // 이 스페이스는 '바뀐 것만' 받아 합치고, 다른 화면의 목록만 새로
+        qc.invalidateQueries({ queryKey: ['space-delta'] });
+        qc.invalidateQueries({ queryKey: ['subs'], predicate: (x) => x.queryKey[2] !== 'space' });
+        ['review-queue', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
         if (!isLeader) startReview(r.sub, r.ver.id, hasFeature('ai_core'), () => qc.invalidateQueries({ queryKey: ['ai'] }));
       }
     },
@@ -390,7 +396,8 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
   const toast = useToast();
   const live = { refetchInterval: 15_000 };
   const subQ = useQuery({ queryKey: ['sub', id], queryFn: () => q<Submission>(supabase.from('submissions').select('*').eq('id', id).single()), ...live });
-  const versQ = useQuery({ queryKey: ['sub', id, 'versions'], queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id).order('version')), ...live });
+  // 버전(본문 포함)은 결과물 행의 updated_at 이 바뀔 때만 다시 받는다
+  const versQ = useQuery({ queryKey: ['sub', id, 'versions', subQ.data?.updated_at ?? ''], enabled: !!subQ.data, queryFn: () => q<SubmissionVersion[]>(supabase.from('submission_versions').select('*').eq('submission_id', id).order('version')), placeholderData: (p) => p });
   const comQ = useQuery({ queryKey: ['comments', id], queryFn: () => q<ReviewComment[]>(supabase.from('review_comments').select('*').eq('submission_id', id).order('created_at')), ...live });
   const versions = versQ.data ?? [];
   const vIds = versions.map((v) => v.id);
@@ -406,7 +413,7 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
   const close = useCloseSubmission(team.id);
   const setStatus = useMutation({
     mutationFn: (status: 'approved' | 'needs_work') => q(supabase.from('submissions').update({ status }).eq('id', id)),
-    onSuccess: (_d, s) => { toast(s === 'approved' ? '승인했습니다. 근거로 쌓입니다.' : '보완을 요청했습니다. 무엇을 고칠지 아래에 남겨 주세요.'); ['sub', 'subs', 'review-queue'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); },
+    onSuccess: (_d, s) => { toast(s === 'approved' ? '승인했습니다. 근거로 쌓입니다.' : '보완을 요청했습니다. 무엇을 고칠지 아래에 남겨 주세요.'); ['sub', 'review-queue', 'space-delta'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); qc.invalidateQueries({ queryKey: ['subs'], predicate: (x) => x.queryKey[2] !== 'space' }); },
     onError: (e) => toast(errorText(e)),
   });
   const toComments = useMutation({

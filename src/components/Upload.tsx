@@ -99,7 +99,7 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
       toast(sub.request_type === 'share' ? '공유했습니다. 팀장님께 알림이 갑니다.' : `v${ver.version}을 올렸습니다.${reviewable && isLeader ? ' AI가 1차 검토를 시작합니다.' : ' 팀장님께 알림이 갑니다.'}`);
       ['subs', 'sub', 'review-queue', 'items', 'home-insights'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       if (reviewable) {
-        invoke('ai-review-submission', { version_id: ver.id })
+        invoke('ai-review-submission', { version_id: ver.id, auto: true })
           .then(() => qc.invalidateQueries({ queryKey: ['ai'] }))
           .catch(() => { /* 검토는 팀장 화면에서 다시 시작할 수 있다 */ });
       }
