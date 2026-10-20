@@ -10,6 +10,7 @@ import type { ActionItem, OneOnOne } from '../lib/types';
 import { cx, fmtDate, fmtTime } from '../lib/format';
 import { Button, Card, Empty, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
+import { OneOnOneThread } from '../components/oneonone/Thread';
 
 interface Prep {
   last_time: string;
@@ -126,7 +127,7 @@ export default function OneOnOneDetail() {
   const qc = useQueryClient();
   const toast = useToast();
   const [tab, setTab] = useState<'shared' | 'private'>('shared');
-  const [shared, setShared] = useState('');
+  const [prefill, setPrefill] = useState('');
   const [priv, setPriv] = useState('');
 
   const oo = useQuery({ queryKey: ['oo-detail', id], queryFn: () => q<OneOnOne>(supabase.from('one_on_ones').select('*').eq('id', id!).single()) });
@@ -134,21 +135,14 @@ export default function OneOnOneDetail() {
     queryKey: ['oo-private', id], enabled: isLeader,
     queryFn: () => q<{ notes: string } | null>(supabase.from('one_on_one_private').select('notes').eq('one_on_one_id', id!).maybeSingle()),
   });
-  useEffect(() => { if (oo.data) setShared(oo.data.shared_notes); }, [oo.data]);
   useEffect(() => { if (privQ.data) setPriv(privQ.data.notes); }, [privQ.data]);
 
-  const saveShared = useMutation({
-    mutationFn: () => q(supabase.from('one_on_ones').update({ shared_notes: shared }).eq('id', id!)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['oo-detail', id] }),
-    onError: (e) => toast(errorText(e)),
-  });
   const savePriv = useMutation({
     mutationFn: () => q(supabase.from('one_on_one_private').upsert({ one_on_one_id: id, team_id: oo.data!.team_id, leader_id: uid, notes: priv })),
     onError: (e) => toast(errorText(e)),
   });
   const complete = useMutation({
     mutationFn: async () => {
-      await q(supabase.from('one_on_ones').update({ shared_notes: shared }).eq('id', id!));
       if (priv) await q(supabase.from('one_on_one_private').upsert({ one_on_one_id: id, team_id: oo.data!.team_id, leader_id: uid, notes: priv }));
       return q(supabase.from('one_on_ones').update({ status: 'done' }).eq('id', id!));
     },
@@ -159,7 +153,7 @@ export default function OneOnOneDetail() {
   if (oo.isLoading) return <Spinner />;
   if (!oo.data) return <Empty title="면담을 찾을 수 없습니다" />;
   const o = oo.data;
-  const addQuestion = (text: string) => { setShared((s) => (s ? s + '\n' : '') + `· ${text}`); setTab('shared'); toast('노트에 추가했습니다'); };
+  const addQuestion = (text: string) => { setPrefill(`· ${text}`); setTab('shared'); };
 
   return (
     <section>
@@ -181,12 +175,9 @@ export default function OneOnOneDetail() {
             </div>
             {tab === 'shared' ? (
               <div className="p-5">
-                <textarea aria-label="함께 보는 노트" rows={10} value={shared} onChange={(e) => setShared(e.target.value)} onBlur={() => shared !== o.shared_notes && saveShared.mutate()}
-                  className={cx(inputCls, 'leading-7 min-h-[200px]')} placeholder="면담하면서 정리하세요. 팀원도 볼 수 있고, 함께 고칠 수 있습니다." />
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>이 노트와 액션아이템은 {isLeader ? `${nameOf(o.member_id)} 님도` : '팀장님도'} 볼 수 있습니다.</span>
-                  <span>{saveShared.isPending ? '저장 중…' : '입력 칸을 벗어나면 저장됩니다'}</span>
-                </div>
+                <OneOnOneThread oo={o} prefill={prefill} onPrefillUsed={() => setPrefill('')}
+                  placeholder={o.status === 'done' ? '덧붙일 내용 (Ctrl+Enter로 남기기)' : '면담하면서 한 줄씩 남기세요 (Ctrl+Enter로 남기기)'} />
+                <p className="mt-2 text-[11px] text-slate-400">각자 남긴 글이 시간순으로 쌓이고, 내 글만 고치거나 지울 수 있습니다. 노트와 액션아이템은 {isLeader ? `${nameOf(o.member_id)} 님도` : '팀장님도'} 봅니다.</p>
               </div>
             ) : (
               <div className="p-5">

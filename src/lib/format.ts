@@ -67,3 +67,6 @@ export const num = (n: number | null | undefined, digits = 1) =>
   n === null || n === undefined || Number.isNaN(n) ? '-' : Number(n).toFixed(digits).replace(/\.0+$/, '');
 export const initial = (name: string | undefined | null) => (name ?? '?').trim().slice(0, 1) || '?';
 export const sign = (n: number, digits = 1) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(digits).replace(/\.0+$/, '');
+
+/** 1on1 노트 첫 줄 (작성자 머리말 '[이름] ' 은 떼고) */
+export const noteHead = (s: string | null | undefined) => (s ?? '').split('\n')[0].replace(/^\[[^\]]*\]\s*/, '');

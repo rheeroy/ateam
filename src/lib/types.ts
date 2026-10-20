@@ -20,6 +20,8 @@ export interface OneOnOne {
   id: string; team_id: string; leader_id: string; member_id: string; scheduled_at: string; duration_min: number;
   status: 'scheduled' | 'done' | 'canceled'; shared_notes: string; completed_at: string | null; created_at: string;
 }
+/** 1on1 함께 보는 노트 — 한 줄씩 쌓는다 (shared_notes 는 이것을 이어 붙인 읽기용 사본) */
+export interface OneOnOneEntry { id: string; one_on_one_id: string; team_id: string; author_id: string | null; body: string; legacy: boolean; created_at: string; updated_at: string }
 export interface ActionItem { id: string; team_id: string; one_on_one_id: string | null; owner_id: string; title: string; due_date: string | null; done_at: string | null; created_by: string; created_at: string }
 export interface Observation { id: string; team_id: string; author_id: string; subject_id: string; kind: 'praise' | 'concern' | 'note'; competency: string | null; body: string; occurred_at: string; created_at: string }
 export interface Submission { id: string; team_id: string; author_id: string; item_id: string | null; title: string; status: 'in_review' | 'needs_work' | 'approved' | 'shared'; kind: ShareKind; request_type: RequestType; link_url: string | null; approved_at: string | null; closed_at?: string | null; group_id?: string | null; space_id?: string | null; created_at: string; updated_at: string }

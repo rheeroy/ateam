@@ -3,32 +3,24 @@
 //   ② 팀장님에게서 — 요청 · 성장 제안 · 격려 · 칭찬 · ATEAM 코칭을 한 줄기로, 답할 것이 위로
 //   ③ 1on1 — 다음 1on1(미리 꺼낼 이야기) · 1on1에서 정한 할 일 · 지난 1on1
 //   1on1 요청은 우측 상단 버튼 하나로만.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { noteHead } from '../lib/format';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { CalendarClock, ChevronRight, MessageSquare, MessageSquarePlus } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { supabase, q, errorText } from '../lib/supabase';
+import { supabase, q } from '../lib/supabase';
 import type { OneOnOne } from '../lib/types';
 import { cx, fmtDate, fmtTime, relDay } from '../lib/format';
-import { Button, Card, PageHeader, Pill, useToast } from '../components/ui';
+import { Button, Card, PageHeader, Pill } from '../components/ui';
 import { PromiseList, RequestOOModal, useMyOORequest, usePromises } from '../components/member/Member';
 import { ConditionShare } from '../components/member/ConditionShare';
 import { FromLeader } from '../components/member/FromLeader';
+import { OneOnOneThread } from '../components/oneonone/Thread';
 
-/** 다음 1on1 — 미리 꺼낼 이야기 (함께 보는 노트에 저장) */
+/** 다음 1on1 — 미리 꺼낼 이야기 (함께 보는 노트에 한 줄씩 쌓인다) */
 function NextOneOnOne({ o }: { o: OneOnOne }) {
   const { nameOf } = useTeam();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [v, setV] = useState(o.shared_notes);
-  const [edit, setEdit] = useState(false);
-  useEffect(() => setV(o.shared_notes), [o.id, o.shared_notes]);
-  const save = useMutation({
-    mutationFn: () => q(supabase.from('one_on_ones').update({ shared_notes: v }).eq('id', o.id)),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-oo'] }); setEdit(false); toast('저장했습니다. 팀장님이 1on1 전에 봅니다.'); },
-    onError: (e) => toast(errorText(e)),
-  });
   return (
     <div className="rounded-xl bg-slate-50 p-3.5">
       <div className="flex items-center gap-2">
@@ -38,21 +30,8 @@ function NextOneOnOne({ o }: { o: OneOnOne }) {
         <Link to={`/one-on-ones/${o.id}`} className="ml-auto text-xs font-semibold text-slate-600 hover:text-slate-900">열기 →</Link>
       </div>
       <div className="mt-2.5">
-        <div className="text-[11px] text-slate-500 mb-1">미리 꺼낼 이야기 <span className="text-slate-400">· 팀장님도 1on1 전에 봅니다</span></div>
-        {!edit && !o.shared_notes ? (
-          <button onClick={() => setEdit(true)} className="w-full text-left text-sm text-slate-400 bg-white rounded-lg ring-1 ring-slate-200 px-3 py-2 hover:ring-slate-300">예) 다음 분기에 맡고 싶은 일, 일하는 방식 제안</button>
-        ) : !edit ? (
-          <button onClick={() => setEdit(true)} className="w-full text-left text-sm text-slate-700 bg-white rounded-lg ring-1 ring-slate-200 px-3 py-2 whitespace-pre-line hover:ring-slate-300">{o.shared_notes}</button>
-        ) : (
-          <>
-            <textarea autoFocus rows={3} className="w-full text-sm bg-white rounded-lg ring-1 ring-slate-300 border-0 px-3 py-2 focus:ring-slate-500" value={v} onChange={(e) => setV(e.target.value)}
-              placeholder="예) 다음 분기에 맡고 싶은 일, 일하는 방식 제안" />
-            <div className="mt-1.5 flex justify-end gap-1.5">
-              <Button size="sm" variant="ghost" onClick={() => { setV(o.shared_notes); setEdit(false); }}>취소</Button>
-              <Button size="sm" variant="secondary" disabled={v === o.shared_notes} loading={save.isPending} onClick={() => save.mutate()}>저장</Button>
-            </div>
-          </>
-        )}
+        <div className="text-[11px] text-slate-500 mb-1.5">미리 꺼낼 이야기 <span className="text-slate-400">· 팀장님도 1on1 전에 봅니다</span></div>
+        <OneOnOneThread oo={o} compact placeholder="예) 다음 분기에 맡고 싶은 일, 일하는 방식 제안" />
       </div>
     </div>
   );
@@ -94,7 +73,7 @@ function OneOnOnePanel() {
                 <li key={o.id}>
                   <Link to={`/one-on-ones/${o.id}`} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50">
                     <span className="text-xs text-slate-500 num w-20 shrink-0">{fmtDate(o.scheduled_at)}</span>
-                    <span className="flex-1 min-w-0 text-sm text-slate-700 truncate">{o.shared_notes.split('\n')[0] || `${nameOf(o.leader_id)} 팀장님`}</span>
+                    <span className="flex-1 min-w-0 text-sm text-slate-700 truncate">{noteHead(o.shared_notes) || `${nameOf(o.leader_id)} 팀장님`}</span>
                     {o.status === 'done' ? <Pill tone="emerald">완료</Pill> : <Pill>예정</Pill>}
                     <ChevronRight size={14} className="text-slate-300" />
                   </Link>

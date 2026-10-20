@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { noteHead } from '../lib/format';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, ChevronRight, MessageSquare } from 'lucide-react';
@@ -102,7 +103,7 @@ export default function OneOnOnes({ embedded }: { embedded?: boolean } = {}) {
               <Link key={o.id} to={`/one-on-ones/${o.id}`} className="px-5 py-3 flex items-center gap-4 hover:bg-slate-50 border-t border-slate-100 first:border-t-0 text-sm">
                 <span className="font-mono text-xs text-slate-400 w-14">{fmtDate(o.scheduled_at)}</span>
                 <span className="font-semibold w-20">{nameOf(o.member_id)}</span>
-                <span className="flex-1 text-slate-500 truncate">{o.shared_notes.split('\n')[0] || '(노트 없음)'}</span>
+                <span className="flex-1 text-slate-500 truncate">{noteHead(o.shared_notes) || '(노트 없음)'}</span>
                 {o.status === 'canceled' && <Pill>취소</Pill>}
               </Link>
             ))}

@@ -1,5 +1,6 @@
 // 팀원 한 사람 페이지 — 컨디션 · 1on1 · 맡은 일 · 결과물 · 관찰 · 근거 원장
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { noteHead } from '../lib/format';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Award, CalendarPlus, ChevronRight, HeartHandshake, MessageSquare, Scale, Send, Sprout, StickyNote } from 'lucide-react';
@@ -310,7 +311,7 @@ function OneOnOneBox({ teamId, uid, onNew }: { teamId: string; uid: string; onNe
             <ul className="mt-1 space-y-1">{open.slice(0, 4).map((a) => <li key={a.id} className="text-xs flex gap-1.5"><span className={cx(a.due_date && a.due_date < today ? 'text-rose-600' : 'text-slate-400')}>•</span><span className="flex-1">{a.title}</span>{a.due_date && <span className={cx('num', a.due_date < today ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{fmtShort(a.due_date)}</span>}</li>)}</ul></div>
         )}
         {rows.filter((o) => o.status === 'done').slice(0, 3).map((o) => (
-          <Link key={o.id} to={`/one-on-ones/${o.id}`} className="flex items-center gap-2 text-xs hover:text-teal-700"><span className="text-slate-400 num w-12">{fmtShort(o.scheduled_at.slice(0, 10))}</span><span className="truncate flex-1">{o.shared_notes.split('\n')[0] || '(노트 없음)'}</span><ChevronRight size={12} className="text-slate-300" /></Link>
+          <Link key={o.id} to={`/one-on-ones/${o.id}`} className="flex items-center gap-2 text-xs hover:text-teal-700"><span className="text-slate-400 num w-12">{fmtShort(o.scheduled_at.slice(0, 10))}</span><span className="truncate flex-1">{noteHead(o.shared_notes) || '(노트 없음)'}</span><ChevronRight size={12} className="text-slate-300" /></Link>
         ))}
       </div>
     </Box>
