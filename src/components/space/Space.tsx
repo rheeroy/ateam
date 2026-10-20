@@ -623,12 +623,14 @@ function TaskPanel({ n, entries }: { n: Node; entries: Entry[] }) {
 }
 
 function InfoPanel({ space, group }: { space: SpaceRef; group?: WorkGroup | null }) {
-  const { nameOf, uid } = useTeam();
+  const { nameOf, uid, isLeader } = useTeam();
   return (
     <PanelShell title={<><MessageSquare size={15} className="text-indigo-600" /><span className="font-semibold text-sm">이렇게 쓰세요</span></>}>
       <div className="p-4 space-y-3 text-sm text-slate-600">
         <ul className="space-y-2 list-disc pl-4">
-          <li>그냥 말은 <b className="text-slate-800">메시지</b>로 보냅니다. 기록으로만 남습니다.</li>
+          <li>여기에서 최대한 많은 <b className="text-slate-800">업무 소통</b>을 하세요. {isLeader
+            ? <>많이 할수록 <b className="text-slate-800">ATEAM 에이전트의 자동항법 엔진</b>이 강력해집니다.</>
+            : <>많이 할수록 <b className="text-slate-800">내 성과를 높일 수 있는 기회</b>가 증대됩니다.</>}</li>
           <li>파일·링크·캡처를 올리면 <b className="text-slate-800">업무 카드</b>가 됩니다. 컨펌·의견·공유를 고르면 상태와 버전이 따라갑니다.</li>
           <li><b className="text-slate-800"># 과제 태그</b>를 붙이면 왼쪽에서 과제별로 모아 볼 수 있습니다.</li>
           <li>말풍선이나 카드를 누르면 여기에서 <b className="text-slate-800">스레드</b>로 이어 갑니다.</li>
