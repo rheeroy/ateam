@@ -27,11 +27,14 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
   const { byId } = useMemo(() => buildTree(items.data ?? []), [items.data]);
   // 내가 맡은 목표·과제 (진행 중)
   const mine = useMemo(() => [...byId.values()]
-    .filter((n) => n.owner_id === uid && n.depth <= 1 && ['active', 'blocked'].includes(n.status))
+    // 지표 · 숫자를 건 목표 · 과제 (지표로 판단하는 목표 자체에는 체크인하지 않는다 — 그 아래 지표에)
+    .filter((n) => n.owner_id === uid && n.depth <= 1 && ['active', 'blocked'].includes(n.status) && !(n.depth === 0 && n.measure === 'children'))
+    .sort((a, b) => Number(b.role === 'metric' || b.depth === 0) - Number(a.role === 'metric' || a.depth === 0))
     .sort((a, b) => a.path.concat(a.id).join('/').localeCompare(b.path.concat(b.id).join('/'))), [byId, uid]);
   const [pick, setPick] = useState<string>(itemId ?? '');
   const n = byId.get(pick || itemId || '') ?? (resubmit ? null : mine[0] ?? null);
-  const base = n ? checkinTypeFor(n) : 'note';
+  const linked = !!n?.metric_id;   // 실적 데이터와 연결된 지표: 값은 실적이 정한다 → 성과 기록만
+  const base = n && !linked ? checkinTypeFor(n) : 'note';
   const [asNote, setAsNote] = useState(resubmit?.payload?.type === 'note');
   const type: CheckinType = asNote ? 'note' : base;
   const [value, setValue] = useState<string>(resubmit?.payload?.value != null ? String(resubmit.payload.value) : '');
@@ -58,12 +61,13 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
             <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">진행 중인 내 목표·과제가 없습니다. 팀목표에서 승인된 항목에 체크인할 수 있어요.</p>
           ) : (
             <select className={inputCls} value={n?.id ?? ''} onChange={(e) => { setPick(e.target.value); setValue(''); setStage(null); setAsNote(false); }}>
-              {mine.map((m) => <option key={m.id} value={m.id}>{'　'.repeat(m.depth)}# {m.title} — 지금 {currentLabel(m)}{m.measure === 'number' && m.num_target != null ? ` / ${m.num_target}${m.unit}` : ''}</option>)}
+              {mine.map((m) => <option key={m.id} value={m.id}>{m.role === 'metric' || m.depth === 0 ? '[지표] ' : '[과제] '}{m.title} — 지금 {currentLabel(m)}{m.measure === 'number' && m.num_target != null ? ` / ${m.num_target}${m.unit}` : ''}</option>)}
             </select>
           )}
         </div>
 
         {!n ? null : <>
+        {linked && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">이 지표는 실적 데이터로 값이 자동 반영됩니다. 숫자 대신 무엇이 그 숫자를 만들었는지 남겨 주세요.</p>}
         {(base !== 'note') && (
           <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
             <button onClick={() => setAsNote(false)} className={cx('px-3 py-1 rounded-md', !asNote ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>{base === 'done' ? '완료' : base === 'stage' ? '단계' : '값'} 체크인</button>

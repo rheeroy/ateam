@@ -148,6 +148,17 @@ begin
     values (T, g2, '제휴 채널 신규 고객', '만 명', 20, (v_month - interval '3 months')::date, (v_month + interval '2 months')::date, true) returning id into mt;
   insert into work_items (team_id, parent_id, owner_id, title, measure, num_target, unit, metric_id, sort)
     values (T, g2, m_lee, '제휴 채널 신규 고객', 'number', 20, '만 명', mt, 4);
+  -- 목표마다 지표(결과를 재는 항목) — 목표 진척은 지표 평균 (23_goal_metrics)
+  insert into work_items (team_id, parent_id, owner_id, title, measure, num_current, num_target, unit, sort, start_date, due_date) values
+    (T, g1, m_kim, '런칭 사전 예약 누적', 'number', 1840, 5000, '건', 0, current_date - 45, current_date + 40),
+    (T, g2, m_lee, '제휴 고객 30일 재방문율', 'number', 22, 35, '%', 5, current_date - 40, current_date + 50);
+  insert into work_items (team_id, parent_id, owner_id, title, measure, num_current, num_target, unit, higher_is_better, sort, start_date, due_date)
+    values (T, g3, m_choi, '콘텐츠 제작 리드타임', 'number', 6, 5, '일', false, 0, current_date - 50, current_date + 30);
+  begin
+    execute $q$insert into work_items (team_id, parent_id, owner_id, title, measure, stages, stage_current, sort, start_date, due_date)
+      values ($1, $2, $3, '성과 보고 체계 표준화', 'stage', array['착수', '초안', '검증', '확정', '확산'], 2, 1, current_date - 60, current_date + 60)$q$ using T, g3, m_jung;
+  exception when others then null;
+  end;
   insert into metric_values (metric_id, team_id, period, value) values
     (mt, T, (v_month - interval '3 months')::date, 3.4), (mt, T, (v_month - interval '2 months')::date, 3.6), (mt, T, (v_month - interval '1 months')::date, 4.2);
   insert into metric_pipeline (metric_id, team_id, label, amount, probability, expected_close) values

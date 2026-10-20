@@ -8,6 +8,7 @@ import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { Hypothesis, ItemMeasure, ItemStatus, Metric, Submission, WorkItem, WorkItemComment, WorkItemEvent, WorkItemLog } from '../../lib/types';
 import { CheckinHistory, CheckinModal } from '../checkin/Checkin';
+import { MetricModal } from './GoalForms';
 import { MEASURE_META, STATUS_META, slipDays, useItemMutations, useLevelNames, usePlanRules, type Node } from '../../lib/items';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
 import { Avatar, Bar, Button, Field, Modal, Pill, inputCls, useToast } from '../ui';
@@ -87,6 +88,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const [comment, setComment] = useState('');
   const [reqOpen, setReqOpen] = useState(false);
   const [ck, setCk] = useState(false);
+  const [metricOpen, setMetricOpen] = useState(false);
   useEffect(() => { setF(item); setReason(''); }, [item]);
 
   const logs = useQuery({ queryKey: ['item-logs', item.id], queryFn: () => q<WorkItemLog[]>(supabase.from('work_item_logs').select('*').eq('item_id', item.id).order('period', { ascending: false }).limit(40)) });
@@ -141,8 +143,10 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const ro = !canPlan;
   const pro = !canEdit;
   // 목표·과제의 성과 값(숫자·진척률·단계)은 팀원이 직접 못 바꾼다 — 체크인 → 팀장 승인
-  const valLock = pro || (!isLeader && item.depth < 2);
-  const canCheckin = !isLeader && mine && item.depth < 2 && ['active', 'blocked'].includes(item.status);
+  const isMetric = item.role === 'metric' || (item.depth === 0 && item.measure !== 'children');
+  const valLock = pro || (!isLeader && isMetric);   // 지표 값은 체크인 → 팀장 승인 (과제 진척은 자유)
+  const canCheckin = !isLeader && mine && item.depth < 2 && ['active', 'blocked'].includes(item.status) && !(item.depth === 0 && item.measure === 'children');
+  const noMetric = item.depth === 0 && item.measure === 'children' && !item.children.some((c) => c.role === 'metric' && c.status !== 'dropped');
   const S = (k: keyof WorkItem) => (v: unknown) => setF((p) => ({ ...p, [k]: v }));
 
   return (
@@ -167,7 +171,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
               <div className="mt-3 space-y-2">
                 <textarea rows={2} className={inputCls} placeholder="피드백 (수정 요청 시 필수)" value={comment} onChange={(e) => setComment(e.target.value)} />
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => decide('active', 'approve', comment)} loading={update.isPending}><Check size={13} />승인</Button>
+                  <Button size="sm" disabled={noMetric} title={noMetric ? '지표를 먼저 달아 주세요' : undefined} onClick={() => decide('active', 'approve', comment)} loading={update.isPending}><Check size={13} />승인</Button>
                   <Button size="sm" variant="secondary" disabled={!comment.trim()} onClick={() => decide('changes_requested', 'changes', comment)}>수정 요청</Button>
                 </div>
               </div>
@@ -211,14 +215,22 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           </Field>
         )}
 
-        {item.depth < 2 && !PENDING.includes(item.status) && <CheckinHistory item={item} canCheckin={canCheckin} onCheckin={() => setCk(true)} />}
+        {noMetric && (
+          <div className="rounded-xl bg-amber-50 ring-1 ring-amber-200 px-3.5 py-3 text-sm text-amber-900 flex items-center gap-2 flex-wrap">
+            <span className="flex-1 min-w-[200px]"><b>지표가 없는 목표입니다.</b> 이 목표를 이뤘는지 무엇으로 볼지 지표를 1개 이상 달아 주세요{isLeader && item.status === 'proposed' ? ' — 지표가 있어야 승인할 수 있습니다' : ''}.</span>
+            {(isLeader || (mine && rules.open)) && <Button size="sm" onClick={() => setMetricOpen(true)}>지표 더하기</Button>}
+          </div>
+        )}
+        {metricOpen && <MetricModal open onClose={() => setMetricOpen(false)} goal={item} />}
+        {item.depth < 2 && !PENDING.includes(item.status) && !(item.depth === 0 && item.measure === 'children') && <CheckinHistory item={item} canCheckin={canCheckin} onCheckin={() => setCk(true)} />}
         {ck && <CheckinModal open onClose={() => setCk(false)} itemId={item.id} spaceId={uid} />}
 
         {/* 측정 방식 */}
         <div className="rounded-xl border border-slate-200 p-3.5 space-y-3">
           <Field label="진척을 재는 방식">
             <select className={inputCls} value={f.measure} disabled={ro} onChange={(e) => S('measure')(e.target.value as ItemMeasure)}>
-              {(Object.keys(MEASURE_META) as ItemMeasure[]).map((m) => <option key={m} value={m}>{MEASURE_META[m].label} — {MEASURE_META[m].hint}</option>)}
+              {(Object.keys(MEASURE_META) as ItemMeasure[]).filter((m) => item.role === 'metric' ? ['number', 'percent', 'stage'].includes(m) : item.depth === 0 ? ['children', 'number', 'percent', 'stage'].includes(m) : m !== 'stage')
+                .map((m) => <option key={m} value={m}>{item.depth === 0 && m === 'children' ? '지표 기준 — 아래 지표들의 진척으로 자동 계산' : `${MEASURE_META[m].label} — ${MEASURE_META[m].hint}`}</option>)}
             </select>
           </Field>
           {f.measure === 'percent' && (
@@ -267,7 +279,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
               )}
             </div>
           )}
-          {!isLeader && item.depth < 2 && ['number', 'percent', 'stage'].includes(f.measure) && <p className="text-[11px] text-slate-400">성과 값은 위의 [체크인]으로 남기고, 팀장님이 승인하면 바뀝니다.</p>}
+          {!isLeader && isMetric && <p className="text-[11px] text-slate-400">성과 값은 위의 [체크인]으로 남기고, 팀장님이 승인하면 바뀝니다.</p>}
           {f.measure === 'children' && <p className="text-xs text-slate-500">하위 항목 {item.children.length}개의 평균 진척 {item.progress}% (제안·중단 제외)</p>}
         </div>
 

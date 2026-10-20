@@ -174,6 +174,7 @@ function Board({ year, roots, subs, prob, nameOf, onOpen }: {
                     {collapsed.has(n.id) ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
                   <button onClick={() => onOpen(n.id)} className={cx('truncate text-left hover:text-indigo-700', n.depth === 0 ? 'font-bold' : n.depth === 1 ? 'font-medium' : 'text-slate-700')}>{n.title}</button>
                   {isRoutine(n) && <span title="정기 업무" className="text-slate-400 shrink-0"><Repeat size={12} /></span>}
+                  {n.role === 'metric' && <span className="text-[11px] font-semibold text-indigo-600 shrink-0">지표</span>}
                   {p != null && <span className={cx('text-[10px] font-semibold rounded px-1 py-0.5 num shrink-0', p < 35 ? 'bg-rose-50 text-rose-700' : p < 50 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700')} title="달성 가능성">{p}%</span>}
                   {ds.length > 0 && (
                     <button onClick={() => tog(subOpen, setSubOpen, n.id)} className={cx('ml-auto shrink-0 text-[10px] font-semibold rounded-full px-1.5 py-0.5 inline-flex items-center gap-0.5', subOpen.has(n.id) ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700 ring-1 ring-violet-200')}>

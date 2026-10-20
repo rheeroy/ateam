@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, ChevronRight, CircleAlert, Crosshair, GripVertical, MoreHorizontal, Plus, RotateCcw } from 'lucide-react';
 import { currentLabel, usePendingCheckins } from '../../lib/checkin';
+import { GoalModal, MetricModal } from './GoalForms';
 import { useTeam } from '../../state/session';
 import type { WorkItem } from '../../lib/types';
 import { STATUS_META, isOverdue, measureText, slipDays, sortBetween, useItemMutations, useLevelNames, type Node } from '../../lib/items';
@@ -31,7 +32,13 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
   const { update, create } = useItemMutations(team.id);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | 'root' | null>(null);  // 부모 id
-  useEffect(() => { if (addRootSignal) setAdding('root'); }, [addRootSignal]);
+  const [addKind, setAddKind] = useState<'pick' | 'task'>('pick');      // 목표 아래: 지표인지 과제인지 먼저
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [metricFor, setMetricFor] = useState<Node | null>(null);
+  useEffect(() => { if (addRootSignal) setGoalOpen(true); }, [addRootSignal]);
+  const startAdd = (n: Node) => { if (n.depth === 0 && n.measure === 'children') { setAddKind('pick'); setAdding(n.id); } else { setAddKind('task'); setAdding(n.id); } };
+  const noMetric = (n: Node) => n.depth === 0 && n.measure === 'children' && !['done', 'dropped'].includes(n.status)
+    && !n.children.some((c) => c.role === 'metric' && c.status !== 'dropped');
   const [drag, setDrag] = useState<{ id: string; over?: string; pos?: 'before' | 'after' | 'inside' } | null>(null);
 
   const siblingsOf = (n: Node) => (n.parent_id ? byId.get(n.parent_id)?.children ?? [] : [...byId.values()].filter((x) => !x.parent_id).sort((a, b) => a.sort - b.sort));
@@ -55,7 +62,7 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
     const owner = isLeader ? (parent?.owner_id ?? uid) : uid;
     create.mutate({
       parent_id: parentId, title, owner_id: owner, sort: sortBetween(kids.at(-1)?.sort, undefined),
-      measure: parent && parent.depth >= 1 ? 'check' : parent ? 'percent' : 'children',
+      measure: parent && parent.depth >= 1 ? 'check' : parent ? 'percent' : 'children', role: parent ? 'task' : 'goal',
       status: isLeader || (parent && parent.depth >= 1) ? 'active' : 'proposed',   // 팀원의 할 일은 바로 진행, 목표·과제는 승인 대기
       ...(parentId ? {} : rootDefaults ?? {}),
     });
@@ -121,7 +128,7 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
                   <TitleInput initial={n.title} onDone={(v, key) => {
                     setEditing(null);
                     if (v && v !== n.title) update.mutate({ id: n.id, patch: { title: v } });
-                    if (key === 'Enter' && canAddUnder(n.parent_id ? byId.get(n.parent_id) ?? null : null)) setAdding(n.parent_id ?? 'root');
+                    if (key === 'Enter' && n.parent_id && canAddUnder(byId.get(n.parent_id) ?? null)) { setAddKind('task'); setAdding(n.parent_id); }
                     if (key === 'Tab' && canStructure) indent(n);
                     if (key === 'ShiftTab' && canStructure) outdent(n);
                   }} />
@@ -129,11 +136,15 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
                   <button className={cx('text-left truncate', n.depth === 0 && 'font-semibold', n.status === 'done' && n.measure === 'check' && 'line-through')}
                     onClick={() => (editable ? setEditing(n.id) : onOpen(n.id))} title={editable ? '눌러서 고치기' : n.title}>{n.title}</button>
                 )}
-                <span className="text-[11px] text-slate-400 shrink-0 hidden sm:inline">{levelName(n.depth)}</span>
+                <span className={cx('text-[11px] shrink-0 hidden sm:inline', n.role === 'metric' ? 'text-indigo-600 font-semibold' : 'text-slate-400')}>{n.role === 'metric' ? '지표' : levelName(n.depth)}</span>
                 {n.status !== 'active' && <Pill tone={st.tone} className="shrink-0">{st.label}</Pill>}
                 {n.needs_plan && <Pill tone="violet" className="shrink-0">계획 요청됨</Pill>}
                 {n.measure === 'number' && <span className="text-xs text-slate-500 shrink-0 num">{measureText(n)}</span>}
                 {n.measure === 'recurring' && <span className="text-xs text-slate-500 shrink-0">{measureText(n)}</span>}
+                {n.metric_id && <span className="shrink-0 text-[10px] text-emerald-700 bg-emerald-50 rounded px-1.5 py-px">실적 연동</span>}
+                {noMetric(n) && (canAddUnder(n)
+                  ? <button onClick={() => setMetricFor(n)} className="shrink-0 text-[10px] font-bold rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-200 px-1.5 py-0.5">지표 더하기</button>
+                  : <span className="shrink-0 text-[10px] font-bold rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-200 px-1.5 py-0.5">지표 필요</span>)}
                 {n.measure === 'stage' && <span className="text-xs text-slate-500 shrink-0">{currentLabel(n)}{n.stages?.length ? ` · ${n.stage_current ?? 0}/${n.stages.length}` : ''}</span>}
                 {!!pendingCk.data?.get(n.id) && <button onClick={() => onOpen(n.id)} className="shrink-0 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 px-1.5 py-0.5 inline-flex items-center gap-0.5"><Crosshair size={10} />체크인 대기</button>}
               </div>
@@ -152,23 +163,31 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
                 ) : <><Avatar name={nameOf(n.owner_id)} size={7} tone={n.owner_id === uid ? 'indigo' : 'slate'} /><span className="truncate">{nameOf(n.owner_id) || '미정'}</span></>}
               </span>
               <span className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100">
-                {canAddUnder(n) && <button className="p-1 text-slate-400 hover:text-indigo-600" title={`${levelName(n.depth + 1)} 추가`} aria-label="하위 항목 추가" onClick={() => setAdding(n.id)}><Plus size={14} /></button>}
+                {canAddUnder(n) && n.role !== 'metric' && <button className="p-1 text-slate-400 hover:text-indigo-600" title={n.depth === 0 ? '지표 · 과제 추가' : `${levelName(n.depth + 1)} 추가`} aria-label="하위 항목 추가" onClick={() => startAdd(n)}><Plus size={14} /></button>}
                 <button className="p-1 text-slate-400 hover:text-indigo-600" title="자세히" aria-label="자세히" onClick={() => onOpen(n.id)}><MoreHorizontal size={15} /></button>
               </span>
             </div>
-            {adding === n.id && (
+            {adding === n.id && addKind === 'pick' && (
+              <div className="flex items-center gap-2 py-1.5 pr-3 border-b border-slate-100 bg-indigo-50/40 text-xs" style={{ paddingLeft: `calc(40px + ${n.depth + 1} * var(--indent))` }}>
+                <Plus size={14} className="text-indigo-400" />
+                <button onClick={() => { setAdding(null); setMetricFor(n); }} className="rounded-lg ring-1 ring-indigo-200 bg-white text-indigo-700 font-semibold px-2.5 py-1">지표</button>
+                <button onClick={() => setAddKind('task')} className="rounded-lg ring-1 ring-slate-200 bg-white text-slate-700 font-semibold px-2.5 py-1">{levelName(n.depth + 1)}</button>
+                <button onClick={() => setAdding(null)} className="ml-auto text-slate-400 hover:text-slate-700">닫기</button>
+              </div>
+            )}
+            {adding === n.id && addKind === 'task' && (
               <AddRow depth={n.depth + 1} label={levelName(n.depth + 1)} onAdd={(t) => addChild(n.id, t)} onClose={() => setAdding(null)} />
             )}
           </div>
         );
       })}
-      {adding === 'root' ? (
-        <AddRow depth={0} label={levelName(0)} onAdd={(t) => addChild(null, t)} onClose={() => setAdding(null)} />
-      ) : canAddUnder(null) && (
-        <button className="w-full text-left px-4 py-2.5 text-sm text-slate-500 hover:text-indigo-700 hover:bg-slate-50 inline-flex items-center gap-1.5" onClick={() => setAdding('root')}>
+      {canAddUnder(null) && (
+        <button className="w-full text-left px-4 py-2.5 text-sm text-slate-500 hover:text-indigo-700 hover:bg-slate-50 inline-flex items-center gap-1.5" onClick={() => setGoalOpen(true)}>
           <Plus size={14} />{levelName(0)} 추가
         </button>
       )}
+      {goalOpen && <GoalModal open onClose={() => setGoalOpen(false)} defaults={rootDefaults} />}
+      {metricFor && <MetricModal open onClose={() => setMetricFor(null)} goal={metricFor} />}
       {!rows.length && <p className="px-4 py-6 text-sm text-slate-500 flex items-center gap-1.5"><CircleAlert size={14} />조건에 맞는 항목이 없습니다.</p>}
     </div>
   );

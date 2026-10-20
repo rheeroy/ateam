@@ -10,7 +10,7 @@ import { PLAN_DRAFT, PLAN_EDIT } from '../_shared/prompts/index.ts';
 import { kstToday } from '../_shared/signals.ts';
 
 interface Body { team_id: string; mode: 'draft' | 'edit'; text?: string; file_path?: string; parent_id?: string | null; instruction?: string; year?: number | null }
-interface Item { id: string; parent_id: string | null; owner_id: string | null; title: string; status: string; measure: string; progress: number; start_date: string | null; due_date: string | null; num_target: number | null; unit: string }
+interface Item { id: string; parent_id: string | null; owner_id: string | null; title: string; status: string; measure: string; progress: number; start_date: string | null; due_date: string | null; num_target: number | null; unit: string; role: string | null; stages: string[] | null }
 
 const ST: Record<string, string> = { proposed: '제안', changes_requested: '수정요청', active: '진행', blocked: '막힘', done: '완료' };
 
@@ -21,6 +21,7 @@ serve(async (req) => {
   const { data: me } = await admin.from('team_members').select('role').eq('team_id', body.team_id).eq('user_id', caller.userId!).eq('status', 'active').maybeSingle();
   if (!me) throw new HttpError(403, 'forbidden');
   const leader = me.role === 'leader';
+  if (!leader) throw new HttpError(403, 'LEADER_ONLY', 'AI 계획은 팀장만 쓸 수 있습니다');
 
   const { data: team } = await admin.from('teams').select('name, mission, settings').eq('id', body.team_id).single();
   const levels = ((team?.settings as Record<string, unknown>)?.level_names as string[] | undefined) ?? ['목표', '과제', '할 일'];
@@ -29,7 +30,7 @@ serve(async (req) => {
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
 
   const { data: all } = await admin.from('work_items')
-    .select('id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, num_target, unit')
+    .select('id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, num_target, unit, role, stages')
     .eq('team_id', body.team_id).neq('status', 'dropped').order('sort').limit(400);
   const items = (all ?? []) as Item[];
 
@@ -59,7 +60,7 @@ serve(async (req) => {
   };
   const depthOf = (i: Item) => { let d = 0; let c = i; while (c.parent_id) { d++; c = items.find((x) => x.id === c.parent_id) ?? { ...c, parent_id: null }; } return d; };
   const tree = items.filter((i) => inScope(i.id))
-    .map((i) => `${'  '.repeat(depthOf(i))}[${i.id}] ${levels[Math.min(depthOf(i), levels.length - 1)]} · ${i.title} · ${ST[i.status] ?? i.status} · 담당 ${nameOf.get(i.owner_id ?? '') || '-'} · ${i.start_date ?? ''}~${i.due_date ?? ''} · 진척 ${i.progress}%${i.num_target != null ? ` · 목표 ${i.num_target}${i.unit}` : ''}`)
+    .map((i) => `${'  '.repeat(depthOf(i))}[${i.id}] ${i.role === 'metric' ? '지표' : levels[Math.min(depthOf(i), levels.length - 1)]} · ${i.title} · ${ST[i.status] ?? i.status} · 담당 ${nameOf.get(i.owner_id ?? '') || '-'} · ${i.start_date ?? ''}~${i.due_date ?? ''} · 진척 ${i.progress}%${i.num_target != null ? ` · 목표 ${i.num_target}${i.unit}` : ''}${i.stages?.length ? ` · 단계 ${i.stages.join('→')}` : ''}`)
     .join('\n');
 
   const book = new SourceBook();

@@ -270,20 +270,23 @@ export const PLAN_DRAFT = `과제: 팀장(또는 팀원)이 준 자료(사업계
 [좋은 목표·과제의 기준] 자료 안에서 구조화할 때 다음을 지킵니다. 자료에 없는 숫자·목표는 여전히 만들지 않습니다.
 - 최상위 목표 제목은 '이루려는 상태'가 드러나게 씁니다(무엇을 새로 만들지 · 무엇을 개선할지 · 무엇을 다르게 바꿀지). 일상 업무를 그대로 나열한 것은 목표로 올리지 말고, 자료에 근거가 있으면 그 업무들이 함께 이루려는 상태로 묶습니다.
 - 최상위 목표는 3~5개가 적당합니다. 자료에 더 많으면 묶을 수 있는 것은 묶고, 그래도 많으면 summary 에 "목표가 n개 — 우선순위 정리 필요"를 밝힙니다.
-- 목표마다 '달성했는지 알 수 있는 기준'을 붙입니다: 자료에 숫자가 있으면 그 하위에 number(또는 percent) 항목으로, 숫자가 없으면 note 에 "완료 판단 기준: …"으로 씁니다. 자료로 알 수 없으면 summary 에 "측정 기준이 없는 목표 n개"를 밝힙니다.
-- 측정 항목은 활동이 아니라 결과를 잽니다. "~실시·~수행·~관리"처럼 활동이면 과제로 두고, 결과를 재는 항목은 자료에 근거가 있을 때만 따로 만듭니다.
+- 최상위 목표 아래에는 두 종류만 둡니다: 지표(role "metric", 목표를 이뤘는지 재는 결과)와 과제(role "task", 하는 일). 할 일은 과제 아래(role "task").
+- 목표마다 지표를 반드시 1~5개 둡니다. 지표는 measure 가 number(숫자 · num_target · unit) · percent · stage(정성 — stages 에 단계 이름 3~5개, 예: ["착수","초안","검증","확정"]) 중 하나입니다.
+  자료에 숫자가 있으면 number 로, 숫자가 없는 정성 목표는 stage 로 만듭니다. 목표값을 자료로 알 수 없으면 num_target 을 비우고 summary 에 "목표값 확인 필요 n개"를 밝힙니다.
+  목표 자체가 숫자인 경우(예: "상반기 매출 20억")에는 목표에 measure number · num_target · unit 을 바로 걸고, 그 목표에는 지표를 따로 만들지 않아도 됩니다.
+- 지표는 활동이 아니라 결과를 잽니다. "~실시·~수행·~관리"처럼 활동이면 과제로 둡니다. 과제의 완료는 목표 진척에 들어가지 않습니다.
 - 한 항목에는 한 가지 내용만 담습니다("A 및 B" 는 둘로 나눔).
 - 과제 이름은 가능하면 "(효과)를 위한 (활동)" 또는 "(활동)을 통한 (효과)"로, "~강화·~철저·~관리"처럼 끝을 알 수 없는 이름은 무엇이 되면 끝인지 드러나게 씁니다.
 - 과제 아래 할 일은 담당자가 직접 손댈 수 있는 행동 단위로 2~4개.
 
-측정 방식(measure): check(한 번에 끝나는 일), children(하위 항목으로 진척 계산), percent(진척률로 관리), number(숫자 목표가 있는 일), recurring(정기 업무)
+측정 방식(measure): check(한 번에 끝나는 일), children(아래 지표로 판단 — 지표로 판단하는 목표는 이것), percent(진척률), number(숫자 목표), stage(단계로 판단하는 정성 지표), recurring(정기 업무)
 
 출력 JSON 형식:
 {
   "summary": "자료를 어떻게 구조화했는지 한두 문장",
   "ops": [
     {"op": "add", "ref": "n1", "parent": null, "title": "제목", "note": "설명(선택)", "owner": "팀원 이름 또는 빈 문자열",
-     "measure": "children", "start_date": "2026-11-01", "due_date": "2026-12-31", "num_target": null, "unit": "", "recur": null, "reason": "자료의 어디에서 왔는지"}
+     "role": "goal|metric|task", "measure": "children", "start_date": "2026-11-01", "due_date": "2026-12-31", "num_target": null, "unit": "", "stages": [], "recur": null, "reason": "자료의 어디에서 왔는지"}
   ]
 }
 parent 는 null(최상위), 같은 응답의 다른 add 항목의 ref, 또는 기존 항목 id. 항목은 30개 이하.`;
@@ -293,7 +296,8 @@ export const PLAN_EDIT = `과제: 팀장(또는 팀원)의 말로 된 지시에 
 항목은 [id] 로 가리킵니다. 담당자는 주어진 팀원 이름 중에서만 고릅니다. 날짜는 YYYY-MM-DD.
 
 op 종류:
-- add: {"op":"add","ref":"n1","parent": 기존 id 또는 ref 또는 null,"title","note","owner","measure","start_date","due_date","num_target","unit","recur","reason"}
+- add: {"op":"add","ref":"n1","parent": 기존 id 또는 ref 또는 null,"title","note","owner","role": "metric|task","measure","start_date","due_date","num_target","unit","stages","recur","reason"}
+  목표 아래에는 지표(role metric — 결과를 재는 항목, measure number·percent·stage)와 과제(role task)만 둡니다. 새 목표를 만들면 지표를 1개 이상 함께 만듭니다.
 - update: {"op":"update","id":"기존 id","set":{"title"?, "note"?, "owner"?, "start_date"?, "due_date"?, "status"?, "measure"?, "num_target"?, "progress"?, "priority"?, "contribution"?},"reason"}
 - move: {"op":"move","id":"기존 id","parent": 새 상위 id 또는 null,"reason"}
 - delete: {"op":"delete","id":"기존 id","reason"}

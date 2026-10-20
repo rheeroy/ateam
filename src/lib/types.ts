@@ -38,6 +38,8 @@ export interface WorkItem {
   title: string; note: string; status: ItemStatus; measure: ItemMeasure; progress: number;
   num_current: number | null; num_target: number | null; unit: string; higher_is_better: boolean; recur: 'weekly' | 'monthly' | null;
   stages?: string[]; stage_current?: number | null;
+  /** goal(최상위) · metric(지표) · task(과제·할 일) — 23_goal_metrics */
+  role?: 'goal' | 'metric' | 'task' | null;
   start_date: string | null; due_date: string | null; done_at: string | null;
   base_start: string | null; base_due: string | null; base_target: number | null; baselined_at: string | null; replan_count: number;
   tags: string[]; contribution: number; priority: number; est_hours_per_week: number | null; metric_id: string | null;

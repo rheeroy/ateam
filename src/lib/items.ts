@@ -113,7 +113,7 @@ export function sortBetween(prev?: number, next?: number) {
 }
 
 export function measureText(n: WorkItem) {
-  if (n.measure === 'number') return `${n.num_current ?? 0}${n.unit} / ${n.num_target ?? '-'}${n.unit}`;
+  if (n.measure === 'number') { const f = (v: number | null) => (v == null ? '-' : v.toLocaleString('ko-KR')); return `${f(n.num_current ?? 0)}${n.unit} / ${f(n.num_target)}${n.unit}`; }
   if (n.measure === 'check') return n.status === 'done' ? '완료' : '미완료';
   if (n.measure === 'recurring') return `${n.recur === 'weekly' ? '매주' : '매달'} · 준수 ${n.progress}%`;
   if (n.measure === 'stage') return n.stage_current ? `${(n.stages ?? [])[n.stage_current - 1] ?? `${n.stage_current}단계`} (${n.stage_current}/${n.stages?.length ?? '-'})` : '시작 전';
@@ -132,11 +132,11 @@ export interface PlanOp {
   op: 'add' | 'update' | 'move' | 'delete';
   ref?: string; id?: string; parent?: string | null;
   title?: string; note?: string; owner?: string; measure?: ItemMeasure; start_date?: string | null; due_date?: string | null;
-  num_target?: number | null; unit?: string; recur?: 'weekly' | 'monthly' | null;
+  num_target?: number | null; unit?: string; recur?: 'weekly' | 'monthly' | null; role?: 'goal' | 'metric' | 'task'; stages?: string[];
   set?: Record<string, unknown>; reason?: string;
 }
 
-const MEASURES: ItemMeasure[] = ['check', 'children', 'percent', 'number', 'recurring'];
+const MEASURES: ItemMeasure[] = ['check', 'children', 'percent', 'number', 'recurring', 'stage'];
 const STATUSES = ['active', 'blocked', 'done', 'dropped'];
 const dateOrNull = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 
@@ -171,6 +171,8 @@ export async function applyOps(teamId: string, ops: PlanOp[], members: TeamMembe
         return { start_date: sd, due_date: dd };
       })(),
       num_target: typeof o.num_target === 'number' ? o.num_target : null, unit: o.unit ?? '',
+      ...(o.role === 'metric' || o.role === 'task' ? { role: o.role } : {}),
+      ...(Array.isArray(o.stages) && o.stages.length ? { stages: o.stages.map(String).slice(0, 8) } : {}),
       recur: o.recur === 'weekly' || o.recur === 'monthly' ? o.recur : null, sort: sort++,
     }).select('id').single();
     if (error) errors.push(`${o.title}: ${errorText(error)}`);

@@ -12,6 +12,11 @@ alter type public.item_measure add value if not exists 'stage';
 alter table public.work_items add column if not exists stages text[] not null default '{}';
 alter table public.work_items add column if not exists stage_current smallint;
 alter table public.submission_versions add column if not exists checkin jsonb;
+-- 23_goal_metrics 와 같은 칸 (어느 쪽을 먼저·다시 돌려도 트리거가 같도록)
+alter table public.work_items add column if not exists role text;
+do $$ begin
+  alter table public.work_items add constraint work_items_role_chk check (role in ('goal', 'metric', 'task'));
+exception when duplicate_object then null; end $$;
 
 do $$ declare c text; begin
   for c in select conname from pg_constraint where conrelid = 'public.submissions'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%kind%document%' loop
@@ -41,6 +46,13 @@ begin
     v_depth := 0;
   end if;
 
+  -- 역할: 최상위는 목표, 그 아래는 지표(결과를 재는 항목) 또는 과제, 그 아래는 할 일(과제)
+  if v_depth = 0 then new.role := 'goal';
+  elsif v_depth >= 2 then new.role := 'task';
+  elsif new.role is null or new.role = 'goal' then
+    new.role := case when new.measure::text in ('number', 'stage') or new.metric_id is not null then 'metric' else 'task' end;
+  end if;
+
   if not v_leader then
     v_open := public.plan_open(new.team_id);
     if tg_op = 'INSERT' then
@@ -66,9 +78,11 @@ begin
       v_plan_changed := (to_jsonb(new) - array['progress', 'num_current', 'stage_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort'])
                      is distinct from (to_jsonb(old) - array['progress', 'num_current', 'stage_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort']);
       -- 목표·과제의 성과 값(숫자·진척률·단계)은 팀장이 승인한 체크인으로만 바뀐다 (하위 항목 평균은 자동 계산이라 예외)
-      if v_old_depth < 2 and (new.num_current is distinct from old.num_current or new.stage_current is distinct from old.stage_current
-                              or (new.progress is distinct from old.progress and new.measure::text = 'percent')) then
-        raise exception 'CHECKIN_ONLY: 목표·과제의 성과 값은 체크인으로 남겨 주세요. 팀장님이 승인하면 반영됩니다';
+      -- 지표와 숫자를 건 목표의 값만 체크인으로 (과제 진척은 자유)
+      if (new.role = 'metric' or (v_old_depth = 0 and new.measure::text in ('number', 'percent', 'stage')))
+         and (new.num_current is distinct from old.num_current or new.stage_current is distinct from old.stage_current
+              or (new.progress is distinct from old.progress and new.measure::text = 'percent')) then
+        raise exception 'CHECKIN_ONLY: 지표 값은 체크인으로 남겨 주세요. 팀장님이 승인하면 반영됩니다';
       end if;
       if v_old_depth >= 2 then
         v_skip_replan := true;                            -- 할 일은 자유: 재계획 기록 안 남김
@@ -148,6 +162,7 @@ begin
 end $$;
 
 
+
 create or replace function public.trg_submission_version() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_sub submissions; v_leader boolean;
@@ -177,6 +192,7 @@ begin
   select checkin into v_c from submission_versions where submission_id = new.id order by version desc limit 1;
   select * into v_item from work_items where id = new.item_id;
   if v_c is null or v_item.id is null then return new; end if;
+  if v_item.metric_id is not null then return new; end if;   -- 실적 데이터와 연결된 지표: 값은 실적이 정한다 (체크인은 성과 기록으로만)
   v_t := v_c->>'type';
   if v_t = 'number' and v_c ? 'value' then
     update work_items set num_current = (v_c->>'value')::numeric where id = v_item.id;
