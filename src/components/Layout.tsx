@@ -19,23 +19,25 @@ import { openQuickNote } from '../lib/notes';
 import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
 
-type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string };
+type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string };
 
-function NavItem({ to, label, icon: Icon, badge }: Item) {
+/** 창이 좁으면(md~xl) 아이콘만 — 이름은 마우스를 올리면 */
+function NavItem({ to, label, icon: Icon, badge, tip }: Item) {
   return (
-    <NavLink to={to} end={to === '/'}
+    <NavLink to={to} end={to === '/'} title={tip ?? (typeof label === 'string' ? label : undefined)}
       className={({ isActive }) => cx(
-        'flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm whitespace-nowrap',
+        'relative flex items-center gap-2.5 w-full px-3 md:px-0 md:justify-center xl:px-3 xl:justify-start py-2 rounded-lg text-sm whitespace-nowrap',
         isActive ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-600 hover:bg-slate-100')}>
       <Icon size={16} className="shrink-0" />
-      <span className="flex-1">{label}</span>
-      {badge && <span className="hidden md:inline font-mono text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5">{badge}</span>}
+      <span className="flex-1 md:hidden xl:inline">{label}</span>
+      {badge && <span className="hidden xl:inline font-mono text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5">{badge}</span>}
+      {badge && <span className="hidden md:block xl:hidden absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-violet-500" />}
     </NavLink>
   );
 }
 
 const Group = ({ label }: { label: string }) => (
-  <div className="hidden md:block px-3 pt-4 pb-1 text-[10px] font-semibold tracking-wider text-slate-400">{label}</div>
+  <div className="hidden xl:block px-3 pt-4 pb-1 text-[10px] font-semibold tracking-wider text-slate-400">{label}</div>
 );
 
 /** 메뉴 옆 숫자 = 팀장이 처리해야 할 것 (팀목표: 승인 대기 제안 · 업무플랫폼: 리뷰 대기 · 의사결정: 결정할 것 · 임원 브리핑: D-3 이내 위의 요청) */
@@ -65,7 +67,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <NavItem to="/upward" label="임원 브리핑" icon={UserRound} badge={todo.upward ? `${todo.upward}` : undefined} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
-            <NavItem to="/advisor" label={<ATeamAdvice />} icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
+            <NavItem to="/advisor" label={<ATeamAdvice />} tip="ATEAM의 제안" icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
             <Group label="인사" />
             <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
@@ -118,10 +120,10 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
-      <aside className={cx('md:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:p-4 overflow-x-auto md:overflow-y-auto', !isLeader && 'hidden md:block')}>
-        <Link to="/" title="대시보드로" className="hidden md:flex items-center gap-2.5 px-2 pb-4 rounded-lg hover:opacity-80">
+      <aside className={cx('md:w-16 xl:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:px-2 md:py-4 xl:p-4 overflow-x-auto md:overflow-y-auto', !isLeader && 'hidden md:block')}>
+        <Link to="/" title="대시보드로" className="hidden md:flex items-center justify-center xl:justify-start gap-2.5 xl:px-2 pb-4 rounded-lg hover:opacity-80">
           <LogoBlock size={34} />
-          <div className="min-w-0">
+          <div className="min-w-0 hidden xl:block">
             <ATeam className="block text-[16px] text-slate-900" />
             <div className="text-[11px] text-slate-400 truncate">{team?.name}</div>
           </div>
@@ -244,4 +246,3 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
     </div>
   );
 }
-
