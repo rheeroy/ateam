@@ -7,7 +7,7 @@ import { useGroups, type WorkGroup } from '../lib/groups';
 import { useItems } from '../lib/items';
 import { spaceKey, useSpaceUnread, type SpaceRef } from '../lib/space';
 import { cx } from '../lib/format';
-import { Avatar, PageHeader } from '../components/ui';
+import { Avatar } from '../components/ui';
 import { GuideButton } from '../components/LeaderGuide';
 import { GroupModal } from '../components/work/GroupModal';
 import { Space } from '../components/space/Space';
@@ -34,7 +34,10 @@ export default function MySubmissions() {
 
   return (
     <section>
-      <PageHeader title="업무플랫폼" sub="결과물·자료·진행 상황을 올리고 팀장님과 대화하는 공간입니다. 피드백과 보완이 모두 여기서 오갑니다" />
+      <div className="flex items-baseline gap-3 flex-wrap mb-2">
+        <h1 className="text-xl font-bold tracking-tight">업무플랫폼</h1>
+        <p className="text-sm text-slate-500">결과물·자료·진행 상황을 올리고 팀장님과 대화하는 공간입니다</p>
+      </div>
       <div className="flex items-center gap-1 border-b border-slate-200 mb-3 overflow-x-auto">
         <TabBtn on={!group} onClick={() => setTab('me')} n={group ? n({ kind: 'user', id: uid }) : 0}>내 스페이스</TabBtn>
         {myGroups.map((g) => <TabBtn key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })} icon>{g.name}</TabBtn>)}
@@ -42,7 +45,7 @@ export default function MySubmissions() {
         <span className="ml-auto pl-2 pb-1 shrink-0"><GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} /></span>
       </div>
       {group && <GroupBar g={group} onEdit={() => setGroupModal({ group })} />}
-      <Space space={group ? { kind: 'group', id: group.id } : { kind: 'user', id: uid }} group={group} offset={group ? '19rem' : '15rem'} />
+      <Space space={group ? { kind: 'group', id: group.id } : { kind: 'user', id: uid }} group={group} offset={group ? '16.5rem' : '12.5rem'} />
       {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={(id) => setTab(id)} />}
     </section>
   );
@@ -72,4 +75,3 @@ export function GroupBar({ g, onEdit }: { g: WorkGroup; onEdit: () => void }) {
     </div>
   );
 }
-
