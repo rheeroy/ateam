@@ -23,7 +23,6 @@ const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Goals = lazy(() => import('./pages/Goals'));
-const MyRecord = lazy(() => import('./pages/MyRecord'));
 const Brief = lazy(() => import('./pages/Brief'));
 const People = lazy(() => import('./pages/People'));
 const PersonDetail = lazy(() => import('./pages/PersonDetail'));
@@ -79,6 +78,13 @@ function Moved({ to, extra }: { to: string; extra?: Record<string, string> }) {
   return <Navigate to={`${to}${qs ? `?${qs}` : ''}`} replace />;
 }
 
+/** 팀원의 '/' — 예전 알림 링크(/?coach=…)는 팀장님과로 */
+function MemberIndex() {
+  const [params] = useSearchParams();
+  const coach = params.get('coach');
+  return <Navigate to={coach ? `/my/one-on-ones?coach=${coach}` : '/my/submissions'} replace />;
+}
+
 function LeaderOnly({ children }: { children: ReactNode }) {
   const { isLeader } = useSession();
   return isLeader ? <>{children}</> : <Navigate to="/" replace />;
@@ -96,7 +102,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
-        <Route index element={isLeader ? <Home /> : <Navigate to="/my/submissions" replace />} />
+        <Route index element={isLeader ? <Home /> : <MemberIndex />} />
         <Route path="brief/org" element={<Moved to="/upward" />} />
         <Route path="brief/:section" element={L(<Brief />)} />
         <Route path="goals" element={L(<TeamGoals />)} />
@@ -128,7 +134,7 @@ export default function App() {
         <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
-        <Route path="my/record" element={<MyRecord />} />
+        <Route path="my/record" element={<Navigate to="/my/one-on-ones" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

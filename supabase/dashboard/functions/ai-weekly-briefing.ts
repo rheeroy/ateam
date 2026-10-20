@@ -478,7 +478,7 @@ async function briefTeam(teamId, createdBy) {
     book.add("checkin", c.id, `\uC9C0\uB09C\uC8FC \uCEE8\uB514\uC158 \uACF5\uC720 ${nameOf.get(c.user_id)}`, conditionText(c));
   }
   const { data: oos } = await admin.from("one_on_ones").select("id, member_id, scheduled_at, shared_notes").eq("team_id", teamId).eq("status", "done").gte("scheduled_at", since);
-  for (const o of oos ?? []) book.add("one_on_one", o.id, `1:1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
+  for (const o of oos ?? []) book.add("one_on_one", o.id, `1on1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
   const { data: vers } = await admin.from("submission_versions").select("id, version, note, submissions(title, author_id)").eq("team_id", teamId).gte("created_at", since);
   for (const v of vers ?? []) {
     const s = v.submissions;
@@ -496,7 +496,7 @@ async function briefTeam(teamId, createdBy) {
   }
   const { data: radar } = await admin.rpc("care_radar", { p_team: teamId });
   for (const r of radar ?? []) {
-    book.add("signal", r.user_id, `\uCF00\uC5B4 \uC2E0\uD638 ${r.full_name}`, r.signals.map((s) => s.label.replace("\uCCB4\uD06C\uC778 \uBBF8\uC81C\uCD9C", "\uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C")).join(", "));
+    book.add("signal", r.user_id, `\uCF00\uC5B4 \uC2E0\uD638 ${r.full_name}`, r.signals.map((s) => s.label.replace("\uCCB4\uD06C\uC778 \uBBF8\uC81C\uCD9C", "\uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C").replace(/1:1/g, "1on1")).join(", "));
   }
   if (book.size === 0) return null;
   await addKnowhow(book, teamId, "briefing", 1500);

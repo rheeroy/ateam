@@ -119,36 +119,3 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
     </Modal>
   );
 }
-
-/** 팀원 홈: 받은 코칭 (확인하지 않은 것 위주) */
-export function MyCoaching({ focusId }: { focusId?: string | null }) {
-  const { team, uid } = useTeam();
-  const qc = useQueryClient();
-  const qy = useQuery({
-    queryKey: ['my-coaching', team.id, uid],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('coaching_notes').select('*').eq('team_id', team.id).eq('member_id', uid).order('created_at', { ascending: false }).limit(6);
-      return error ? [] : (data as CoachingNote[]);
-    },
-  });
-  const mark = useMutation({
-    mutationFn: async (p: { id: string; ack?: boolean; helpful?: boolean }) => { await supabase.rpc('coaching_mark', { p_id: p.id, p_ack: !!p.ack, p_helpful: p.helpful ?? null }); },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-coaching', team.id, uid] }),
-  });
-  const list = (qy.data ?? []).filter((c) => !c.acked_at || c.id === focusId);
-  // 화면에 보이면 '읽음'
-  useEffect(() => { for (const c of list) if (!c.seen_at) mark.mutate({ id: c.id }); }, [qy.data]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!list.length) return null;
-  return (
-    <div className="space-y-3">
-      {list.slice(0, 2).map((c) => (
-        <CoachCard key={c.id} title={c.title} body={c.body} date={c.created_at} highlight={c.id === focusId}
-          footer={<>
-            <span className="text-[11px] text-slate-400">평가와 무관한 코칭이에요</span>
-            <button disabled={c.helpful === true} onClick={() => mark.mutate({ id: c.id, helpful: true })} className={cx('ml-auto text-sm rounded-lg ring-1 px-3 py-1.5', c.helpful ? 'ring-indigo-300 bg-indigo-50 text-indigo-700' : 'ring-slate-200 bg-white hover:bg-slate-50')}>{c.helpful ? '도움이 됐어요 ✓' : '도움이 됐어요'}</button>
-            <button onClick={() => mark.mutate({ id: c.id, ack: true })} className="text-sm rounded-lg bg-teal-600 text-white font-semibold px-3 py-1.5 hover:bg-teal-700">{c.acked_at ? '확인함' : '확인했어요'}</button>
-          </>} />
-      ))}
-    </div>
-  );
-}

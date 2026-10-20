@@ -105,7 +105,7 @@ export default function Login() {
             <div className="mt-1.5 flex items-center gap-2 text-[11px] font-mono tracking-wider text-indigo-200">
               <span>WORK</span><span className="text-slate-500">→</span><span>LAYER</span><span className="text-slate-500">→</span><span>INSIGHT</span>
             </div>
-            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">팀이 여기서 목표를 세우고 결과물을 올리고 1:1을 할수록 기록이 맥락으로 쌓이고, 인사이트는 더 깊고 정확해집니다.</p>
+            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">팀이 여기서 목표를 세우고 결과물을 올리고 1on1을 할수록 기록이 맥락으로 쌓이고, 인사이트는 더 깊고 정확해집니다.</p>
           </div>
         </div>
         <p className="relative text-xs text-slate-500">팀장 1명 구독 · 팀원은 무료 초대 · 14일 무료 체험</p>

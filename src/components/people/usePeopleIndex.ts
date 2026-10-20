@@ -1,4 +1,4 @@
-// 팀원별 표준 지표 (컨디션 · 이탈 가능성 · 업무 부하 · 성장 · 1:1 · 평가 근거)를 한 번에
+// 팀원별 표준 지표 (컨디션 · 이탈 가능성 · 업무 부하 · 성장 · 1on1 · 평가 근거)를 한 번에
 import { useMemo } from 'react';
 import { useTeam } from '../../state/session';
 import { useTeamMembersOnly } from '../../lib/hooks';

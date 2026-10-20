@@ -38,7 +38,7 @@ serve(async (req) => {
 
   const { data: oos } = await admin.from('one_on_ones').select('id, member_id, scheduled_at, shared_notes')
     .eq('team_id', body.team_id).eq('status', 'done').gte('scheduled_at', week).lte('scheduled_at', `${weekEnd}T23:59:59Z`);
-  for (const o of oos ?? []) book.add('one_on_one', o.id, `1:1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
+  for (const o of oos ?? []) book.add('one_on_one', o.id, `1on1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
 
   const { data: approved } = await admin.from('submissions').select('id, title, author_id')
     .eq('team_id', body.team_id).eq('status', 'approved').gte('approved_at', week);

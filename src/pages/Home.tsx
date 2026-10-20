@@ -81,7 +81,7 @@ function useBriefing(m: HomeModel): BLine[] {
   const n = (v: number, unit: string) => <b className="text-white num">{v}{unit}</b>;
   const out: BLine[] = [];
   const ooR = ooReq.data ?? [];
-  if (ooR.length) out.push({ key: 'ooreq', tone: 'rose', icon: Users, text: <>{ooR.length === 1 ? <>{nameOf(ooR[0].from_id)} 님이</> : <>팀원 {n(ooR.length, '명')}이</>} 1:1을 요청했어요.</>, go: ooR.length === 1 ? '일정 잡기를' : '팀원관리를', to: ooR.length === 1 ? `/people/${ooR[0].from_id}?oo=1` : '/people' });
+  if (ooR.length) out.push({ key: 'ooreq', tone: 'rose', icon: Users, text: <>{ooR.length === 1 ? <>{nameOf(ooR[0].from_id)} 님이</> : <>팀원 {n(ooR.length, '명')}이</>} 1on1을 요청했어요.</>, go: ooR.length === 1 ? '일정 잡기를' : '팀원관리를', to: ooR.length === 1 ? `/people/${ooR[0].from_id}?oo=1` : '/people' });
   if (m.lowGoals.length) out.push({ key: 'low', tone: 'rose', icon: ScatterChart, text: <>달성이 어려워 보이는 목표가 {n(m.lowGoals.length, '개')} 있어요.</>, go: '팀 성과를', to: '/perf' });
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
@@ -92,7 +92,7 @@ function useBriefing(m: HomeModel): BLine[] {
   else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });
   if (briefFresh) out.push({ key: 'brief', tone: 'agent', icon: UserRound, text: <>에이전트가 이번 주 임원 브리핑을 업데이트했어요{nearest != null && nearest <= 7 ? <> · 가장 가까운 기한 {n(nearest, '')}일 남음</> : null}.</>, go: '임원 브리핑을', to: '/upward' });
   else if (m.orgSt.feed.length) out.push({ key: 'org', tone: nearest != null && nearest <= 3 ? 'amber' : 'slate', icon: UserRound, text: <>위에서 내려온 소식 {n(m.orgSt.feed.length, '건')}이 열려 있어요.</>, go: '임원 브리핑을', to: '/upward' });
-  if (ooGap) out.push({ key: 'oo', tone: 'amber', icon: Users, text: <>2주 넘게 1:1을 못 한 팀원이 {n(ooGap, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
+  if (ooGap) out.push({ key: 'oo', tone: 'amber', icon: Users, text: <>2주 넘게 1on1을 못 한 팀원이 {n(ooGap, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
   if (k.decisionsDue) out.push({ key: 'due', tone: 'slate', icon: Gavel, text: <>결과를 기록할 결정이 {n(k.decisionsDue, '건')} 있어요.</>, go: '의사결정을', to: '/decide' });
   // 내 메모 — 남은 할 일, 한 사람에게 쌓인 메모
   const live = (notes.data ?? []).filter((x) => !(x.kind === 'todo' && x.done));
@@ -101,7 +101,7 @@ function useBriefing(m: HomeModel): BLine[] {
   const per = new Map<string, number>();
   for (const x of live) if (x.anchor_type === 'member' && x.anchor_id) per.set(x.anchor_id, (per.get(x.anchor_id) ?? 0) + 1);
   const top = [...per.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (top && top[1] >= 2) out.push({ key: 'mnote', tone: 'slate', icon: StickyNote, text: <>{nameOf(top[0])} 님에 대한 메모가 {n(top[1], '개')} 쌓였어요. 다음 1:1 전에 보세요.</>, go: '팀원 상세를', to: `/people/${top[0]}` });
+  if (top && top[1] >= 2) out.push({ key: 'mnote', tone: 'slate', icon: StickyNote, text: <>{nameOf(top[0])} 님에 대한 메모가 {n(top[1], '개')} 쌓였어요. 다음 1on1 전에 보세요.</>, go: '팀원 상세를', to: `/people/${top[0]}` });
   return out.sort((a, b) => B_ORDER[a.tone] - B_ORDER[b.tone]);
 }
 
@@ -394,7 +394,7 @@ function Tiles({ m }: { m: HomeModel }) {
             under: <People items={members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, lv: pi.idx.get(mb.user_id)?.flight.level }))
               .sort((a, b) => (b.lv === 'risk' ? 2 : b.lv === 'watch' ? 1 : 0) - (a.lv === 'risk' ? 2 : a.lv === 'watch' ? 1 : 0))
               .map(({ mb, lv }) => ({ tone: lv === 'risk' ? 'rose' as const : lv === 'watch' ? 'amber' as const : 'slate' as const, title: `${mb.profiles?.full_name ?? '팀원'} · ${lv === 'risk' ? '이탈 가능성 높음' : lv === 'watch' ? '주의' : '안정'}` }))} /> },
-          { label: '1:1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
+          { label: '1on1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
         ]}
         ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />
       <Tile icon={Building2} title="조직·전사" status={st('org')} to="/upward"
@@ -428,7 +428,7 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
   const proposed = (raw?.items ?? []).filter((i) => i.status === 'proposed').length;
   const upReq = orgNotes.filter((n) => n.status === 'open' && n.kind === 'request' && n.event_date && dDay(n.event_date) <= 7);
   const cols = [
-    { k: '1:1', n: ooUp.length, sub: ooUp.some((o) => isToday(o.scheduled_at)) ? `오늘 ${ooUp.filter((o) => isToday(o.scheduled_at)).length}건` : '이번 주', icon: MessagesSquare, to: '/people', alert: false },
+    { k: '1on1', n: ooUp.length, sub: ooUp.some((o) => isToday(o.scheduled_at)) ? `오늘 ${ooUp.filter((o) => isToday(o.scheduled_at)).length}건` : '이번 주', icon: MessagesSquare, to: '/people', alert: false },
     { k: '리뷰 대기', n: rv.length, sub: rv.length ? (rv.some((r) => r.review) ? 'AI 검토 완료 있음' : 'AI 검토 전') : '없음', icon: FileText, to: '/work', alert: rv.some((r) => daysAgo(r.v?.created_at ?? r.s.created_at) >= 3) },
     { k: '내 약속', n: pr.length, sub: late.length ? `기한 지남 ${late.length}` : '기한 내', icon: CheckCircle2, to: '#', alert: late.length > 0 },
   ];
@@ -438,7 +438,7 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
     answered && { k: `팀원 답변 ${answered}`, to: '/settings?tab=members', icon: Inbox },
   ].filter(Boolean) as { k: string; to: string; icon: typeof Inbox }[];
   const items = [
-    ...ooUp.filter((o) => isToday(o.scheduled_at)).map((o) => ({ key: o.id, node: <Link to={`/one-on-ones/${o.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="font-mono text-xs text-teal-700 font-semibold w-11 shrink-0">{fmtTime(o.scheduled_at)}</span><span className="truncate">{nameOf(o.member_id)} 1:1</span></Link> })),
+    ...ooUp.filter((o) => isToday(o.scheduled_at)).map((o) => ({ key: o.id, node: <Link to={`/one-on-ones/${o.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="font-mono text-xs text-teal-700 font-semibold w-11 shrink-0">{fmtTime(o.scheduled_at)}</span><span className="truncate">{nameOf(o.member_id)} 1on1</span></Link> })),
     ...rv.slice(0, 2).map(({ s }) => ({ key: s.id, node: <Link to={`/work/${s.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="text-[11px] text-sky-700 font-semibold w-11 shrink-0">리뷰</span><span className="truncate">{s.title}</span></Link> })),
     ...pr.slice(0, 3).map((a) => {
       const isLate = a.due_date && a.due_date < today;

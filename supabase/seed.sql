@@ -1,6 +1,6 @@
 -- =====================================================================
 -- ATEAM 데모 데이터 (로컬 개발용: `supabase db reset` 시 자동 실행)
--- 팀장 1 + 팀원 6, 약 26주치 체크인·1:1·결과물·관찰 메모·실적·의사결정.
+-- 팀장 1 + 팀원 6, 약 26주치 체크인·1on1·결과물·관찰 메모·실적·의사결정.
 -- 로그인: Inbucket(로컬 메일함)에서 매직 링크로 leader@demo.ateam 등
 -- ※ 운영 DB에는 넣지 마세요.
 -- =====================================================================
@@ -156,7 +156,7 @@ begin
   exception when undefined_column then null;
   end;
 
-  -- 1:1 (격주, 완료)
+  -- 1on1 (격주, 완료)
   for u in select * from (values (m_kim, 12), (m_park, 11), (m_choi, 10), (m_jung, 9), (m_lee, 5), (m_han, 3)) as x(uid, n) loop
     for i in 1..u.n loop
       insert into one_on_ones (team_id, leader_id, member_id, scheduled_at, status, shared_notes, completed_at)
@@ -190,7 +190,7 @@ begin
   insert into submissions (team_id, author_id, item_id, title, status) values (T, m_choi, t5, '온보딩 개선안', 'in_review') returning id into sub;
   insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by) values
     (sub, T, 1, E'온보딩 개선안\n1. 현황: 신규 입사자 독립 수행까지 평균 3개월\n2. 개선: 버디 제도, 4주 과제 설계', '초안', m_choi),
-    (sub, T, 2, E'온보딩 개선안\n1. 현황: 신규 입사자 독립 수행까지 평균 3개월 (최근 5명 기준)\n2. 개선: 버디 제도, 4주 과제 설계, 2주차 1:1\n3. 측정: 6주차 독립 수행률', '측정 지표 추가', m_choi);
+    (sub, T, 2, E'온보딩 개선안\n1. 현황: 신규 입사자 독립 수행까지 평균 3개월 (최근 5명 기준)\n2. 개선: 버디 제도, 4주 과제 설계, 2주차 1on1\n3. 측정: 6주차 독립 수행률', '측정 지표 추가', m_choi);
 
   -- 지난 결과물 (승인 13건) + 판단 깊이 기록
   for i in 1..13 loop

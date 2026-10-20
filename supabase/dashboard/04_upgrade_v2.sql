@@ -696,7 +696,7 @@ begin
       jsonb_build_object('label', '사용 시작', 'current', 1, 'target', 1))),
     jsonb_build_object('level', 2, 'name', '패턴 발견', 'conditions', jsonb_build_array(
       jsonb_build_object('label', '체크인이 쌓인 주', 'current', v_ci_weeks, 'target', 4, 'unit', '주'),
-      jsonb_build_object('label', '완료된 1:1', 'current', v_oo, 'target', 2 * v_members, 'unit', '회'))),
+      jsonb_build_object('label', '완료된 1on1', 'current', v_oo, 'target', 2 * v_members, 'unit', '회'))),
     jsonb_build_object('level', 3, 'name', '진단', 'conditions', jsonb_build_array(
       jsonb_build_object('label', '판단 근거 ' || v_min_ev || '건 이상인 팀원', 'current', v_elig, 'target', ceil(v_members / 2.0)::int, 'unit', '명'),
       jsonb_build_object('label', '리뷰한 결과물', 'current', v_reviewed, 'target', greatest(12, 5 * v_members), 'unit', '건'))),
@@ -787,7 +787,7 @@ create trigger t_mv_item after insert or update or delete on public.metric_value
 -- =====================================================================
 -- 과금 v2
 --   · 30일 체험 (카드 없음) → 끝나면 Free: 기록 도구는 계속, AI는 잠김
---   · 코어 AI (브리핑·인사이트·1차 검토·1:1 준비·주간보고·계획 수정·셀프 점검)는 구독에 포함, 공정 사용 한도만
+--   · 코어 AI (브리핑·인사이트·1차 검토·1on1 준비·주간보고·계획 수정·셀프 점검)는 구독에 포함, 공정 사용 한도만
 --   · 프리미엄 AI (평가 초안·계획서 초안·노하우 정리·전망/시나리오 해석)는 크레딧
 -- =====================================================================
 alter table public.plans add column if not exists core_monthly_cap int not null default 0;

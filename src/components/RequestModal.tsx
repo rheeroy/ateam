@@ -12,7 +12,7 @@ export const REQUEST_KIND: Record<TeamRequest['kind'], { label: string; example:
   plan: { label: '계획 세우기', example: '이 목표 아래 과제와 일정을 세워 주세요' },
   progress: { label: '진척 공유', example: '진행 상황과 막힌 점을 업데이트해 주세요' },
   share: { label: '자료 올리기', example: '회의 자료를 ATEAM에 올려 주세요' },
-  meeting: { label: '1:1·미팅', example: '이번 주에 30분 이야기 나눠요' },
+  meeting: { label: '1on1·미팅', example: '이번 주에 30분 이야기 나눠요' },
   other: { label: '기타', example: '' },
   grow: { label: '성장 제안', example: '다음에 맡아 볼 성장 과제를 같이 정해 봐요' },
   cheer: { label: '팀장님 격려', example: '요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요' },
@@ -113,7 +113,7 @@ export function ActionRequestModal({ type, toId, name, defaultText, onClose, onS
         </div>
         {!!C.dueDays && <Field label="언제까지" hint="선택"><input type="date" className={inputCls} value={due} onChange={(e) => setDue(e.target.value)} /></Field>}
         {type === 'support' && onScheduleOo && (
-          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="checkbox" className="accent-rose-500" checked={oo} onChange={(e) => setOo(e.target.checked)} />보낸 뒤 바로 1:1 일정도 잡기</label>
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="checkbox" className="accent-rose-500" checked={oo} onChange={(e) => setOo(e.target.checked)} />보낸 뒤 바로 1on1 일정도 잡기</label>
         )}
         <Button type="submit" className="w-full" loading={send.isPending} disabled={!text.trim()}>보내기</Button>
       </form>

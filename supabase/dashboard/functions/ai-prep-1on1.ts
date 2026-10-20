@@ -432,7 +432,7 @@ var weekLabel = (d) => {
 };
 
 // functions/_shared/prompts/index.ts
-var PREP = `\uACFC\uC81C: 1:1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774 2\uBD84 \uC548\uC5D0 \uC77D\uC744 \uC900\uBE44 \uB178\uD2B8\uB97C \uB9CC\uB4ED\uB2C8\uB2E4.
+var PREP = `\uACFC\uC81C: 1on1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774 2\uBD84 \uC548\uC5D0 \uC77D\uC744 \uC900\uBE44 \uB178\uD2B8\uB97C \uB9CC\uB4ED\uB2C8\uB2E4.
 \uAE30\uB85D\uC5D0\uC11C '\uC9C0\uB09C \uBA74\uB2F4 \uC774\uD6C4 \uBB34\uC5C7\uC774 \uBC14\uB00C\uC5C8\uB294\uC9C0'\uC640 '\uC544\uC9C1 \uC774\uC57C\uAE30\uB418\uC9C0 \uC54A\uC740 \uAC83'\uC744 \uCC3E\uB294 \uAC83\uC774 \uD575\uC2EC\uC785\uB2C8\uB2E4.
 \uC9C8\uBB38\uC740 \uD300\uC6D0\uC774 \uC2A4\uC2A4\uB85C \uC0DD\uAC01\uC744 \uB9D0\uD558\uAC8C \uD558\uB294 \uC5F4\uB9B0 \uC9C8\uBB38\uC73C\uB85C, \uD3C9\uAC00\uB098 \uCD94\uAD81\uCC98\uB7FC \uB4E4\uB9AC\uC9C0 \uC54A\uAC8C \uC501\uB2C8\uB2E4.
 
@@ -452,7 +452,7 @@ var PREP = `\uACFC\uC81C: 1:1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
-  "last_time": "\uC9C0\uB09C 1:1 \uC694\uC9C0 1~2\uBB38\uC7A5. \uC5C6\uC73C\uBA74 \uBE48 \uBB38\uC790\uC5F4",
+  "last_time": "\uC9C0\uB09C 1on1 \uC694\uC9C0 1~2\uBB38\uC7A5. \uC5C6\uC73C\uBA74 \uBE48 \uBB38\uC790\uC5F4",
   "since": [{"tag": "E2", "text": "\uADF8 \uC0AC\uC774 \uC788\uC5C8\uB358 \uC77C \uD55C \uC904"}],
   "open_promises": [{"owner": "\uD300\uC7A5 \uB610\uB294 \uD300\uC6D0", "text": "\uC57D\uC18D \uB0B4\uC6A9", "overdue": true}],
   "recent_work": "\uCD5C\uADFC \uACB0\uACFC\uBB3C\uC5D0 \uB300\uD55C \uD55C \uC904. \uC5C6\uC73C\uBA74 \uBE48 \uBB38\uC790\uC5F4",
@@ -489,7 +489,7 @@ function conditionText(c) {
 var NOTE_RULE = `
 
 [\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8] \uADFC\uAC70 \uC911 '\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8'\uB294 \uD300\uC7A5\uC774 \uC790\uAE30\uB9CC \uBCF4\uB824\uACE0 \uC801\uC740 \uC0DD\uAC01\xB7\uAD00\uCC30\uC785\uB2C8\uB2E4. \uC0AC\uC2E4\uB85C \uB2E8\uC815\uD558\uC9C0 \uB9D0\uACE0 \uD310\uB2E8\uC758 \uB9E5\uB77D\uC73C\uB85C\uB9CC \uC4F0\uBA70, \uBA54\uBAA8 \uBB38\uC7A5\uC744 \uADF8\uB300\uB85C \uC62E\uACA8 \uC801\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uD300\uC6D0\uC5D0 \uB300\uD55C \uBA54\uBAA8\uB97C \uD3C9\uAC00\uB098 \uB4F1\uAE09\uC758 \uADFC\uAC70\uB85C \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.`;
-var KIND = { member: "\uD300\uC6D0", item: "\uBAA9\uD45C\xB7\uACFC\uC81C", exec: "\uC0C1\uC704 \uAD00\uB9AC\uC790", decision: "\uACB0\uC815", one_on_one: "1:1", none: "" };
+var KIND = { member: "\uD300\uC6D0", item: "\uBAA9\uD45C\xB7\uACFC\uC81C", exec: "\uC0C1\uC704 \uAD00\uB9AC\uC790", decision: "\uACB0\uC815", one_on_one: "1on1", none: "" };
 async function loadLeaderNotes(teamId, ownerId, opt = {}) {
   let qb = admin.from("leader_notes").select("id, body, kind, anchor_type, anchor_id, anchor_label, updated_at").eq("team_id", teamId).eq("owner_id", ownerId).eq("ai_allowed", true).eq("done", false);
   if (opt.types?.length) qb = qb.in("anchor_type", opt.types);
@@ -518,7 +518,7 @@ serve(async (req) => {
   const { data: last } = await admin.from("one_on_ones").select("id, scheduled_at, shared_notes").eq("team_id", oo.team_id).eq("member_id", oo.member_id).eq("status", "done").lt("scheduled_at", oo.scheduled_at).order("scheduled_at", { ascending: false }).limit(1).maybeSingle();
   const since = last?.scheduled_at ?? new Date(Date.now() - 28 * 864e5).toISOString();
   if (last) {
-    book.add("one_on_one", last.id, `\uC9C0\uB09C 1:1 ${fmtDate(last.scheduled_at)}`, last.shared_notes || "(\uB178\uD2B8 \uC5C6\uC74C)");
+    book.add("one_on_one", last.id, `\uC9C0\uB09C 1on1 ${fmtDate(last.scheduled_at)}`, last.shared_notes || "(\uB178\uD2B8 \uC5C6\uC74C)");
     const { data: priv } = await admin.from("one_on_one_private").select("notes").eq("one_on_one_id", last.id).maybeSingle();
     if (priv?.notes) book.add("leader_note", last.id, `\uD300\uC7A5 \uBA54\uBAA8 ${fmtDate(last.scheduled_at)}`, priv.notes);
   }

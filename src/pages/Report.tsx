@@ -12,7 +12,7 @@ interface WR { highlights: string[]; progress: Row[]; issues: string[]; next_wee
 
 const STATUS_TONE: Record<string, string> = { '정상': 'text-emerald-700 bg-emerald-50', '완료': 'text-emerald-700 bg-emerald-50', '지연 우려': 'text-amber-800 bg-amber-50', '막힘': 'text-rose-700 bg-rose-50' };
 const COUNT_LABEL: Record<string, [string, typeof FileText]> = {
-  checkin: ['팀원 체크인', PenLine], task: ['과제 현황', ClipboardList], leader_note: ['팀장 메모', StickyNote], knowhow: ['내 노하우', BookOpen], one_on_one: ['1:1 기록', MessageSquare], submission: ['승인된 결과물', FileText],
+  checkin: ['팀원 체크인', PenLine], task: ['과제 현황', ClipboardList], leader_note: ['팀장 메모', StickyNote], knowhow: ['내 노하우', BookOpen], one_on_one: ['1on1 기록', MessageSquare], submission: ['승인된 결과물', FileText],
 };
 
 /** 한 줄이 AI 원문과 같으면 AI 문장, 다르면 팀장이 고친 문장 */
@@ -84,7 +84,7 @@ export default function Report() {
           {rep.isLoading ? <Spinner /> : !r || !view ? (
             <Empty icon={<ClipboardList size={18} />} title="이번 주 초안이 아직 없습니다"
               action={<Button loading={gen.isPending} onClick={() => gen.mutate({ team_id: team.id, week_start: week, leader_notes: notes })}>초안 만들기 · 구독 포함</Button>}>
-              팀원 체크인, 과제 현황, 1:1 기록과 오른쪽의 내 메모를 읽고 상위 조직장에게 보낼 보고서 초안을 씁니다. 팀원이 아직 없어도 메모 몇 줄이면 됩니다.
+              팀원 체크인, 과제 현황, 1on1 기록과 오른쪽의 내 메모를 읽고 상위 조직장에게 보낼 보고서 초안을 씁니다. 팀원이 아직 없어도 메모 몇 줄이면 됩니다.
             </Empty>
           ) : (
             <>

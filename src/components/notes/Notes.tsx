@@ -1,4 +1,4 @@
-// 내 메모 — 빠른 메모 창(어디서든) · 대상별 메모 칸(팀원 · 목표 · 임원 · 결정 · 1:1) · 메모 한 줄
+// 내 메모 — 빠른 메모 창(어디서든) · 대상별 메모 칸(팀원 · 목표 · 임원 · 결정 · 1on1) · 메모 한 줄
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowRightLeft, Check, CheckSquare, Lock, Pin, PinOff, Plus, Sparkles, StickyNote, Trash2 } from 'lucide-react';
@@ -23,7 +23,7 @@ export function useAnchorInfo() {
     if (t === 'item') return { label: itemTitle.get(id) ?? (saved || '목표·과제'), to: `/goals?item=${id}` };
     if (t === 'exec') return { label: execName.get(id) ?? (saved || '상위 관리자'), to: '/upward' };
     if (t === 'decision') return { label: saved || '결정 카드', to: '/decide' };
-    if (t === 'one_on_one') return { label: saved || '1:1', to: `/one-on-ones/${id}` };
+    if (t === 'one_on_one') return { label: saved || '1on1', to: `/one-on-ones/${id}` };
     return null;
   };
   const options = {
@@ -65,7 +65,7 @@ export function QuickNote() {
     window.addEventListener(OPEN_NOTE, h);
     return () => window.removeEventListener(OPEN_NOTE, h);
   }, [loc.pathname, loc.search]);
-  const fixed = !PICKABLE.includes(f.anchor_type); // 결정 · 1:1은 그 화면에서만 붙임
+  const fixed = !PICKABLE.includes(f.anchor_type); // 결정 · 1on1은 그 화면에서만 붙임
   const opts = f.anchor_type === 'member' ? options.member : f.anchor_type === 'item' ? options.item : f.anchor_type === 'exec' ? options.exec : [];
   const labelOf = (t: AnchorType, id: string | null) => (t === 'none' || !id ? '' : opts.find((o) => o.id === id)?.label.replace(/^· /, '') ?? f.anchor_label);
   const submit = () => { if (f.body.trim()) save.mutate({ ...f, anchor_label: fixed ? f.anchor_label : labelOf(f.anchor_type, f.anchor_id) }, { onSuccess: () => setOpen(false) }); };
@@ -79,7 +79,7 @@ export function QuickNote() {
         </div>
         <textarea autoFocus rows={4} className={inputCls} value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submit(); } }}
-          placeholder={f.kind === 'todo' ? '예) 다음 1:1에서 교육 예산 얘기 꺼내기' : '생각나는 것, 아이디어, 기억해 둘 것 — 자유롭게'} />
+          placeholder={f.kind === 'todo' ? '예) 다음 1on1에서 교육 예산 얘기 꺼내기' : '생각나는 것, 아이디어, 기억해 둘 것 — 자유롭게'} />
         <div className="grid grid-cols-[auto_1fr] gap-2 items-center text-sm">
           <span className="text-xs text-slate-500">붙이기</span>
           {fixed ? (
@@ -100,7 +100,7 @@ export function QuickNote() {
         </div>
         <div className="flex items-center gap-4 flex-wrap text-sm">
           <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} />맨 위에 고정</label>
-          <label className="flex items-center gap-2 cursor-pointer" title="켜면 1:1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 이 메모를 참고합니다. 평가 초안에는 쓰지 않습니다.">
+          <label className="flex items-center gap-2 cursor-pointer" title="켜면 1on1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 이 메모를 참고합니다. 평가 초안에는 쓰지 않습니다.">
             <input type="checkbox" className="accent-violet-600" checked={f.ai_allowed} onChange={(e) => setF({ ...f, ai_allowed: e.target.checked })} />
             <span className="inline-flex items-center gap-1"><Sparkles size={13} className="text-violet-600" />AI가 참고해도 돼요</span></label>
         </div>
@@ -145,7 +145,7 @@ export function NoteRow({ n, showAnchor = true }: { n: LeaderNote; showAnchor?: 
   );
 }
 
-/** 대상에 붙은 내 메모 칸 — 팀원 상세 · 목표 상세 · 임원 · 결정 · 1:1 */
+/** 대상에 붙은 내 메모 칸 — 팀원 상세 · 목표 상세 · 임원 · 결정 · 1on1 */
 export function NotesBox({ anchor, className, bare, title = '내 메모' }: { anchor: Anchor; className?: string; bare?: boolean; title?: string }) {
   const notes = useNotes(anchor);
   const { save } = useNoteMutations();

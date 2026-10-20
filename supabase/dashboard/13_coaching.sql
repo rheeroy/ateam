@@ -75,6 +75,12 @@ begin
       'CRM 연계, 방향을 한 번 맞추고 가면 훨씬 수월해져요',
       E'지금 보이는 것\n· ''제휴 유입 고객 CRM 연계''가 계획보다 조금 늦어지고 있어요\n· 혼자 맡은 과제인데 최근 3주 동안 진척 공유가 없었어요\n\n왜 중요해요\n제휴 목표와 이어진 과제라, 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· 막힌 부분이 있으면 ''무엇이 필요한지''를 한 줄로 같이 적기\n· 다음 결과물은 초안 단계에서 한 번 먼저 올려 방향 확인받기\n\n권장 시점 · 이번 주 금요일까지',
       now() - interval '2 days');
+    -- 김현정: 받은함 예시 (확인 전)
+    insert into coaching_notes (team_id, member_id, title, body, created_at)
+    select r.team_id, tm.user_id, '임원 보고 장표, 결론을 첫 장에 두면 더 빨리 통과돼요',
+      E'지금 보이는 것\n· 최근 기획서 3건 모두 결론이 마지막 장에 있어요\n· 리뷰 코멘트에 ''그래서 무엇을 결정하면 되나''가 두 번 나왔어요\n\n왜 중요해요\n임원 보고는 첫 1분에 결정할 것이 보여야 질문이 근거 쪽으로 갑니다.\n\n이렇게 해 보세요\n· 첫 장에 결론 한 줄 + 결정 요청 한 줄\n· 근거는 2~3장, 나머지는 부록으로',
+      now() - interval '1 day'
+    from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '김현정' limit 1;
     alter table coaching_notes enable trigger t_coaching_notify;
   end loop;
 end $$;

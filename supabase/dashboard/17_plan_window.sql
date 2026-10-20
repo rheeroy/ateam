@@ -175,7 +175,7 @@ begin
   v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
   if tg_op = 'INSERT' then
     perform public._notify(new.to_id, new.team_id, 'request',
-      case when v_up and new.kind = 'meeting' then '1:1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
+      case when v_up and new.kind = 'meeting' then '1on1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
            when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
       left(new.body, 120),
       case when new.kind = 'change' then '/goals/edit' || case when new.item_id is not null then '?item=' || new.item_id else '' end
@@ -190,7 +190,7 @@ begin
   elsif new.status is distinct from old.status and new.status = 'done' then
     new.responded_at := coalesce(new.responded_at, now());
     perform public._notify(new.from_id, new.team_id, 'request.done',
-      case when v_up and new.kind = 'meeting' then '1:1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
+      case when v_up and new.kind = 'meeting' then '1on1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
            when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
       left(new.response, 120),
       case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end

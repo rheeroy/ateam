@@ -593,7 +593,7 @@ export function MemberStrip({ raw, onMemo, flush }: { raw: Raw; onMemo: (who: st
   };
   const care = new Map((raw.care ?? []).map((c) => [c.user_id, c.signals]));
   const depth = new Map((raw.depth ?? []).map((d) => [d.user_id, d]));
-  const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1:1 공백', checkin_missing: '컨디션 공유 없음' };
+  const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1on1 공백', checkin_missing: '컨디션 공유 없음' };
   return (
     <div className={cx('grid sm:grid-cols-2 gap-x-4 gap-y-0.5', !flush && 'px-5 py-3 border-b border-slate-100')}>
       {members.map((m) => {
@@ -868,7 +868,7 @@ export function AiStrip({ teamId }: { teamId: string }) {
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
         <Sparkles size={16} className="text-violet-600 shrink-0" />
         <span className="flex-1">이번 달 AI가 먼저 해 둔 일 <b className="num">{saved.data?.n ?? 0}</b>건 · 아낀 시간 약 <b className="num">{hours}</b>시간</span>
-        <ProvChip kind="calc" label="추정" sources={['브리핑 20분 · 1:1 준비 15분 · 1차 검토 20분', '주간보고 40분 · 평가 초안 60분 · 영향 분석 15분']} note="AI 초안 1건마다 팀장이 직접 했을 때 걸렸을 시간을 더한 추정치입니다." />
+        <ProvChip kind="calc" label="추정" sources={['브리핑 20분 · 1on1 준비 15분 · 1차 검토 20분', '주간보고 40분 · 평가 초안 60분 · 영향 분석 15분']} note="AI 초안 1건마다 팀장이 직접 했을 때 걸렸을 시간을 더한 추정치입니다." />
       </div>
       <Link to="/insight" className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3 hover:border-violet-300">
         <Layers size={16} className="text-violet-600 shrink-0" />

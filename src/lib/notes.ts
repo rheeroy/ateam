@@ -1,6 +1,6 @@
-// 내 메모 — 팀장 전용 메모. 저장은 한 곳(leader_notes), 붙이는 곳은 여러 군데(팀원 · 목표/과제 · 임원 · 결정 · 1:1)
+// 내 메모 — 팀장 전용 메모. 저장은 한 곳(leader_notes), 붙이는 곳은 여러 군데(팀원 · 목표/과제 · 임원 · 결정 · 1on1)
 //   관찰 메모(observations, 평가 근거)와 다릅니다 — 평가에 쓰지 않고, 팀원에게 보이지 않습니다.
-//   'AI 참고 허용'을 켠 메모만 1:1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 읽습니다.
+//   'AI 참고 허용'을 켠 메모만 1on1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 읽습니다.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, errorText } from './supabase';
 import { useTeam } from '../state/session';
@@ -12,7 +12,7 @@ export interface LeaderNote {
   id: string; team_id: string; owner_id: string; body: string; kind: 'note' | 'todo'; done: boolean;
   anchor_type: AnchorType; anchor_id: string | null; anchor_label: string; pinned: boolean; ai_allowed: boolean; tags: string[]; created_at: string; updated_at: string;
 }
-export const ANCHOR_LABEL: Record<AnchorType, string> = { none: '연결 안 함', member: '팀원', item: '목표·과제', exec: '상위 관리자', decision: '결정', one_on_one: '1:1' };
+export const ANCHOR_LABEL: Record<AnchorType, string> = { none: '연결 안 함', member: '팀원', item: '목표·과제', exec: '상위 관리자', decision: '결정', one_on_one: '1on1' };
 
 /** 어디서든 빠른 메모 창 열기 — 상단바 [메모] 버튼, 각 화면의 '할 일로' */
 export const OPEN_NOTE = 'ateam:open-note';

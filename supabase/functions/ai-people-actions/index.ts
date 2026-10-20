@@ -1,4 +1,4 @@
-// 팀원관리 주간 액션 — 팀원별 사실을 모아 이번 주에 할 관리 행동(1:1 · 칭찬 · 관찰 · 육성 · 독려 · 지원 · 조정)과 업무 수행 경과 판단 (코어 AI)
+// 팀원관리 주간 액션 — 팀원별 사실을 모아 이번 주에 할 관리 행동(1on1 · 칭찬 · 관찰 · 육성 · 독려 · 지원 · 조정)과 업무 수행 경과 판단 (코어 AI)
 // 팀장 요청: {team_id}  /  예약 작업(월요일): {all: true}
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
@@ -69,13 +69,13 @@ async function actionsFor(teamId: string, createdBy: string | null) {
     const facts = [
       `id=${uid}`, `직무 ${m.job_title || '-'}`, `주 가용 ${m.weekly_hours}시간`,
       `컨디션 최근 ${cond.slice(-6).join('→') || '기록 없음'}`,
-      `마지막 1:1 ${done[0] ? `${Math.floor((Date.now() - Date.parse(done[0].scheduled_at)) / DAY)}일 전` : '기록 없음'}${next.length ? ` · 다음 1:1 예정 ${next[0].scheduled_at.slice(0, 10)}` : ''}`,
+      `마지막 1on1 ${done[0] ? `${Math.floor((Date.now() - Date.parse(done[0].scheduled_at)) / DAY)}일 전` : '기록 없음'}${next.length ? ` · 다음 1on1 예정 ${next[0].scheduled_at.slice(0, 10)}` : ''}`,
       `관찰 60일 칭찬 ${ob.filter((o) => o.kind === 'praise').length} · 우려 ${ob.filter((o) => o.kind === 'concern').length} · 메모 ${ob.filter((o) => o.kind === 'note').length}`,
       `결과물 판단 깊이 최근 ${avg(sc.slice(-3)) ?? '-'} (이전 ${avg(sc.slice(-6, -3)) ?? '-'}) /4`,
       `맡은 일 진행 ${active.length}건 · 막힘 ${active.filter((i) => i.status === 'blocked').length} · 계획보다 15%p 이상 늦음 ${behind.length} · 기한 지남 ${overdue.length} · 완료 ${doneRecent.length} · 주당 예상 ${hours}시간`,
       `결과물 45일 ${sb.length}건 (리뷰 중 ${sb.filter((s) => s.status === 'in_review').length} · 보완 요청 ${sb.filter((s) => s.status === 'needs_work').length} · 승인 ${sb.filter((s) => s.status === 'approved').length})`,
       `요청 45일 ${rq.length}건 (기한 안 완료 ${rqOnTime.length} · 기한 지남 ${rqLate.length})`,
-      ...(attn.get(uid) ? [(() => { const a = attn.get(uid)!; return `팀장 접점 28일 ${a.touch} (팀 중앙값 ${medTouch ?? '-'}; 1:1 ${a.oo} · 리뷰 코멘트 ${a.comments} · 관찰 ${a.obs} · 칭찬 ${a.praise} · 요청 ${a.reqs} · 과제 코멘트 ${a.item_comments}) · 리뷰 첫 반응 평균 ${a.resp_hours ?? '-'}시간 · 반응 기다리는 결과물 ${a.waiting}`; })()] : []),
+      ...(attn.get(uid) ? [(() => { const a = attn.get(uid)!; return `팀장 접점 28일 ${a.touch} (팀 중앙값 ${medTouch ?? '-'}; 1on1 ${a.oo} · 리뷰 코멘트 ${a.comments} · 관찰 ${a.obs} · 칭찬 ${a.praise} · 요청 ${a.reqs} · 과제 코멘트 ${a.item_comments}) · 리뷰 첫 반응 평균 ${a.resp_hours ?? '-'}시간 · 반응 기다리는 결과물 ${a.waiting}`; })()] : []),
       `입사 ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}일`,
       (() => { const f = raw ? flagsFor(raw, uid) : []; return `선행 신호 ${f.length ? f.map((x) => `${x.label}(${x.detail})`).join(' · ') : '없음'}`; })(),
     ].join(' / ');

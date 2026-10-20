@@ -1,5 +1,5 @@
 // A·Team의 제안 — 매주 월요일, 팀 성과와 운영을 위한 참모(HR BP·컨설턴트)의 처방
-//   6개 운영 레버(실행 · 인력 · 사람 · 외부 · 팀장 자신 · 운영 체계)를 빠짐없이 점검하고, 처방은 실행 경로(보드 · 요청 · 1:1 · 보고)로 바로 이어진다
+//   6개 운영 레버(실행 · 인력 · 사람 · 외부 · 팀장 자신 · 운영 체계)를 빠짐없이 점검하고, 처방은 실행 경로(보드 · 요청 · 1on1 · 보고)로 바로 이어진다
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, FlaskConical, Telescope, Shuffle, MessageCircleQuestion, CalendarPlus, Check, ClipboardCopy, Eye, Gavel, Lock, Megaphone, RefreshCw, Send, Target } from 'lucide-react';
@@ -168,7 +168,7 @@ function AdviceList({ c, week }: { c: AdvisorOut; week: string }) {
         ? <Link to="/decide" className="text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-slate-100 text-slate-700 inline-flex items-center gap-1"><Gavel size={13} />보드에 올라감<ArrowRight size={12} /></Link>
         : <Button size="sm" onClick={() => toBoard(a)}><Gavel size={13} />의사결정 보드에 올리기</Button>;
       case 'request': return <Button size="sm" onClick={() => setModal({ kind: 'req', a })}><Send size={13} />요청 보내기</Button>;
-      case 'one_on_one': return <Button size="sm" onClick={() => setModal({ kind: 'oo', a })}><CalendarPlus size={13} />1:1 잡기</Button>;
+      case 'one_on_one': return <Button size="sm" onClick={() => setModal({ kind: 'oo', a })}><CalendarPlus size={13} />1on1 잡기</Button>;
       case 'report': return <><Button size="sm" onClick={() => copy(a, '보고 문장을 복사했습니다')} disabled={!a.script}><Megaphone size={13} />보고 문장 복사</Button>
         <Link to="/upward" className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5">임원 브리핑<ArrowRight size={12} /></Link></>;
       case 'calendar': return a.script ? <Button size="sm" variant="secondary" onClick={() => copy(a, '공지 문장을 복사했습니다')}><ClipboardCopy size={13} />공지 문장 복사</Button> : null;

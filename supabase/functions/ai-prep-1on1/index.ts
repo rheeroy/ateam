@@ -1,4 +1,4 @@
-// 1:1 준비 노트 — 지난 면담 이후 바뀐 것, 남은 약속, 오늘 물어볼 질문
+// 1on1 준비 노트 — 지난 면담 이후 바뀐 것, 남은 약속, 오늘 물어볼 질문
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, weekLabel, addKnowhow } from '../_shared/gateway.ts';
@@ -18,7 +18,7 @@ serve(async (req) => {
   const member = must(await admin.from('profiles').select('id, full_name').eq('id', oo.member_id).maybeSingle());
   const book = new SourceBook();
 
-  // 지난 1:1 (완료된 것 중 가장 최근)
+  // 지난 1on1 (완료된 것 중 가장 최근)
   const { data: last } = await admin
     .from('one_on_ones')
     .select('id, scheduled_at, shared_notes')
@@ -27,7 +27,7 @@ serve(async (req) => {
     .order('scheduled_at', { ascending: false }).limit(1).maybeSingle();
   const since = last?.scheduled_at ?? new Date(Date.now() - 28 * 86400000).toISOString();
   if (last) {
-    book.add('one_on_one', last.id, `지난 1:1 ${fmtDate(last.scheduled_at)}`, last.shared_notes || '(노트 없음)');
+    book.add('one_on_one', last.id, `지난 1on1 ${fmtDate(last.scheduled_at)}`, last.shared_notes || '(노트 없음)');
     const { data: priv } = await admin.from('one_on_one_private').select('notes').eq('one_on_one_id', last.id).maybeSingle();
     if (priv?.notes) book.add('leader_note', last.id, `팀장 메모 ${fmtDate(last.scheduled_at)}`, priv.notes);
   }
@@ -68,7 +68,7 @@ serve(async (req) => {
     .from('observations').select('id, kind, body, occurred_at')
     .eq('team_id', oo.team_id).eq('subject_id', oo.member_id).gte('occurred_at', since.slice(0, 10)).limit(5);
   for (const o of obs ?? []) book.add('observation', o.id, `관찰 메모 ${fmtDate(o.occurred_at)}`, `[${o.kind}] ${o.body}`);
-  // 팀장 개인 메모 — 이 팀원(또는 이 1:1)에 붙이고 AI 참고를 허용한 것
+  // 팀장 개인 메모 — 이 팀원(또는 이 1on1)에 붙이고 AI 참고를 허용한 것
   await addLeaderNotes(book, oo.team_id, oo.leader_id, { types: ['member', 'one_on_one'], ids: [oo.member_id, oo.id], limit: 6, nameOf: () => member.full_name });
 
   // 담당 목표·과제 (계획 대비)

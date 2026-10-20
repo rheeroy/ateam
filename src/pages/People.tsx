@@ -13,7 +13,7 @@ import { AiChip } from '../components/AiBar';
 import { MemoModal, Sparkline, STATUS_META, useHomeModel, type InsightItem } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
 
-export const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1:1 공백', checkin_missing: '컨디션 공유 없음' };
+export const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1on1 공백', checkin_missing: '컨디션 공유 없음' };
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
 /** AI 해석 중 이 사람을 언급한 항목 */
 export const aiAbout = (items: InsightItem[], name?: string | null) => (name ? items.filter((it) => `${it.title} ${it.body}`.includes(name)) : []);
@@ -47,12 +47,12 @@ export default function People() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">팀원관리
               {st && <span className={cx('text-xs font-semibold border rounded-full px-2 py-0.5', st.cls)}>{st.label}</span>}</h1>
-            <p className="text-sm text-slate-500">매주 AI가 누구에게 무엇을 할지 추천합니다 — 1:1 · 칭찬 · 관찰 · 육성 · 독려</p>
+            <p className="text-sm text-slate-500">매주 AI가 누구에게 무엇을 할지 추천합니다 — 1on1 · 칭찬 · 관찰 · 육성 · 독려</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => openMemo()} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><StickyNote size={15} />관찰 메모</button>
-          <button onClick={() => setOo({ open: true, who: null })} className="text-sm rounded-xl px-3 py-2 bg-teal-600 text-white hover:bg-teal-700 inline-flex items-center gap-1.5"><CalendarPlus size={15} />1:1 잡기</button>
+          <button onClick={() => setOo({ open: true, who: null })} className="text-sm rounded-xl px-3 py-2 bg-teal-600 text-white hover:bg-teal-700 inline-flex items-center gap-1.5"><CalendarPlus size={15} />1on1 잡기</button>
         </div>
       </div>
 
@@ -63,7 +63,7 @@ export default function People() {
         <div className="grid grid-cols-2 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-slate-100">
           <Stat label="팀 컨디션 (5점)" value={k.cond} sub={`이번 주 공유 ${k.ciThis}/${k.nMem}명`} viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="teal" w={84} h={28} />} />
           <Stat label="이탈 가능성" value={`${flightHigh} · ${flightMid}`} tone={flightHigh ? 'rose' : flightMid ? 'amber' : undefined} sub="높음 · 주의 (명)" />
-          <Stat label="1:1 2주 넘게 없음" value={ooGap} tone={ooGap ? 'amber' : undefined} sub={`팀원 ${members.length}명 중`} />
+          <Stat label="1on1 2주 넘게 없음" value={ooGap} tone={ooGap ? 'amber' : undefined} sub={`팀원 ${members.length}명 중`} />
           <Stat label="팀장 관심 부족" value={pi.attn.length ? attnLow : '—'} tone={attnLow ? 'amber' : undefined}
             sub={skew ? `접점 ${skew.top2}%가 2명에게 몰림` : '최근 4주 · 앱 기록 기준'} />
           <Stat label="업무 과부하" value={over} tone={over ? 'amber' : undefined} sub="가용 시간 110% 초과" />
@@ -98,7 +98,7 @@ function Stat({ label, value, sub, tone, viz }: { label: string; value: ReactNod
 }
 
 // ---------------------------------------------------------------------
-// 팀원 카드 — 표준 지표 6개 (컨디션 · 이탈 가능성 · 업무 부하 · 성장 · 1:1 · 평가 근거)
+// 팀원 카드 — 표준 지표 6개 (컨디션 · 이탈 가능성 · 업무 부하 · 성장 · 1on1 · 평가 근거)
 // ---------------------------------------------------------------------
 export function IndexGrid({ ix, cols = 3 }: { ix?: MemberIndex; cols?: 3 | 6 | 7 }) {
   if (!ix) return null;

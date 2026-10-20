@@ -146,7 +146,7 @@ export default function Evaluation() {
             <ProvBlock rail className="bg-white rounded-2xl border border-slate-200 p-6">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div><div className="text-lg font-bold">{member.full_name} · {member.job_title}</div>
-                  <div className="text-sm text-slate-500">1:1 {member.one_on_ones}회 · 결과물 {member.submissions}건 · 관찰 메모 {member.observations}건</div></div>
+                  <div className="text-sm text-slate-500">1on1 {member.one_on_ones}회 · 결과물 {member.submissions}건 · 관찰 메모 {member.observations}건</div></div>
                 <div className="flex items-center gap-2">
                   {d && <ProvChip kind={kindFromStatus(d.status)} label={d.status === 'withheld' ? '판단 보류' : d.status === 'final' ? '팀장 확정' : d.status === 'edited' ? 'AI 초안 · 팀장 수정' : 'AI 초안'}
                     sources={d.sources} level={d.level} depth={d.depth} note="문장마다 근거 태그를 달았습니다. 근거 없는 문장은 쓰지 않습니다. 예상 등급은 시뮬레이션이고, 최종 등급은 팀장이 정합니다." />}
@@ -157,7 +157,7 @@ export default function Evaluation() {
               {draft.isLoading ? <Spinner /> : !d ? (
                 <Empty icon={<Sparkles size={18} />} title={`${period.label} 초안이 없습니다`}
                   action={<Button loading={gen.isPending} onClick={run}>{member.eligible ? '예상 등급 · 초안 만들기 · 5 크레딧' : '근거 확인하기 (크레딧 차감 없음)'}</Button>}>
-                  {member.eligible ? '이 기간의 결과물·관찰 메모·리뷰 코멘트·1:1 기록을 근거로 초안을 씁니다.' : `판단 근거가 ${member.judgment_evidence}건이라 기준에 못 미칩니다. 요청해도 AI는 판단을 보류합니다.`}
+                  {member.eligible ? '이 기간의 결과물·관찰 메모·리뷰 코멘트·1on1 기록을 근거로 초안을 씁니다.' : `판단 근거가 ${member.judgment_evidence}건이라 기준에 못 미칩니다. 요청해도 AI는 판단을 보류합니다.`}
                 </Empty>
               ) : d.status === 'withheld' ? (
                 <div className="mt-5 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-5 text-sm">
@@ -207,7 +207,7 @@ export default function Evaluation() {
             <Card className="p-6">
               <div className="font-semibold flex items-center gap-2 flex-wrap">근거 타임라인 <span className="text-sm font-normal text-slate-400">{period.label}</span>
                 <Link to={`/people/${sel}`} className="ml-auto text-xs text-teal-700 font-semibold">팀원 페이지 →</Link></div>
-              <p className="mt-1 text-xs text-slate-500">일하면서 자동으로 쌓인 근거입니다 — 따로 정리하지 않아도 1:1·리뷰 피드백·결과물·관찰 메모·업무 완료가 여기에 모입니다.</p>
+              <p className="mt-1 text-xs text-slate-500">일하면서 자동으로 쌓인 근거입니다 — 따로 정리하지 않아도 1on1·리뷰 피드백·결과물·관찰 메모·업무 완료가 여기에 모입니다.</p>
               {!!ev.data?.length && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {Object.entries(ev.data.reduce<Record<string, number>>((a, e) => ({ ...a, [e.source]: (a[e.source] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]).map(([k, n]) => (

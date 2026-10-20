@@ -43,7 +43,7 @@ async function insightFor(teamId: string, period: Period, createdBy: string | nu
     const today = kstToday();
     const { data: oos } = await admin.from('one_on_ones').select('id, member_id, scheduled_at').eq('team_id', teamId).eq('status', 'scheduled')
       .gte('scheduled_at', `${today}T00:00:00+09:00`).lt('scheduled_at', `${addDaysYmd(today, 1)}T00:00:00+09:00`);
-    for (const o of oos ?? []) book.add('one_on_one', o.id, `오늘 1:1 · ${nameOf.get(o.member_id)}`, `예정 ${o.scheduled_at.slice(11, 16)}`);
+    for (const o of oos ?? []) book.add('one_on_one', o.id, `오늘 1on1 · ${nameOf.get(o.member_id)}`, `예정 ${o.scheduled_at.slice(11, 16)}`);
   }
   if (book.size === 0) return null;
   await addKnowhow(book, teamId, 'briefing', 1500);

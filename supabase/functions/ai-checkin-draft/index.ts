@@ -44,7 +44,7 @@ serve(async (req) => {
     .or(`responded_at.gte.${from},status.eq.open`).limit(8);
   for (const r of reqs ?? []) book.add('request', r.id, `팀장 요청 '${r.title}'`, r.status === 'done' ? `이번 주 답함${r.response ? ` — ${r.response}` : ''}` : `아직 열림${r.due_date ? ` · 기한 ${r.due_date}` : ''}`);
   const { data: acts } = await admin.from('action_items').select('id, title, done_at, due_date').eq('team_id', team_id).eq('owner_id', uid).or(`done_at.gte.${from},done_at.is.null`).limit(8);
-  for (const a of acts ?? []) book.add('promise', a.id, `1:1 약속 '${a.title}'`, a.done_at ? '이번 주 완료' : `남음${a.due_date ? ` · ${a.due_date}` : ''}`);
+  for (const a of acts ?? []) book.add('promise', a.id, `1on1 약속 '${a.title}'`, a.done_at ? '이번 주 완료' : `남음${a.due_date ? ` · ${a.due_date}` : ''}`);
 
   if (book.size === 0) throw new HttpError(422, 'NO_DATA', '이번 주 앱에 남은 기록이 아직 없어 초안을 만들지 못했습니다. 직접 적어 주세요.');
   const { output } = await runAi({

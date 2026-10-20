@@ -36,12 +36,12 @@ function PrepPanel({ oo, onAddQuestion }: { oo: OneOnOne; onAddQuestion: (q: str
       {prep.isLoading ? <Spinner /> : !p ? (
         <Empty icon={<Sparkles size={18} />} title="면담 전 2분 요약"
           action={<Button loading={gen.isPending} onClick={() => gen.mutate({ one_on_one_id: oo.id })}>준비 노트 만들기 · 구독 포함</Button>}>
-          지난 1:1 이후의 컨디션 공유, 남은 약속, 최근 결과물을 읽고 오늘 물어볼 질문을 정리합니다.
+          지난 1on1 이후의 컨디션 공유, 남은 약속, 최근 결과물을 읽고 오늘 물어볼 질문을 정리합니다.
         </Empty>
       ) : (
         <div className="p-5 space-y-5 text-sm">
           {p.content.last_time && (
-            <div><div className="text-xs font-semibold text-slate-400 mb-1.5">지난 1:1</div>
+            <div><div className="text-xs font-semibold text-slate-400 mb-1.5">지난 1on1</div>
               <p className="leading-relaxed text-slate-700"><TaggedText text={p.content.last_time} sources={p.sources} /></p></div>
           )}
           {!!p.content.since?.length && (
@@ -94,7 +94,7 @@ function ActionItems({ oo }: { oo: OneOnOne }) {
   });
   return (
     <Card className="p-5">
-      <div className="flex items-center justify-between"><div className="font-semibold flex items-center gap-2"><ListChecks size={16} className="text-indigo-600" />액션아이템</div><span className="text-xs text-slate-400">다음 1:1 준비 노트에서 자동으로 확인합니다</span></div>
+      <div className="flex items-center justify-between"><div className="font-semibold flex items-center gap-2"><ListChecks size={16} className="text-indigo-600" />액션아이템</div><span className="text-xs text-slate-400">다음 1on1 준비 노트에서 자동으로 확인합니다</span></div>
       <ul className="mt-3 space-y-2 text-sm">
         {(items.data ?? []).map((a) => (
           <li key={a.id} className="flex items-center gap-2.5 rounded-lg border border-slate-100 px-3 py-2">
@@ -165,7 +165,7 @@ export default function OneOnOneDetail() {
     <section>
       <PageHeader
         back={<Link to={isLeader ? '/people' : '/my/one-on-ones'} className="text-sm text-slate-500 hover:text-slate-800">← 목록으로</Link>}
-        title={isLeader ? `${nameOf(o.member_id)} 님과의 1:1` : `${nameOf(o.leader_id)} 팀장님과의 1:1`}
+        title={isLeader ? `${nameOf(o.member_id)} 님과의 1on1` : `${nameOf(o.leader_id)} 팀장님과의 1on1`}
         sub={`${fmtDate(o.scheduled_at, true)} ${fmtTime(o.scheduled_at)} · ${o.duration_min}분`}
         right={o.status === 'done' ? <Pill tone="emerald"><CheckCircle2 size={12} />완료됨</Pill>
           : isLeader ? <Button loading={complete.isPending} onClick={() => complete.mutate()}><CheckCircle2 size={15} />면담 완료로 기록</Button> : <Pill>예정</Pill>}

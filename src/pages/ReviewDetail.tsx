@@ -289,7 +289,7 @@ export default function ReviewDetail() {
         </div>
       )}
       {isAuthor && sub.status === 'approved' && (
-        <div className="mt-4 rounded-2xl bg-emerald-50 ring-1 ring-emerald-200 px-4 py-3 text-sm text-emerald-900 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" />승인됐어요. 수고했어요 — 내 기록에 남습니다.</div>
+        <div className="mt-4 rounded-2xl bg-emerald-50 ring-1 ring-emerald-200 px-4 py-3 text-sm text-emerald-900 flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" />승인됐어요. 수고했어요 — 성과 기록으로 남습니다.</div>
       )}
 
       <div className="mt-5 grid lg:grid-cols-5 gap-5 items-start">

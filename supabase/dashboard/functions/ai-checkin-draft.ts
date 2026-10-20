@@ -445,7 +445,7 @@ serve(async (req) => {
   const { data: reqs } = await admin.from("team_requests").select("id, title, status, response, responded_at, due_date").eq("team_id", team_id).eq("to_id", uid).or(`responded_at.gte.${from},status.eq.open`).limit(8);
   for (const r of reqs ?? []) book.add("request", r.id, `\uD300\uC7A5 \uC694\uCCAD '${r.title}'`, r.status === "done" ? `\uC774\uBC88 \uC8FC \uB2F5\uD568${r.response ? ` \u2014 ${r.response}` : ""}` : `\uC544\uC9C1 \uC5F4\uB9BC${r.due_date ? ` \xB7 \uAE30\uD55C ${r.due_date}` : ""}`);
   const { data: acts } = await admin.from("action_items").select("id, title, done_at, due_date").eq("team_id", team_id).eq("owner_id", uid).or(`done_at.gte.${from},done_at.is.null`).limit(8);
-  for (const a of acts ?? []) book.add("promise", a.id, `1:1 \uC57D\uC18D '${a.title}'`, a.done_at ? "\uC774\uBC88 \uC8FC \uC644\uB8CC" : `\uB0A8\uC74C${a.due_date ? ` \xB7 ${a.due_date}` : ""}`);
+  for (const a of acts ?? []) book.add("promise", a.id, `1on1 \uC57D\uC18D '${a.title}'`, a.done_at ? "\uC774\uBC88 \uC8FC \uC644\uB8CC" : `\uB0A8\uC74C${a.due_date ? ` \xB7 ${a.due_date}` : ""}`);
   if (book.size === 0) throw new HttpError(422, "NO_DATA", "\uC774\uBC88 \uC8FC \uC571\uC5D0 \uB0A8\uC740 \uAE30\uB85D\uC774 \uC544\uC9C1 \uC5C6\uC5B4 \uCD08\uC548\uC744 \uB9CC\uB4E4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC9C1\uC811 \uC801\uC5B4 \uC8FC\uC138\uC694.");
   const { output } = await runAi({
     teamId: team_id,

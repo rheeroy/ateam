@@ -62,7 +62,7 @@ begin
 end $$;
 create trigger t_obs_log after insert or update on public.observations for each row execute function public.trg_observation();
 
--- 1:1 완료
+-- 1on1 완료
 create or replace function public.trg_one_on_one() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
@@ -70,13 +70,13 @@ begin
     new.completed_at := coalesce(new.completed_at, now());
     perform log_event(new.team_id, 'one_on_one.done', 'one_on_ones', new.id, new.member_id);
     perform upsert_evidence(new.team_id, new.member_id, 'one_on_one', new.id,
-      '1:1 — ' || left(new.shared_notes, 300), 'neutral', null, new.scheduled_at);
+      '1on1 — ' || left(new.shared_notes, 300), 'neutral', null, new.scheduled_at);
   end if;
   return new;
 end $$;
 create trigger t_oo_log before insert or update on public.one_on_ones for each row execute function public.trg_one_on_one();
 
--- 팀장 메모 (1:1 비공개)
+-- 팀장 메모 (1on1 비공개)
 create or replace function public.trg_oo_private() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_member uuid; v_at timestamptz;
@@ -312,7 +312,7 @@ begin
         case when array_length(l.conds, 1) = 3 and l.conds[1] < l.conds[2] and l.conds[2] < l.conds[3] and l.conds[1] <= 3
              then jsonb_build_object('type', 'condition_down', 'label', '컨디션 ' || l.conds[3] || ' → ' || l.conds[2] || ' → ' || l.conds[1]) end,
         case when coalesce(oo.last_at, m.joined_at) < now() - interval '14 days'
-             then jsonb_build_object('type', 'no_one_on_one', 'label', '1:1 ' || extract(day from now() - coalesce(oo.last_at, m.joined_at))::int || '일째 없음') end,
+             then jsonb_build_object('type', 'no_one_on_one', 'label', '1on1 ' || extract(day from now() - coalesce(oo.last_at, m.joined_at))::int || '일째 없음') end,
         case when extract(isodow from now()) >= 3 and (l.weeks is null or l.weeks[1] < date_trunc('week', now())::date)
              then jsonb_build_object('type', 'checkin_missing', 'label', '이번 주 체크인 미제출') end,
         case when array_length(l.blocks, 1) >= 2 and l.blocks[1] <> '' and l.blocks[2] <> '' and l.weeks[1] - l.weeks[2] <= 7
@@ -327,7 +327,7 @@ begin
   order by (select count(*) from jsonb_array_elements(s.arr) e where e <> 'null'::jsonb) desc;
 end $$;
 
--- 판단 근거 = 결과물·관찰·리뷰 코멘트·팀장 메모 (체크인·1:1 기록은 맥락)
+-- 판단 근거 = 결과물·관찰·리뷰 코멘트·팀장 메모 (체크인·1on1 기록은 맥락)
 create or replace function public.member_data_depth(p_team uuid)
 returns table (user_id uuid, full_name text, job_title text, checkin_weeks int, one_on_ones int,
                submissions int, observations int, judgment_evidence int, eligible boolean, can_see text)
@@ -398,7 +398,7 @@ begin
       jsonb_build_object('label', '사용 시작', 'current', 1, 'target', 1))),
     jsonb_build_object('level', 2, 'name', '패턴 발견', 'conditions', jsonb_build_array(
       jsonb_build_object('label', '체크인이 쌓인 주', 'current', v_ci_weeks, 'target', 4, 'unit', '주'),
-      jsonb_build_object('label', '완료된 1:1', 'current', v_oo, 'target', 2 * v_members, 'unit', '회'))),
+      jsonb_build_object('label', '완료된 1on1', 'current', v_oo, 'target', 2 * v_members, 'unit', '회'))),
     jsonb_build_object('level', 3, 'name', '진단', 'conditions', jsonb_build_array(
       jsonb_build_object('label', '판단 근거 ' || v_min_ev || '건 이상인 팀원', 'current', v_elig, 'target', ceil(v_members / 2.0)::int, 'unit', '명'),
       jsonb_build_object('label', '리뷰한 결과물', 'current', v_reviewed, 'target', greatest(12, 5 * v_members), 'unit', '건'))),

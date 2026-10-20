@@ -9,7 +9,7 @@ import type { AppNotification } from '../lib/types';
 import { cx, daysAgo, fmtShort } from '../lib/format';
 
 export function Notifications() {
-  const { session, team } = useSession();
+  const { session, team, isLeader } = useSession();
   const uid = session?.user.id;
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -30,7 +30,9 @@ export function Notifications() {
   const go = async (n: AppNotification) => {
     setOpen(false);
     if (!n.read_at) { await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id); qc.invalidateQueries({ queryKey: ['notifications'] }); }
-    if (n.link) nav(n.link);
+    // 팀원에게 온 팀장 요청 알림은 예전 링크가 '/'(업무플랫폼) — 받은 곳(팀장님과)으로
+    const link = !isLeader && n.link === '/' && /^(request|praise|coaching)/.test(n.kind) ? '/my/one-on-ones' : n.link;
+    if (link) nav(link);
   };
   const readAll = async () => {
     await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', uid!).is('read_at', null);

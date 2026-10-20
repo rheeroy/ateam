@@ -130,9 +130,19 @@ begin
     insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
       (T, L, m_lee, 'cheer', '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.', '', now() - interval '1 day'),
       (T, L, m_choi, 'grow', '다음 분기에 콘텐츠 운영 전체를 맡아 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', now() - interval '2 days');
-    -- 팀원 → 팀장 1:1 요청 (팀원 앱에서 '1:1 요청하기')
+    -- 팀원 → 팀장 1on1 요청 (팀원 앱에서 '1on1 요청하기')
     insert into team_requests (team_id, from_id, to_id, kind, title, body, created_at) values
       (T, m_lee, L, 'meeting', 'CRM 연계 방향이 맞는지 한번 같이 보고 싶어요', '', now() - interval '5 hours');
+  exception when others then null;
+  end;
+  -- 김현정: '팀장님과' 받은함 예시 (열린 것 · 답한 것이 섞이게)
+  begin
+    insert into team_requests (team_id, from_id, to_id, kind, title, body, due_date, created_at) values
+      (T, L, m_kim, 'meeting', '목요일 30분, 런칭 FGI 결과 같이 봐요', '정리 안 된 상태로 가져와도 됩니다', current_date + 2, now() - interval '6 hours'),
+      (T, L, m_kim, 'grow', '하반기 신규 브랜드 론칭을 리드해 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', null, now() - interval '3 days');
+    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, status, response, responded_at, created_at) values
+      (T, L, m_kim, 'share', t1, '런칭 기획서 v2 올려 주세요', '임원 보고 전에 한 번 보고 싶어요', 'done', '업무플랫폼에 v2 올렸습니다', now() - interval '19 days', now() - interval '20 days'),
+      (T, L, m_kim, 'cheer', null, '임원 보고 준비하느라 고생 많았어요. 이번 주는 조금 쉬어 가요', '', 'done', '감사합니다. 금요일 오후 반차 쓰겠습니다', now() - interval '9 days', now() - interval '10 days');
   exception when others then null;
   end;
   -- 팀원 → 팀장 목표 변경 요청 (22_plan_window 이후에만 들어감)
@@ -210,7 +220,7 @@ begin
   exception when undefined_column then null;
   end;
 
-  -- 1:1 (격주, 완료)
+  -- 1on1 (격주, 완료)
   for u in select * from (values (m_kim, 12), (m_park, 11), (m_choi, 10), (m_jung, 9), (m_lee, 5), (m_han, 3)) as x(uid, n) loop
     for i in 1..u.n loop
       insert into one_on_ones (team_id, leader_id, member_id, scheduled_at, status, shared_notes, completed_at)
@@ -228,7 +238,7 @@ begin
     (T, m_kim, 'FGI 설계안 초안', current_date + 2, L),
     (T, L, '4분기 광고 예산 재배분 확인', current_date + 4, L);
 
-  -- 팀장 노하우: 일 잘하는 방식 · 좋은 결과물의 기준 (AI 검토 · 코칭 · 1:1 준비 · 보고가 읽는다)
+  -- 팀장 노하우: 일 잘하는 방식 · 좋은 결과물의 기준 (AI 검토 · 코칭 · 1on1 준비 · 보고가 읽는다)
   begin
     insert into knowhow_cards (team_id, owner_id, kind, title, body, rules, applies_to, keywords, pinned, shared, provenance, use_count, last_used_at, created_at) values
       (T, L, 'principle', '결론부터, 한 장으로', '보고는 첫 줄에 결론(무엇을 하자는지, 무엇을 정해 달라는지)을 쓰고 근거는 그 아래에 둔다. 첫 장만 읽어도 판단할 수 있어야 한다.',
@@ -243,8 +253,8 @@ begin
         '["결론 → 배경 → 대안 → 리스크 → 다음 행동"]'::jsonb, '{review,report}', '{구조,양식}', false, true, 'human', 7, now() - interval '6 days', now() - interval '90 days'),
       (T, L, 'principle', '막히면 이틀 안에 말한다', '혼자 오래 붙들수록 손해다. 막힌 지 이틀이 되면 무엇이 필요한지 한 줄로 공유한다. 도움을 청하는 건 약점이 아니다.',
         '["막힘은 2일 안에 공유", "무엇이 필요한지 함께 쓴다"]'::jsonb, '{review,prep,briefing}', '{막힘,공유}', false, true, 'human', 5, now() - interval '5 days', now() - interval '80 days'),
-      (T, L, 'coaching', '1:1은 사람 먼저', '1:1 첫 10분은 업무가 아니라 컨디션과 어려움을 묻는다. 해결책보다 먼저 듣고, 약속은 하나만 정한다.',
-        '["첫 10분은 사람 이야기", "약속은 하나만, 날짜와 함께"]'::jsonb, '{prep}', '{1:1,코칭}', false, false, 'human', 8, now() - interval '2 days', now() - interval '70 days'),
+      (T, L, 'coaching', '1on1은 사람 먼저', '1on1 첫 10분은 업무가 아니라 컨디션과 어려움을 묻는다. 해결책보다 먼저 듣고, 약속은 하나만 정한다.',
+        '["첫 10분은 사람 이야기", "약속은 하나만, 날짜와 함께"]'::jsonb, '{prep}', '{1on1,코칭}', false, false, 'human', 8, now() - interval '2 days', now() - interval '70 days'),
       (T, L, 'context', '하반기 우리 팀 우선순위', '하반기 최우선은 신제품 런칭과 제휴 채널 확대. 전사 비용 15% 절감 방침이 있어, 예산이 드는 안은 CAC 근거를 함께 낸다.',
         '["런칭·제휴가 최우선", "예산 안에는 CAC 근거"]'::jsonb, '{review,strategy,briefing,prep}', '{우선순위,예산,CAC}', true, false, 'human', 10, now() - interval '1 day', now() - interval '40 days');
   exception when others then null;
@@ -385,7 +395,7 @@ begin
       "sections": {
         "risk": {"summary": "리스크가 한 곳으로 몰리는 구조입니다 — 외부 데이터 의존 하나가 목표·일정·담당자 컨디션을 동시에 끌어내리고 있어, 이 의존을 풀지 않으면 다른 조치가 효과를 내기 어렵습니다.", "items": [
           {"type": "risk", "severity": 3, "title": "제휴 채널: 데이터 막힘 → 제안서 지연 → 달성 가능성 12%", "body": "원인이 하나라 풀리면 세 가지가 같이 풀립니다.", "action": "B사 데이터 대체안 이번 주 확정", "link": "goals"},
-          {"type": "risk", "severity": 2, "title": "이동욱 님 이탈 신호", "body": "컨디션 3주 하락과 1:1 공백이 겹칩니다.", "action": "이번 주 1:1", "link": "one_on_ones"}]},
+          {"type": "risk", "severity": 2, "title": "이동욱 님 이탈 신호", "body": "컨디션 3주 하락과 1on1 공백이 겹칩니다.", "action": "이번 주 1on1", "link": "one_on_ones"}]},
         "decide": {"summary": "결정이 미뤄지며 비용이 쌓이는 국면입니다 — 목표를 지킬지 조정할지 정하지 않은 채 실행만 이어지고 있어, 이번 주 판단이 분기 결과를 가릅니다.", "items": [
           {"type": "risk", "severity": 3, "title": "제휴 목표(20만 명)를 조정할지, 데이터 지원을 요청해 지킬지", "body": "제안서 막힘이 목표 전망을 끌어내립니다. 전사 비용 절감 방침상 제휴 채널은 예산 우선 대상이라 지원 요청의 명분이 있습니다.", "action": "이번 주 안에 결정, 정우성 님과 15분", "link": "sim",
             "options": ["영업본부에 B사 데이터 협조를 공식 요청해 목표 유지", "목표를 16만 명으로 낮추고 런칭 캠페인에 인력 집중", "제안서 범위를 B사 제외 2개사로 줄여 일정 우선"],
@@ -399,8 +409,8 @@ begin
         "perf": {"summary": "성과는 순항과 정체로 갈려 있습니다 — 문제는 실행력보다 외부에 기대는 과제에 대체 경로가 없는 계획 구조이고, 그 한 축이 팀 전망 평균을 끌어내립니다.", "items": [
           {"type": "forecast", "severity": 2, "title": "제안서 지연이 제휴 목표 전망의 핵심 원인", "body": "최근 3주 진척 속도가 거의 0입니다.", "action": "B사 데이터 대체안으로 범위 축소", "link": "goals"},
           {"type": "good", "severity": 1, "title": "런칭 캠페인 달성 가능성 94%", "body": "FGI·랜딩 페이지가 일정대로 갑니다.", "link": "goals"}]},
-        "people": {"summary": "팀원관리가 흔들리는 건 개인 문제보다 운영 리듬 때문입니다 — 1:1 간격이 벌어진 시기에 막힘을 혼자 끌어안는 패턴이 겹쳐 컨디션이 같이 꺾였고, 성장·인정은 일부에게만 몰려 있습니다.", "items": [
-          {"type": "risk", "severity": 3, "title": "이동욱 님 3주 연속 컨디션 하락 (4 → 3 → 2)", "body": "1:1이 3주 넘게 없고, CRM 자동화 과제는 혼자 맡고 있습니다. 업무량보다 방향 불확실이 원인일 수 있습니다.", "action": "이번 주 안에 1:1 — 과제 우선순위부터 물어보기", "link": "one_on_ones"},
+        "people": {"summary": "팀원관리가 흔들리는 건 개인 문제보다 운영 리듬 때문입니다 — 1on1 간격이 벌어진 시기에 막힘을 혼자 끌어안는 패턴이 겹쳐 컨디션이 같이 꺾였고, 성장·인정은 일부에게만 몰려 있습니다.", "items": [
+          {"type": "risk", "severity": 3, "title": "이동욱 님 3주 연속 컨디션 하락 (4 → 3 → 2)", "body": "1on1이 3주 넘게 없고, CRM 자동화 과제는 혼자 맡고 있습니다. 업무량보다 방향 불확실이 원인일 수 있습니다.", "action": "이번 주 안에 1on1 — 과제 우선순위부터 물어보기", "link": "one_on_ones"},
           {"type": "risk", "severity": 2, "title": "정우성 님 2주째 같은 문제로 막힘", "body": "본인 힘으로 풀 수 없는 외부 데이터 문제라, 팀장이 위로 올려 줘야 풀립니다.", "action": "영업본부 협조 요청을 대신 올리기", "link": "one_on_ones"},
           {"type": "good", "severity": 1, "title": "김현정·박서연 님 판단 깊이 상승", "body": "결과물 검토 점수와 결과 지표가 함께 올랐습니다. 지금 인정하면 효과가 큽니다.", "action": "관찰 메모로 남기기", "link": "team"},
           {"type": "data", "severity": 1, "title": "한수진 님 평가 근거 부족", "body": "입사 6주 차로 결과물·관찰 기록이 적습니다. 평가 시즌(D-33) 전에 근거를 쌓아야 합니다.", "action": "FGI 결과물 리뷰를 근거로 남기기", "link": "reviews"}]},
@@ -433,7 +443,7 @@ begin
   exception when others then null;
   end;
 
-  -- 업무플랫폼: 리뷰 대기 결과물 2건의 AI 1차 검토 + 다가오는 1:1의 AI 준비 노트
+  -- 업무플랫폼: 리뷰 대기 결과물 2건의 AI 1차 검토 + 다가오는 1on1의 AI 준비 노트
   declare v1 uuid; v2 uuid; o1 uuid;
   begin
     select sv.id into v1 from submission_versions sv join submissions s on s.id = sv.submission_id
@@ -517,10 +527,10 @@ begin
     execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
       values ($1, 'people_actions', 'draft', 'leader', 'L2', 2, $2, '[]'::jsonb, $3, now() - interval '30 minutes', date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 6)$q$
     using T, jsonb_build_object(
-      'summary', '이번 주는 이동욱 님 1:1과 정우성 님 막힘 해소가 먼저이고, 김현정 님은 지금 인정할 타이밍입니다.',
+      'summary', '이번 주는 이동욱 님 1on1과 정우성 님 막힘 해소가 먼저이고, 김현정 님은 지금 인정할 타이밍입니다.',
       'actions', jsonb_build_array(
-        jsonb_build_object('user_id', m_lee, 'type', 'one_on_one', 'urgency', 3, 'title', '이동욱 님과 1:1 — 이번 주 안에',
-          'why', '컨디션이 3주 연속 떨어졌고(4 → 3 → 2) 마지막 1:1이 3주 전입니다.', 'opener', '요즘 일하면서 에너지가 가장 떨어지는 순간이 언제예요?'),
+        jsonb_build_object('user_id', m_lee, 'type', 'one_on_one', 'urgency', 3, 'title', '이동욱 님과 1on1 — 이번 주 안에',
+          'why', '컨디션이 3주 연속 떨어졌고(4 → 3 → 2) 마지막 1on1이 3주 전입니다.', 'opener', '요즘 일하면서 에너지가 가장 떨어지는 순간이 언제예요?'),
         jsonb_build_object('user_id', m_jung, 'type', 'support', 'urgency', 3, 'title', '정우성 님 챙기기 — 어려운 점 들어 주기',
           'why', '같은 막힘이 2주째 이어지고, 이번 주 컨디션 공유에서 개인 사정과 피로를 골랐습니다.', 'request', '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 제가 도울 수 있는 건 같이 할게요.'),
         jsonb_build_object('user_id', m_kim, 'type', 'praise', 'urgency', 2, 'title', '김현정 님께 칭찬 배지',
@@ -534,11 +544,11 @@ begin
         jsonb_build_object('user_id', m_park, 'type', 'praise', 'urgency', 1, 'title', '박서연 님께 꾸준함 인정하기',
           'why', '정기 업무를 빠짐없이 운영하고 결과물이 대부분 한 번에 통과했습니다.', 'message', '매달 빠짐없이 챙겨 주는 꾸준함 덕분에 팀이 숫자를 믿고 움직여요. 고마워요!')),
       'members', jsonb_build_array(
-        jsonb_build_object('user_id', m_kim, 'work_status', 'good', 'work_view', '런칭 기획이 계획보다 조금 늦지만 결과물 품질이 뚜렷이 올랐습니다. 핵심 과제를 안정적으로 끌고 갑니다.', 'flight_risk', 'low', 'flight_note', '컨디션이 안정적이고 1:1이 꾸준합니다.'),
+        jsonb_build_object('user_id', m_kim, 'work_status', 'good', 'work_view', '런칭 기획이 계획보다 조금 늦지만 결과물 품질이 뚜렷이 올랐습니다. 핵심 과제를 안정적으로 끌고 갑니다.', 'flight_risk', 'low', 'flight_note', '컨디션이 안정적이고 1on1이 꾸준합니다.'),
         jsonb_build_object('user_id', m_park, 'work_status', 'good', 'work_view', '정기 리포트를 빠짐없이 운영하고 결과물도 한 번에 통과하는 편입니다. 다만 업무가 겹쳐 시간이 빠듯합니다.', 'flight_risk', 'low', 'flight_note', '특이 신호가 없습니다.'),
         jsonb_build_object('user_id', m_choi, 'work_status', 'good', 'work_view', '프로세스 개선이 계획대로 가고, 개선안에 측정 지표를 붙이는 등 결과물이 나아지고 있습니다.', 'flight_risk', 'low', 'flight_note', '특이 신호가 없습니다.'),
         jsonb_build_object('user_id', m_jung, 'work_status', 'support', 'work_view', '제안서가 외부 데이터 막힘으로 계획보다 크게 늦고, 보고 체계 정비도 진척이 더딥니다. 본인 역량보다 외부 의존이 원인입니다.', 'flight_risk', 'medium', 'flight_note', '같은 막힘이 2주째 반복되고 일이 몰려 있습니다.'),
-        jsonb_build_object('user_id', m_lee, 'work_status', 'watch', 'work_view', 'CRM 연계 과제가 계획보다 조금 늦지만 큰 이탈은 없습니다. 혼자 맡은 과제라 방향 확인이 필요합니다.', 'flight_risk', 'high', 'flight_note', '컨디션 3주 연속 하락과 1:1 공백이 겹칩니다.'),
+        jsonb_build_object('user_id', m_lee, 'work_status', 'watch', 'work_view', 'CRM 연계 과제가 계획보다 조금 늦지만 큰 이탈은 없습니다. 혼자 맡은 과제라 방향 확인이 필요합니다.', 'flight_risk', 'high', 'flight_note', '컨디션 3주 연속 하락과 1on1 공백이 겹칩니다.'),
         jsonb_build_object('user_id', m_han, 'work_status', 'good', 'work_view', 'FGI 준비를 일정대로 진행 중이나 아직 올린 결과물이 적어 판단 근거가 얇습니다.', 'flight_risk', 'low', 'flight_note', '신규 입사자로 적응 중입니다.'))
     ), L;
   exception when others then null;
@@ -548,10 +558,10 @@ begin
   begin
     execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
       values ($1, 'advisor_weekly', 'draft', 'leader', 'L3', 2, $2, '[]'::jsonb, $3, now() - interval '7 days 20 minutes', date_trunc('week', current_date)::date - 7, date_trunc('week', current_date)::date - 1)$q$
-    using T, $j${"headline": "실행은 순항하지만 사람 관리의 리듬이 느슨해지고 있습니다 — 1:1과 기준 공유로 다시 조이는 주입니다.", "focus": "제휴 목표 — 고객사 데이터 수급이 공식 경로로 요청되지 않았습니다.", "levers": {"exec": {"state": "watch", "note": "제휴 과제가 2주째 같은 막힘입니다."}, "staffing": {"state": "good", "note": "부하는 고른 편입니다."}, "people": {"state": "act", "note": "1:1 간격이 평균 19일로 벌어졌습니다."}, "external": {"state": "watch", "note": "데이터 수급이 비공식 경로에만 의존합니다."}, "self": {"state": "good", "note": "특이 신호 없음."}, "system": {"state": "watch", "note": "결과물 보완점이 같은 주제로 반복됩니다."}}, "advice": [{"id": "a1", "lever": "people", "urgency": 3, "effort": "low", "title": "1:1 간격을 2주 이내로 되돌리세요", "why": "1:1 평균 간격이 19일로 벌어졌습니다.", "effect": "막힘을 일찍 듣게 됩니다.", "if_not": "컨디션 하락을 늦게 알게 됩니다.", "route": "one_on_one", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "system", "urgency": 2, "effort": "mid", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "why": "보완점이 같은 주제로 반복됩니다.", "effect": "수정 횟수가 줄어듭니다.", "if_not": "리뷰 시간이 계속 늘어납니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a3", "lever": "external", "urgency": 2, "effort": "low", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "why": "비공식 경로로 2주를 기다렸습니다.", "effect": "회신 날짜가 정해집니다.", "if_not": "막힘이 계속됩니다.", "route": "report", "target_user_id": "", "script": ""}], "review": [], "watch_next": "이동욱 님 컨디션."}$j$::jsonb, L;
+    using T, $j${"headline": "실행은 순항하지만 사람 관리의 리듬이 느슨해지고 있습니다 — 1on1과 기준 공유로 다시 조이는 주입니다.", "focus": "제휴 목표 — 고객사 데이터 수급이 공식 경로로 요청되지 않았습니다.", "levers": {"exec": {"state": "watch", "note": "제휴 과제가 2주째 같은 막힘입니다."}, "staffing": {"state": "good", "note": "부하는 고른 편입니다."}, "people": {"state": "act", "note": "1on1 간격이 평균 19일로 벌어졌습니다."}, "external": {"state": "watch", "note": "데이터 수급이 비공식 경로에만 의존합니다."}, "self": {"state": "good", "note": "특이 신호 없음."}, "system": {"state": "watch", "note": "결과물 보완점이 같은 주제로 반복됩니다."}}, "advice": [{"id": "a1", "lever": "people", "urgency": 3, "effort": "low", "title": "1on1 간격을 2주 이내로 되돌리세요", "why": "1on1 평균 간격이 19일로 벌어졌습니다.", "effect": "막힘을 일찍 듣게 됩니다.", "if_not": "컨디션 하락을 늦게 알게 됩니다.", "route": "one_on_one", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "system", "urgency": 2, "effort": "mid", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "why": "보완점이 같은 주제로 반복됩니다.", "effect": "수정 횟수가 줄어듭니다.", "if_not": "리뷰 시간이 계속 늘어납니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a3", "lever": "external", "urgency": 2, "effort": "low", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "why": "비공식 경로로 2주를 기다렸습니다.", "effect": "회신 날짜가 정해집니다.", "if_not": "막힘이 계속됩니다.", "route": "report", "target_user_id": "", "script": ""}], "review": [], "watch_next": "이동욱 님 컨디션."}$j$::jsonb, L;
     execute $q$insert into public.ai_outputs (team_id, kind, status, visibility, level, depth, content, sources, created_by, created_at, period_start, period_end)
       values ($1, 'advisor_weekly', 'draft', 'leader', 'L3', 3, $2, '[]'::jsonb, $3, now() - interval '20 minutes', date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 6)$q$
-    using T, replace($j${"headline": "성과는 외부 의존 하나에 묶여 있고, 운영은 팀장 시간이 순항하는 사람 쪽으로 쏠려 있습니다 — 이번 주는 '막힌 곳으로 사람과 시간을 옮기는 주'입니다.", "focus": "제휴 목표(20만 명) — 고객사 데이터 수급이 풀리지 않으면 4분기 전망이 18.6만 명 근처에서 멈춥니다.", "levers": {"exec": {"state": "act", "note": "제휴 과제가 3주째 같은 막힘(고객사 데이터)으로 멈춰 있고, 계획에 대체 경로가 없습니다."}, "staffing": {"state": "watch", "note": "제휴 목표의 하위 일 3건이 모두 정우성 님 한 사람에게 있고, 김현정 님은 가용 시간의 70%만 쓰고 있습니다."}, "people": {"state": "watch", "note": "최근 4주 칭찬·관찰이 김현정·박서연 님에게 몰렸고, 이동욱 님은 컨디션이 3주째 내려가는데 팀장 접점이 가장 적습니다."}, "external": {"state": "act", "note": "전사 비용 15% 절감 방침이 런칭 캠페인 예산과 부딪히는데, 아직 위로 방향을 확인하지 않았습니다."}, "self": {"state": "watch", "note": "리뷰 대기 6건(가장 오래 5일)과 검토 중 결정 3건이 겹쳐 있고, 최근 2주 앱 활동의 31%가 밤 10시 이후·주말입니다."}, "system": {"state": "good", "note": "체크인 제출 5/6명으로 주간 리듬은 유지됩니다. 다만 결과물 보완점이 '근거·데이터'에 반복됩니다."}}, "advice": [{"id": "a1", "lever": "exec", "urgency": 3, "effort": "low", "title": "제휴 과제에 '대체 데이터 경로'를 이번 주 안에 계획으로 넣으세요 — 고객사 데이터를 기다리는 동안 공개 데이터와 파일럿 고객 2곳으로 1차안을 만들게 하세요.", "why": "같은 막힘이 3주째 체크인에 반복되고, 제휴 목표 달성 가능성이 12%까지 내려왔습니다.", "effect": "데이터 회신이 늦어져도 11월 첫 주에 1차 제안이 가능해지고, 목표 전망의 바닥이 올라갑니다.", "if_not": "회신이 2주 더 밀리면 4분기 제휴 목표는 조정이 불가피합니다.", "route": "decide", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "staffing", "urgency": 2, "effort": "mid", "title": "제휴 과제의 '데이터 정리' 1건을 김현정 님에게 옮겨 정우성 님 한 사람 의존을 푸세요.", "why": "제휴 하위 일 3건이 한 사람에게 몰려 있고(주 46시간/가용 40시간), 김현정 님은 여유가 있습니다.", "effect": "정우성 님은 파트너 협상에 집중하고, 막힘이 한 곳에서 전체로 번지는 걸 막습니다.", "if_not": "정우성 님 과부하가 이어지면 이탈 주의 신호가 '높음'으로 올라갈 수 있습니다.", "route": "request", "target_user_id": "{{KIM}}", "script": "현정 씨, 제휴 제안서의 데이터 정리 파트를 이번 주부터 맡아 줄 수 있을까요? 우성 씨이 파트너 협상에 집중할 수 있게 하려는 거예요. 필요한 시간은 같이 조정할게요."}, {"id": "a3", "lever": "external", "urgency": 3, "effort": "low", "title": "비용 절감 방침과 런칭 예산의 충돌을 이번 주 본부장 보고에 먼저 올리세요 — 결정권은 위에 있습니다.", "why": "전사 방침(비용 15% 절감)이 런칭 캠페인 광고 집행과 부딪히는데, 팀 안에서 결론을 내기 어려운 사안입니다.", "effect": "예산 축소 범위가 일찍 정해지면 4분기 실행계획 초안을 다시 쓰지 않아도 됩니다.", "if_not": "실행계획 확정 직전에 예산이 깎이면 런칭 일정 전체가 밀립니다.", "route": "report", "target_user_id": "", "script": "전사 비용 15% 절감 방침에 맞춰 런칭 캠페인 광고 예산을 CAC 기준으로 재배분하려 합니다. 다만 제휴 목표(20만 명)에 필요한 최소 예산은 유지가 필요해, 이번 주 안에 방향 확인 부탁드립니다."}, {"id": "a4", "lever": "self", "urgency": 2, "effort": "low", "title": "리뷰 대기 6건 중 정기 보고 2건은 박서연 님에게 1차 리뷰를 맡기고, 아낀 시간을 이동욱·정우성 님에게 쓰세요.", "why": "최근 4주 팀장 접점의 48%가 김현정·박서연 님 두 사람에게 갔고, 필요도가 높은 이동욱 님은 팀 평균의 0.6배입니다.", "effect": "리뷰 적체가 절반으로 줄고, 이탈 주의 두 사람에게 이번 주 1:1 시간이 생깁니다.", "if_not": "적체와 늦은 시간 작업이 이어지면 결정이 더 미뤄지는 악순환이 됩니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a5", "lever": "people", "urgency": 1, "effort": "low", "title": "이번 주 금요일 점심을 '런칭 준비 중간 점검 + 김현정 님 기획서 통과 축하' 자리로 잡으세요.", "why": "팀 컨디션이 3.6으로 내려가는 중이고, 인정이 일부에게만 보이는 상태입니다.", "effect": "짧고 부담 없는 자리로 팀 전체가 진척을 함께 보고, 인정이 팀 전체의 이야기가 됩니다.", "if_not": "막힌 사람과 순항하는 사람 사이의 온도 차가 커집니다.", "route": "calendar", "target_user_id": "", "script": "금요일 점심은 다 같이 먹어요 — 런칭 준비 중간 점검 겸, 현정 씨 기획서 통과도 축하해요."}], "review": [{"id": "a1", "title": "1:1 간격을 2주 이내로 되돌리세요", "verdict": "partial", "observed": "정우성·한수진 님과는 1:1을 했지만, 이동욱 님은 아직 3주째 1:1이 없습니다."}, {"id": "a2", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "verdict": "not_done", "observed": "기준 카드가 공개되지 않았고, 이번 주에도 보완점 2건이 '근거·데이터'였습니다."}, {"id": "a3", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "verdict": "done", "observed": "영업본부 요청이 기록됐고, 파트너사 회신은 '11월 둘째 주 이후 가능'으로 왔습니다."}], "watch_next": "고객사 데이터 회신 날짜와 이동욱 님 다음 체크인의 컨디션.", "perspective": {"big": {"lens": "목표 구성 · 다가오는 시기", "text": "팀 목표 중 새로 만드는 일은 신제품 런칭 하나이고, 나머지는 지금 하는 일을 지키고 넓히는 목표입니다. 런칭이 끝나는 11월 이후 팀의 다음 성장 축이 비어 있습니다.", "why": "11~12월은 평가와 내년 목표 수립이 겹치는 시기입니다. 내년 목표에 넣을 '새로 만들 일' 후보를 지금부터 모아 두면 목표를 서둘러 정하지 않게 됩니다."}, "reframe": {"lens": "관심과 기회의 쏠림", "text": "일의 배분이 곧 동기의 배분이 되고 있습니다 — 런칭·기획처럼 성장이 보이는 일은 김현정·박서연 님에게, 막힌 일은 정우성·이동욱 님에게 가 있습니다.", "why": "최근 4주 칭찬·관찰도 같은 두 사람에게 몰렸습니다. 막힌 사람에게 시간을 더 쓰는 것과 별개로, 다음 배분 때 '보이는 일'을 한 번 돌려 볼 만합니다."}, "experiment": {"title": "주간 회의 첫 10분을 '막힌 것만' 말하는 시간으로 바꿔 보기", "how": "진행 보고는 업무플랫폼에 미리 올리고, 회의에서는 한 사람씩 막힌 것 하나와 필요한 도움만 말합니다. 팀장은 답보다 '누가 도울 수 있나'를 먼저 묻습니다.", "check": "2주 뒤 막힘이 공유되기까지 걸린 날짜와 회의 시간"}, "question": "내년 이맘때 우리 팀이 '그때 시작하길 잘했다'고 말할 일은 무엇일까요?"}}$j$, '{{KIM}}', m_kim::text)::jsonb, L;
+    using T, replace($j${"headline": "성과는 외부 의존 하나에 묶여 있고, 운영은 팀장 시간이 순항하는 사람 쪽으로 쏠려 있습니다 — 이번 주는 '막힌 곳으로 사람과 시간을 옮기는 주'입니다.", "focus": "제휴 목표(20만 명) — 고객사 데이터 수급이 풀리지 않으면 4분기 전망이 18.6만 명 근처에서 멈춥니다.", "levers": {"exec": {"state": "act", "note": "제휴 과제가 3주째 같은 막힘(고객사 데이터)으로 멈춰 있고, 계획에 대체 경로가 없습니다."}, "staffing": {"state": "watch", "note": "제휴 목표의 하위 일 3건이 모두 정우성 님 한 사람에게 있고, 김현정 님은 가용 시간의 70%만 쓰고 있습니다."}, "people": {"state": "watch", "note": "최근 4주 칭찬·관찰이 김현정·박서연 님에게 몰렸고, 이동욱 님은 컨디션이 3주째 내려가는데 팀장 접점이 가장 적습니다."}, "external": {"state": "act", "note": "전사 비용 15% 절감 방침이 런칭 캠페인 예산과 부딪히는데, 아직 위로 방향을 확인하지 않았습니다."}, "self": {"state": "watch", "note": "리뷰 대기 6건(가장 오래 5일)과 검토 중 결정 3건이 겹쳐 있고, 최근 2주 앱 활동의 31%가 밤 10시 이후·주말입니다."}, "system": {"state": "good", "note": "체크인 제출 5/6명으로 주간 리듬은 유지됩니다. 다만 결과물 보완점이 '근거·데이터'에 반복됩니다."}}, "advice": [{"id": "a1", "lever": "exec", "urgency": 3, "effort": "low", "title": "제휴 과제에 '대체 데이터 경로'를 이번 주 안에 계획으로 넣으세요 — 고객사 데이터를 기다리는 동안 공개 데이터와 파일럿 고객 2곳으로 1차안을 만들게 하세요.", "why": "같은 막힘이 3주째 체크인에 반복되고, 제휴 목표 달성 가능성이 12%까지 내려왔습니다.", "effect": "데이터 회신이 늦어져도 11월 첫 주에 1차 제안이 가능해지고, 목표 전망의 바닥이 올라갑니다.", "if_not": "회신이 2주 더 밀리면 4분기 제휴 목표는 조정이 불가피합니다.", "route": "decide", "target_user_id": "", "script": ""}, {"id": "a2", "lever": "staffing", "urgency": 2, "effort": "mid", "title": "제휴 과제의 '데이터 정리' 1건을 김현정 님에게 옮겨 정우성 님 한 사람 의존을 푸세요.", "why": "제휴 하위 일 3건이 한 사람에게 몰려 있고(주 46시간/가용 40시간), 김현정 님은 여유가 있습니다.", "effect": "정우성 님은 파트너 협상에 집중하고, 막힘이 한 곳에서 전체로 번지는 걸 막습니다.", "if_not": "정우성 님 과부하가 이어지면 이탈 주의 신호가 '높음'으로 올라갈 수 있습니다.", "route": "request", "target_user_id": "{{KIM}}", "script": "현정 씨, 제휴 제안서의 데이터 정리 파트를 이번 주부터 맡아 줄 수 있을까요? 우성 씨가 파트너 협상에 집중할 수 있게 하려는 거예요. 필요한 시간은 같이 조정할게요."}, {"id": "a3", "lever": "external", "urgency": 3, "effort": "low", "title": "비용 절감 방침과 런칭 예산의 충돌을 이번 주 본부장 보고에 먼저 올리세요 — 결정권은 위에 있습니다.", "why": "전사 방침(비용 15% 절감)이 런칭 캠페인 광고 집행과 부딪히는데, 팀 안에서 결론을 내기 어려운 사안입니다.", "effect": "예산 축소 범위가 일찍 정해지면 4분기 실행계획 초안을 다시 쓰지 않아도 됩니다.", "if_not": "실행계획 확정 직전에 예산이 깎이면 런칭 일정 전체가 밀립니다.", "route": "report", "target_user_id": "", "script": "전사 비용 15% 절감 방침에 맞춰 런칭 캠페인 광고 예산을 CAC 기준으로 재배분하려 합니다. 다만 제휴 목표(20만 명)에 필요한 최소 예산은 유지가 필요해, 이번 주 안에 방향 확인 부탁드립니다."}, {"id": "a4", "lever": "self", "urgency": 2, "effort": "low", "title": "리뷰 대기 6건 중 정기 보고 2건은 박서연 님에게 1차 리뷰를 맡기고, 아낀 시간을 이동욱·정우성 님에게 쓰세요.", "why": "최근 4주 팀장 접점의 48%가 김현정·박서연 님 두 사람에게 갔고, 필요도가 높은 이동욱 님은 팀 평균의 0.6배입니다.", "effect": "리뷰 적체가 절반으로 줄고, 이탈 주의 두 사람에게 이번 주 1on1 시간이 생깁니다.", "if_not": "적체와 늦은 시간 작업이 이어지면 결정이 더 미뤄지는 악순환이 됩니다.", "route": "none", "target_user_id": "", "script": ""}, {"id": "a5", "lever": "people", "urgency": 1, "effort": "low", "title": "이번 주 금요일 점심을 '런칭 준비 중간 점검 + 김현정 님 기획서 통과 축하' 자리로 잡으세요.", "why": "팀 컨디션이 3.6으로 내려가는 중이고, 인정이 일부에게만 보이는 상태입니다.", "effect": "짧고 부담 없는 자리로 팀 전체가 진척을 함께 보고, 인정이 팀 전체의 이야기가 됩니다.", "if_not": "막힌 사람과 순항하는 사람 사이의 온도 차가 커집니다.", "route": "calendar", "target_user_id": "", "script": "금요일 점심은 다 같이 먹어요 — 런칭 준비 중간 점검 겸, 현정 씨 기획서 통과도 축하해요."}], "review": [{"id": "a1", "title": "1on1 간격을 2주 이내로 되돌리세요", "verdict": "partial", "observed": "정우성·한수진 님과는 1on1을 했지만, 이동욱 님은 아직 3주째 1on1이 없습니다."}, {"id": "a2", "title": "결과물 작성 기준(결론 먼저 · 근거 출처)을 한 장으로 공유하세요", "verdict": "not_done", "observed": "기준 카드가 공개되지 않았고, 이번 주에도 보완점 2건이 '근거·데이터'였습니다."}, {"id": "a3", "title": "제휴 데이터 수급을 영업본부에 공식 요청하세요", "verdict": "done", "observed": "영업본부 요청이 기록됐고, 파트너사 회신은 '11월 둘째 주 이후 가능'으로 왔습니다."}], "watch_next": "고객사 데이터 회신 날짜와 이동욱 님 다음 체크인의 컨디션.", "perspective": {"big": {"lens": "목표 구성 · 다가오는 시기", "text": "팀 목표 중 새로 만드는 일은 신제품 런칭 하나이고, 나머지는 지금 하는 일을 지키고 넓히는 목표입니다. 런칭이 끝나는 11월 이후 팀의 다음 성장 축이 비어 있습니다.", "why": "11~12월은 평가와 내년 목표 수립이 겹치는 시기입니다. 내년 목표에 넣을 '새로 만들 일' 후보를 지금부터 모아 두면 목표를 서둘러 정하지 않게 됩니다."}, "reframe": {"lens": "관심과 기회의 쏠림", "text": "일의 배분이 곧 동기의 배분이 되고 있습니다 — 런칭·기획처럼 성장이 보이는 일은 김현정·박서연 님에게, 막힌 일은 정우성·이동욱 님에게 가 있습니다.", "why": "최근 4주 칭찬·관찰도 같은 두 사람에게 몰렸습니다. 막힌 사람에게 시간을 더 쓰는 것과 별개로, 다음 배분 때 '보이는 일'을 한 번 돌려 볼 만합니다."}, "experiment": {"title": "주간 회의 첫 10분을 '막힌 것만' 말하는 시간으로 바꿔 보기", "how": "진행 보고는 업무플랫폼에 미리 올리고, 회의에서는 한 사람씩 막힌 것 하나와 필요한 도움만 말합니다. 팀장은 답보다 '누가 도울 수 있나'를 먼저 묻습니다.", "check": "2주 뒤 막힘이 공유되기까지 걸린 날짜와 회의 시간"}, "question": "내년 이맘때 우리 팀이 '그때 시작하길 잘했다'고 말할 일은 무엇일까요?"}}$j$, '{{KIM}}', m_kim::text)::jsonb, L;
     execute $q$insert into public.advice_status (team_id, advice_key, status, updated_by) values
       ($1, (date_trunc('week', current_date)::date - 7)::text || ':a1', 'adopted', $2),
       ($1, (date_trunc('week', current_date)::date - 7)::text || ':a2', 'held', $2),
@@ -583,7 +593,7 @@ begin
       values ($1, 'evaluation_draft', $2, 'draft', 'leader', 'L3', 3, $3, '[]'::jsonb, $4, now() - interval '1 day',
         make_date(extract(year from current_date)::int, case when extract(month from current_date) >= 7 then 7 else 1 end, 1),
         make_date(extract(year from current_date)::int, case when extract(month from current_date) >= 7 then 12 else 6 end, case when extract(month from current_date) >= 7 then 31 else 30 end))$q$
-    using T, m_kim, $j${"grade": {"expected": "A", "range": ["B", "A"], "confidence": "medium", "rationale": "핵심 과제(신제품 런칭 기획)를 끌고 가면서 결과물의 판단 깊이가 2.0에서 3.0으로 뚜렷이 올랐고, 결과물 대부분이 한 번에 승인됐습니다. 다만 런칭 일정은 계획보다 조금 늦습니다.", "up": [{"text": "가격 전략을 데이터로 스스로 뒤집고, 버린 대안과 이유를 남김 (기획서 v3)", "evidence": []}, {"text": "결과물 8건 중 6건 승인, 그중 4건이 한 번에 통과", "evidence": []}, {"text": "본부장 질의에 근거를 들어 답함 (1:1 기록)", "evidence": []}], "down": [{"text": "시장 분석처럼 정형 업무에서는 자기 관점이 약하다는 보완점이 두 번 반복", "evidence": []}], "missing": "실행 관리(일정 준수) 근거가 아직 적어 A로 확정하기는 이릅니다. 11월 런칭 결과를 보면 확실해집니다."}, "overall": "문제를 끝까지 붙들고 방향을 다시 잡는 힘이 이번 기간 가장 두드러졌습니다. 신제품 가격 전략에서 처음 가정을 데이터로 뒤집고 대안을 비교해 남긴 과정이 대표적입니다. 결과물의 판단 깊이가 꾸준히 올라 팀의 핵심 과제를 맡길 수 있는 수준입니다. 다만 정해진 틀을 채우는 작업에서는 자기 관점이 덜 드러납니다.", "strengths": [{"title": "근거 기반의 방향 전환", "detail": "초기 가정을 고집하지 않고 데이터를 보고 전략을 고쳤습니다.", "evidence": []}, {"title": "결과물 품질의 꾸준한 상승", "detail": "판단 깊이 2.0 → 3.0, 대부분 한 번에 승인됐습니다.", "evidence": []}], "growth": [{"title": "정형 업무에서의 자기 관점", "detail": "시장 분석 등에서 일반적 정리에 머무는 경우가 있습니다.", "evidence": []}, {"title": "일정 관리", "detail": "런칭 기획이 계획보다 조금 늦습니다.", "evidence": []}], "competencies": [{"name": "문제 정의", "signal": "강함", "evidence": []}, {"name": "데이터 분석", "signal": "보통", "evidence": []}, {"name": "커뮤니케이션", "signal": "강함", "evidence": []}, {"name": "실행 관리", "signal": "근거 부족", "evidence": []}], "coaching": "다음 기간에는 일정이 분명한 과제를 맡기고 2주 단위로 진척을 함께 점검해 실행 관리 근거를 쌓으세요."}$j$::jsonb, L;
+    using T, m_kim, $j${"grade": {"expected": "A", "range": ["B", "A"], "confidence": "medium", "rationale": "핵심 과제(신제품 런칭 기획)를 끌고 가면서 결과물의 판단 깊이가 2.0에서 3.0으로 뚜렷이 올랐고, 결과물 대부분이 한 번에 승인됐습니다. 다만 런칭 일정은 계획보다 조금 늦습니다.", "up": [{"text": "가격 전략을 데이터로 스스로 뒤집고, 버린 대안과 이유를 남김 (기획서 v3)", "evidence": []}, {"text": "결과물 8건 중 6건 승인, 그중 4건이 한 번에 통과", "evidence": []}, {"text": "본부장 질의에 근거를 들어 답함 (1on1 기록)", "evidence": []}], "down": [{"text": "시장 분석처럼 정형 업무에서는 자기 관점이 약하다는 보완점이 두 번 반복", "evidence": []}], "missing": "실행 관리(일정 준수) 근거가 아직 적어 A로 확정하기는 이릅니다. 11월 런칭 결과를 보면 확실해집니다."}, "overall": "문제를 끝까지 붙들고 방향을 다시 잡는 힘이 이번 기간 가장 두드러졌습니다. 신제품 가격 전략에서 처음 가정을 데이터로 뒤집고 대안을 비교해 남긴 과정이 대표적입니다. 결과물의 판단 깊이가 꾸준히 올라 팀의 핵심 과제를 맡길 수 있는 수준입니다. 다만 정해진 틀을 채우는 작업에서는 자기 관점이 덜 드러납니다.", "strengths": [{"title": "근거 기반의 방향 전환", "detail": "초기 가정을 고집하지 않고 데이터를 보고 전략을 고쳤습니다.", "evidence": []}, {"title": "결과물 품질의 꾸준한 상승", "detail": "판단 깊이 2.0 → 3.0, 대부분 한 번에 승인됐습니다.", "evidence": []}], "growth": [{"title": "정형 업무에서의 자기 관점", "detail": "시장 분석 등에서 일반적 정리에 머무는 경우가 있습니다.", "evidence": []}, {"title": "일정 관리", "detail": "런칭 기획이 계획보다 조금 늦습니다.", "evidence": []}], "competencies": [{"name": "문제 정의", "signal": "강함", "evidence": []}, {"name": "데이터 분석", "signal": "보통", "evidence": []}, {"name": "커뮤니케이션", "signal": "강함", "evidence": []}, {"name": "실행 관리", "signal": "근거 부족", "evidence": []}], "coaching": "다음 기간에는 일정이 분명한 과제를 맡기고 2주 단위로 진척을 함께 점검해 실행 관리 근거를 쌓으세요."}$j$::jsonb, L;
   exception when others then null;
   end;
 
@@ -831,7 +841,7 @@ end $$;
 -- =====================================================================
 -- 팀원 앱 정비
 --   · 팀원이 받은 칭찬 배지를 다시 볼 수 있게 (자기 것 · 칭찬만 읽기)
---   · 팀원 → 팀장 '1:1 요청' (team_requests kind=meeting) — 팀장 알림이 팀원 상세로 이어지고, 팀장에게 평가 근거가 쌓이지 않게
+--   · 팀원 → 팀장 '1on1 요청' (team_requests kind=meeting) — 팀장 알림이 팀원 상세로 이어지고, 팀장에게 평가 근거가 쌓이지 않게
 --   · AI 체크인 초안 (ai_kind 'checkin_draft')
 -- 다시 Run 해도 안전합니다.
 -- =====================================================================
@@ -841,7 +851,7 @@ drop policy if exists obs_member_praise on public.observations;
 create policy obs_member_praise on public.observations for select to authenticated
   using (subject_id = auth.uid() and kind = 'praise');
 
--- 알림: 요청 / 성장 제안 / 팀장님 격려 / 팀원의 1:1 요청
+-- 알림: 요청 / 성장 제안 / 팀장님 격려 / 팀원의 1on1 요청
 create or replace function public.trg_request() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_up boolean;
@@ -849,7 +859,7 @@ begin
   v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
   if tg_op = 'INSERT' then
     perform public._notify(new.to_id, new.team_id, 'request',
-      case when v_up and new.kind = 'meeting' then '1:1 요청: ' when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
+      case when v_up and new.kind = 'meeting' then '1on1 요청: ' when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
       left(new.body, 120), case when v_up then '/people/' || new.from_id || '?oo=1' else '/' end);
     if new.kind = 'plan' and new.item_id is not null then
       update work_items set needs_plan = true where id = new.item_id;
@@ -857,7 +867,7 @@ begin
   elsif new.status is distinct from old.status and new.status = 'done' then
     new.responded_at := coalesce(new.responded_at, now());
     perform public._notify(new.from_id, new.team_id, 'request.done',
-      case when v_up and new.kind = 'meeting' then '1:1 요청 확인: ' when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
+      case when v_up and new.kind = 'meeting' then '1on1 요청 확인: ' when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
       left(new.response, 120), case when v_up then '/my/one-on-ones' else '/' end);
   end if;
   return new;
@@ -1056,7 +1066,7 @@ begin
   v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
   if tg_op = 'INSERT' then
     perform public._notify(new.to_id, new.team_id, 'request',
-      case when v_up and new.kind = 'meeting' then '1:1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
+      case when v_up and new.kind = 'meeting' then '1on1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
            when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
       left(new.body, 120),
       case when new.kind = 'change' then '/goals/edit' || case when new.item_id is not null then '?item=' || new.item_id else '' end
@@ -1071,7 +1081,7 @@ begin
   elsif new.status is distinct from old.status and new.status = 'done' then
     new.responded_at := coalesce(new.responded_at, now());
     perform public._notify(new.from_id, new.team_id, 'request.done',
-      case when v_up and new.kind = 'meeting' then '1:1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
+      case when v_up and new.kind = 'meeting' then '1on1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
            when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
       left(new.response, 120),
       case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end
@@ -1825,7 +1835,7 @@ end $$;
 
 
 -- =====================================================================
--- 컨디션 공유 (예전 '주간 체크인'을 사람의 상태만 남기도록 바꿈)
+-- 컨디션 공유 + 팀장님과 알림 + 1on1 이름 통일 (예전 '주간 체크인'을 사람의 상태만 남기도록 바꿈)
 --   · checkins 에 moods(영향 요인 키 여러 개) · note(메모, 선택) 추가
 --     키: rested · energized · good_news · tired · unwell · heavy · personal · need_rest
 --   · did · blocked · next(업무 칸)는 지난 기록 보존용으로만 남긴다. 새로 쓰지 않는다.
@@ -1847,6 +1857,92 @@ end $$;
 -- 이미 근거 원장에 들어간 예전 체크인은 평가 근거에서 뺀다 (원본 기록은 checkins 에 그대로 남음)
 delete from public.evidence where source = 'checkin';
 
+-- ---------------------------------------------------------------------
+-- 팀원 '팀장님과' 개편에 맞춘 알림
+--   · 칭찬 배지: 팀원에게 알림 (예전엔 알림이 없어 찾아 들어와야만 보였다)
+--   · ATEAM 코칭: 알림 링크를 팀장님과로 (예전 '/?coach=' 는 앱에서 넘겨 준다)
+-- ---------------------------------------------------------------------
+create or replace function public._praise_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.kind = 'praise' and new.subject_id is not null and new.subject_id <> new.author_id then
+    perform public._notify(new.subject_id, new.team_id, 'praise', '팀장님이 칭찬을 보냈습니다',
+      left(regexp_replace(new.body, '^\[칭찬 배지\]\s*', ''), 120), '/my/one-on-ones?praise=' || new.id);
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_praise_notify on public.observations;
+create trigger t_praise_notify after insert on public.observations for each row execute function public._praise_notify();
+
+do $$ begin
+  if to_regclass('public.coaching_notes') is not null then
+    create or replace function public._coaching_notify() returns trigger
+    language plpgsql security definer set search_path = public as $f$
+    begin
+      insert into notifications (user_id, team_id, kind, title, body, link)
+      values (new.member_id, new.team_id, 'coaching', 'ATEAM의 코칭이 도착했습니다', new.title, '/my/one-on-ones?coach=' || new.id);
+      return new;
+    end $f$;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 이름 통일: 1:1 → 1on1 (알림 문구 · 근거 원장 문구 · 기본 제공 노하우)
+-- ---------------------------------------------------------------------
+create or replace function public.trg_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_up boolean;
+begin
+  v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
+  if tg_op = 'INSERT' then
+    perform public._notify(new.to_id, new.team_id, 'request',
+      case when v_up and new.kind = 'meeting' then '1on1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
+           when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
+      left(new.body, 120),
+      case when new.kind = 'change' then '/goals/edit' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/people/' || new.from_id || '?oo=1' else '/' end);
+    if new.kind = 'plan' then
+      if new.item_id is not null then update work_items set needs_plan = true where id = new.item_id; end if;
+      if new.from_id = public._team_leader(new.team_id) then
+        update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": true}'::jsonb
+         where id = new.team_id and not public.plan_open(new.team_id);
+      end if;
+    end if;
+  elsif new.status is distinct from old.status and new.status = 'done' then
+    new.responded_at := coalesce(new.responded_at, now());
+    perform public._notify(new.from_id, new.team_id, 'request.done',
+      case when v_up and new.kind = 'meeting' then '1on1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
+           when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
+      left(new.response, 120),
+      case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/my/one-on-ones' else '/' end);
+  end if;
+  return new;
+end $$;
+
+create or replace function public.trg_one_on_one() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'done' and (tg_op = 'INSERT' or old.status <> 'done') then
+    new.completed_at := coalesce(new.completed_at, now());
+    perform log_event(new.team_id, 'one_on_one.done', 'one_on_ones', new.id, new.member_id);
+    perform upsert_evidence(new.team_id, new.member_id, 'one_on_one', new.id,
+      '1on1 — ' || left(new.shared_notes, 300), 'neutral', null, new.scheduled_at);
+  end if;
+  return new;
+end $$;
+
+update public.evidence set summary = replace(summary, '1:1 — ', '1on1 — ') where source = 'one_on_one' and summary like '1:1 — %';
+do $$ begin
+  if to_regclass('public.knowhow_templates') is not null then
+    update public.knowhow_templates set title = replace(title, '1:1', '1on1'), body = replace(body, '1:1', '1on1'),
+      rules = replace(rules::text, '1:1', '1on1')::jsonb, keywords = array_replace(keywords, '1:1', '1on1')
+    where title like '%1:1%' or body like '%1:1%' or rules::text like '%1:1%' or '1:1' = any(keywords);
+    update public.knowhow_cards set title = replace(title, '1:1', '1on1'), body = replace(body, '1:1', '1on1'),
+      rules = replace(rules::text, '1:1', '1on1')::jsonb
+    where source = 'consulting' and (title like '%1:1%' or body like '%1:1%' or rules::text like '%1:1%');
+  end if;
+end $$;
 
 -- =====================================================================
 -- ATEAM 데모 계정 — 팀장 1 + 팀원 6, 약 6개월치 기록이 있는 '마케팅기획팀 (데모)'
@@ -1946,9 +2042,9 @@ where u.email = 'demo@ateam.com' or u.email ~ '^demo_p[0-9]+@ateam\.com$' order 
 
 -- =====================================================================
 -- 내 메모 — 팀장 전용 메모 (팀원에게는 보이지 않음)
---   · 저장은 한 곳, 붙이는 곳은 여러 군데: 팀원 · 목표/과제 · 임원 · 결정 · 1:1 (anchor)
+--   · 저장은 한 곳, 붙이는 곳은 여러 군데: 팀원 · 목표/과제 · 임원 · 결정 · 1on1 (anchor)
 --   · 관찰 메모(observations)와 다름: 평가 근거로 쓰지 않음
---   · ai_allowed: AI가 참고해도 되는 메모 (팀장이 고름) — 1:1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 읽음. 평가 초안은 읽지 않음
+--   · ai_allowed: AI가 참고해도 되는 메모 (팀장이 고름) — 1on1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 읽음. 평가 초안은 읽지 않음
 --   · anchor_id: 대상 id (팀원·목표·임원은 uuid, 결정 카드는 카드 키) · anchor_label: 붙일 때의 대상 이름(대상이 사라져도 보이게)
 -- 다시 Run 해도 안전합니다.
 -- =====================================================================
@@ -1998,7 +2094,7 @@ begin
     if v_jung is not null then insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, anchor_label, ai_allowed, created_at, updated_at)
       values (r.team_id, r.leader_id, '혼자 끙끙 앓는 편. 막히면 먼저 물어봐 주는 게 효과 있음', 'member', v_jung, '정우성', true, now() - interval '9 days', now() - interval '9 days'); end if;
     if v_lee is not null then insert into leader_notes (team_id, owner_id, body, kind, anchor_type, anchor_id, created_at, updated_at)
-      values (r.team_id, r.leader_id, '다음 1:1에서 교육 예산 얘기 꺼내기', 'todo', 'member', v_lee, now() - interval '3 days', now() - interval '3 days'); end if;
+      values (r.team_id, r.leader_id, '다음 1on1에서 교육 예산 얘기 꺼내기', 'todo', 'member', v_lee, now() - interval '3 days', now() - interval '3 days'); end if;
     if v_goal is not null then insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, ai_allowed, created_at, updated_at)
       values (r.team_id, r.leader_id, 'B사 말고 C사 제휴 가능성도 열어 두기 — 영업본부 박 팀장에게 물어보기', 'item', v_goal, true, now() - interval '2 days', now() - interval '2 days'); end if;
     if v_exec is not null then insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, ai_allowed, created_at, updated_at)
@@ -2081,6 +2177,12 @@ begin
       'CRM 연계, 방향을 한 번 맞추고 가면 훨씬 수월해져요',
       E'지금 보이는 것\n· ''제휴 유입 고객 CRM 연계''가 계획보다 조금 늦어지고 있어요\n· 혼자 맡은 과제인데 최근 3주 동안 진척 공유가 없었어요\n\n왜 중요해요\n제휴 목표와 이어진 과제라, 방향이 한 번 어긋나면 되돌리는 데 시간이 많이 들어요.\n\n이렇게 해 보세요\n· 이번 주에 지금까지 한 것과 남은 것을 3줄로 진척 공유하기\n· 막힌 부분이 있으면 ''무엇이 필요한지''를 한 줄로 같이 적기\n· 다음 결과물은 초안 단계에서 한 번 먼저 올려 방향 확인받기\n\n권장 시점 · 이번 주 금요일까지',
       now() - interval '2 days');
+    -- 김현정: 받은함 예시 (확인 전)
+    insert into coaching_notes (team_id, member_id, title, body, created_at)
+    select r.team_id, tm.user_id, '임원 보고 장표, 결론을 첫 장에 두면 더 빨리 통과돼요',
+      E'지금 보이는 것\n· 최근 기획서 3건 모두 결론이 마지막 장에 있어요\n· 리뷰 코멘트에 ''그래서 무엇을 결정하면 되나''가 두 번 나왔어요\n\n왜 중요해요\n임원 보고는 첫 1분에 결정할 것이 보여야 질문이 근거 쪽으로 갑니다.\n\n이렇게 해 보세요\n· 첫 장에 결론 한 줄 + 결정 요청 한 줄\n· 근거는 2~3장, 나머지는 부록으로',
+      now() - interval '1 day'
+    from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '김현정' limit 1;
     alter table coaching_notes enable trigger t_coaching_notify;
   end loop;
 end $$;

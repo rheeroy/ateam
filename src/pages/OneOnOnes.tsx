@@ -27,14 +27,14 @@ export function ScheduleModal({ open, onClose, memberId }: { open: boolean; onCl
       scheduled_at: new Date(`${date}T${time}:00`).toISOString(), duration_min: dur,
     }).select().single()),
     onSuccess: async (o) => {
-      // 그 팀원이 보낸 1:1 요청이 열려 있으면 '일정 잡음'으로 닫는다 (팀원에게 알림)
-      await supabase.from('team_requests').update({ status: 'done', response: `1:1 일정을 잡았어요 — ${new Date(o.scheduled_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` })
+      // 그 팀원이 보낸 1on1 요청이 열려 있으면 '일정 잡음'으로 닫는다 (팀원에게 알림)
+      await supabase.from('team_requests').update({ status: 'done', response: `1on1 일정을 잡았어요 — ${new Date(o.scheduled_at).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` })
         .eq('team_id', team.id).eq('from_id', o.member_id).eq('to_id', uid).eq('kind', 'meeting').eq('status', 'open');
       qc.invalidateQueries({ queryKey: ['oo'] }); qc.invalidateQueries({ queryKey: ['oo-week'] }); qc.invalidateQueries({ queryKey: ['requests'] }); onClose(); nav(`/one-on-ones/${o.id}`);
     },
   });
   return (
-    <Modal open={open} onClose={onClose} title="1:1 일정 잡기">
+    <Modal open={open} onClose={onClose} title="1on1 일정 잡기">
       {members.length === 0 ? <p className="text-sm text-slate-500">먼저 팀원을 초대해 주세요.</p> : (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
           <Field label="팀원">
@@ -79,15 +79,15 @@ export default function OneOnOnes({ embedded }: { embedded?: boolean } = {}) {
       {embedded ? (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <p className="text-sm text-slate-500 flex-1">면담 전 <b className="text-violet-700 font-semibold">AI 준비 노트</b>, 함께 보는 노트, 액션아이템이 한곳에 쌓이고 평가 근거가 됩니다.</p>
-          <Button onClick={() => setOpen(true)}><CalendarPlus size={15} />1:1 잡기</Button>
+          <Button onClick={() => setOpen(true)}><CalendarPlus size={15} />1on1 잡기</Button>
         </div>
-      ) : <PageHeader title="1:1 면담" sub="면담 전 준비 노트, 함께 보는 노트, 액션아이템이 한곳에 쌓입니다"
-        right={<Button onClick={() => setOpen(true)}><CalendarPlus size={15} />1:1 잡기</Button>} />}
+      ) : <PageHeader title="1on1 면담" sub="면담 전 준비 노트, 함께 보는 노트, 액션아이템이 한곳에 쌓입니다"
+        right={<Button onClick={() => setOpen(true)}><CalendarPlus size={15} />1on1 잡기</Button>} />}
       <div className="grid lg:grid-cols-3 gap-5 items-start">
         <div className="lg:col-span-2 space-y-5">
           <Card>
-            <CardHead title="다가오는 1:1" right={<span className="num">{upcoming.length}건</span>} />
-            {list.isLoading ? <Spinner /> : !upcoming.length ? <Empty icon={<MessageSquare size={18} />} title="잡힌 1:1이 없습니다">오른쪽 위 '1:1 잡기'로 일정을 만드세요.</Empty> :
+            <CardHead title="다가오는 1on1" right={<span className="num">{upcoming.length}건</span>} />
+            {list.isLoading ? <Spinner /> : !upcoming.length ? <Empty icon={<MessageSquare size={18} />} title="잡힌 1on1이 없습니다">오른쪽 위 '1on1 잡기'로 일정을 만드세요.</Empty> :
               upcoming.map((o) => (
                 <Link key={o.id} to={`/one-on-ones/${o.id}`} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 border-t border-slate-100 first:border-t-0">
                   <div className="text-center w-16 shrink-0"><div className="text-xs text-slate-400">{relDay(o.scheduled_at)}</div><div className="font-mono font-semibold num">{fmtTime(o.scheduled_at)}</div></div>
@@ -97,7 +97,7 @@ export default function OneOnOnes({ embedded }: { embedded?: boolean } = {}) {
               ))}
           </Card>
           <Card>
-            <CardHead title="지난 1:1" />
+            <CardHead title="지난 1on1" />
             {!past.length ? <p className="px-5 py-5 text-sm text-slate-500">기록이 없습니다.</p> : past.slice(0, 30).map((o) => (
               <Link key={o.id} to={`/one-on-ones/${o.id}`} className="px-5 py-3 flex items-center gap-4 hover:bg-slate-50 border-t border-slate-100 first:border-t-0 text-sm">
                 <span className="font-mono text-xs text-slate-400 w-14">{fmtDate(o.scheduled_at)}</span>
@@ -109,7 +109,7 @@ export default function OneOnOnes({ embedded }: { embedded?: boolean } = {}) {
           </Card>
         </div>
         <Card>
-          <CardHead title="팀원별 마지막 1:1" />
+          <CardHead title="팀원별 마지막 1on1" />
           <ul className="divide-y divide-slate-100 text-sm">
             {members.map((m) => {
               const last = lastDone.get(m.user_id);

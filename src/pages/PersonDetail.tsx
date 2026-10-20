@@ -1,4 +1,4 @@
-// 팀원 한 사람 페이지 — 컨디션 · 1:1 · 맡은 일 · 결과물 · 관찰 · 근거 원장
+// 팀원 한 사람 페이지 — 컨디션 · 1on1 · 맡은 일 · 결과물 · 관찰 · 근거 원장
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -103,7 +103,7 @@ export default function PersonDetail() {
   );
 }
 
-/** 팀원이 보낸 1:1 요청 */
+/** 팀원이 보낸 1on1 요청 */
 function OORequestBanner({ from, name, onSchedule }: { from: string; name: string; onSchedule: () => void }) {
   const { team, uid } = useTeam();
   const qc = useQueryClient();
@@ -112,7 +112,7 @@ function OORequestBanner({ from, name, onSchedule }: { from: string; name: strin
     queryFn: () => q<{ id: string; title: string; created_at: string }[]>(supabase.from('team_requests').select('id, title, created_at').eq('team_id', team.id).eq('from_id', from).eq('to_id', uid).eq('kind', 'meeting').eq('status', 'open').order('created_at', { ascending: false })),
   });
   const done = useMutation({
-    mutationFn: (rid: string) => q(supabase.from('team_requests').update({ status: 'done', response: '1:1 일정을 잡았어요' }).eq('id', rid)),
+    mutationFn: (rid: string) => q(supabase.from('team_requests').update({ status: 'done', response: '1on1 일정을 잡았어요' }).eq('id', rid)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['requests'] }),
   });
   const r = rq.data?.[0];
@@ -121,7 +121,7 @@ function OORequestBanner({ from, name, onSchedule }: { from: string; name: strin
     <div className="rounded-2xl bg-teal-50 ring-1 ring-teal-200 px-4 py-3 flex items-center gap-3 flex-wrap">
       <CalendarPlus size={18} className="text-teal-700 shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-teal-900">{name} 님이 1:1을 요청했어요 <span className="text-xs font-normal text-teal-700">· {relDay(r.created_at)}</span></div>
+        <div className="font-semibold text-teal-900">{name} 님이 1on1을 요청했어요 <span className="text-xs font-normal text-teal-700">· {relDay(r.created_at)}</span></div>
         <p className="text-sm text-slate-700 truncate">"{r.title}"</p>
       </div>
       <button onClick={onSchedule} className="text-sm font-semibold rounded-lg bg-teal-600 text-white px-3 py-1.5 hover:bg-teal-700">일정 잡기</button>
@@ -290,7 +290,7 @@ function OneOnOneBox({ teamId, uid, onNew }: { teamId: string; uid: string; onNe
   const open = (promises.data ?? []).filter((a) => a.owner_id === uid || a.one_on_ones?.member_id === uid);
   const today = new Date().toISOString().slice(0, 10);
   return (
-    <Box title={<><MessageSquare size={14} className="text-teal-600" />1:1</>} right={<button onClick={onNew} className="text-teal-700 font-semibold">잡기</button>}>
+    <Box title={<><MessageSquare size={14} className="text-teal-600" />1on1</>} right={<button onClick={onNew} className="text-teal-700 font-semibold">잡기</button>}>
       <div className="p-4 space-y-3 text-sm">
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10px] text-slate-500">다음</div>
@@ -304,7 +304,7 @@ function OneOnOneBox({ teamId, uid, onNew }: { teamId: string; uid: string; onNe
             {prep.data.content.watch && <p className="mt-1.5 text-xs text-slate-700">{strip(prep.data.content.watch)}</p>}
             {!!prep.data.content.questions?.length && <ul className="mt-1.5 space-y-0.5">{prep.data.content.questions.slice(0, 2).map((x, i) => <li key={i} className="text-xs text-violet-900">• {x}</li>)}</ul>}
           </div>
-        ) : <p className="text-xs text-slate-500 rounded-xl bg-violet-50/60 px-3 py-2"><AiChip label="AI 준비 노트" className="mr-1" />1:1을 열면 지난 대화·컨디션 공유·결과물을 엮은 준비 노트를 만듭니다.</p>}
+        ) : <p className="text-xs text-slate-500 rounded-xl bg-violet-50/60 px-3 py-2"><AiChip label="AI 준비 노트" className="mr-1" />1on1을 열면 지난 대화·컨디션 공유·결과물을 엮은 준비 노트를 만듭니다.</p>}
         {!!open.length && (
           <div><div className="text-[11px] font-semibold text-slate-500">열린 약속</div>
             <ul className="mt-1 space-y-1">{open.slice(0, 4).map((a) => <li key={a.id} className="text-xs flex gap-1.5"><span className={cx(a.due_date && a.due_date < today ? 'text-rose-600' : 'text-slate-400')}>•</span><span className="flex-1">{a.title}</span>{a.due_date && <span className={cx('num', a.due_date < today ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{fmtShort(a.due_date)}</span>}</li>)}</ul></div>
@@ -352,7 +352,7 @@ function Ledger({ teamId, uid }: { teamId: string; uid: string }) {
             {!rows.length && <li className="text-sm text-slate-400">아직 쌓인 근거가 없습니다.</li>}
           </ul>
         )}
-        <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">1:1 · 결과물 · 리뷰 피드백 · 관찰 메모 · 업무 완료가 따로 정리하지 않아도 여기에 쌓이고, 평가 초안은 이 근거로만 씁니다.</p>
+        <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">1on1 · 결과물 · 리뷰 피드백 · 관찰 메모 · 업무 완료가 따로 정리하지 않아도 여기에 쌓이고, 평가 초안은 이 근거로만 씁니다.</p>
       </div>
     </Box>
   );

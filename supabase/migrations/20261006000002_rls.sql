@@ -101,7 +101,7 @@ create policy ci_insert on public.checkins for insert to authenticated
 create policy ci_update on public.checkins for update to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- ---------- 1:1 ----------
+-- ---------- 1on1 ----------
 create policy oo_select on public.one_on_ones for select to authenticated
   using (public.is_team_leader(team_id) or member_id = auth.uid());
 create policy oo_leader on public.one_on_ones for all to authenticated

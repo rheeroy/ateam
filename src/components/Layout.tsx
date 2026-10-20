@@ -83,6 +83,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
 export default function Layout() {
   const { team, isLeader, profile, memberships, setTeamId, credits } = useSession();
   const mb = useMemberBadges(!isLeader);
+  const leaderTodo = (mb.data?.requests ?? 0) + (mb.data?.coaching ?? 0) + (mb.data?.promises ?? 0);   // 팀장님과: 답할 것
   const { on, toggle } = useAiMark();
   const nav = useNavigate();
   const loc = useLocation();
@@ -138,7 +139,7 @@ export default function Layout() {
             <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
             <NavItem to="/my/goals" label="팀목표" icon={ListTree} />
             <NavItem to="/my/one-on-ones" label="팀장님과" icon={MessageSquare} tip={mb.data?.conditionDue ? '팀장님과 · 이번 주 컨디션 미공유' : undefined}
-              badge={(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0) ? `${(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0)}` : mb.data?.conditionDue ? '컨디션' : undefined} />
+              badge={leaderTodo ? `${leaderTodo}` : mb.data?.conditionDue ? '컨디션' : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -195,7 +196,6 @@ export default function Layout() {
               {menu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-sm z-30">
                   <div className="px-3 py-2 text-xs text-slate-500 truncate">{profile?.email}</div>
-                  {!isLeader && <NavLink to="/my/record" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">내 기록</NavLink>}
                   {!isLeader && <NavLink to="/settings" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">설정</NavLink>}
                   <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>
                   <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
@@ -208,7 +208,7 @@ export default function Layout() {
           {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
         </div>
       </main>
-      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!((mb.data?.requests ?? 0) + (mb.data?.promises ?? 0)) || !!mb.data?.conditionDue} />}
+      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!leaderTodo || !!mb.data?.conditionDue} />}
       {isLeader && <QuickNote />}
       <InstallPrompt />
       <ProvLegend />
@@ -242,7 +242,7 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
       <h1 className="mt-4 text-xl font-bold">{leader ? (trial ? '무료 체험이 끝났습니다' : '구독이 끝났습니다') : '지금은 ATEAM을 쓸 수 없습니다'}</h1>
       <p className="mt-2 text-sm text-slate-600 leading-relaxed">
         {leader
-          ? <>그동안 쌓인 목표 · 업무 · 1:1 · 컨디션 기록은 그대로 보관돼 있습니다.<br />팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</>
+          ? <>그동안 쌓인 목표 · 업무 · 1on1 · 컨디션 기록은 그대로 보관돼 있습니다.<br />팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</>
           : <>팀장님의 구독이 끝나 잠시 멈췄습니다. 내 기록은 그대로 보관되고,<br />팀장님이 다시 시작하면 바로 이어집니다.</>}
       </p>
       {leader && <Link to="/settings?tab=billing" className="mt-5 inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700">요금제 고르기</Link>}

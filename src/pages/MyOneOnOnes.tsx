@@ -1,3 +1,8 @@
+// 팀원: 팀장님과 — 팀장과 '사람으로서' 주고받는 곳. (업무 결과물은 업무플랫폼, 목표는 팀목표)
+//   ① 이번 주 컨디션 (한 줄)
+//   ② 팀장님에게서 — 요청 · 성장 제안 · 격려 · 칭찬 · ATEAM 코칭을 한 줄기로, 답할 것이 위로
+//   ③ 1on1 — 다음 1on1(미리 꺼낼 이야기) · 1on1에서 정한 할 일 · 지난 1on1
+//   1on1 요청은 우측 상단 버튼 하나로만.
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -5,88 +10,122 @@ import { CalendarClock, ChevronRight, MessageSquare, MessageSquarePlus } from 'l
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { OneOnOne } from '../lib/types';
-import { fmtDate, fmtTime, relDay } from '../lib/format';
-import { Button, Card, CardHead, Empty, PageHeader, Pill, Spinner, inputCls, useToast } from '../components/ui';
-import { MyPraise, MyRequests, PromiseList, RequestOOModal, useMyOORequest } from '../components/member/Member';
-import { MyCoaching } from '../components/people/Coaching';
+import { cx, fmtDate, fmtTime, relDay } from '../lib/format';
+import { Button, Card, PageHeader, Pill, useToast } from '../components/ui';
+import { PromiseList, RequestOOModal, useMyOORequest, usePromises } from '../components/member/Member';
 import { ConditionShare } from '../components/member/ConditionShare';
+import { FromLeader } from '../components/member/FromLeader';
 
-/** 다가오는 1:1 — 이야기하고 싶은 것을 미리 (함께 보는 노트에 저장) */
-function NextAgenda({ o }: { o: OneOnOne }) {
+/** 다음 1on1 — 미리 꺼낼 이야기 (함께 보는 노트에 저장) */
+function NextOneOnOne({ o }: { o: OneOnOne }) {
   const { nameOf } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
   const [v, setV] = useState(o.shared_notes);
+  const [edit, setEdit] = useState(false);
   useEffect(() => setV(o.shared_notes), [o.id, o.shared_notes]);
   const save = useMutation({
     mutationFn: () => q(supabase.from('one_on_ones').update({ shared_notes: v }).eq('id', o.id)),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-oo'] }); toast('저장했습니다. 팀장님도 1:1 전에 볼 수 있습니다.'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-oo'] }); setEdit(false); toast('저장했습니다. 팀장님이 1on1 전에 봅니다.'); },
     onError: (e) => toast(errorText(e)),
   });
   return (
-    <Card className="p-5 border-teal-200">
-      <div className="flex items-center gap-2 flex-wrap">
-        <CalendarClock size={16} className="text-teal-600" />
-        <span className="font-semibold">다음 1:1 · {relDay(o.scheduled_at)} {fmtTime(o.scheduled_at)}</span>
+    <div className="rounded-xl bg-slate-50 p-3.5">
+      <div className="flex items-center gap-2">
+        <CalendarClock size={15} className="text-slate-500" />
+        <span className="text-sm font-semibold">{relDay(o.scheduled_at)} {fmtTime(o.scheduled_at)}</span>
         <span className="text-xs text-slate-400">{nameOf(o.leader_id)} 팀장님</span>
-        <Link to={`/one-on-ones/${o.id}`} className="ml-auto text-xs font-semibold text-teal-700">열기 →</Link>
+        <Link to={`/one-on-ones/${o.id}`} className="ml-auto text-xs font-semibold text-slate-600 hover:text-slate-900">열기 →</Link>
       </div>
-      <p className="mt-2 text-xs text-slate-500">이야기하고 싶은 것을 미리 적어 두면 팀장님이 1:1 전에 보고 준비합니다. 함께 보는 노트에 저장됩니다.</p>
-      <textarea rows={3} className={`${inputCls} mt-2`} value={v} onChange={(e) => setV(e.target.value)} placeholder="예) 다음 분기에 해 보고 싶은 일 / 요즘 막히는 부분 / 일하는 방식에 대한 제안" />
-      <div className="mt-2 flex justify-end"><Button size="sm" variant="secondary" disabled={v === o.shared_notes} loading={save.isPending} onClick={() => save.mutate()}>저장</Button></div>
-    </Card>
+      <div className="mt-2.5">
+        <div className="text-[11px] text-slate-500 mb-1">미리 꺼낼 이야기 <span className="text-slate-400">· 팀장님도 1on1 전에 봅니다</span></div>
+        {!edit && !o.shared_notes ? (
+          <button onClick={() => setEdit(true)} className="w-full text-left text-sm text-slate-400 bg-white rounded-lg ring-1 ring-slate-200 px-3 py-2 hover:ring-slate-300">예) 다음 분기에 맡고 싶은 일, 일하는 방식 제안</button>
+        ) : !edit ? (
+          <button onClick={() => setEdit(true)} className="w-full text-left text-sm text-slate-700 bg-white rounded-lg ring-1 ring-slate-200 px-3 py-2 whitespace-pre-line hover:ring-slate-300">{o.shared_notes}</button>
+        ) : (
+          <>
+            <textarea autoFocus rows={3} className="w-full text-sm bg-white rounded-lg ring-1 ring-slate-300 border-0 px-3 py-2 focus:ring-slate-500" value={v} onChange={(e) => setV(e.target.value)}
+              placeholder="예) 다음 분기에 맡고 싶은 일, 일하는 방식 제안" />
+            <div className="mt-1.5 flex justify-end gap-1.5">
+              <Button size="sm" variant="ghost" onClick={() => { setV(o.shared_notes); setEdit(false); }}>취소</Button>
+              <Button size="sm" variant="secondary" disabled={v === o.shared_notes} loading={save.isPending} onClick={() => save.mutate()}>저장</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
-/** 팀원: 팀장님과 — 지금 답할 것(요청 · 이번 주 컨디션 공유 · 내 약속) · 다음 1:1 · 팀장님이 해 준 것(코칭 · 칭찬 · 1:1 기록) */
-export default function MyOneOnOnes() {
+function OneOnOnePanel() {
   const { team, uid, nameOf } = useTeam();
-  const [params] = useSearchParams();
-  const [reqOpen, setReqOpen] = useState(false);
-  const pending = useMyOORequest();
+  const [all, setAll] = useState(false);
   const list = useQuery({
     queryKey: ['my-oo', team.id, uid],
     queryFn: () => q<OneOnOne[]>(supabase.from('one_on_ones').select('*').eq('team_id', team.id).eq('member_id', uid).order('scheduled_at', { ascending: false })),
   });
+  const promises = usePromises();
   const now = new Date().toISOString();
   const next = [...(list.data ?? [])].filter((o) => o.status === 'scheduled' && o.scheduled_at >= now).sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))[0];
-  const past = (list.data ?? []).filter((o) => o.id !== next?.id);
+  const past = (list.data ?? []).filter((o) => o.id !== next?.id && o.status !== 'canceled');
+  return (
+    <Card>
+      <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+        <MessageSquare size={16} className="text-slate-500" /><span className="font-semibold">1on1</span>
+      </div>
+      <div className="p-4 space-y-5">
+        <section>
+          <div className="text-xs font-semibold text-slate-500 mb-2">다음 1on1</div>
+          {next ? <NextOneOnOne o={next} /> : <p className="text-sm text-slate-400">예정된 1on1이 없습니다.</p>}
+        </section>
+
+        <section>
+          <div className="text-xs font-semibold text-slate-500">1on1에서 정한 할 일</div>
+          <p className="text-[11px] text-slate-400 mb-2">1on1에서 함께 정한 후속 조치</p>
+          {promises.data?.length ? <PromiseList /> : <p className="text-sm text-slate-400">남은 할 일이 없습니다.</p>}
+        </section>
+
+        <section>
+          <div className="text-xs font-semibold text-slate-500 mb-1">지난 1on1</div>
+          {!past.length ? <p className="text-sm text-slate-400">아직 기록이 없습니다.</p> : (
+            <ul className="-mx-2">
+              {(all ? past : past.slice(0, 4)).map((o) => (
+                <li key={o.id}>
+                  <Link to={`/one-on-ones/${o.id}`} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50">
+                    <span className="text-xs text-slate-500 num w-20 shrink-0">{fmtDate(o.scheduled_at)}</span>
+                    <span className="flex-1 min-w-0 text-sm text-slate-700 truncate">{o.shared_notes.split('\n')[0] || `${nameOf(o.leader_id)} 팀장님`}</span>
+                    {o.status === 'done' ? <Pill tone="emerald">완료</Pill> : <Pill>예정</Pill>}
+                    <ChevronRight size={14} className="text-slate-300" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {past.length > 4 && <button onClick={() => setAll((x) => !x)} className={cx('mt-1 text-xs text-slate-500 hover:text-slate-800')}>{all ? '접기' : `전체 ${past.length}회 보기`}</button>}
+        </section>
+      </div>
+    </Card>
+  );
+}
+
+/** 팀원: 팀장님과 */
+export default function MyOneOnOnes() {
+  const [params] = useSearchParams();
+  const [reqOpen, setReqOpen] = useState(false);
+  const pending = useMyOORequest();
   const req = pending.data?.[0];
+  const focus = params.get('coach') ?? params.get('req') ?? params.get('praise');
   return (
     <section>
-      <PageHeader title="팀장님과" sub="팀장님 요청 · 이번 주 컨디션 · 1:1과 약속 · 받은 코칭과 칭찬"
-        right={req ? <span className="text-xs text-teal-700 bg-teal-50 ring-1 ring-teal-200 rounded-lg px-3 py-2">1:1 요청함 · {fmtDate(req.created_at)} · 일정 기다리는 중</span>
-          : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1:1 요청하기</Button>} />
-      <div className="grid lg:grid-cols-5 gap-5 items-start">
-        <div className="lg:col-span-3 space-y-5">
-          <MyRequests />
-          <ConditionShare />
-          {next && <NextAgenda o={next} />}
-          <Card className="p-5">
-            <div className="font-semibold mb-3">1:1에서 정한 약속</div>
-            <PromiseList />
-            <p className="mt-3 text-[11px] text-slate-400">내 약속은 동그라미를 눌러 완료로 표시합니다. 팀장님도 볼 수 있습니다.</p>
-          </Card>
-          <Card>
-            <CardHead title="1:1 기록" />
-            {list.isLoading ? <Spinner /> : !past.length && !next ? <Empty icon={<MessageSquare size={18} />} title="아직 1:1이 없습니다">팀장님이 일정을 잡으면 여기에 보입니다. 이야기하고 싶은 게 있으면 먼저 요청해도 됩니다.</Empty> : (
-              past.map((o) => (
-                <Link key={o.id} to={`/one-on-ones/${o.id}`} className="px-5 py-3.5 flex items-center gap-4 hover:bg-slate-50 border-t border-slate-100 first:border-t-0">
-                  <div className="text-center w-14 shrink-0"><div className="text-[11px] text-slate-400">{relDay(o.scheduled_at)}</div><div className="font-mono text-sm font-semibold num">{fmtTime(o.scheduled_at)}</div></div>
-                  <div className="flex-1 min-w-0"><div className="text-sm font-semibold">{fmtDate(o.scheduled_at, true)} · {nameOf(o.leader_id)} 팀장님</div><div className="text-xs text-slate-500 truncate">{o.shared_notes.split('\n')[0] || '노트 없음'}</div></div>
-                  {o.status === 'done' ? <Pill tone="emerald">완료</Pill> : o.status === 'canceled' ? <Pill>취소</Pill> : <Pill tone="indigo">예정</Pill>}
-                  <ChevronRight size={16} className="text-slate-300" />
-                </Link>
-              ))
-            )}
-          </Card>
-        </div>
-        <div className="lg:col-span-2 space-y-5">
-          <MyCoaching focusId={params.get('coach')} />
-          <MyPraise limit={6} />
-          <Link to="/my/record" className="block rounded-xl bg-white ring-1 ring-slate-200 px-4 py-3 text-sm hover:ring-indigo-300">
-            <span className="font-semibold">이번 분기 내 기록</span><span className="block text-xs text-slate-500 mt-0.5">승인된 체크인 · 결과물 · 받은 칭찬 · 지킨 약속을 한 번에 →</span>
-          </Link>
+      <PageHeader title="팀장님과" sub="팀장님이 보낸 요청 · 칭찬 · 코칭과 1on1을 한곳에서"
+        right={req ? <span className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">1on1 요청함 · {fmtDate(req.created_at)} · 일정 대기</span>
+          : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1on1 요청하기</Button>} />
+      <div className="space-y-5">
+        <ConditionShare />
+        <div className="grid lg:grid-cols-3 gap-5 items-start">
+          <div className="lg:col-span-2"><FromLeader focus={focus} /></div>
+          <OneOnOnePanel />
         </div>
       </div>
       {reqOpen && <RequestOOModal onClose={() => setReqOpen(false)} />}

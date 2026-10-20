@@ -36,7 +36,7 @@ export interface DomainSummary {
 export const DOMAIN_META: Record<Domain, { name: string; desc: string; period: string }> = {
   goal: { name: '목표·실적', desc: '목표 달성 가능성과 실적 전망', period: '월간 전망' },
   exec: { name: '실행·과제', desc: '계획 대비 지연·막힘·시간 배분', period: '주간 진척' },
-  people: { name: '사람·컨디션', desc: '컨디션 추세, 1:1 간격, 컨디션 공유', period: '주간 추세' },
+  people: { name: '사람·컨디션', desc: '컨디션 추세, 1on1 간격, 컨디션 공유', period: '주간 추세' },
   output: { name: '결과물·리뷰', desc: '리뷰 대기와 재작업 패턴', period: '주간 흐름' },
   growth: { name: '육성·평가', desc: '평가 근거와 성장 신호', period: '월간 궤적' },
   org: { name: '조직·전사', desc: '상위 방향·요청·전사 일정', period: '수시' },
@@ -80,7 +80,7 @@ export interface Raw {
   requests: { id: string; to_id: string; title: string; kind: string; due_date: string | null; created_at: string; status: string }[];
   recurringLogs: { item_id: string; period: string; done: boolean | null }[];
   latePromises: number;
-  /** 팀장이 1:1에서 한 약속 중 기한 지난 것 — 팀원별 (기한 지난 날 수) */
+  /** 팀장이 1on1에서 한 약속 중 기한 지난 것 — 팀원별 (기한 지난 날 수) */
   latePromiseBy?: { member_id: string; days: number }[];
   /** 결과물 판단 깊이 기록 (최근 120일) */
   jscores?: { user_id: string; score: number; scored_at: string }[];
@@ -136,7 +136,7 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
     safe<Raw['decisionsDue']>(db.from('decisions').select('id, title, decided_at, review_on').eq('team_id', teamId).is('outcome', null).order('decided_at').limit(20), []),
     safe<NonNullable<Raw['jscores']>>(db.from('judgment_scores').select('user_id, score, scored_at').eq('team_id', teamId).gte('scored_at', new Date(Date.now() - 120 * 86400000).toISOString()).order('scored_at'), []),
   ]);
-  // 기한 지난 팀장 약속 → 어느 팀원과의 1:1에서 나온 약속인지
+  // 기한 지난 팀장 약속 → 어느 팀원과의 1on1에서 나온 약속인지
   const ooIds = [...new Set(late.map((a) => a.one_on_one_id).filter(Boolean))] as string[];
   const oos = ooIds.length ? await safe<{ id: string; member_id: string }[]>(db.from('one_on_ones').select('id, member_id').in('id', ooIds), []) : [];
   const memberOf = new Map(oos.map((o) => [o.id, o.member_id]));
@@ -214,7 +214,7 @@ export function flagsFor(raw: Raw, uid: string): MemberFlag[] {
     if (spanDays >= 56 && Math.max(...last4) - Math.min(...last4) <= 0.5 && mean < 3.5 && !fresh)
       out.push({ key: 'growth_stall', label: FLAG_LABEL.growth_stall, detail: `최근 결과물 4건 판단 깊이 평균 ${Math.round(mean * 10) / 10}/4로 비슷 · 60일간 새로 맡은 일 없음` });
   }
-  // 4) 팀장 약속 밀림 — 이 팀원과의 1:1에서 팀장이 한 약속
+  // 4) 팀장 약속 밀림 — 이 팀원과의 1on1에서 팀장이 한 약속
   const pr = (raw.latePromiseBy ?? []).filter((x) => x.member_id === uid);
   if (pr.length >= 2 || pr.some((x) => x.days >= 14))
     out.push({ key: 'promise_late', label: FLAG_LABEL.promise_late, detail: `기한 지난 약속 ${pr.length}건 · 최장 ${Math.max(...pr.map((x) => x.days))}일` });
@@ -371,16 +371,16 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const noOO: string[] = []; const missing: string[] = [];
   for (const r of raw.care ?? []) for (const s of r.signals) {
     if (s.type === 'condition_down') S.push({ id: `care-cond-${r.user_id}`, domain: 'people', type: 'risk', severity: 3, periods: DW,
-      title: `${r.full_name}님 컨디션이 3주 연속 떨어졌습니다 (${s.label.replace('컨디션 ', '')})`, detail: '번아웃·이탈 신호일 수 있습니다. 이번 주 안에 1:1을 권합니다.',
-      rule: '공유한 컨디션 3주 연속 하락, 최근 값 3 이하', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
+      title: `${r.full_name}님 컨디션이 3주 연속 떨어졌습니다 (${s.label.replace('컨디션 ', '')})`, detail: '번아웃·이탈 신호일 수 있습니다. 이번 주 안에 1on1을 권합니다.',
+      rule: '공유한 컨디션 3주 연속 하락, 최근 값 3 이하', action: { label: '1on1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
     if (s.type === 'blocked_repeat' && !has(r.user_id, 'frustrated')) S.push({ id: `care-block-${r.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
       title: `${r.full_name}님이 2주째 같은 문제로 막혀 있습니다`, detail: s.detail ? `"${s.detail}"` : undefined,
-      rule: '막힌 일 2주 연속 (예전 주간 체크인 기록)', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
+      rule: '막힌 일 2주 연속 (예전 주간 체크인 기록)', action: { label: '1on1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
     if (s.type === 'no_one_on_one') noOO.push(r.full_name);
     if (s.type === 'checkin_missing') missing.push(r.full_name);
   }
   if (noOO.length) S.push({ id: `care-oo-${noOO.length}`, domain: 'people', type: 'missed', severity: 2, periods: W,
-    title: `1:1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1:1이 14일 전', action: { label: '1:1 잡기', to: '/people?new=1' } });
+    title: `1on1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1on1이 14일 전', action: { label: '1on1 잡기', to: '/people?new=1' } });
   const thisMon = kstMonday();
   for (const m of mem) {
     const c = raw.checkins.find((x) => x.user_id === m.user_id && x.week_start === thisMon);
@@ -406,12 +406,12 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
       title: `팀 평균 컨디션이 ${priorC.toFixed(1)} → ${curC.toFixed(1)}로 올라갔습니다`, rule: '최근 주 평균 vs 직전 4주 평균, 0.4 이상 상승' });
   }
   if (raw.latePromises) S.push({ id: `promise-late-${raw.latePromises}`, domain: 'people', type: 'missed', severity: 2, periods: D,
-    title: `팀원에게 한 약속 ${raw.latePromises}건이 기한을 넘겼습니다`, detail: '팀장의 약속이 밀리면 1:1 신뢰가 가장 먼저 떨어집니다.', rule: '1:1에서 정한 팀장 할 일, 기한 경과', action: { label: '약속 보기', to: '#today' } });
+    title: `팀원에게 한 약속 ${raw.latePromises}건이 기한을 넘겼습니다`, detail: '팀장의 약속이 밀리면 1on1 신뢰가 가장 먼저 떨어집니다.', rule: '1on1에서 정한 팀장 할 일, 기한 경과', action: { label: '약속 보기', to: '#today' } });
   for (const m of mem) for (const f of flagMap.get(m.user_id) ?? []) {
     const nm = m.name;
     if (f.key === 'frustrated') S.push({ id: `care-frus-${m.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
       title: `${nm}님은 의욕은 있는데 막혀 있습니다 — 막힌 것부터 풀어 주세요`, detail: f.detail,
-      rule: '최근 컨디션 3 이상 + (같은 막힘 2주 연속 · 막힘 상태 항목 · 리뷰 대기 3일 이상)', action: { label: '1:1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
+      rule: '최근 컨디션 3 이상 + (같은 막힘 2주 연속 · 막힘 상태 항목 · 리뷰 대기 3일 이상)', action: { label: '1on1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
     if (f.key === 'recog_gap') S.push({ id: `care-recog-${m.user_id}`, domain: 'people', type: 'missed', severity: 2, periods: WM,
       title: `${nm}님이 최근 일을 마쳤는데 인정 기록이 없습니다`, detail: `${f.detail} — 인정이 끊기면 '내가 뭘 했지'가 쌓입니다.`,
       rule: '최근 30일 완료 항목 + 45일 승인 결과물 2건 이상, 30일간 긍정 관찰·칭찬 0건', action: { label: '칭찬 메모 남기기', memo: m.user_id } });
@@ -419,11 +419,11 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
       title: `${nm}님 결과물 수준이 두 달 넘게 비슷합니다 — 한 단계 어려운 일을 맡길 때`, detail: f.detail,
       rule: '판단 깊이 최근 4건 차이 0.5 이하·8주 이상, 평균 3.5 미만, 60일간 새로 맡은 항목 없음', action: { label: '팀원 보기', to: `/people/${m.user_id}` } });
     if (f.key === 'promise_late') S.push({ id: `care-promise-${m.user_id}`, domain: 'people', type: 'missed', severity: 2, periods: W,
-      title: `${nm}님과의 1:1에서 한 약속이 밀려 있습니다 — 다음 1:1 첫 안건으로`, detail: f.detail,
-      rule: '이 팀원과의 1:1에서 정한 팀장 할 일, 기한 지난 것 2건 이상 또는 14일 이상', action: { label: '약속 보기', to: '#today' } });
+      title: `${nm}님과의 1on1에서 한 약속이 밀려 있습니다 — 다음 1on1 첫 안건으로`, detail: f.detail,
+      rule: '이 팀원과의 1on1에서 정한 팀장 할 일, 기한 지난 것 2건 이상 또는 14일 이상', action: { label: '약속 보기', to: '#today' } });
     if (f.key === 'withdrawn') S.push({ id: `care-quiet-${m.user_id}`, domain: 'people', type: 'pattern', severity: 1, periods: W,
       title: `${nm}님 컨디션 공유가 눈에 띄게 짧아졌습니다 — 추궁보다 안부부터`, detail: f.detail,
-      rule: '이전 컨디션 공유 평균 대비 최근 2주 40% 미만 또는 빠짐, 막힘 칸 비어 있음', action: { label: '1:1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
+      rule: '이전 컨디션 공유 평균 대비 최근 2주 40% 미만 또는 빠짐, 막힘 칸 비어 있음', action: { label: '1on1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
   }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
   const ciLast = new Set(raw.checkins.filter((c) => c.week_start === lastMon).map((c) => c.user_id)).size;
@@ -510,8 +510,8 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     const next = lv.levels[lv.level];
     const gap = next.conditions.find((c) => c.current < c.target);
     if (gap) {
-      const gl = gap.label.replace('체크인이 쌓인 주', '컨디션 공유가 쌓인 주');   // SQL 이름표(옛 이름) → 화면 이름
-      const gd: Domain = /체크인|컨디션|1:1/.test(gl) ? 'people' : /결과물/.test(gl) ? 'output' : /근거/.test(gl) ? 'growth' : /공수/.test(gl) ? 'exec' : 'goal';
+      const gl = gap.label.replace('체크인이 쌓인 주', '컨디션 공유가 쌓인 주').replace(/1:1/g, '1on1');   // SQL 이름표(옛 이름) → 화면 이름
+      const gd: Domain = /체크인|컨디션|1:1|1on1/.test(gl) ? 'people' : /결과물/.test(gl) ? 'output' : /근거/.test(gl) ? 'growth' : /공수/.test(gl) ? 'exec' : 'goal';
       S.push({ id: `level-${lv.level}-${gl}`, domain: gd, type: 'data', severity: 1, periods: M,
         title: `${gl} ${gap.target - gap.current}${gap.unit ?? ''}만 더 쌓이면 AI가 'L${next.level} ${next.name}'까지 봅니다`,
         detail: `지금은 L${lv.level} ${lv.levels[lv.level - 1].name} 단계입니다.`, rule: 'AI 인사이트 레벨 조건', action: { label: '레벨 조건 보기', to: '/insight' } });

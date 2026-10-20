@@ -31,7 +31,7 @@ export interface Perspective {
 export const LEVERS: { key: Lever; label: string; hint: string; icon: typeof Rocket }[] = [
   { key: 'exec', label: '실행·우선순위', hint: '업무 푸시 · 우선순위 · 범위', icon: Rocket },
   { key: 'staffing', label: '인력 운영', hint: '재배분 · 백업 · 충원·채용', icon: Briefcase },
-  { key: 'people', label: '사람·팀 분위기', hint: '1:1 리듬 · 인정 · 육성 · 팀 의례', icon: HeartHandshake },
+  { key: 'people', label: '사람·팀 분위기', hint: '1on1 리듬 · 인정 · 육성 · 팀 의례', icon: HeartHandshake },
   { key: 'external', label: '외부·전사', hint: '외부 변수 · 전사 방침 · 상향 보고', icon: Globe2 },
   { key: 'self', label: '팀장 자신', hint: '시간 배분 · 위임 · 에너지', icon: UserRound },
   { key: 'system', label: '운영 체계', hint: '회의·보고 리듬 · 작성 기준', icon: Settings2 },

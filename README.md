@@ -2,8 +2,8 @@
 
 Vite + React + TypeScript + Tailwind · Supabase(Postgres·Auth·Storage·Edge Functions) · Claude API · Vercel
 
-팀장이 1:1, 결과물 리뷰, 주간보고, 평가를 한곳에서 하고, 쌓인 기록으로 AI가 브리핑·검토·평가 초안·실적 전망·What-if를 돕는다.
-**내 노하우**: 팀장이 가진 보고 원칙·기획서 기준·프레임워크·사업 맥락을 아무 형식으로 넣으면 AI가 카드로 정리하고, 팀장이 확인한 카드는 리뷰·주간보고·1:1·평가 등 모든 AI 기능에 '팀장의 기준'으로 반영된다. 공개한 카드는 팀원 화면에 '팀장 가이드'로 보인다.
+팀장이 1on1, 결과물 리뷰, 주간보고, 평가를 한곳에서 하고, 쌓인 기록으로 AI가 브리핑·검토·평가 초안·실적 전망·What-if를 돕는다.
+**내 노하우**: 팀장이 가진 보고 원칙·기획서 기준·프레임워크·사업 맥락을 아무 형식으로 넣으면 AI가 카드로 정리하고, 팀장이 확인한 카드는 리뷰·주간보고·1on1·평가 등 모든 AI 기능에 '팀장의 기준'으로 반영된다. 공개한 카드는 팀원 화면에 '팀장 가이드'로 보인다.
 숫자는 SQL 모델이 계산하고 AI는 해석만 한다. 모든 AI 결과에는 출처 표시(✦ AI 생성 · Σ 모델 계산 · ✎ 팀장 수정 · ✓ 팀장 확정 · ◌ 판단 보류)가 붙는다.
 
 ---
@@ -12,7 +12,7 @@ Vite + React + TypeScript + Tailwind · Supabase(Postgres·Auth·Storage·Edge F
 
 ```
 src/
-  pages/            화면 (팀장: 홈·목표·과제·내 노하우·1:1·리뷰룸·주간보고·팀 성과·팀 전략·시뮬레이션·평가·AI 인사이트·팀원·설정 / 팀원: 홈·내 목표·과제·체크인·공유하기·내 1:1)
+  pages/            화면 (팀장: 홈·목표·과제·내 노하우·1on1·리뷰룸·주간보고·팀 성과·팀 전략·시뮬레이션·평가·AI 인사이트·팀원·설정 / 팀원: 홈·내 목표·과제·체크인·공유하기·내 1on1)
   components/       ui · Prov(출처 표시) · charts(SVG) · Upload · MetricEditor · Layout
   lib/              supabase 클라이언트 · 타입 · sim(What-if 모델) · extract(docx·pptx 텍스트 추출)
   state/session.tsx 로그인·현재 팀·구성원·요금제
@@ -116,7 +116,7 @@ cd supabase && ./tests/run.sh                   # 로컬 Postgres(5499)에 스�
 deno check supabase/functions/*/index.ts        # Edge Function 타입 체크
 ```
 
-`tests/run.sh`는 Supabase 없이 순수 Postgres 16으로 RLS·트리거·분석 함수·크레딧 차감을 확인한다 (팀원이 남의 체크인·팀장 메모·근거를 못 보는지, 팀원이 1:1 상태를 못 바꾸는지, AI 원본이 보호되는지 등).
+`tests/run.sh`는 Supabase 없이 순수 Postgres 16으로 RLS·트리거·분석 함수·크레딧 차감을 확인한다 (팀원이 남의 체크인·팀장 메모·근거를 못 보는지, 팀원이 1on1 상태를 못 바꾸는지, AI 원본이 보호되는지 등).
 
 ---
 

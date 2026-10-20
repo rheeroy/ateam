@@ -40,4 +40,4 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 { echo "-- ATEAM 성과 체크인 (업무플랫폼에서 목표에 성과를 점찍고 팀장 승인 → 팀목표 공식 값 · 정성 '단계' 측정 · 숫자 즉시 반영 없앰) — 21 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261031000027_checkin.sql; } > dashboard/22_checkin.sql
 { echo "-- ATEAM 목표 = 지표 + 과제 (지표가 있으면 목표 진척은 지표 평균 · 지표 값은 체크인/실적으로만 · 기존 항목 자동 분류) — 22 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261101000028_goal_metrics.sql; } > dashboard/23_goal_metrics.sql
 echo "done: supabase/dashboard"
-{ echo "-- ATEAM 컨디션 공유 (영향 요인 · 메모 칸 추가 · 업무 칸은 보존만 · 컨디션을 평가 근거에서 제외) — 23_goal_metrics 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261102000029_condition.sql; } > dashboard/24_condition.sql
+{ echo "-- ATEAM 컨디션 공유 + 팀장님과 개편 + 1on1 이름 통일 (영향 요인 · 메모 칸 · 컨디션을 평가 근거에서 제외 · 칭찬 알림 · 코칭 알림 링크 · 알림 문구 1on1) — 23_goal_metrics 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261102000029_condition.sql; } > dashboard/24_condition.sql

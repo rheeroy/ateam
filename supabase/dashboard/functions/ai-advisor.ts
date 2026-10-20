@@ -425,12 +425,12 @@ var ADVISOR = `\uACFC\uC81C: \uB2F9\uC2E0\uC740 \uC774 \uD300\uC7A5\uC758 \uACC1
 
 \uC5ED\uD560 \uAD6C\uBD84 (\uBC18\uBCF5 \uAE08\uC9C0):
 - \uC778\uC0AC\uC774\uD2B8\uB294 '\uBB34\uC2A8 \uC77C\uC774 \uBC8C\uC5B4\uC9C0\uB098(\uC9C4\uB2E8)', \uC758\uC0AC\uACB0\uC815 \uBCF4\uB4DC\uB294 '\uBB34\uC5C7\uC744 \uACB0\uC815\uD560\uC9C0', \uD300\uC6D0\uAD00\uB9AC \uC561\uC158\uC740 '\uC774\uBC88 \uC8FC \uB204\uAD6C\uC5D0\uAC8C \uBB34\uC5C7\uC744'\uC785\uB2C8\uB2E4. \uB2F9\uC2E0\uC740 \uADF8 \uC704\uC5D0\uC11C '\uD300\uC744 \uC5B4\uB5BB\uAC8C \uC6B4\uC601\uD574\uC57C \uD558\uB098(\uCC98\uBC29)'\uB97C \uC501\uB2C8\uB2E4.
-- \uD55C \uC0AC\uB78C\uC5D0\uAC8C \uD558\uB294 1:1\xB7\uCE6D\uCC2C \uAC19\uC740 \uAC1C\uBCC4 \uD589\uB3D9\uC744 \uADF8\uB300\uB85C \uB2E4\uC2DC \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC5EC\uB7EC \uC0AC\uB78C\xB7\uC5EC\uB7EC \uC2E0\uD638\uC5D0 \uACF5\uD1B5\uB41C \uC6B4\uC601 \uBC29\uC2DD\uC744 \uBC14\uAFB8\uB294 \uCC98\uBC29\uC744 \uC501\uB2C8\uB2E4. \uAF2D \uD544\uC694\uD558\uBA74 '\uD300\uC6D0\uAD00\uB9AC \uC561\uC158\uC744 \uC774\uBC88 \uC8FC\uC5D0 \uCC98\uB9AC\uD558\uB77C'\uCC98\uB7FC \uC5F0\uACB0\uB9CC \uD569\uB2C8\uB2E4.
+- \uD55C \uC0AC\uB78C\uC5D0\uAC8C \uD558\uB294 1on1\xB7\uCE6D\uCC2C \uAC19\uC740 \uAC1C\uBCC4 \uD589\uB3D9\uC744 \uADF8\uB300\uB85C \uB2E4\uC2DC \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC5EC\uB7EC \uC0AC\uB78C\xB7\uC5EC\uB7EC \uC2E0\uD638\uC5D0 \uACF5\uD1B5\uB41C \uC6B4\uC601 \uBC29\uC2DD\uC744 \uBC14\uAFB8\uB294 \uCC98\uBC29\uC744 \uC501\uB2C8\uB2E4. \uAF2D \uD544\uC694\uD558\uBA74 '\uD300\uC6D0\uAD00\uB9AC \uC561\uC158\uC744 \uC774\uBC88 \uC8FC\uC5D0 \uCC98\uB9AC\uD558\uB77C'\uCC98\uB7FC \uC5F0\uACB0\uB9CC \uD569\uB2C8\uB2E4.
 
 \uC6B4\uC601 \uB808\uBC84 6\uAC1C \u2014 levers \uC5D0\uB294 6\uAC1C \uBAA8\uB450 \uC0C1\uD0DC\uB97C \uC501\uB2C8\uB2E4 (\uBE60\uC9C4 \uC601\uC5ED\uC774 \uC5C6\uAC8C):
   exec      \uC2E4\uD589\xB7\uC6B0\uC120\uC21C\uC704 \u2014 \uC5C5\uBB34 \uD478\uC2DC, \uC6B0\uC120\uC21C\uC704 \uC7AC\uC870\uC815, \uBC94\uC704 \uCD95\uC18C, \uACFC\uC81C \uC911\uB2E8\xB7\uCD94\uAC00
   staffing  \uC778\uB825 \uC6B4\uC601 \u2014 \uC5C5\uBB34 \uC7AC\uBC30\uBD84, \uC5ED\uD560\xB7\uBC31\uC5C5 \uC9C0\uC815, \uD55C \uC0AC\uB78C \uC758\uC874 \uD574\uC18C, \uCDA9\uC6D0\xB7\uCC44\uC6A9 \uC694\uCCAD, \uC678\uBD80 \uB9AC\uC18C\uC2A4
-  people    \uC0AC\uB78C\xB7\uD300 \uBD84\uC704\uAE30 \u2014 1:1 \uB9AC\uB4EC, \uC778\uC815\uC758 \uACE0\uB978 \uBD84\uBC30, \uC721\uC131 \uAE30\uD68C, \uD300 \uC758\uB840(\uC810\uC2EC \xB7 \uC9E7\uC740 \uD68C\uACE0 \xB7 \uC131\uACFC \uCD95\uD558 \xB7 \uD68C\uC2DD \uC911 \uC0C1\uD669\uC5D0 \uB9DE\uB294 \uAC83)
+  people    \uC0AC\uB78C\xB7\uD300 \uBD84\uC704\uAE30 \u2014 1on1 \uB9AC\uB4EC, \uC778\uC815\uC758 \uACE0\uB978 \uBD84\uBC30, \uC721\uC131 \uAE30\uD68C, \uD300 \uC758\uB840(\uC810\uC2EC \xB7 \uC9E7\uC740 \uD68C\uACE0 \xB7 \uC131\uACFC \uCD95\uD558 \xB7 \uD68C\uC2DD \uC911 \uC0C1\uD669\uC5D0 \uB9DE\uB294 \uAC83)
   external  \uC678\uBD80\xB7\uC804\uC0AC \u2014 \uC678\uBD80 \uBCC0\uC218(\uC2DC\uC7A5\xB7\uACE0\uAC1D\xB7\uC720\uAD00 \uBD80\uC11C) \uBC18\uC601, \uC804\uC0AC \uBC29\uCE68 \uC815\uB82C, \uC0C1\uD5A5 \uBCF4\uACE0\xB7\uC5D0\uC2A4\uCEEC\uB808\uC774\uC158
   self      \uD300\uC7A5 \uC790\uC2E0 \u2014 \uC2DC\uAC04 \uBC30\uBD84(\uAD00\uC2EC\uC774 \uBAB0\uB9AC\uAC70\uB098 \uB35C \uAC00\uB294 \uC0AC\uB78C), \uC704\uC784, \uACB0\uC815 \uBBF8\uB8E8\uAE30, \uC5D0\uB108\uC9C0\xB7\uBD80\uB2F4 \uAD00\uB9AC
   system    \uC6B4\uC601 \uCCB4\uACC4 \u2014 \uD68C\uC758\xB7\uBCF4\uACE0 \uB9AC\uB4EC, \uC791\uC131 \uAE30\uC900, \uB3C4\uAD6C \uC0AC\uC6A9
@@ -499,7 +499,7 @@ var SECTION_NAME = { todo: "\uB0B4\uAC00 \uD560 \uC77C", decide: "\uC758\uC0AC\u
 var DOMAIN_META = {
   goal: { name: "\uBAA9\uD45C\xB7\uC2E4\uC801", desc: "\uBAA9\uD45C \uB2EC\uC131 \uAC00\uB2A5\uC131\uACFC \uC2E4\uC801 \uC804\uB9DD", period: "\uC6D4\uAC04 \uC804\uB9DD" },
   exec: { name: "\uC2E4\uD589\xB7\uACFC\uC81C", desc: "\uACC4\uD68D \uB300\uBE44 \uC9C0\uC5F0\xB7\uB9C9\uD798\xB7\uC2DC\uAC04 \uBC30\uBD84", period: "\uC8FC\uAC04 \uC9C4\uCC99" },
-  people: { name: "\uC0AC\uB78C\xB7\uCEE8\uB514\uC158", desc: "\uCEE8\uB514\uC158 \uCD94\uC138, 1:1 \uAC04\uACA9, \uCEE8\uB514\uC158 \uACF5\uC720", period: "\uC8FC\uAC04 \uCD94\uC138" },
+  people: { name: "\uC0AC\uB78C\xB7\uCEE8\uB514\uC158", desc: "\uCEE8\uB514\uC158 \uCD94\uC138, 1on1 \uAC04\uACA9, \uCEE8\uB514\uC158 \uACF5\uC720", period: "\uC8FC\uAC04 \uCD94\uC138" },
   output: { name: "\uACB0\uACFC\uBB3C\xB7\uB9AC\uBDF0", desc: "\uB9AC\uBDF0 \uB300\uAE30\uC640 \uC7AC\uC791\uC5C5 \uD328\uD134", period: "\uC8FC\uAC04 \uD750\uB984" },
   growth: { name: "\uC721\uC131\xB7\uD3C9\uAC00", desc: "\uD3C9\uAC00 \uADFC\uAC70\uC640 \uC131\uC7A5 \uC2E0\uD638", period: "\uC6D4\uAC04 \uADA4\uC801" },
   org: { name: "\uC870\uC9C1\xB7\uC804\uC0AC", desc: "\uC0C1\uC704 \uBC29\uD5A5\xB7\uC694\uCCAD\xB7\uC804\uC0AC \uC77C\uC815", period: "\uC218\uC2DC" }
@@ -973,9 +973,9 @@ function analyze(raw, members) {
       severity: 3,
       periods: DW,
       title: `${r.full_name}\uB2D8 \uCEE8\uB514\uC158\uC774 3\uC8FC \uC5F0\uC18D \uB5A8\uC5B4\uC84C\uC2B5\uB2C8\uB2E4 (${s.label.replace("\uCEE8\uB514\uC158 ", "")})`,
-      detail: "\uBC88\uC544\uC6C3\xB7\uC774\uD0C8 \uC2E0\uD638\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC774\uBC88 \uC8FC \uC548\uC5D0 1:1\uC744 \uAD8C\uD569\uB2C8\uB2E4.",
+      detail: "\uBC88\uC544\uC6C3\xB7\uC774\uD0C8 \uC2E0\uD638\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC774\uBC88 \uC8FC \uC548\uC5D0 1on1\uC744 \uAD8C\uD569\uB2C8\uB2E4.",
       rule: "\uACF5\uC720\uD55C \uCEE8\uB514\uC158 3\uC8FC \uC5F0\uC18D \uD558\uB77D, \uCD5C\uADFC \uAC12 3 \uC774\uD558",
-      action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
+      action: { label: "1on1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
     });
     if (s.type === "blocked_repeat" && !has(r.user_id, "frustrated")) S.push({
       id: `care-block-${r.user_id}`,
@@ -986,7 +986,7 @@ function analyze(raw, members) {
       title: `${r.full_name}\uB2D8\uC774 2\uC8FC\uC9F8 \uAC19\uC740 \uBB38\uC81C\uB85C \uB9C9\uD600 \uC788\uC2B5\uB2C8\uB2E4`,
       detail: s.detail ? `"${s.detail}"` : void 0,
       rule: "\uB9C9\uD78C \uC77C 2\uC8FC \uC5F0\uC18D (\uC608\uC804 \uC8FC\uAC04 \uCCB4\uD06C\uC778 \uAE30\uB85D)",
-      action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
+      action: { label: "1on1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
     });
     if (s.type === "no_one_on_one") noOO.push(r.full_name);
     if (s.type === "checkin_missing") missing.push(r.full_name);
@@ -997,10 +997,10 @@ function analyze(raw, members) {
     type: "missed",
     severity: 2,
     periods: W,
-    title: `1:1\uC744 2\uC8FC \uB118\uAC8C \uC548 \uD55C \uD300\uC6D0 ${noOO.length}\uBA85`,
+    title: `1on1\uC744 2\uC8FC \uB118\uAC8C \uC548 \uD55C \uD300\uC6D0 ${noOO.length}\uBA85`,
     detail: names(noOO),
-    rule: "\uB9C8\uC9C0\uB9C9 \uC644\uB8CC 1:1\uC774 14\uC77C \uC804",
-    action: { label: "1:1 \uC7A1\uAE30", to: "/people?new=1" }
+    rule: "\uB9C8\uC9C0\uB9C9 \uC644\uB8CC 1on1\uC774 14\uC77C \uC804",
+    action: { label: "1on1 \uC7A1\uAE30", to: "/people?new=1" }
   });
   const thisMon = kstMonday();
   for (const m of mem) {
@@ -1065,8 +1065,8 @@ function analyze(raw, members) {
     severity: 2,
     periods: D,
     title: `\uD300\uC6D0\uC5D0\uAC8C \uD55C \uC57D\uC18D ${raw.latePromises}\uAC74\uC774 \uAE30\uD55C\uC744 \uB118\uACBC\uC2B5\uB2C8\uB2E4`,
-    detail: "\uD300\uC7A5\uC758 \uC57D\uC18D\uC774 \uBC00\uB9AC\uBA74 1:1 \uC2E0\uB8B0\uAC00 \uAC00\uC7A5 \uBA3C\uC800 \uB5A8\uC5B4\uC9D1\uB2C8\uB2E4.",
-    rule: "1:1\uC5D0\uC11C \uC815\uD55C \uD300\uC7A5 \uD560 \uC77C, \uAE30\uD55C \uACBD\uACFC",
+    detail: "\uD300\uC7A5\uC758 \uC57D\uC18D\uC774 \uBC00\uB9AC\uBA74 1on1 \uC2E0\uB8B0\uAC00 \uAC00\uC7A5 \uBA3C\uC800 \uB5A8\uC5B4\uC9D1\uB2C8\uB2E4.",
+    rule: "1on1\uC5D0\uC11C \uC815\uD55C \uD300\uC7A5 \uD560 \uC77C, \uAE30\uD55C \uACBD\uACFC",
     action: { label: "\uC57D\uC18D \uBCF4\uAE30", to: "#today" }
   });
   for (const m of mem) for (const f of flagMap.get(m.user_id) ?? []) {
@@ -1080,7 +1080,7 @@ function analyze(raw, members) {
       title: `${nm}\uB2D8\uC740 \uC758\uC695\uC740 \uC788\uB294\uB370 \uB9C9\uD600 \uC788\uC2B5\uB2C8\uB2E4 \u2014 \uB9C9\uD78C \uAC83\uBD80\uD130 \uD480\uC5B4 \uC8FC\uC138\uC694`,
       detail: f.detail,
       rule: "\uCD5C\uADFC \uCEE8\uB514\uC158 3 \uC774\uC0C1 + (\uAC19\uC740 \uB9C9\uD798 2\uC8FC \uC5F0\uC18D \xB7 \uB9C9\uD798 \uC0C1\uD0DC \uD56D\uBAA9 \xB7 \uB9AC\uBDF0 \uB300\uAE30 3\uC77C \uC774\uC0C1)",
-      action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
+      action: { label: "1on1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
     });
     if (f.key === "recog_gap") S.push({
       id: `care-recog-${m.user_id}`,
@@ -1110,9 +1110,9 @@ function analyze(raw, members) {
       type: "missed",
       severity: 2,
       periods: W,
-      title: `${nm}\uB2D8\uACFC\uC758 1:1\uC5D0\uC11C \uD55C \uC57D\uC18D\uC774 \uBC00\uB824 \uC788\uC2B5\uB2C8\uB2E4 \u2014 \uB2E4\uC74C 1:1 \uCCAB \uC548\uAC74\uC73C\uB85C`,
+      title: `${nm}\uB2D8\uACFC\uC758 1on1\uC5D0\uC11C \uD55C \uC57D\uC18D\uC774 \uBC00\uB824 \uC788\uC2B5\uB2C8\uB2E4 \u2014 \uB2E4\uC74C 1on1 \uCCAB \uC548\uAC74\uC73C\uB85C`,
       detail: f.detail,
-      rule: "\uC774 \uD300\uC6D0\uACFC\uC758 1:1\uC5D0\uC11C \uC815\uD55C \uD300\uC7A5 \uD560 \uC77C, \uAE30\uD55C \uC9C0\uB09C \uAC83 2\uAC74 \uC774\uC0C1 \uB610\uB294 14\uC77C \uC774\uC0C1",
+      rule: "\uC774 \uD300\uC6D0\uACFC\uC758 1on1\uC5D0\uC11C \uC815\uD55C \uD300\uC7A5 \uD560 \uC77C, \uAE30\uD55C \uC9C0\uB09C \uAC83 2\uAC74 \uC774\uC0C1 \uB610\uB294 14\uC77C \uC774\uC0C1",
       action: { label: "\uC57D\uC18D \uBCF4\uAE30", to: "#today" }
     });
     if (f.key === "withdrawn") S.push({
@@ -1124,7 +1124,7 @@ function analyze(raw, members) {
       title: `${nm}\uB2D8 \uCEE8\uB514\uC158 \uACF5\uC720\uAC00 \uB208\uC5D0 \uB744\uAC8C \uC9E7\uC544\uC84C\uC2B5\uB2C8\uB2E4 \u2014 \uCD94\uAD81\uBCF4\uB2E4 \uC548\uBD80\uBD80\uD130`,
       detail: f.detail,
       rule: "\uC774\uC804 \uCEE8\uB514\uC158 \uACF5\uC720 \uD3C9\uADE0 \uB300\uBE44 \uCD5C\uADFC 2\uC8FC 40% \uBBF8\uB9CC \uB610\uB294 \uBE60\uC9D0, \uB9C9\uD798 \uCE78 \uBE44\uC5B4 \uC788\uC74C",
-      action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
+      action: { label: "1on1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
     });
   }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
@@ -1309,8 +1309,8 @@ function analyze(raw, members) {
     const next = lv.levels[lv.level];
     const gap = next.conditions.find((c) => c.current < c.target);
     if (gap) {
-      const gl = gap.label.replace("\uCCB4\uD06C\uC778\uC774 \uC313\uC778 \uC8FC", "\uCEE8\uB514\uC158 \uACF5\uC720\uAC00 \uC313\uC778 \uC8FC");
-      const gd = /체크인|컨디션|1:1/.test(gl) ? "people" : /결과물/.test(gl) ? "output" : /근거/.test(gl) ? "growth" : /공수/.test(gl) ? "exec" : "goal";
+      const gl = gap.label.replace("\uCCB4\uD06C\uC778\uC774 \uC313\uC778 \uC8FC", "\uCEE8\uB514\uC158 \uACF5\uC720\uAC00 \uC313\uC778 \uC8FC").replace(/1:1/g, "1on1");
+      const gd = /체크인|컨디션|1:1|1on1/.test(gl) ? "people" : /결과물/.test(gl) ? "output" : /근거/.test(gl) ? "growth" : /공수/.test(gl) ? "exec" : "goal";
       S.push({
         id: `level-${lv.level}-${gl}`,
         domain: gd,
@@ -1403,7 +1403,7 @@ function signalsFor(period, signals) {
 var NOTE_RULE = `
 
 [\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8] \uADFC\uAC70 \uC911 '\uD300\uC7A5 \uAC1C\uC778 \uBA54\uBAA8'\uB294 \uD300\uC7A5\uC774 \uC790\uAE30\uB9CC \uBCF4\uB824\uACE0 \uC801\uC740 \uC0DD\uAC01\xB7\uAD00\uCC30\uC785\uB2C8\uB2E4. \uC0AC\uC2E4\uB85C \uB2E8\uC815\uD558\uC9C0 \uB9D0\uACE0 \uD310\uB2E8\uC758 \uB9E5\uB77D\uC73C\uB85C\uB9CC \uC4F0\uBA70, \uBA54\uBAA8 \uBB38\uC7A5\uC744 \uADF8\uB300\uB85C \uC62E\uACA8 \uC801\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uD300\uC6D0\uC5D0 \uB300\uD55C \uBA54\uBAA8\uB97C \uD3C9\uAC00\uB098 \uB4F1\uAE09\uC758 \uADFC\uAC70\uB85C \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.`;
-var KIND = { member: "\uD300\uC6D0", item: "\uBAA9\uD45C\xB7\uACFC\uC81C", exec: "\uC0C1\uC704 \uAD00\uB9AC\uC790", decision: "\uACB0\uC815", one_on_one: "1:1", none: "" };
+var KIND = { member: "\uD300\uC6D0", item: "\uBAA9\uD45C\xB7\uACFC\uC81C", exec: "\uC0C1\uC704 \uAD00\uB9AC\uC790", decision: "\uACB0\uC815", one_on_one: "1on1", none: "" };
 async function loadLeaderNotes(teamId, ownerId, opt = {}) {
   let qb = admin.from("leader_notes").select("id, body, kind, anchor_type, anchor_id, anchor_label, updated_at").eq("team_id", teamId).eq("owner_id", ownerId).eq("ai_allowed", true).eq("done", false);
   if (opt.types?.length) qb = qb.in("anchor_type", opt.types);
@@ -1467,7 +1467,7 @@ ${domains.map((d) => `${DOMAIN_META[d.domain].name}: ${d.status}, ${d.kpiLabel} 
     const hours = mine.reduce((a2, i) => a2 + Number(i.est_hours_per_week ?? 0), 0);
     const a = attn.get(m.user_id);
     const care = (raw.care ?? []).find((c) => c.user_id === m.user_id);
-    lines.push(`${nameOf.get(m.user_id)}(${m.job_title || "-"}, \uC785\uC0AC ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}\uC77C): \uC9C4\uD589 ${mine.length}\uAC74 \xB7 \uB9C9\uD798 ${mine.filter((i) => i.status === "blocked").length} \xB7 \uC8FC ${hours}h/\uAC00\uC6A9 ${m.weekly_hours}h (${m.weekly_hours ? Math.round(hours / m.weekly_hours * 100) : "-"}%)` + (a ? ` \xB7 \uD300\uC7A5 \uC811\uC810 28\uC77C ${a.touch}${totTouch ? `(${Math.round(Number(a.touch) / totTouch * 100)}%)` : ""} \xB7 1:1 ${a.oo} \xB7 \uB9AC\uBDF0 \uCCAB \uBC18\uC751 ${a.resp_hours ?? "-"}h \xB7 \uBC18\uC751 \uB300\uAE30 ${a.waiting}` : "") + (care?.signals.length ? ` \xB7 \uC2E0\uD638: ${care.signals.map((s) => s.label.replace("\uCCB4\uD06C\uC778 \uBBF8\uC81C\uCD9C", "\uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C")).join(", ")}` : ""));
+    lines.push(`${nameOf.get(m.user_id)}(${m.job_title || "-"}, \uC785\uC0AC ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}\uC77C): \uC9C4\uD589 ${mine.length}\uAC74 \xB7 \uB9C9\uD798 ${mine.filter((i) => i.status === "blocked").length} \xB7 \uC8FC ${hours}h/\uAC00\uC6A9 ${m.weekly_hours}h (${m.weekly_hours ? Math.round(hours / m.weekly_hours * 100) : "-"}%)` + (a ? ` \xB7 \uD300\uC7A5 \uC811\uC810 28\uC77C ${a.touch}${totTouch ? `(${Math.round(Number(a.touch) / totTouch * 100)}%)` : ""} \xB7 1on1 ${a.oo} \xB7 \uB9AC\uBDF0 \uCCAB \uBC18\uC751 ${a.resp_hours ?? "-"}h \xB7 \uBC18\uC751 \uB300\uAE30 ${a.waiting}` : "") + (care?.signals.length ? ` \xB7 \uC2E0\uD638: ${care.signals.map((s) => s.label.replace("\uCCB4\uD06C\uC778 \uBBF8\uC81C\uCD9C", "\uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C").replace(/1:1/g, "1on1")).join(", ")}` : ""));
   }
   const roots = (items ?? []).filter((i) => !i.parent_id);
   const solo = roots.map((r) => ({ r, kids: (items ?? []).filter((i) => i.parent_id === r.id) })).filter((x) => x.kids.length >= 2 && new Set(x.kids.map((k) => k.owner_id)).size === 1);

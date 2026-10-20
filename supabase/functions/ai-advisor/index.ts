@@ -62,8 +62,8 @@ async function adviceFor(teamId: string, createdBy: string | null) {
     const a = attn.get(m.user_id);
     const care = (raw.care ?? []).find((c) => c.user_id === m.user_id);
     lines.push(`${nameOf.get(m.user_id)}(${m.job_title || '-'}, 입사 ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}일): 진행 ${mine.length}건 · 막힘 ${mine.filter((i) => i.status === 'blocked').length} · 주 ${hours}h/가용 ${m.weekly_hours}h (${m.weekly_hours ? Math.round((hours / m.weekly_hours) * 100) : '-'}%)`
-      + (a ? ` · 팀장 접점 28일 ${a.touch}${totTouch ? `(${Math.round((Number(a.touch) / totTouch) * 100)}%)` : ''} · 1:1 ${a.oo} · 리뷰 첫 반응 ${a.resp_hours ?? '-'}h · 반응 대기 ${a.waiting}` : '')
-      + (care?.signals.length ? ` · 신호: ${care.signals.map((s) => s.label.replace('체크인 미제출', '컨디션 공유 없음')).join(', ')}` : ''));
+      + (a ? ` · 팀장 접점 28일 ${a.touch}${totTouch ? `(${Math.round((Number(a.touch) / totTouch) * 100)}%)` : ''} · 1on1 ${a.oo} · 리뷰 첫 반응 ${a.resp_hours ?? '-'}h · 반응 대기 ${a.waiting}` : '')
+      + (care?.signals.length ? ` · 신호: ${care.signals.map((s) => s.label.replace('체크인 미제출', '컨디션 공유 없음').replace(/1:1/g, '1on1')).join(', ')}` : ''));
   }
   // 한 사람 의존: 진행 중 하위 항목이 모두 한 사람에게 있는 목표
   const roots = (items ?? []).filter((i) => !i.parent_id);

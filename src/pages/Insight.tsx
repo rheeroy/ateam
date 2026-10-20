@@ -9,7 +9,7 @@ import { cx } from '../lib/format';
 import { Card, PageHeader, Spinner, Tabs } from '../components/ui';
 
 const LEVEL_INFO: Record<number, { desc: string; ex: string }> = {
-  1: { desc: '흩어진 컨디션 공유·면담·코멘트를 요약하고, 팀장님 노하우대로 초안을 씁니다.', ex: '주간보고 초안 · 1:1 준비 노트 · 1차 검토 · 내 노하우 반영' },
+  1: { desc: '흩어진 컨디션 공유·면담·코멘트를 요약하고, 팀장님 노하우대로 초안을 씁니다.', ex: '주간보고 초안 · 1on1 준비 노트 · 1차 검토 · 내 노하우 반영' },
   2: { desc: '반복되는 막힘, 컨디션 추세, 같은 피드백의 반복을 잡아냅니다.', ex: '케어 레이더 · 월요일 브리핑' },
   3: { desc: '팀원별 위치와 이동 방향, 판단 깊이 추세, 근거 달린 평가 초안을 만듭니다.', ex: '팀 성과 지도 · 지난 결과물 비교 · 평가 초안' },
   4: { desc: '실적 범위와 목표 달성 확률을 계산하고 What-if를 돌립니다.', ex: '실적 전망 · 시뮬레이션 · 분기 전략 점검' },
@@ -17,7 +17,7 @@ const LEVEL_INFO: Record<number, { desc: string; ex: string }> = {
 };
 const ACTION: [RegExp, string, string][] = [
   [/컨디션|체크인/, '팀원에게 주간 컨디션 공유를 요청하세요', '/settings?tab=members'],
-  [/1:1/, '이번 주 1:1을 잡으세요', '/people?new=1'],
+  [/1on1/, '이번 주 1on1을 잡으세요', '/people?new=1'],
   [/판단 근거/, '관찰 메모를 남기거나 결과물을 리뷰하세요', '/'],
   [/리뷰한 결과물/, '리뷰룸에서 코멘트를 남기세요', '/work'],
   [/실적/, '실적 지표에 월별 실적을 입력하세요', '/perf'],
@@ -34,7 +34,7 @@ function cell(v: number, th: [number, number, number]) {
 }
 
 /** SQL(team_insight_level)이 주는 옛 이름표를 화면 이름으로 */
-const condLabel = (s: string) => s.replace('체크인이 쌓인 주', '컨디션 공유가 쌓인 주');
+const condLabel = (s: string) => s.replace('체크인이 쌓인 주', '컨디션 공유가 쌓인 주').replace(/1:1/g, '1on1');
 
 function Cond({ c, open }: { c: LevelCondition; open: boolean }) {
   const pct = Math.min(100, (c.current / Math.max(1, c.target)) * 100);
@@ -72,7 +72,7 @@ export default function Insight() {
           </div>
         )}
         <div className="mt-6 grid grid-cols-3 sm:grid-cols-6 gap-3 text-sm">
-          {[['컨디션 공유', d.totals.checkins], ['1:1 기록', d.totals.one_on_ones], ['올린 결과물', d.totals.submissions], ['리뷰한 결과물', d.totals.reviewed], ['관찰 메모', d.totals.observations], ['실적 데이터', `${d.totals.metric_months}개월`]].map(([l, v]) => (
+          {[['컨디션 공유', d.totals.checkins], ['1on1 기록', d.totals.one_on_ones], ['올린 결과물', d.totals.submissions], ['리뷰한 결과물', d.totals.reviewed], ['관찰 메모', d.totals.observations], ['실적 데이터', `${d.totals.metric_months}개월`]].map(([l, v]) => (
             <div key={l as string}><div className="text-2xl font-bold font-mono num">{v}</div><div className="text-xs text-slate-400">{l}</div></div>
           ))}
         </div>
@@ -104,10 +104,10 @@ export default function Insight() {
             <h2 className="font-semibold">같은 질문, 다른 깊이</h2>
             <p className="text-sm text-slate-600 mt-1">"이 팀원은 잘하고 있나요?" <span className="text-xs text-slate-400">— 예시</span></p>
             <div className="mt-3"><Tabs value={tab} onChange={setTab} items={[{ id: 'd1', label: 'L1 · 1개월' }, { id: 'd3', label: 'L3 · 6개월' }, { id: 'd5', label: 'L5 · 1년' }]} /></div>
-            {tab === 'd1' && <div className="pt-4"><div className="text-[11px] text-slate-500">근거 · 컨디션 공유 4건 · 1:1 2회</div>
+            {tab === 'd1' && <div className="pt-4"><div className="text-[11px] text-slate-500">근거 · 컨디션 공유 4건 · 1on1 2회</div>
               <p className="mt-2 text-sm leading-relaxed text-slate-700 rounded-lg bg-violet-50/60 p-3">최근 4주 동안 신제품 기획서를 작성했고, 경쟁사 데이터 확보에서 한 번 막혔습니다. 컨디션은 3~4로 안정적입니다.</p>
               <p className="mt-2 text-xs text-slate-500">있었던 일을 정리하는 수준입니다. 잘하고 있는지는 아직 판단하지 않습니다.</p></div>}
-            {tab === 'd3' && <div className="pt-4"><div className="text-[11px] text-slate-500">근거 · 컨디션 공유 26주 · 1:1 12회 · 결과물 9건 · 관찰 메모 7건</div>
+            {tab === 'd3' && <div className="pt-4"><div className="text-[11px] text-slate-500">근거 · 컨디션 공유 26주 · 1on1 12회 · 결과물 9건 · 관찰 메모 7건</div>
               <p className="mt-2 text-sm leading-relaxed text-slate-700 rounded-lg bg-violet-50/60 p-3">판단 깊이가 1.8에서 2.5로 올라 <b>핵심 기여 쪽으로 이동 중</b>입니다. 문제 정의와 방향 전환이 강점입니다. 실행 관리는 근거가 3건뿐이라 아직 판단하기 이릅니다.</p>
               <p className="mt-2 text-xs text-slate-500">추세와 강점·약점을 근거와 함께 말합니다. 근거가 모자란 항목은 비워 둡니다.</p></div>}
             {tab === 'd5' && <div className="pt-4"><div className="text-[11px] text-slate-500">근거 · L3 근거 + 결과가 기록된 의사결정 10건 · 예측과 실제 2분기</div>
@@ -132,7 +132,7 @@ export default function Insight() {
           <div className="mt-3 overflow-x-auto">
             {!depth.data?.length ? <p className="text-sm text-slate-500 py-4">팀원이 없습니다.</p> : (
               <table className="w-full text-sm min-w-[520px]">
-                <thead><tr className="text-xs text-slate-500"><th className="text-left font-normal pb-1">팀원</th><th className="font-normal pb-1">컨디션 공유(주)</th><th className="font-normal pb-1">1:1(회)</th><th className="font-normal pb-1">결과물</th><th className="font-normal pb-1">관찰 메모</th><th className="text-left font-normal pb-1 pl-3">AI가 볼 수 있는 것</th></tr></thead>
+                <thead><tr className="text-xs text-slate-500"><th className="text-left font-normal pb-1">팀원</th><th className="font-normal pb-1">컨디션 공유(주)</th><th className="font-normal pb-1">1on1(회)</th><th className="font-normal pb-1">결과물</th><th className="font-normal pb-1">관찰 메모</th><th className="text-left font-normal pb-1 pl-3">AI가 볼 수 있는 것</th></tr></thead>
                 <tbody>
                   {depth.data.map((m) => (
                     <tr key={m.user_id}>

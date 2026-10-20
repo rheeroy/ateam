@@ -67,7 +67,7 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
   };
   const decideText = m.insight ? m.ai.decide.items.map((it) => `${it.title} ${it.body} ${it.impact ?? ''}`).join(' ') : '';
   const overlaps = (t: string) => !!decideText && tokens(t).some((w) => w.length >= 3 && decideText.includes(w));
-  const TASKY = /D-\d|제출|마감|기한|리뷰|1:1|약속|결과 기록/;
+  const TASKY = /D-\d|제출|마감|기한|리뷰|1:1|1on1|약속|결과 기록/;
   const out: Prio[] = [];
   if (m.insight) {
     m.ai.decide.items.forEach((it, i) => {

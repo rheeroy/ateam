@@ -422,7 +422,7 @@ var fmtDate = (d) => d ? d.slice(0, 10) : "";
 
 // functions/_shared/prompts/index.ts
 var WEEKLY_REPORT = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC0C1\uC704 \uC870\uC9C1\uC7A5\uC5D0\uAC8C \uBCF4\uB0BC \uC8FC\uAC04 \uC5C5\uBB34 \uBCF4\uACE0 \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4.
-\uACFC\uC81C \uD604\uD669, \uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C, 1:1 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C, \uC0C1\uC704 \uC870\uC9C1\uC7A5\uC774 30\uCD08 \uC548\uC5D0 \uD30C\uC545\uD560 \uC218 \uC788\uAC8C \uC501\uB2C8\uB2E4.
+\uACFC\uC81C \uD604\uD669, \uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C, 1on1 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C, \uC0C1\uC704 \uC870\uC9C1\uC7A5\uC774 30\uCD08 \uC548\uC5D0 \uD30C\uC545\uD560 \uC218 \uC788\uAC8C \uC501\uB2C8\uB2E4.
 \uC774\uC288\uC5D0\uB294 '\uB204\uAD6C\uC5D0\uAC8C \uBB34\uC5C7\uC744 \uC5B8\uC81C\uAE4C\uC9C0' \uC694\uCCAD\uD558\uB294\uC9C0 \uAD6C\uCCB4\uC801\uC73C\uB85C \uC801\uB418, \uAE30\uB85D\uC5D0 \uC5C6\uB294 \uB0A0\uC9DC\uB294 \uB9CC\uB4E4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 '\uD300\uC7A5 \uBA54\uBAA8'\uAC00 \uC788\uC73C\uBA74 \uACFC\uC81C \uAE30\uB85D\uACFC \uAC19\uC740 \uBB34\uAC8C\uC758 \uAE30\uB85D\uC73C\uB85C \uC501\uB2C8\uB2E4. \uACFC\uC81C \uAE30\uB85D\uC774 \uC801\uC5B4\uB3C4 \uD300\uC7A5 \uBA54\uBAA8\uB9CC\uC73C\uB85C \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4. \uD300\uC6D0 \uAC1C\uC778\uC758 \uCEE8\uB514\uC158\xB7\uC0AC\uC815\uC740 \uBCF4\uACE0\uC11C\uC5D0 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC5D0 \uBCF4\uACE0 \uC591\uC2DD\xB7\uBB38\uCCB4 \uC6D0\uCE59\uC774 \uC788\uC73C\uBA74 \uADF8\uB300\uB85C \uB530\uB985\uB2C8\uB2E4.
@@ -461,7 +461,7 @@ serve(async (req) => {
     book.add("task", t.id, `\uACFC\uC81C ${t.title}`, `\uC0C1\uD0DC ${ST[t.status] ?? t.status}, \uC9C4\uCC99 ${t.progress}%, \uB9C8\uAC10 ${t.due_date ?? "-"}${t.base_due && t.due_date && t.base_due !== t.due_date ? ` (\uCC98\uC74C \uACC4\uD68D ${t.base_due})` : ""}, \uB2F4\uB2F9 ${nameOf.get(t.owner_id) ?? "-"}`);
   }
   const { data: oos } = await admin.from("one_on_ones").select("id, member_id, scheduled_at, shared_notes").eq("team_id", body.team_id).eq("status", "done").gte("scheduled_at", week).lte("scheduled_at", `${weekEnd}T23:59:59Z`);
-  for (const o of oos ?? []) book.add("one_on_one", o.id, `1:1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
+  for (const o of oos ?? []) book.add("one_on_one", o.id, `1on1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
   const { data: approved } = await admin.from("submissions").select("id, title, author_id").eq("team_id", body.team_id).eq("status", "approved").gte("approved_at", week);
   for (const s of approved ?? []) book.add("submission", s.id, `\uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C`, `${s.title} (${nameOf.get(s.author_id)})`);
   const notes = (body.leader_notes ?? "").trim().slice(0, 4e3);

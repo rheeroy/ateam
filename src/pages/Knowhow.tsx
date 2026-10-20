@@ -15,17 +15,17 @@ export const KIND: Record<KnowhowKind, { label: string; desc: string; tone: 'ind
   rubric: { label: '평가 기준', desc: '좋은 결과물의 조건, 역량 정의', tone: 'emerald' },
   framework: { label: '프레임워크·양식', desc: '보고서 구조, 문제 해결 순서, 템플릿', tone: 'violet' },
   context: { label: '사업·조직 맥락', desc: '시장·고객·경쟁사·상위 전략', tone: 'amber' },
-  coaching: { label: '코칭·팀 운영', desc: '1:1, 피드백, 팀 운영 방식', tone: 'rose' },
+  coaching: { label: '코칭·팀 운영', desc: '1on1, 피드백, 팀 운영 방식', tone: 'rose' },
   glossary: { label: '용어', desc: '팀에서 쓰는 말과 약어', tone: 'slate' },
 };
 export const FEATURE: Record<KnowhowFeature, string> = {
-  review: '1차 검토', prep: '1:1 준비', report: '보고·임원 브리핑', evaluation: '평가 초안', briefing: '브리핑·제안', strategy: '전략 점검', scenario: '시나리오', plan: '목표 초안',
+  review: '1차 검토', prep: '1on1 준비', report: '보고·임원 브리핑', evaluation: '평가 초안', briefing: '브리핑·제안', strategy: '전략 점검', scenario: '시나리오', plan: '목표 초안',
 };
 const isConsulting = (c: Pick<KnowhowCard, 'source'>) => c.source === 'consulting';
 const EXAMPLES: { label: string; text: string }[] = [
   { label: '보고 원칙', text: '우리 팀 보고서 원칙\n1. 첫 문장에 결론. 배경 설명은 뒤로.\n2. 숫자 없는 주장은 받지 않는다. 출처를 단다.\n3. 대안 2개 이상을 비교하고 버린 이유를 쓴다.\n4. 리스크와 다음 행동(누가, 언제)을 마지막에.' },
   { label: '좋은 기획서 기준', text: '좋은 기획서의 기준\n- 문제 정의가 고객 관점에서 한 문장으로 된다\n- 가설과 검증 방법이 짝을 이룬다\n- 자원(사람·돈·시간) 추정이 있다\n- 실패하면 무엇을 배우는지가 적혀 있다' },
-  { label: '1:1 원칙', text: '내 1:1 원칙\n- 업무 진척은 묻지 않는다(체크인으로 본다). 막힌 것, 하고 싶은 것을 묻는다.\n- 매번 "내가 도울 일 하나"로 끝낸다.\n- 칭찬은 구체적 행동으로, 우려는 사실로 말한다.' },
+  { label: '1on1 원칙', text: '내 1on1 원칙\n- 업무 진척은 묻지 않는다(체크인으로 본다). 막힌 것, 하고 싶은 것을 묻는다.\n- 매번 "내가 도울 일 하나"로 끝낸다.\n- 칭찬은 구체적 행동으로, 우려는 사실로 말한다.' },
   { label: '사업 현황', text: '올해 우리 팀 상황\n- 신사업 2개 검증 중(신제품 진입, 파트너 채널). 연말까지 하나는 접는다.\n- 본부장은 "작게 빨리 검증"을 가장 중시한다.\n- 경쟁사 A가 3분기에 가격을 15% 내렸다.' },
 ];
 
@@ -242,7 +242,7 @@ export default function Knowhow() {
     <section>
       <PageHeader title="내 노하우" sub="팀장님의 기준·프레임워크·자료를 넣어 두면, AI가 그 기준으로 리뷰하고 준비하고 씁니다" />
       <div className="mb-5 grid sm:grid-cols-3 gap-3 text-sm">
-        {[['1', '던져 넣기', '메모·문서·PPT를 그대로'], ['2', 'AI가 카드로 정리', '원칙·기준·양식·맥락으로 나눠서'], ['3', '내 방식대로 일하는 AI', '리뷰·1:1·보고·평가에 자동 반영']].map(([n, t, d]) => (
+        {[['1', '던져 넣기', '메모·문서·PPT를 그대로'], ['2', 'AI가 카드로 정리', '원칙·기준·양식·맥락으로 나눠서'], ['3', '내 방식대로 일하는 AI', '리뷰·1on1·보고·평가에 자동 반영']].map(([n, t, d]) => (
           <div key={n} className="rounded-xl bg-white border border-slate-200 px-4 py-3 flex gap-3 items-start">
             <span className="w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{n}</span>
             <div><div className="font-semibold">{t}</div><div className="text-xs text-slate-500">{d}</div></div>
@@ -285,11 +285,11 @@ export default function Knowhow() {
           </div>
           {!conOn ? (
             <div className="rounded-xl bg-violet-50 border border-violet-200 px-4 py-2.5 text-xs text-violet-900 leading-relaxed flex items-start gap-2">
-              <Lock size={13} className="shrink-0 mt-0.5" /><span><b>컨설팅 기준 DB</b>(성과관리 컨설팅에서 써 온 목표·리뷰·1:1·보고·팀 운영 기준 카드 21장)는 Pro부터 AI가 함께 봅니다. 내가 넣은 노하우는 지금 요금제에서도 그대로 씁니다.</span>
+              <Lock size={13} className="shrink-0 mt-0.5" /><span><b>컨설팅 기준 DB</b>(성과관리 컨설팅에서 써 온 목표·리뷰·1on1·보고·팀 운영 기준 카드 21장)는 Pro부터 AI가 함께 봅니다. 내가 넣은 노하우는 지금 요금제에서도 그대로 씁니다.</span>
               <Link to="/settings?tab=billing" className="shrink-0 font-semibold text-violet-700 hover:text-violet-900 whitespace-nowrap">요금제 보기 →</Link>
             </div>
           ) : <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
-            <b>컨설팅 기준</b>은 성과관리 컨설팅에서 써 온 목표·리뷰·1:1·보고·팀 운영 기준을 ATEAM이 기본으로 넣어 둔 카드입니다.
+            <b>컨설팅 기준</b>은 성과관리 컨설팅에서 써 온 목표·리뷰·1on1·보고·팀 운영 기준을 ATEAM이 기본으로 넣어 둔 카드입니다.
             AI는 팀장님 카드를 먼저 읽고, 남는 자리에 컨설팅 기준을 함께 봅니다. 둘이 어긋나면 팀장님 카드를 따릅니다. 평가 시뮬레이션과 팀원 액션에는 쓰지 않습니다.
           </div>}
           {conOn && <div className="flex gap-1.5 flex-wrap text-xs">

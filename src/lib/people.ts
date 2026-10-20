@@ -1,11 +1,11 @@
-// 팀원관리: 사람 단위로 모아 보는 데이터 (1:1 · 판단 깊이 · 관찰 · 근거 원장 · 컨디션 공유)
+// 팀원관리: 사람 단위로 모아 보는 데이터 (1on1 · 판단 깊이 · 관찰 · 근거 원장 · 컨디션 공유)
 import { useQuery } from '@tanstack/react-query';
 import { supabase, q } from './supabase';
 import type { Checkin, Observation, OneOnOne } from './types';
 
 const since = (days: number) => new Date(Date.now() - days * 86400000).toISOString();
 
-/** 팀원별 마지막 1:1(완료)과 다음 1:1(예정) */
+/** 팀원별 마지막 1on1(완료)과 다음 1on1(예정) */
 export function useOneOnOneMap(teamId: string) {
   return useQuery({
     queryKey: ['oo', teamId, 'map'],
@@ -46,7 +46,7 @@ export function useObservations(teamId: string, userId?: string, days = 120) {
 }
 
 export interface EvidenceRow { id: string; subject_user_id: string; source: string; summary: string; polarity: string; occurred_at: string }
-/** 근거 원장 — 컨디션 공유·1:1·결과물·리뷰 코멘트·관찰·요청 완료가 자동으로 쌓인다 */
+/** 근거 원장 — 컨디션 공유·1on1·결과물·리뷰 코멘트·관찰·요청 완료가 자동으로 쌓인다 */
 export function useEvidence(teamId: string, userId?: string, days = 183) {
   return useQuery({
     queryKey: ['evidence', teamId, userId ?? 'all', days],
@@ -58,7 +58,7 @@ export function useEvidence(teamId: string, userId?: string, days = 183) {
   });
 }
 export const EVIDENCE_LABEL: Record<string, string> = {
-  checkin: '컨디션 공유', one_on_one: '1:1', leader_note: '팀장 메모', submission: '결과물', review_comment: '리뷰 피드백',
+  checkin: '컨디션 공유', one_on_one: '1on1', leader_note: '팀장 메모', submission: '결과물', review_comment: '리뷰 피드백',
   observation: '관찰 메모', task: '업무 완료', metric: '실적', decision: '결정', ai: 'AI 검토',
 };
 

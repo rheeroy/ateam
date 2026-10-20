@@ -1,4 +1,4 @@
-// 이번 주 팀원관리 액션 — AI가 추천하고, 팀장은 카드에서 바로 실행(1:1 잡기 · 칭찬 배지 · 관찰 기록 · 요청)
+// 이번 주 팀원관리 액션 — AI가 추천하고, 팀장은 카드에서 바로 실행(1on1 잡기 · 칭찬 배지 · 관찰 기록 · 요청)
 import { useState } from 'react';
 import { Award, CalendarPlus, Check, ChevronDown, HeartHandshake, MessageCircleQuestion, RefreshCw, Send, SkipForward, Sprout, StickyNote, Undo2 } from 'lucide-react';
 import { useTeam } from '../../state/session';
@@ -43,7 +43,7 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
         )}
       </>}>
       {!only && (ai ? <p className="text-[15px] font-semibold leading-snug">{strip(pa.out!.content.summary)}<span className="ml-2 text-[11px] font-normal text-slate-400">{fmtDate(pa.out!.created_at)} · 매주 월요일 자동</span></p>
-        : <p className="text-sm text-slate-600">{pa.stale ? '지난주 추천입니다. ' : ''}아직 이번 주 AI 추천이 없어 기록에서 바로 보이는 것만 골랐습니다. 'AI로 이번 주 추천 받기'를 누르면 명분과 함께 1:1 · 칭찬 · 육성 · 독려까지 정리합니다.</p>)}
+        : <p className="text-sm text-slate-600">{pa.stale ? '지난주 추천입니다. ' : ''}아직 이번 주 AI 추천이 없어 기록에서 바로 보이는 것만 골랐습니다. 'AI로 이번 주 추천 받기'를 누르면 명분과 함께 1on1 · 칭찬 · 육성 · 독려까지 정리합니다.</p>)}
       {!open.length ? <p className={cx('text-sm text-slate-500', !only && 'mt-2')}>{all.length ? '이번 주 추천 액션을 모두 처리했습니다.' : '지금 추천할 액션이 없습니다.'}</p> : (
         <ol className={cx('rounded-xl bg-white text-slate-900 divide-y divide-slate-100 overflow-hidden ring-1 ring-slate-200', !only && 'mt-3')}>
           {shown.map((a, i) => <Card no={i + 1} key={keyOf(a)} a={a} ai={ai} name={nameOf(a.user_id)} onDo={(kind) => setModal({ kind, a })} onDone={() => done(a)} onSkip={() => st.set.mutate({ key: keyOf(a), status: 'skipped' })} />)}
@@ -74,7 +74,7 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
 
 function Card({ no, a, ai, name, onDo, onDone, onSkip }: { no: number; a: PeopleAction; ai: boolean; name: string; onDo: (k: 'oo' | 'memo' | 'req' | 'praise') => void; onDone: () => void; onSkip: () => void }) {
   const meta = ACTION_META[a.type] ?? ACTION_META.push;
-  const primary = a.type === 'one_on_one' ? { k: 'oo' as const, label: '1:1 잡기', I: CalendarPlus } : a.type === 'praise' ? { k: 'praise' as const, label: '칭찬 배지', I: Award }
+  const primary = a.type === 'one_on_one' ? { k: 'oo' as const, label: '1on1 잡기', I: CalendarPlus } : a.type === 'praise' ? { k: 'praise' as const, label: '칭찬 배지', I: Award }
     : a.type === 'observe' ? { k: 'memo' as const, label: '관찰 기록', I: StickyNote } : { k: 'req' as const, ...(a.type === 'support' ? { label: '격려 보내기', I: HeartHandshake } : a.type === 'develop' ? { label: '성장 제안', I: Sprout } : { label: '독려 보내기', I: Send }) };
   const extra = a.opener ? { cls: 'text-teal-800', I: MessageCircleQuestion, t: `“${a.opener}”` }
     : a.message ? { cls: 'text-amber-800', I: Award, t: `“${a.message}”` }

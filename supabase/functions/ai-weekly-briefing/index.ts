@@ -28,7 +28,7 @@ async function briefTeam(teamId: string, createdBy: string | null) {
 
   const { data: oos } = await admin.from('one_on_ones').select('id, member_id, scheduled_at, shared_notes')
     .eq('team_id', teamId).eq('status', 'done').gte('scheduled_at', since);
-  for (const o of oos ?? []) book.add('one_on_one', o.id, `1:1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
+  for (const o of oos ?? []) book.add('one_on_one', o.id, `1on1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
 
   const { data: vers } = await admin.from('submission_versions').select('id, version, note, submissions(title, author_id)')
     .eq('team_id', teamId).gte('created_at', since);
@@ -47,7 +47,7 @@ async function briefTeam(teamId: string, createdBy: string | null) {
 
   const { data: radar } = await admin.rpc('care_radar', { p_team: teamId });
   for (const r of radar ?? []) {
-    book.add('signal', r.user_id, `케어 신호 ${r.full_name}`, (r.signals as { label: string }[]).map((s) => s.label.replace('체크인 미제출', '컨디션 공유 없음')).join(', '));
+    book.add('signal', r.user_id, `케어 신호 ${r.full_name}`, (r.signals as { label: string }[]).map((s) => s.label.replace('체크인 미제출', '컨디션 공유 없음').replace(/1:1/g, '1on1')).join(', '));
   }
 
   if (book.size === 0) return null;

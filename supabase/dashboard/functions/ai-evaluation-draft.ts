@@ -486,7 +486,7 @@ grade \uB97C \uAC00\uC7A5 \uBA3C\uC800 \uC501\uB2C8\uB2E4. strengths 2~3\uAC1C, 
 // functions/ai-evaluation-draft/index.ts
 var LABEL = {
   checkin: "\uCEE8\uB514\uC158 \uACF5\uC720",
-  one_on_one: "1:1",
+  one_on_one: "1on1",
   submission: "\uACB0\uACFC\uBB3C",
   review_comment: "\uB9AC\uBDF0 \uCF54\uBA58\uD2B8",
   observation: "\uAD00\uCC30 \uBA54\uBAA8",
