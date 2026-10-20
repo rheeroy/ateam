@@ -95,7 +95,7 @@ export function parsePaste(text: string, memberNames: string[]): PlanOp[] {
     let title = cols[0];
     let owner = cols.slice(1).find((c) => memberNames.includes(c)) ?? '';
     const dates = cols.slice(1).map(toDate).filter(Boolean) as string[];
-    // 한 줄 메모 형태: "과제명 (김도현, 10/31)"
+    // 한 줄 메모 형태: "과제명 (김현정, 10/31)"
     const paren = title.match(/\(([^)]*)\)\s*$/);
     if (paren) {
       const inside = paren[1].split(/[,·/]/).map((x) => x.trim());
@@ -145,7 +145,7 @@ export function PasteModal({ open, onClose, byId, defaultParent }: { open: boole
           </select>
         </Field>
         <textarea rows={7} className={cx(inputCls, 'font-mono text-xs')} value={text} onChange={(e) => setText(e.target.value)}
-          placeholder={'파트너 채널 확대\t이경훈\t2026-12-31\n\t후보사 10곳 발굴\t정우성\t10/31\n\t제안서 3건\t김도현\t11/30\n- 또는 이렇게 (김도현, 11/15)'} />
+          placeholder={'파트너 채널 확대\t이경훈\t2026-12-31\n\t후보사 10곳 발굴\t정우성\t10/31\n\t제안서 3건\t김현정\t11/30\n- 또는 이렇게 (김현정, 11/15)'} />
         {!!ops.length && (
           <ul className="max-h-48 overflow-y-auto text-sm border border-slate-200 rounded-lg divide-y divide-slate-100">
             {ops.map((o) => (

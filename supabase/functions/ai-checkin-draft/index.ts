@@ -1,4 +1,4 @@
-// 팀원 체크인 초안 — 이번 주 앱 기록(결과물 · 진척 · 마무리 · 요청 · 피드백 · 지난주 계획)으로 '한 일 · 막힌 일 · 다음 주'를 채운다 (코어 AI, 본인에게만)
+// 팀원 컨디션 공유 초안 — 이번 주 앱 기록(결과물 · 진척 · 마무리 · 요청 · 피드백 · 지난주 계획)으로 '한 일 · 막힌 일 · 다음 주'를 채운다 (코어 AI, 본인에게만)
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller } from '../_shared/supabase.ts';
 import { runAi, SourceBook } from '../_shared/gateway.ts';

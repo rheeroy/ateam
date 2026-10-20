@@ -146,7 +146,7 @@ export default function Evaluation() {
             <ProvBlock rail className="bg-white rounded-2xl border border-slate-200 p-6">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div><div className="text-lg font-bold">{member.full_name} · {member.job_title}</div>
-                  <div className="text-sm text-slate-500">체크인 {member.checkin_weeks}주 · 1:1 {member.one_on_ones}회 · 결과물 {member.submissions}건 · 관찰 메모 {member.observations}건</div></div>
+                  <div className="text-sm text-slate-500">1:1 {member.one_on_ones}회 · 결과물 {member.submissions}건 · 관찰 메모 {member.observations}건</div></div>
                 <div className="flex items-center gap-2">
                   {d && <ProvChip kind={kindFromStatus(d.status)} label={d.status === 'withheld' ? '판단 보류' : d.status === 'final' ? '팀장 확정' : d.status === 'edited' ? 'AI 초안 · 팀장 수정' : 'AI 초안'}
                     sources={d.sources} level={d.level} depth={d.depth} note="문장마다 근거 태그를 달았습니다. 근거 없는 문장은 쓰지 않습니다. 예상 등급은 시뮬레이션이고, 최종 등급은 팀장이 정합니다." />}

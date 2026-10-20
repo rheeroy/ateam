@@ -5,10 +5,9 @@ import { ArrowLeft, ChevronDown, Send, Sparkles, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useItems } from '../lib/items';
 import { useSubmissionsAi } from '../lib/work';
-import { useCheckins } from '../lib/people';
 import { usePeopleActions } from '../lib/peopleActions';
-import { cx, fmtShort } from '../lib/format';
-import { Avatar, Card, Spinner } from '../components/ui';
+import { cx } from '../lib/format';
+import { Avatar } from '../components/ui';
 import { RequestModal } from '../components/RequestModal';
 import { WorkSummary } from '../components/people/WorkSummary';
 import { Space } from '../components/space/Space';
@@ -42,10 +41,7 @@ export default function WorkSpace() {
       </div>
       <SummaryLine uid={id} open={more} onToggle={() => setMore((x) => !x)} />
       {more && (
-        <div className="grid lg:grid-cols-3 gap-3 items-start">
-          <div className="lg:col-span-2"><WorkSummary uid={id} /></div>
-          <Recent teamId={mb.team_id} uid={id} />
-        </div>
+        <WorkSummary uid={id} />
       )}
       <Space space={{ kind: 'user', id }} leaderView offset={more ? '14rem' : '15rem'} />
       <RequestModal open={req} onClose={() => setReq(false)} toId={id} defaultKind="share" />
@@ -80,26 +76,3 @@ function SummaryLine({ uid, open, onToggle }: { uid: string; open: boolean; onTo
   );
 }
 
-/** 최근 한 일 — 주간 체크인 */
-function Recent({ teamId, uid }: { teamId: string; uid: string }) {
-  const ci = useCheckins(teamId, uid, 8);
-  const rows = [...(ci.data ?? [])].reverse().slice(0, 5);
-  return (
-    <Card>
-      <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm">최근 한 일 <span className="text-xs font-normal text-slate-400">주간 체크인</span></div>
-      {ci.isLoading ? <Spinner /> : !rows.length ? <p className="px-4 py-4 text-sm text-slate-400">체크인이 없습니다.</p> : (
-        <ol className="px-4 py-3 space-y-3 border-l-2 border-slate-100 ml-4">
-          {rows.map((c) => (
-            <li key={c.id} className="relative pl-3 text-sm">
-              <span className="absolute -left-[22px] top-1 w-2.5 h-2.5 rounded-full bg-indigo-400 ring-2 ring-white" />
-              <div className="text-[11px] text-slate-400">{fmtShort(c.week_start)} 주</div>
-              {c.did && <p className="leading-snug"><b className="text-[11px] text-slate-500 mr-1">한 일</b>{c.did}</p>}
-              {c.blocked && <p className="leading-snug text-rose-700"><b className="text-[11px] mr-1">막힘</b>{c.blocked}</p>}
-              {c.next && <p className="leading-snug text-slate-600"><b className="text-[11px] text-slate-500 mr-1">다음</b>{c.next}</p>}
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
-  );
-}

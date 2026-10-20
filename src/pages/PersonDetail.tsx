@@ -10,7 +10,8 @@ import { LogoMark } from '../components/Brand';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useLatestAi } from '../lib/hooks';
-import type { ActionItem } from '../lib/types';
+import type { ActionItem, Checkin } from '../lib/types';
+import { condDot, conditionLabel, isGoodMood, moodLabel } from '../lib/condition';
 import { cx, daysAgo, fmtDate, fmtShort, relDay, fmtTime } from '../lib/format';
 import { EVIDENCE_LABEL, useCheckins, useEvidence, useObservations, useOneOnOneMap } from '../lib/people';
 import { Avatar, Card, Spinner } from '../components/ui';
@@ -227,8 +228,8 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
   const pts = rows.map((c) => c.condition);
   const last = [...pts].reverse().find((v) => v != null) ?? null;
   return (
-    <Box title="컨디션 · 체크인" right={<span className="text-slate-400">최근 12주</span>}>
-      {ci.isLoading ? <Spinner /> : !rows.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 체크인이 없습니다.</p> : (
+    <Box title="컨디션" right={<span className="text-slate-400">최근 12주</span>}>
+      {ci.isLoading ? <Spinner /> : !rows.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 공유한 컨디션이 없습니다. 팀원은 '팀장님과'에서 매주 공유합니다.</p> : (
         <div className="p-4 grid sm:grid-cols-5 gap-4">
           <div className="sm:col-span-2">
             <div className="text-[11px] text-slate-500">지금 컨디션</div>
@@ -245,8 +246,8 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[11px] text-slate-400">한 일·막힘 같은 업무 내용은 업무플랫폼의 팀원 스페이스에 있습니다.</p>
           </div>
+          <RecentMoods rows={rows} />
         </div>
       )}
     </Box>
@@ -254,6 +255,28 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
 }
 
 
+
+/** 최근 4주 — 영향 요인 · 메모 (팀원이 '팀장님과'에서 선택한 것. 팀장만 열람) */
+function RecentMoods({ rows }: { rows: Checkin[] }) {
+  const recent = [...rows].reverse().filter((c) => (c.moods ?? []).length || c.note).slice(0, 4);
+  if (!recent.length) return null;
+  return (
+    <div className="sm:col-span-5 border-t border-slate-100 pt-3 space-y-2">
+      {recent.map((c) => (
+        <div key={c.id} className="flex items-start gap-2 text-xs">
+          <span className="font-mono text-slate-400 w-12 shrink-0 mt-0.5">{fmtShort(c.week_start)}</span>
+          <span className={cx('w-2 h-2 rounded-full mt-1 shrink-0', condDot(c.condition))} title={conditionLabel(c.condition) ?? ''} />
+          <div className="flex-1 min-w-0 flex flex-wrap gap-1">
+            {(c.moods ?? []).map((k) => (
+              <span key={k} className={cx('rounded-full px-2 py-0.5 ring-1', isGoodMood(k) ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-amber-50 text-amber-900 ring-amber-200')}>{moodLabel(k)}</span>
+            ))}
+            {c.note && <span className="text-slate-600">“{c.note}”</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function OneOnOneBox({ teamId, uid, onNew }: { teamId: string; uid: string; onNew: () => void }) {
   const map = useOneOnOneMap(teamId);
@@ -281,7 +304,7 @@ function OneOnOneBox({ teamId, uid, onNew }: { teamId: string; uid: string; onNe
             {prep.data.content.watch && <p className="mt-1.5 text-xs text-slate-700">{strip(prep.data.content.watch)}</p>}
             {!!prep.data.content.questions?.length && <ul className="mt-1.5 space-y-0.5">{prep.data.content.questions.slice(0, 2).map((x, i) => <li key={i} className="text-xs text-violet-900">• {x}</li>)}</ul>}
           </div>
-        ) : <p className="text-xs text-slate-500 rounded-xl bg-violet-50/60 px-3 py-2"><AiChip label="AI 준비 노트" className="mr-1" />1:1을 열면 지난 대화·체크인·결과물을 엮은 준비 노트를 만듭니다.</p>}
+        ) : <p className="text-xs text-slate-500 rounded-xl bg-violet-50/60 px-3 py-2"><AiChip label="AI 준비 노트" className="mr-1" />1:1을 열면 지난 대화·컨디션 공유·결과물을 엮은 준비 노트를 만듭니다.</p>}
         {!!open.length && (
           <div><div className="text-[11px] font-semibold text-slate-500">열린 약속</div>
             <ul className="mt-1 space-y-1">{open.slice(0, 4).map((a) => <li key={a.id} className="text-xs flex gap-1.5"><span className={cx(a.due_date && a.due_date < today ? 'text-rose-600' : 'text-slate-400')}>•</span><span className="flex-1">{a.title}</span>{a.due_date && <span className={cx('num', a.due_date < today ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{fmtShort(a.due_date)}</span>}</li>)}</ul></div>
@@ -329,7 +352,7 @@ function Ledger({ teamId, uid }: { teamId: string; uid: string }) {
             {!rows.length && <li className="text-sm text-slate-400">아직 쌓인 근거가 없습니다.</li>}
           </ul>
         )}
-        <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">체크인 · 1:1 · 결과물 · 리뷰 피드백 · 관찰 메모 · 업무 완료가 따로 정리하지 않아도 여기에 쌓이고, 평가 초안은 이 근거로만 씁니다.</p>
+        <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">1:1 · 결과물 · 리뷰 피드백 · 관찰 메모 · 업무 완료가 따로 정리하지 않아도 여기에 쌓이고, 평가 초안은 이 근거로만 씁니다.</p>
       </div>
     </Box>
   );

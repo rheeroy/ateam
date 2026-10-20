@@ -7,7 +7,7 @@ import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { ActionItem, Submission, TeamRequest } from '../../lib/types';
 import { REQUEST_KIND } from '../RequestModal';
-import { cx, fmtDate, fmtShort } from '../../lib/format';
+import { cx, fmtDate, fmtShort, mondayOf } from '../../lib/format';
 import { Avatar, Button, Card, CardHead, Field, Modal, Pill, inputCls, useToast } from '../ui';
 
 type Promise_ = ActionItem & { one_on_ones: { member_id: string; leader_id: string } | null };
@@ -192,12 +192,13 @@ export function useMemberBadges(enabled: boolean) {
   return useQuery({
     queryKey: ['member-badges', team?.id, uid], enabled: enabled && !!team, staleTime: 60_000,
     queryFn: async () => {
-      const [nw, ai, rq] = await Promise.all([
+      const [nw, ai, rq, cs] = await Promise.all([
         supabase.from('submissions').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('author_id', uid).eq('status', 'needs_work').is('closed_at', null),
         supabase.from('action_items').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('owner_id', uid).is('done_at', null),
         supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open'),
+        supabase.from('checkins').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('user_id', uid).eq('week_start', mondayOf()),
       ]);
-      return { needsWork: nw.count ?? 0, promises: ai.count ?? 0, requests: rq.count ?? 0 };
+      return { needsWork: nw.count ?? 0, promises: ai.count ?? 0, requests: rq.count ?? 0, conditionDue: !cs.error && (cs.count ?? 0) === 0 };
     },
   });
 }

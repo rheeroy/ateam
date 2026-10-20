@@ -485,7 +485,7 @@ grade \uB97C \uAC00\uC7A5 \uBA3C\uC800 \uC501\uB2C8\uB2E4. strengths 2~3\uAC1C, 
 
 // functions/ai-evaluation-draft/index.ts
 var LABEL = {
-  checkin: "\uCCB4\uD06C\uC778",
+  checkin: "\uCEE8\uB514\uC158 \uACF5\uC720",
   one_on_one: "1:1",
   submission: "\uACB0\uACFC\uBB3C",
   review_comment: "\uB9AC\uBDF0 \uCF54\uBA58\uD2B8",
@@ -507,7 +507,7 @@ serve(async (req) => {
   const name = member.profiles?.full_name ?? "";
   const { data: team } = await admin.from("teams").select("settings").eq("id", b.team_id).single();
   const minEvidence = Number(team?.settings?.min_judgment_evidence ?? 8);
-  const { data: ev } = await admin.from("evidence").select("id, source, competency, polarity, summary, occurred_at, provenance").eq("team_id", b.team_id).eq("subject_user_id", b.member_id).gte("occurred_at", b.period_start).lte("occurred_at", `${b.period_end}T23:59:59Z`).order("occurred_at").limit(160);
+  const { data: ev } = await admin.from("evidence").select("id, source, competency, polarity, summary, occurred_at, provenance").eq("team_id", b.team_id).eq("subject_user_id", b.member_id).neq("source", "checkin").gte("occurred_at", b.period_start).lte("occurred_at", `${b.period_end}T23:59:59Z`).order("occurred_at").limit(160);
   const book = new SourceBook();
   const judg = (ev ?? []).filter((e) => JUDGMENT.includes(e.source));
   const ctx = (ev ?? []).filter((e) => !JUDGMENT.includes(e.source)).slice(-40);

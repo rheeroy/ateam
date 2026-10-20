@@ -423,20 +423,23 @@ var PLAN_DRAFT = `\uACFC\uC81C: \uD300\uC7A5(\uB610\uB294 \uD300\uC6D0)\uC774 \u
 [\uC88B\uC740 \uBAA9\uD45C\xB7\uACFC\uC81C\uC758 \uAE30\uC900] \uC790\uB8CC \uC548\uC5D0\uC11C \uAD6C\uC870\uD654\uD560 \uB54C \uB2E4\uC74C\uC744 \uC9C0\uD0B5\uB2C8\uB2E4. \uC790\uB8CC\uC5D0 \uC5C6\uB294 \uC22B\uC790\xB7\uBAA9\uD45C\uB294 \uC5EC\uC804\uD788 \uB9CC\uB4E4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - \uCD5C\uC0C1\uC704 \uBAA9\uD45C \uC81C\uBAA9\uC740 '\uC774\uB8E8\uB824\uB294 \uC0C1\uD0DC'\uAC00 \uB4DC\uB7EC\uB098\uAC8C \uC501\uB2C8\uB2E4(\uBB34\uC5C7\uC744 \uC0C8\uB85C \uB9CC\uB4E4\uC9C0 \xB7 \uBB34\uC5C7\uC744 \uAC1C\uC120\uD560\uC9C0 \xB7 \uBB34\uC5C7\uC744 \uB2E4\uB974\uAC8C \uBC14\uAFC0\uC9C0). \uC77C\uC0C1 \uC5C5\uBB34\uB97C \uADF8\uB300\uB85C \uB098\uC5F4\uD55C \uAC83\uC740 \uBAA9\uD45C\uB85C \uC62C\uB9AC\uC9C0 \uB9D0\uACE0, \uC790\uB8CC\uC5D0 \uADFC\uAC70\uAC00 \uC788\uC73C\uBA74 \uADF8 \uC5C5\uBB34\uB4E4\uC774 \uD568\uAED8 \uC774\uB8E8\uB824\uB294 \uC0C1\uD0DC\uB85C \uBB36\uC2B5\uB2C8\uB2E4.
 - \uCD5C\uC0C1\uC704 \uBAA9\uD45C\uB294 3~5\uAC1C\uAC00 \uC801\uB2F9\uD569\uB2C8\uB2E4. \uC790\uB8CC\uC5D0 \uB354 \uB9CE\uC73C\uBA74 \uBB36\uC744 \uC218 \uC788\uB294 \uAC83\uC740 \uBB36\uACE0, \uADF8\uB798\uB3C4 \uB9CE\uC73C\uBA74 summary \uC5D0 "\uBAA9\uD45C\uAC00 n\uAC1C \u2014 \uC6B0\uC120\uC21C\uC704 \uC815\uB9AC \uD544\uC694"\uB97C \uBC1D\uD799\uB2C8\uB2E4.
-- \uBAA9\uD45C\uB9C8\uB2E4 '\uB2EC\uC131\uD588\uB294\uC9C0 \uC54C \uC218 \uC788\uB294 \uAE30\uC900'\uC744 \uBD99\uC785\uB2C8\uB2E4: \uC790\uB8CC\uC5D0 \uC22B\uC790\uAC00 \uC788\uC73C\uBA74 \uADF8 \uD558\uC704\uC5D0 number(\uB610\uB294 percent) \uD56D\uBAA9\uC73C\uB85C, \uC22B\uC790\uAC00 \uC5C6\uC73C\uBA74 note \uC5D0 "\uC644\uB8CC \uD310\uB2E8 \uAE30\uC900: \u2026"\uC73C\uB85C \uC501\uB2C8\uB2E4. \uC790\uB8CC\uB85C \uC54C \uC218 \uC5C6\uC73C\uBA74 summary \uC5D0 "\uCE21\uC815 \uAE30\uC900\uC774 \uC5C6\uB294 \uBAA9\uD45C n\uAC1C"\uB97C \uBC1D\uD799\uB2C8\uB2E4.
-- \uCE21\uC815 \uD56D\uBAA9\uC740 \uD65C\uB3D9\uC774 \uC544\uB2C8\uB77C \uACB0\uACFC\uB97C \uC7BD\uB2C8\uB2E4. "~\uC2E4\uC2DC\xB7~\uC218\uD589\xB7~\uAD00\uB9AC"\uCC98\uB7FC \uD65C\uB3D9\uC774\uBA74 \uACFC\uC81C\uB85C \uB450\uACE0, \uACB0\uACFC\uB97C \uC7AC\uB294 \uD56D\uBAA9\uC740 \uC790\uB8CC\uC5D0 \uADFC\uAC70\uAC00 \uC788\uC744 \uB54C\uB9CC \uB530\uB85C \uB9CC\uB4ED\uB2C8\uB2E4.
+- \uCD5C\uC0C1\uC704 \uBAA9\uD45C \uC544\uB798\uC5D0\uB294 \uB450 \uC885\uB958\uB9CC \uB461\uB2C8\uB2E4: \uC9C0\uD45C(role "metric", \uBAA9\uD45C\uB97C \uC774\uB918\uB294\uC9C0 \uC7AC\uB294 \uACB0\uACFC)\uC640 \uACFC\uC81C(role "task", \uD558\uB294 \uC77C). \uD560 \uC77C\uC740 \uACFC\uC81C \uC544\uB798(role "task").
+- \uBAA9\uD45C\uB9C8\uB2E4 \uC9C0\uD45C\uB97C \uBC18\uB4DC\uC2DC 1~5\uAC1C \uB461\uB2C8\uB2E4. \uC9C0\uD45C\uB294 measure \uAC00 number(\uC22B\uC790 \xB7 num_target \xB7 unit) \xB7 percent \xB7 stage(\uC815\uC131 \u2014 stages \uC5D0 \uB2E8\uACC4 \uC774\uB984 3~5\uAC1C, \uC608: ["\uCC29\uC218","\uCD08\uC548","\uAC80\uC99D","\uD655\uC815"]) \uC911 \uD558\uB098\uC785\uB2C8\uB2E4.
+  \uC790\uB8CC\uC5D0 \uC22B\uC790\uAC00 \uC788\uC73C\uBA74 number \uB85C, \uC22B\uC790\uAC00 \uC5C6\uB294 \uC815\uC131 \uBAA9\uD45C\uB294 stage \uB85C \uB9CC\uB4ED\uB2C8\uB2E4. \uBAA9\uD45C\uAC12\uC744 \uC790\uB8CC\uB85C \uC54C \uC218 \uC5C6\uC73C\uBA74 num_target \uC744 \uBE44\uC6B0\uACE0 summary \uC5D0 "\uBAA9\uD45C\uAC12 \uD655\uC778 \uD544\uC694 n\uAC1C"\uB97C \uBC1D\uD799\uB2C8\uB2E4.
+  \uBAA9\uD45C \uC790\uCCB4\uAC00 \uC22B\uC790\uC778 \uACBD\uC6B0(\uC608: "\uC0C1\uBC18\uAE30 \uB9E4\uCD9C 20\uC5B5")\uC5D0\uB294 \uBAA9\uD45C\uC5D0 measure number \xB7 num_target \xB7 unit \uC744 \uBC14\uB85C \uAC78\uACE0, \uADF8 \uBAA9\uD45C\uC5D0\uB294 \uC9C0\uD45C\uB97C \uB530\uB85C \uB9CC\uB4E4\uC9C0 \uC54A\uC544\uB3C4 \uB429\uB2C8\uB2E4.
+- \uC9C0\uD45C\uB294 \uD65C\uB3D9\uC774 \uC544\uB2C8\uB77C \uACB0\uACFC\uB97C \uC7BD\uB2C8\uB2E4. "~\uC2E4\uC2DC\xB7~\uC218\uD589\xB7~\uAD00\uB9AC"\uCC98\uB7FC \uD65C\uB3D9\uC774\uBA74 \uACFC\uC81C\uB85C \uB461\uB2C8\uB2E4. \uACFC\uC81C\uC758 \uC644\uB8CC\uB294 \uBAA9\uD45C \uC9C4\uCC99\uC5D0 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - \uD55C \uD56D\uBAA9\uC5D0\uB294 \uD55C \uAC00\uC9C0 \uB0B4\uC6A9\uB9CC \uB2F4\uC2B5\uB2C8\uB2E4("A \uBC0F B" \uB294 \uB458\uB85C \uB098\uB214).
 - \uACFC\uC81C \uC774\uB984\uC740 \uAC00\uB2A5\uD558\uBA74 "(\uD6A8\uACFC)\uB97C \uC704\uD55C (\uD65C\uB3D9)" \uB610\uB294 "(\uD65C\uB3D9)\uC744 \uD1B5\uD55C (\uD6A8\uACFC)"\uB85C, "~\uAC15\uD654\xB7~\uCCA0\uC800\xB7~\uAD00\uB9AC"\uCC98\uB7FC \uB05D\uC744 \uC54C \uC218 \uC5C6\uB294 \uC774\uB984\uC740 \uBB34\uC5C7\uC774 \uB418\uBA74 \uB05D\uC778\uC9C0 \uB4DC\uB7EC\uB098\uAC8C \uC501\uB2C8\uB2E4.
 - \uACFC\uC81C \uC544\uB798 \uD560 \uC77C\uC740 \uB2F4\uB2F9\uC790\uAC00 \uC9C1\uC811 \uC190\uB308 \uC218 \uC788\uB294 \uD589\uB3D9 \uB2E8\uC704\uB85C 2~4\uAC1C.
 
-\uCE21\uC815 \uBC29\uC2DD(measure): check(\uD55C \uBC88\uC5D0 \uB05D\uB098\uB294 \uC77C), children(\uD558\uC704 \uD56D\uBAA9\uC73C\uB85C \uC9C4\uCC99 \uACC4\uC0B0), percent(\uC9C4\uCC99\uB960\uB85C \uAD00\uB9AC), number(\uC22B\uC790 \uBAA9\uD45C\uAC00 \uC788\uB294 \uC77C), recurring(\uC815\uAE30 \uC5C5\uBB34)
+\uCE21\uC815 \uBC29\uC2DD(measure): check(\uD55C \uBC88\uC5D0 \uB05D\uB098\uB294 \uC77C), children(\uC544\uB798 \uC9C0\uD45C\uB85C \uD310\uB2E8 \u2014 \uC9C0\uD45C\uB85C \uD310\uB2E8\uD558\uB294 \uBAA9\uD45C\uB294 \uC774\uAC83), percent(\uC9C4\uCC99\uB960), number(\uC22B\uC790 \uBAA9\uD45C), stage(\uB2E8\uACC4\uB85C \uD310\uB2E8\uD558\uB294 \uC815\uC131 \uC9C0\uD45C), recurring(\uC815\uAE30 \uC5C5\uBB34)
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
   "summary": "\uC790\uB8CC\uB97C \uC5B4\uB5BB\uAC8C \uAD6C\uC870\uD654\uD588\uB294\uC9C0 \uD55C\uB450 \uBB38\uC7A5",
   "ops": [
     {"op": "add", "ref": "n1", "parent": null, "title": "\uC81C\uBAA9", "note": "\uC124\uBA85(\uC120\uD0DD)", "owner": "\uD300\uC6D0 \uC774\uB984 \uB610\uB294 \uBE48 \uBB38\uC790\uC5F4",
-     "measure": "children", "start_date": "2026-11-01", "due_date": "2026-12-31", "num_target": null, "unit": "", "recur": null, "reason": "\uC790\uB8CC\uC758 \uC5B4\uB514\uC5D0\uC11C \uC654\uB294\uC9C0"}
+     "role": "goal|metric|task", "measure": "children", "start_date": "2026-11-01", "due_date": "2026-12-31", "num_target": null, "unit": "", "stages": [], "recur": null, "reason": "\uC790\uB8CC\uC758 \uC5B4\uB514\uC5D0\uC11C \uC654\uB294\uC9C0"}
   ]
 }
 parent \uB294 null(\uCD5C\uC0C1\uC704), \uAC19\uC740 \uC751\uB2F5\uC758 \uB2E4\uB978 add \uD56D\uBAA9\uC758 ref, \uB610\uB294 \uAE30\uC874 \uD56D\uBAA9 id. \uD56D\uBAA9\uC740 30\uAC1C \uC774\uD558.`;
@@ -445,7 +448,8 @@ var PLAN_EDIT = `\uACFC\uC81C: \uD300\uC7A5(\uB610\uB294 \uD300\uC6D0)\uC758 \uB
 \uD56D\uBAA9\uC740 [id] \uB85C \uAC00\uB9AC\uD0B5\uB2C8\uB2E4. \uB2F4\uB2F9\uC790\uB294 \uC8FC\uC5B4\uC9C4 \uD300\uC6D0 \uC774\uB984 \uC911\uC5D0\uC11C\uB9CC \uACE0\uB985\uB2C8\uB2E4. \uB0A0\uC9DC\uB294 YYYY-MM-DD.
 
 op \uC885\uB958:
-- add: {"op":"add","ref":"n1","parent": \uAE30\uC874 id \uB610\uB294 ref \uB610\uB294 null,"title","note","owner","measure","start_date","due_date","num_target","unit","recur","reason"}
+- add: {"op":"add","ref":"n1","parent": \uAE30\uC874 id \uB610\uB294 ref \uB610\uB294 null,"title","note","owner","role": "metric|task","measure","start_date","due_date","num_target","unit","stages","recur","reason"}
+  \uBAA9\uD45C \uC544\uB798\uC5D0\uB294 \uC9C0\uD45C(role metric \u2014 \uACB0\uACFC\uB97C \uC7AC\uB294 \uD56D\uBAA9, measure number\xB7percent\xB7stage)\uC640 \uACFC\uC81C(role task)\uB9CC \uB461\uB2C8\uB2E4. \uC0C8 \uBAA9\uD45C\uB97C \uB9CC\uB4E4\uBA74 \uC9C0\uD45C\uB97C 1\uAC1C \uC774\uC0C1 \uD568\uAED8 \uB9CC\uB4ED\uB2C8\uB2E4.
 - update: {"op":"update","id":"\uAE30\uC874 id","set":{"title"?, "note"?, "owner"?, "start_date"?, "due_date"?, "status"?, "measure"?, "num_target"?, "progress"?, "priority"?, "contribution"?},"reason"}
 - move: {"op":"move","id":"\uAE30\uC874 id","parent": \uC0C8 \uC0C1\uC704 id \uB610\uB294 null,"reason"}
 - delete: {"op":"delete","id":"\uAE30\uC874 id","reason"}
@@ -470,12 +474,13 @@ serve(async (req) => {
   const { data: me } = await admin.from("team_members").select("role").eq("team_id", body.team_id).eq("user_id", caller.userId).eq("status", "active").maybeSingle();
   if (!me) throw new HttpError(403, "forbidden");
   const leader = me.role === "leader";
+  if (!leader) throw new HttpError(403, "LEADER_ONLY", "AI \uACC4\uD68D\uC740 \uD300\uC7A5\uB9CC \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4");
   const { data: team } = await admin.from("teams").select("name, mission, settings").eq("id", body.team_id).single();
   const levels = team?.settings?.level_names ?? ["\uBAA9\uD45C", "\uACFC\uC81C", "\uD560 \uC77C"];
   const { data: tm } = await admin.from("team_members").select("user_id, job_title, profiles(full_name)").eq("team_id", body.team_id).eq("status", "active");
   const people = (tm ?? []).map((m) => ({ id: m.user_id, name: m.profiles?.full_name ?? "", job: m.job_title }));
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
-  const { data: all } = await admin.from("work_items").select("id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, num_target, unit").eq("team_id", body.team_id).neq("status", "dropped").order("sort").limit(400);
+  const { data: all } = await admin.from("work_items").select("id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, num_target, unit, role, stages").eq("team_id", body.team_id).neq("status", "dropped").order("sort").limit(400);
   const items = all ?? [];
   let scopeRoot = null;
   if (body.parent_id) {
@@ -515,7 +520,7 @@ serve(async (req) => {
     }
     return d;
   };
-  const tree = items.filter((i) => inScope(i.id)).map((i) => `${"  ".repeat(depthOf(i))}[${i.id}] ${levels[Math.min(depthOf(i), levels.length - 1)]} \xB7 ${i.title} \xB7 ${ST[i.status] ?? i.status} \xB7 \uB2F4\uB2F9 ${nameOf.get(i.owner_id ?? "") || "-"} \xB7 ${i.start_date ?? ""}~${i.due_date ?? ""} \xB7 \uC9C4\uCC99 ${i.progress}%${i.num_target != null ? ` \xB7 \uBAA9\uD45C ${i.num_target}${i.unit}` : ""}`).join("\n");
+  const tree = items.filter((i) => inScope(i.id)).map((i) => `${"  ".repeat(depthOf(i))}[${i.id}] ${i.role === "metric" ? "\uC9C0\uD45C" : levels[Math.min(depthOf(i), levels.length - 1)]} \xB7 ${i.title} \xB7 ${ST[i.status] ?? i.status} \xB7 \uB2F4\uB2F9 ${nameOf.get(i.owner_id ?? "") || "-"} \xB7 ${i.start_date ?? ""}~${i.due_date ?? ""} \xB7 \uC9C4\uCC99 ${i.progress}%${i.num_target != null ? ` \xB7 \uBAA9\uD45C ${i.num_target}${i.unit}` : ""}${i.stages?.length ? ` \xB7 \uB2E8\uACC4 ${i.stages.join("\u2192")}` : ""}`).join("\n");
   const book = new SourceBook();
   await addKnowhow(book, body.team_id, "plan", 2e3, !leader);
   const content = [];

@@ -4,6 +4,7 @@ import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, weekLabel, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { BRIEFING } from '../_shared/prompts/index.ts';
+import { conditionText } from '../_shared/condition.ts';
 
 async function briefTeam(teamId: string, createdBy: string | null) {
   const since = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -12,18 +13,17 @@ async function briefTeam(teamId: string, createdBy: string | null) {
     .eq('team_id', teamId).eq('status', 'active');
   const nameOf = new Map((members ?? []).map((m) => [m.user_id, (m.profiles as unknown as { full_name: string })?.full_name ?? '']));
 
-  const { data: checkins } = await admin.from('checkins').select('id, user_id, week_start, did, blocked, condition')
+  const { data: checkins } = await admin.from('checkins').select('id, user_id, week_start, condition, moods, note')
     .eq('team_id', teamId).gte('updated_at', since);
   for (const c of checkins ?? []) {
-    book.add('checkin', c.id, `체크인 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`,
-      `한 일: ${c.did} / 막힘: ${c.blocked || '없음'} / 컨디션 ${c.condition ?? '-'}`);
+    book.add('checkin', c.id, `컨디션 공유 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`, conditionText(c));
   }
-  // 직전 주 체크인 (반복 여부 판단용)
+  // 직전 주 컨디션 공유 (반복 여부 판단용)
   const prevWeek = new Date(Date.now() - 14 * 86400000).toISOString();
-  const { data: prevChecks } = await admin.from('checkins').select('id, user_id, week_start, blocked, condition')
+  const { data: prevChecks } = await admin.from('checkins').select('id, user_id, week_start, condition, moods, note')
     .eq('team_id', teamId).gte('updated_at', prevWeek).lt('updated_at', since);
   for (const c of prevChecks ?? []) {
-    book.add('checkin', c.id, `지난주 체크인 ${nameOf.get(c.user_id)}`, `막힘: ${c.blocked || '없음'} / 컨디션 ${c.condition ?? '-'}`);
+    book.add('checkin', c.id, `지난주 컨디션 공유 ${nameOf.get(c.user_id)}`, conditionText(c));
   }
 
   const { data: oos } = await admin.from('one_on_ones').select('id, member_id, scheduled_at, shared_notes')
@@ -47,7 +47,7 @@ async function briefTeam(teamId: string, createdBy: string | null) {
 
   const { data: radar } = await admin.rpc('care_radar', { p_team: teamId });
   for (const r of radar ?? []) {
-    book.add('signal', r.user_id, `케어 신호 ${r.full_name}`, (r.signals as { label: string }[]).map((s) => s.label).join(', '));
+    book.add('signal', r.user_id, `케어 신호 ${r.full_name}`, (r.signals as { label: string }[]).map((s) => s.label.replace('체크인 미제출', '컨디션 공유 없음')).join(', '));
   }
 
   if (book.size === 0) return null;
@@ -62,7 +62,7 @@ async function briefTeam(teamId: string, createdBy: string | null) {
     kind: 'briefing',
     model: MODEL_SMART,
     system: BRIEFING,
-    content: [{ type: 'text', text: `계산된 값: 체크인 ${submitted}/${memberCount}명 제출, 평균 컨디션 ${avg ?? '-'}\n\n${book.knowhowText()}\n\n${book.text('지난 7일 기록')}` }],
+    content: [{ type: 'text', text: `계산된 값: 컨디션 공유 ${submitted}/${memberCount}명 제출, 평균 컨디션 ${avg ?? '-'}\n\n${book.knowhowText()}\n\n${book.text('지난 7일 기록')}` }],
     book,
     depth: depthOf(book.size, [5, 12, 25]),
     level: 'L2',

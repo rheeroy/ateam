@@ -5,6 +5,7 @@ import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, addKnowhow, weekLabel } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { PEOPLE_ACTIONS } from '../_shared/prompts/index.ts';
+import { conditionText } from '../_shared/condition.ts';
 import { kstToday, kstMonday, addDaysYmd, loadRaw, flagsFor } from '../_shared/signals.ts';
 import { NOTE_RULE, addNote, loadLeaderNotes } from '../_shared/notes.ts';
 
@@ -24,7 +25,7 @@ async function actionsFor(teamId: string, createdBy: string | null) {
   const touches = [...attn.values()].map((r) => Number(r.touch)).sort((a, b) => a - b);
   const medTouch = touches.length ? touches[Math.floor(touches.length / 2)] : null;
   const [cis, oos, obs, scores, items, subs, reqs] = await Promise.all([
-    admin.from('checkins').select('id, user_id, week_start, did, blocked, condition').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -42)).order('week_start'),
+    admin.from('checkins').select('id, user_id, week_start, condition, moods, note').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -42)).order('week_start'),
     admin.from('one_on_ones').select('id, member_id, scheduled_at, status').eq('team_id', teamId).gte('scheduled_at', since(120)),
     admin.from('observations').select('id, subject_id, kind, body, occurred_at').eq('team_id', teamId).gte('occurred_at', addDaysYmd(today, -60)),
     admin.from('judgment_scores').select('user_id, score, scored_at').eq('team_id', teamId).gte('scored_at', since(240)).order('scored_at'),
@@ -80,7 +81,7 @@ async function actionsFor(teamId: string, createdBy: string | null) {
     ].join(' / ');
     const tag = book.add('member', uid, `${name} 이번 주 사실`, facts);
     const extra: string[] = [];
-    if (lastCi) extra.push(book.add('checkin', lastCi.id, `체크인 ${name} ${weekLabel(lastCi.week_start)}`, `한 일: ${lastCi.did} / 막힘: ${lastCi.blocked || '없음'} / 컨디션 ${lastCi.condition ?? '-'}`));
+    if (lastCi) extra.push(book.add('checkin', lastCi.id, `컨디션 공유 ${name} ${weekLabel(lastCi.week_start)}`, conditionText(lastCi)));
     for (const o of ob.filter((x) => x.kind !== 'note').slice(-2)) extra.push(book.add('observation', o.id, `관찰 ${name} ${o.occurred_at}`, `${o.kind === 'praise' ? '칭찬' : '우려'}: ${o.body}`));
     for (const i of [...overdue, ...behind].slice(0, 2)) extra.push(book.add('task', i.id, `${name} 담당 · ${i.title}`, `진척 ${i.progress}% · 마감 ${i.due_date ?? '-'} · 상태 ${i.status}${i.replan_count ? ` · 계획 변경 ${i.replan_count}회` : ''}`));
     for (const s of sb.filter((x) => x.status === 'approved').slice(0, 1)) extra.push(book.add('submission', s.id, `${name} 결과물 승인`, s.title));

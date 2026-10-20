@@ -1,9 +1,9 @@
-// 팀원: 내 기록 — 이번 분기에 내가 한 일 (승인된 결과물 · 마무리한 일 · 받은 칭찬 · 지킨 약속 · 체크인)
+// 팀원: 내 기록 — 이번 분기에 내가 한 일 (승인된 결과물 · 마무리한 일 · 받은 칭찬 · 지킨 약속)
 // 평가 점수나 근거 원장은 보여 주지 않는다. 본인 성과의 기록으로만.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Award, CheckCircle2, FileCheck2, Flag, PenLine } from 'lucide-react';
+import { Award, CheckCircle2, FileCheck2, Flag } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { cx, fmtDate } from '../lib/format';
@@ -23,25 +23,21 @@ export default function MyRecord() {
   const data = useQuery({
     queryKey: ['my-record', team.id, uid, Q.from],
     queryFn: async () => {
-      const [subs, items, praise, acts, cis] = await Promise.all([
+      const [subs, items, praise, acts] = await Promise.all([
         q<{ id: string; title: string; approved_at: string | null; updated_at: string }[]>(supabase.from('submissions').select('id, title, approved_at, updated_at').eq('team_id', team.id).eq('author_id', uid).eq('status', 'approved').gte('updated_at', Q.from).lt('updated_at', Q.to).order('updated_at', { ascending: false })),
         q<{ id: string; title: string; done_at: string | null; updated_at: string }[]>(supabase.from('work_items').select('id, title, done_at, updated_at').eq('team_id', team.id).eq('owner_id', uid).eq('status', 'done').gte('updated_at', Q.from).lt('updated_at', Q.to).order('updated_at', { ascending: false })),
         q<{ id: string; author_id: string; body: string; occurred_at: string }[]>(supabase.from('observations').select('id, author_id, body, occurred_at').eq('team_id', team.id).eq('subject_id', uid).eq('kind', 'praise').gte('occurred_at', Q.from).lt('occurred_at', Q.to).order('occurred_at', { ascending: false })),
         q<{ id: string; title: string; done_at: string }[]>(supabase.from('action_items').select('id, title, done_at').eq('team_id', team.id).eq('owner_id', uid).gte('done_at', Q.from).lt('done_at', Q.to).order('done_at', { ascending: false })),
-        q<{ id: string }[]>(supabase.from('checkins').select('id').eq('team_id', team.id).eq('user_id', uid).gte('week_start', Q.fromYmd).lt('week_start', Q.toYmd)),
       ]);
-      return { subs, items, praise, acts, cis: cis.length };
+      return { subs, items, praise, acts };
     },
   });
   const d = data.data;
-  // 분기 안에 시작한 주(월요일) 수 — 오늘까지
-  const weeks = (() => { let n = 0; const end = Math.min(Date.now(), Date.parse(Q.to)); for (let t = Date.parse(Q.from); t < end; t += 86400000) if (new Date(t).getDay() === 1) n++; return Math.max(1, n); })();
   const stats = d ? [
     { k: '승인된 결과물', v: d.subs.length, I: FileCheck2, c: 'text-indigo-600 bg-indigo-50' },
     { k: '마무리한 일', v: d.items.length, I: Flag, c: 'text-emerald-600 bg-emerald-50' },
     { k: '받은 칭찬', v: d.praise.length, I: Award, c: 'text-amber-600 bg-amber-50' },
     { k: '지킨 약속', v: d.acts.length, I: CheckCircle2, c: 'text-teal-600 bg-teal-50' },
-    { k: '체크인', v: `${Math.min(d.cis, weeks)}/${weeks}주`, I: PenLine, c: 'text-violet-600 bg-violet-50' },
   ] : [];
   return (
     <section>
@@ -51,7 +47,7 @@ export default function MyRecord() {
         </div>} />
       {data.isLoading || !d ? <Spinner /> : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {stats.map((s) => (
               <Card key={s.k} className="p-4">
                 <span className={cx('w-8 h-8 rounded-lg inline-flex items-center justify-center', s.c)}><s.I size={16} /></span>

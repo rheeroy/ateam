@@ -26,14 +26,7 @@ serve(async (req) => {
   const nameOf = new Map((members ?? []).map((m) => [m.user_id, (m.profiles as unknown as { full_name: string })?.full_name ?? '']));
   const book = new SourceBook();
 
-  const { data: checkins } = await admin.from('checkins').select('id, user_id, did, blocked, next')
-    .eq('team_id', body.team_id).eq('week_start', week);
-  for (const c of checkins ?? []) {
-    book.add('checkin', c.id, `체크인 ${nameOf.get(c.user_id)}`, `한 일: ${c.did} / 막힘: ${c.blocked || '없음'} / 다음 주: ${c.next}`);
-  }
-  const missing = (members ?? [])
-    .filter((m) => m.role === 'member' && !(checkins ?? []).some((c) => c.user_id === m.user_id))
-    .map((m) => nameOf.get(m.user_id));
+  // 컨디션 공유는 팀장만 보는 사람의 상태라 위로 올라가는 주간보고에는 넣지 않는다
 
   const { data: tasks } = await admin.from('work_items').select('id, title, status, progress, due_date, owner_id, base_due, replan_count, measure')
     .eq('team_id', body.team_id).in('status', ['active', 'blocked', 'done']).not('parent_id', 'is', null)
@@ -53,7 +46,7 @@ serve(async (req) => {
 
   const notes = (body.leader_notes ?? '').trim().slice(0, 4000);
   if (notes) book.add('leader_note', null, '팀장 메모', notes);
-  if (book.size === 0) throw new HttpError(422, 'NO_DATA', '이번 주 체크인·과제 기록이 없습니다. 팀장 메모를 몇 줄 적으면 그것으로 초안을 씁니다.');
+  if (book.size === 0) throw new HttpError(422, 'NO_DATA', '이번 주 과제·결과물 기록이 없습니다. 팀장 메모를 몇 줄 적으면 그것으로 초안을 씁니다.');
   await addKnowhow(book, body.team_id, 'report');
 
   const { output } = await runAi({
@@ -61,7 +54,7 @@ serve(async (req) => {
     kind: 'weekly_report',
     model: MODEL_SMART,
     system: WEEKLY_REPORT,
-    content: [{ type: 'text', text: `팀: ${team?.name}\n미션: ${team?.mission}\n보고 주간: ${week} ~ ${weekEnd}\n체크인 미제출: ${missing.join(', ') || '없음'}\n\n${book.knowhowText()}\n\n${book.text('이번 주 기록')}` }],
+    content: [{ type: 'text', text: `팀: ${team?.name}\n미션: ${team?.mission}\n보고 주간: ${week} ~ ${weekEnd}\n\n${book.knowhowText()}\n\n${book.text('이번 주 기록')}` }],
     book,
     depth: depthOf(book.size, [4, 10, 20]),
     level: 'L1',
@@ -69,7 +62,7 @@ serve(async (req) => {
     periodStart: week,
     periodEnd: weekEnd,
     maxTokens: 1400,
-    extra: { missing, counts: book.byType(), leader_notes: notes || undefined },
+    extra: { counts: book.byType(), leader_notes: notes || undefined },
   });
   return json(output);
 });

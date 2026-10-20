@@ -85,7 +85,7 @@ export default function Brief() {
             <Kpi label={k.fc ? `${k.fc.name} 기말 전망` : '실적 전망'} value={k.fc ? `${Math.round((k.fc.base ?? 0) * 10) / 10}${k.fc.unit}` : '—'} sub={k.fc?.target != null ? `목표 ${k.fc.target}${k.fc.unit}` : '실적 2개월 이상 필요'} />
           </>}
           {sec === 'people' && <>
-            <Kpi label="팀 컨디션 (5점)" value={k.cond} sub={`이번 주 체크인 ${k.ciThis}/${k.nMem}명`} />
+            <Kpi label="팀 컨디션 (5점)" value={k.cond} sub={`이번 주 컨디션 공유 ${k.ciThis}/${k.nMem}명`} />
             <Kpi label="챙길 팀원" value={k.careN} tone={k.careN ? 'amber' : undefined} sub={k.careNames.join(', ') || '없음'} />
             <Kpi label="평가 근거 충분" value={k.evidence} sub="판단 근거 기준 충족" />
             <Kpi label="리뷰 대기" value={k.reviewWait} sub={k.reviewSub} />

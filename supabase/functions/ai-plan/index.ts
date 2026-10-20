@@ -1,6 +1,6 @@
 // 목표·과제 계획 AI
 //  · draft : 계획서·업무 분장·메모를 읽고 목표 > 과제 > 할 일 초안 (팀장: 프리미엄 2크레딧 / 상위 항목 아래 초안: 코어)
-//  · edit  : "제안서 마감 2주 미루고 김도현에게 넘겨줘" 같은 말을 변경안(ops)으로 (코어)
+//  · edit  : "제안서 마감 2주 미루고 김현정에게 넘겨줘" 같은 말을 변경안(ops)으로 (코어)
 // 결과는 '제안'이다. 화면에서 팀장(또는 팀원)이 항목별로 수락해야 반영된다.
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller } from '../_shared/supabase.ts';

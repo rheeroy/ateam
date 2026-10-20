@@ -53,7 +53,7 @@ export default function Invite() {
               <p className="mt-3 text-xs text-amber-800 bg-amber-50 rounded-lg p-2.5">초대받은 메일({preview.email})과 지금 로그인한 계정({session.user.email})이 다릅니다. 그래도 이 계정으로 합류할 수 있습니다.</p>
             )}
             <div className="mt-4 text-xs text-slate-500 leading-relaxed bg-slate-50 rounded-lg p-3">
-              합류하면 주간 체크인을 쓰고, 팀장님과의 1:1 노트와 결과물 리뷰를 이곳에서 함께 봅니다. 체크인은 팀장님과 나만 볼 수 있습니다.
+              합류하면 업무플랫폼에서 결과물을 올리고, 팀장님과의 1:1 노트와 주간 컨디션을 이곳에서 함께 나눕니다. 컨디션 공유는 팀장님과 나만 볼 수 있습니다.
             </div>
             <Button className="mt-5 w-full" onClick={accept} loading={busy} disabled={preview.expired}>
               {preview.expired ? '만료된 초대입니다' : '팀에 합류하기'}

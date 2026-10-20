@@ -40,6 +40,7 @@ npm run dev                   # http://localhost:5173
 ```
 
 - 데모 계정: `leader@demo.ateam`(팀장), `kim@demo.ateam`(팀원) 등. 로그인 링크는 로컬 메일함(Inbucket, `http://localhost:54324`)에서 연다.
+- 배포 환경 데모(대시보드 `06_demo_accounts.sql`): 팀장 `demo@ateam.com`, 팀원 `demo_p1@ateam.com` ~ `demo_p6@ateam.com`, 비밀번호 `demo123`
 - AI 기능을 로컬에서 쓰려면:
   ```bash
   echo "ANTHROPIC_API_KEY=sk-ant-..." > supabase/functions/.env

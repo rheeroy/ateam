@@ -14,7 +14,8 @@ export interface TeamMember {
 }
 export interface Invitation { id: string; team_id: string; email: string; role: Role; job_title: string; token: string; accepted_at: string | null; expires_at: string; created_at: string }
 
-export interface Checkin { id: string; team_id: string; user_id: string; week_start: string; did: string; blocked: string; next: string; condition: number | null; created_at: string; updated_at: string }
+/** 컨디션 공유 (did·blocked·next 는 예전 주간 체크인의 업무 칸 — 새로 쓰지 않음) */
+export interface Checkin { id: string; team_id: string; user_id: string; week_start: string; did: string; blocked: string; next: string; condition: number | null; moods?: string[] | null; note?: string | null; created_at: string; updated_at: string }
 export interface OneOnOne {
   id: string; team_id: string; leader_id: string; member_id: string; scheduled_at: string; duration_min: number;
   status: 'scheduled' | 'done' | 'canceled'; shared_notes: string; completed_at: string | null; created_at: string;

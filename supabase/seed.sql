@@ -24,9 +24,9 @@ begin
                           confirmation_token, recovery_token, email_change_token_new, email_change, raw_app_meta_data)
   select '00000000-0000-0000-0000-000000000000', x.id, 'authenticated', 'authenticated', x.email,
          jsonb_build_object('full_name', x.name), now(), '', '', '', '', '{"provider":"email","providers":["email"]}'::jsonb
-  from (values (L, 'leader@demo.ateam', '이경훈'), (m_kim, 'kim@demo.ateam', '김도현'),
-               (m_park, 'park@demo.ateam', '박서연'), (m_choi, 'choi@demo.ateam', '최민아'),
-               (m_jung, 'jung@demo.ateam', '정우성'), (m_lee, 'lee@demo.ateam', '이정규'),
+  from (values (L, 'leader@demo.ateam', '이경훈'), (m_kim, 'kim@demo.ateam', '김현정'),
+               (m_park, 'park@demo.ateam', '박서연'), (m_choi, 'choi@demo.ateam', '최다은'),
+               (m_jung, 'jung@demo.ateam', '정우성'), (m_lee, 'lee@demo.ateam', '이동욱'),
                (m_han, 'han@demo.ateam', '한수진')) as x(id, email, name)
   on conflict (id) do nothing;
   if to_regclass('auth.identities') is not null then
@@ -112,34 +112,49 @@ begin
   insert into metric_pipeline (metric_id, team_id, label, amount, probability, expected_close) values
     (mt, T, 'B사 제휴', 4, 0.4, v_month + 45), (mt, T, 'C사 재계약', 2.5, 0.6, v_month + 30), (mt, T, 'D사 신규', 1.5, 0.3, v_month + 50);
 
-  -- 체크인 26주
+  -- 컨디션 공유 26주 (업무 칸은 비움 — 컨디션 · 영향 요인 · 메모만)
   for i in 1..26 loop
     wk := this_mon - (i * 7);
     insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
-      (T, m_kim, wk, case when i = 1 then '신제품 진입 기획서 v3 제출, 인터뷰 설계 착수' when i = 2 then '가격 전략 전면 수정' else '시장 분석·진입 전략 작업' end,
-         case when i = 2 then '경쟁사 데이터 확보' else '' end, '인터뷰 진행', case when i <= 1 then 3 else 4 end),
-      (T, m_park, wk, '데이터 대시보드 개선, 레거시 리포트 운영', '', '분석 자동화', 4),
-      (T, m_choi, wk, '온보딩 개선안 작성', '', '현업 인터뷰', case when i % 5 = 0 then 3 else 4 end),
-      (T, m_jung, wk, case when i <= 2 then '파트너 제안서 작성' else '사내 보고 자료 정비, 파트너 미팅' end,
-         case when i <= 2 then '고객사 데이터 수급이 안 됨' else '' end, '제안서 마무리', case when i <= 2 then 3 else 4 end);
+      (T, m_kim, wk, '', '', '', case when i <= 1 then 3 else 4 end),
+      (T, m_park, wk, '', '', '', 4),
+      (T, m_choi, wk, '', '', '', case when i % 5 = 0 then 3 else 4 end),
+      (T, m_jung, wk, '', '', '', case when i <= 2 then 3 else 4 end);
     if i <= 20 then
       insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
-        (T, m_lee, wk, '영업 연계 자료 준비', '', '영업팀 미팅', case i when 1 then 2 when 2 then 3 when 3 then 4 else 4 end);
+        (T, m_lee, wk, '', '', '', case i when 1 then 2 when 2 then 3 when 3 then 4 else 4 end);
     end if;
     if i <= 5 then
       insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
-        (T, m_han, wk, '온보딩 과제 수행, 진입 전략 리서치 보조', '', '리서치 정리', 4);
+        (T, m_han, wk, '', '', '', 4);
     end if;
   end loop;
-  -- 이번 주: 이정규만 미제출
-  -- 지난 체크인의 작성 시각을 그 주 금요일로
+  -- 지난 기록의 작성 시각을 그 주 금요일로
   update checkins set created_at = week_start + interval '4 days 17 hours', updated_at = week_start + interval '4 days 17 hours' where team_id = T;
+  -- 이번 주: 이동욱만 미공유
   insert into checkins (team_id, user_id, week_start, did, blocked, next, condition) values
-    (T, m_kim, this_mon, '사용자 인터뷰 설계, 임원 보고 장표 보완', '', '인터뷰 8명 진행', 3),
-    (T, m_park, this_mon, '분석 자동화 1차', '', '대시보드 배포', 4),
-    (T, m_choi, this_mon, '온보딩 개선안 v2', '', '현업 피드백 반영', 4),
-    (T, m_jung, this_mon, '파트너 제안서 초안', '고객사 데이터 수급이 안 됨', 'B사 데이터 대체안', 3),
-    (T, m_han, this_mon, '경쟁사 가격 조사', '', '인터뷰 보조', 4);
+    (T, m_kim, this_mon, '', '', '', 3),
+    (T, m_park, this_mon, '', '', '', 4),
+    (T, m_choi, this_mon, '', '', '', 4),
+    (T, m_jung, this_mon, '', '', '', 2),
+    (T, m_han, this_mon, '', '', '', 4);
+  -- 영향 요인 · 메모 (24_condition 의 moods · note 칸 — 아직 없으면 건너뜀)
+  begin
+    execute $q$update checkins set moods = array['rested'] where team_id = $1 and condition >= 4 and (extract(week from week_start)::int % 4) = 0$q$ using T;
+    execute $q$update checkins set moods = array['energized'] where team_id = $1 and condition >= 4 and (extract(week from week_start)::int % 4) = 2$q$ using T;
+    for u in select * from (values
+        (m_kim, 0, array['tired']::text[], ''), (m_kim, 1, array['tired']::text[], ''),
+        (m_park, 0, array['rested', 'energized']::text[], ''),
+        (m_choi, 0, array['rested']::text[], ''),
+        (m_jung, 0, array['personal', 'tired']::text[], '이번 주 이사 일정으로 오후 시간이 유동적입니다'),
+        (m_jung, 1, array['personal']::text[], ''), (m_jung, 2, array['heavy']::text[], ''),
+        (m_lee, 1, array['heavy', 'need_rest']::text[], ''), (m_lee, 2, array['tired']::text[], ''),
+        (m_han, 0, array['energized']::text[], '')) as x(uid, ago, moods, note)
+    loop
+      execute 'update checkins set moods = $1, note = $2 where team_id = $3 and user_id = $4 and week_start = $5' using u.moods, u.note, T, u.uid, this_mon - u.ago * 7;
+    end loop;
+  exception when undefined_column then null;
+  end;
 
   -- 1:1 (격주, 완료)
   for u in select * from (values (m_kim, 12), (m_park, 11), (m_choi, 10), (m_jung, 9), (m_lee, 5), (m_han, 3)) as x(uid, n) loop
@@ -159,7 +174,7 @@ begin
     (T, m_kim, '인터뷰 설계안 초안', current_date + 2, L),
     (T, L, '교육 예산 확인', current_date + 4, L);
 
-  -- 결과물: 김도현 기획서 v1~v3 (리뷰 중)
+  -- 결과물: 김현정 기획서 v1~v3 (리뷰 중)
   insert into submissions (team_id, author_id, item_id, title, status, created_at) values (T, m_kim, t1, '신제품 진입 기획서', 'in_review', now() - interval '30 days') returning id into sub;
   insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, created_at) values
     (sub, T, 1, E'1. 시장 분석\n국내 시장 규모 1.2조, 연 8% 성장.\n\n2. 가격 전략 — 프리미엄\n경쟁사 대비 20% 높은 가격으로 브랜드 포지셔닝.', '초안', m_kim, now() - interval '30 days'),

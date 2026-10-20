@@ -137,7 +137,8 @@ export default function Layout() {
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
             <NavItem to="/my/goals" label="팀목표" icon={ListTree} />
-            <NavItem to="/my/one-on-ones" label="팀장님과" icon={MessageSquare} badge={(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0) ? `${(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0)}` : undefined} />
+            <NavItem to="/my/one-on-ones" label="팀장님과" icon={MessageSquare} tip={mb.data?.conditionDue ? '팀장님과 · 이번 주 컨디션 미공유' : undefined}
+              badge={(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0) ? `${(mb.data?.requests ?? 0) + (mb.data?.promises ?? 0)}` : mb.data?.conditionDue ? '컨디션' : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -207,7 +208,7 @@ export default function Layout() {
           {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
         </div>
       </main>
-      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} />}
+      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!((mb.data?.requests ?? 0) + (mb.data?.promises ?? 0)) || !!mb.data?.conditionDue} />}
       {isLeader && <QuickNote />}
       <InstallPrompt />
       <ProvLegend />
@@ -216,10 +217,10 @@ export default function Layout() {
 }
 
 /** 팀원 모바일 하단 탭 */
-function MemberTabBar({ needsWork }: { needsWork: number }) {
+function MemberTabBar({ needsWork, withLeader }: { needsWork: number; withLeader: boolean }) {
   const tabs = [
     { to: '/my/submissions', label: '업무플랫폼', I: FileUp, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: ListTree },
-    { to: '/my/one-on-ones', label: '팀장님과', I: MessageSquare, dot: false },
+    { to: '/my/one-on-ones', label: '팀장님과', I: MessageSquare, dot: withLeader },
   ];
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
@@ -241,7 +242,7 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
       <h1 className="mt-4 text-xl font-bold">{leader ? (trial ? '무료 체험이 끝났습니다' : '구독이 끝났습니다') : '지금은 ATEAM을 쓸 수 없습니다'}</h1>
       <p className="mt-2 text-sm text-slate-600 leading-relaxed">
         {leader
-          ? <>그동안 쌓인 목표 · 업무 · 1:1 · 체크인 기록은 그대로 보관돼 있습니다.<br />팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</>
+          ? <>그동안 쌓인 목표 · 업무 · 1:1 · 컨디션 기록은 그대로 보관돼 있습니다.<br />팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</>
           : <>팀장님의 구독이 끝나 잠시 멈췄습니다. 내 기록은 그대로 보관되고,<br />팀장님이 다시 시작하면 바로 이어집니다.</>}
       </p>
       {leader && <Link to="/settings?tab=billing" className="mt-5 inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700">요금제 고르기</Link>}

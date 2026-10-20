@@ -443,6 +443,7 @@ var PREP = `\uACFC\uC81C: 1:1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774
 - \uACC4\uD68D\uBCF4\uB2E4 \uB2A6\uC74C\xB7\uBD80\uC9C4: \uC6D0\uC778\uC774 \uBCF8\uC778 \uD1B5\uC81C \uC548 / \uC678\uBD80 \uD658\uACBD / \uD611\uC5C5 / \uC5C5\uBB34 \uCD94\uAC00 \uC911 \uC5B4\uB514\uC778\uC9C0 \uC2A4\uC2A4\uB85C \uB098\uB220 \uBCF4\uAC8C \uD558\uB294 \uC9C8\uBB38. "\uC65C \uB2A6\uC5C8\uB098\uC694"\uAC00 \uC544\uB2C8\uB77C "\uBB34\uC5C7\uC774 \uAC00\uC7A5 \uD06C\uAC8C \uB9C9\uC558\uB098\uC694".
 - \uAC19\uC740 \uB9C9\uD798 \uBC18\uBCF5: \uC5B4\uB514\uC11C \uBA48\uCDC4\uB294\uC9C0, \uBB34\uC5C7\uC744 \uC2DC\uB3C4\uD588\uB294\uC9C0, \uB204\uAD6C\uC758 \uACB0\uC815\xB7\uC815\uBCF4\uAC00 \uC788\uC73C\uBA74 \uC6C0\uC9C1\uC77C \uC218 \uC788\uB294\uC9C0.
 - \uCEE8\uB514\uC158 \uD558\uB77D: \uC5D0\uB108\uC9C0\uAC00 \uBE60\uC9C0\uB294 \uC21C\uAC04\uACFC \uCC28\uC624\uB974\uB294 \uC21C\uAC04, \uB2E4\uC74C 2\uC8FC\uC5D0 \uBB34\uC5C7\uC774 \uB2EC\uB77C\uC9C0\uBA74 \uB098\uC544\uC9C8\uC9C0. \uC5C5\uBB34 \uC9C4\uCC99\uC740 \uBB3B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
+- \uCEE8\uB514\uC158 \uACF5\uC720\uC758 \uBD80\uB2F4 \uC694\uC778(\uC218\uBA74 \uBD80\uC871\xB7\uD53C\uB85C, \uAC74\uAC15 \uBB38\uC81C, \uC2EC\uB9AC\uC801 \uBD80\uB2F4, \uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815, \uD734\uC2DD \uD544\uC694)\uC774 \uC788\uC73C\uBA74 \uCCAB \uC9C8\uBB38\uC740 \uADFC\uD669\uC73C\uB85C \uC5F4\uACE0, \uC0AC\uC720\uB97C \uCE90\uBB3B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uD300\uC6D0\uC774 \uACE0\uB978 \uD56D\uBAA9\uACFC \uBA54\uBAA8\uB97C \uADF8\uB300\uB85C \uC778\uC6A9\uD558\uC9C0 \uB9D0\uACE0, \uC274 \uD2C8\xB7\uC77C\uC815 \uC870\uC815\uCC98\uB7FC \uD300\uC7A5\uC774 \uD574 \uC904 \uC218 \uC788\uB294 \uAC83\uC744 watch \uC5D0 \uC801\uC2B5\uB2C8\uB2E4.
 - \uC798\uD55C \uC77C\xB7\uC131\uC7A5: \uC798\uB41C \uACB0\uC815\uC801 \uC694\uC778, \uADF8 \uBC29\uC2DD\uC744 \uB2E4\uB978 \uC77C\uC5D0 \uC4F8 \uBC29\uBC95, \uD55C \uB2E8\uACC4 \uC5B4\uB824\uC6B4 \uC77C\uC744 \uB9E1\uB294\uB2E4\uBA74 \uBB34\uC5C7\uC744.
 - \uC5C5\uBB34\uAC00 \uB9CE\uC74C: \uC774\uBC88 \uC8FC \uD558\uC9C0 \uC54A\uC544\uB3C4 \uB418\uB294 \uC77C, \uB118\uAE38 \uC218 \uC788\uB294 \uC77C, \uC6B0\uC120\uC21C\uC704\uAC00 \uBD80\uB52A\uD788\uB294 \uC77C.
 - \uD569\uB958\uD55C \uC9C0 \uC5BC\uB9C8 \uC548 \uB428: \uC774 \uD300\uC5D0\uC11C '\uC798\uD588\uB2E4'\uC758 \uAE30\uC900\uC744 \uC5B4\uB5BB\uAC8C \uC774\uD574\uD558\uACE0 \uC788\uB294\uC9C0, \uC544\uC9C1 \uBABB \uBC1B\uC740 \uC815\uBCF4.
@@ -459,6 +460,30 @@ var PREP = `\uACFC\uC81C: 1:1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC774
   "questions": ["\uC9C8\uBB38 4\uAC1C"]
 }
 since \uB294 \uCD5C\uB300 5\uAC1C, \uC624\uB798\uB41C \uC21C\uC11C.`;
+
+// functions/_shared/signals.ts
+var MOOD_LABEL = {
+  rested: "\uCDA9\uBD84\uD55C \uD734\uC2DD",
+  energized: "\uC758\uC695 \uB192\uC74C",
+  good_news: "\uC88B\uC740 \uC18C\uC2DD",
+  tired: "\uC218\uBA74 \uBD80\uC871\xB7\uD53C\uB85C",
+  unwell: "\uAC74\uAC15 \uBB38\uC81C",
+  heavy: "\uC2EC\uB9AC\uC801 \uBD80\uB2F4",
+  personal: "\uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815",
+  need_rest: "\uD734\uC2DD \uD544\uC694"
+};
+var KST = 9 * 36e5;
+
+// functions/_shared/condition.ts
+var COND_LABEL = { 1: "\uB9CE\uC774 \uC9C0\uCE68", 2: "\uB2E4\uC18C \uC9C0\uCE68", 3: "\uBCF4\uD1B5", 4: "\uC591\uD638", 5: "\uB9E4\uC6B0 \uC88B\uC74C" };
+function conditionText(c) {
+  const parts = [];
+  if (c.condition != null) parts.push(`\uCEE8\uB514\uC158 ${c.condition}/5 (${COND_LABEL[c.condition] ?? ""})`);
+  const ms = (c.moods ?? []).map((k) => MOOD_LABEL[k] ?? k);
+  if (ms.length) parts.push(`\uC601\uD5A5 \uC694\uC778: ${ms.join(", ")}`);
+  if (c.note?.trim()) parts.push(`\uBA54\uBAA8: ${c.note.trim()}`);
+  return parts.join(" / ") || "\uC785\uB825 \uC5C6\uC74C";
+}
 
 // functions/_shared/notes.ts
 var NOTE_RULE = `
@@ -497,14 +522,9 @@ serve(async (req) => {
     const { data: priv } = await admin.from("one_on_one_private").select("notes").eq("one_on_one_id", last.id).maybeSingle();
     if (priv?.notes) book.add("leader_note", last.id, `\uD300\uC7A5 \uBA54\uBAA8 ${fmtDate(last.scheduled_at)}`, priv.notes);
   }
-  const { data: checkins } = await admin.from("checkins").select("id, week_start, did, blocked, next, condition").eq("team_id", oo.team_id).eq("user_id", oo.member_id).gte("week_start", since.slice(0, 10)).order("week_start").limit(6);
+  const { data: checkins } = await admin.from("checkins").select("id, week_start, condition, moods, note").eq("team_id", oo.team_id).eq("user_id", oo.member_id).gte("week_start", since.slice(0, 10)).order("week_start").limit(6);
   for (const c of checkins ?? []) {
-    book.add(
-      "checkin",
-      c.id,
-      `\uCCB4\uD06C\uC778 ${weekLabel(c.week_start)}`,
-      `\uD55C \uC77C: ${c.did} / \uB9C9\uD798: ${c.blocked || "\uC5C6\uC74C"} / \uB2E4\uC74C: ${c.next} / \uCEE8\uB514\uC158: ${c.condition ?? "-"}`
-    );
+    book.add("checkin", c.id, `\uCEE8\uB514\uC158 \uACF5\uC720 ${weekLabel(c.week_start)}`, conditionText(c));
   }
   const { data: items } = await admin.from("action_items").select("id, title, owner_id, due_date, done_at").eq("team_id", oo.team_id).is("done_at", null).in("owner_id", [oo.leader_id, oo.member_id]).limit(10);
   const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);

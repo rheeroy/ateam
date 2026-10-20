@@ -49,10 +49,7 @@ serve(async (req) => {
   const { data: reqs } = await admin.from('team_requests').select('id, title, due_date, status').eq('team_id', team_id).eq('to_id', member_id).eq('status', 'open').lt('due_date', today).limit(5);
   for (const r of reqs ?? []) book.add('request', r.id, `요청 '${r.title}'`, `기한 ${r.due_date} 지남 · 아직 답 없음`);
 
-  // 4) 체크인
-  const { data: cis } = await admin.from('checkins').select('id, week_start').eq('team_id', team_id).eq('user_id', member_id).gte('week_start', since(28).slice(0, 10));
-  const missing = Math.max(0, 4 - (cis?.length ?? 0));
-  if (missing >= 2) book.add('checkin', null, '체크인', `최근 4주 중 ${missing}주 체크인 없음${cis?.length ? ` (마지막 ${weekLabel(cis.map((c) => c.week_start).sort().at(-1)!)})` : ''}`);
+  // 4) (컨디션 공유는 코칭 근거로 쓰지 않는다 — 사람의 상태는 팀장만 보는 것)
 
   // 5) 최근에 보낸 코칭 — 같은 말 반복 피하기
   const { data: prev } = await admin.from('coaching_notes').select('title, created_at').eq('team_id', team_id).eq('member_id', member_id).gte('created_at', since(30)).order('created_at', { ascending: false }).limit(3);

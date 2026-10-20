@@ -389,7 +389,7 @@ function Tiles({ m }: { m: HomeModel }) {
       <Tile icon={Users} title="팀원관리" status={st('people')} to="/people"
         facts={fPeople} empty="팀원을 초대하면 보입니다"
         kpis={[
-          { label: '팀 컨디션', value: k.cond, sub: `체크인 ${k.ciThis}/${k.nMem} · 주별 추이`, viz: <Spark points={k.condTrend} labels={k.condWeeks} /> },
+          { label: '팀 컨디션', value: k.cond, sub: `이번 주 공유 ${k.ciThis}/${k.nMem}명 · 주별 추이`, viz: <Spark points={k.condTrend} labels={k.condWeeks} /> },
           { label: '이탈 가능성', value: <><span className={high ? 'text-rose-600' : 'text-slate-300'}>{high}</span><span className="text-slate-300 text-base mx-0.5">·</span><span className={mid ? 'text-amber-600' : 'text-slate-300'}>{mid}</span></>,
             under: <People items={members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, lv: pi.idx.get(mb.user_id)?.flight.level }))
               .sort((a, b) => (b.lv === 'risk' ? 2 : b.lv === 'watch' ? 1 : 0) - (a.lv === 'risk' ? 2 : a.lv === 'watch' ? 1 : 0))

@@ -427,7 +427,7 @@ var weekLabel = (d) => {
 
 // functions/_shared/prompts/index.ts
 var PEOPLE_ACTIONS = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uC8FC\uC5D0 \uD300\uC6D0 \uD55C \uC0AC\uB78C \uD55C \uC0AC\uB78C\uC5D0\uAC8C \uD560 '\uAD00\uB9AC \uD589\uB3D9'\uC744 \uCD94\uCC9C\uD558\uACE0, \uD300\uC6D0\uBCC4 \uC5C5\uBB34 \uC218\uD589 \uACBD\uACFC\uB97C \uC9E7\uAC8C \uD310\uB2E8\uD569\uB2C8\uB2E4.
-\uC785\uB825\uC740 \uD300\uC6D0\uBCC4\uB85C \uC815\uB9AC\uB41C \uC0AC\uC2E4(\uCEE8\uB514\uC158 \uCD94\uC774, 1:1 \uAC04\uACA9, \uAD00\uCC30 \uAE30\uB85D, \uACB0\uACFC\uBB3C \uD310\uB2E8 \uAE4A\uC774, \uB9E1\uC740 \uC77C\uC758 \uC9C4\uCC99\xB7\uACC4\uD68D \uB300\uBE44\xB7\uB9C9\uD798, \uC694\uCCAD \uCC98\uB9AC, \uCCB4\uD06C\uC778)\uC785\uB2C8\uB2E4.
+\uC785\uB825\uC740 \uD300\uC6D0\uBCC4\uB85C \uC815\uB9AC\uB41C \uC0AC\uC2E4(\uCEE8\uB514\uC158 \uCD94\uC774, 1:1 \uAC04\uACA9, \uAD00\uCC30 \uAE30\uB85D, \uACB0\uACFC\uBB3C \uD310\uB2E8 \uAE4A\uC774, \uB9E1\uC740 \uC77C\uC758 \uC9C4\uCC99\xB7\uACC4\uD68D \uB300\uBE44\xB7\uB9C9\uD798, \uC694\uCCAD \uCC98\uB9AC, \uCEE8\uB514\uC158 \uACF5\uC720\uC758 \uC601\uD5A5 \uC694\uC778)\uC785\uB2C8\uB2E4.
 
 \uC774 \uCD94\uCC9C\uC740 '\uC0AC\uB78C \uAD00\uB9AC'\uC785\uB2C8\uB2E4. \uAC1C\uBCC4 \uC5C5\uBB34\xB7\uACB0\uACFC\uBB3C\xB7\uACFC\uC81C\uC758 \uB0B4\uC6A9\uC740 \uB2E4\uB8E8\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - \uD558\uC9C0 \uC54A\uB294 \uAC83: \uD2B9\uC815 \uACB0\uACFC\uBB3C\uC758 \uC218\uC815 \uC9C0\uC2DC, \uC2B9\uC778 \uC870\uAC74, \uBAA9\uD45C\uCE58\xB7\uBC94\uC704\xB7\uC77C\uC815 \uC870\uC815, \uD2B9\uC815 \uACFC\uC81C\uC758 \uD574\uACB0 \uBC29\uBC95, \uC5C5\uBB34 \uC7AC\uBC30\uBD84 (\uC774\uAC83\uB4E4\uC740 \uC5C5\uBB34\uD50C\uB7AB\uD3FC\xB7\uD300\uBAA9\uD45C\xB7\uC758\uC0AC\uACB0\uC815\uC5D0\uC11C \uB2E4\uB8F9\uB2C8\uB2E4)
@@ -442,17 +442,28 @@ var PEOPLE_ACTIONS = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uC8FC\uC5D0
   push        \uC5C5\uBB34 \uB3C5\uB824 \u2014 \uC5C5\uBB34 \uC804\uBC18\uC758 \uC9C4\uCC99\uC774 \uB354\uB514\uAC70\uB098 \uACF5\uC720\uAC00 \uB738\uD560 \uB54C, \uD398\uC774\uC2A4\xB7\uB9AC\uB4EC\uC744 \uD568\uAED8 \uC810\uAC80 (\uC555\uBC15\uC774 \uC544\uB2C8\uB77C \uC9C4\uCC99 \uACF5\uC720\uC640 \uB3C4\uC6C0 \uC81C\uC548 \uD1A4)
   support     \uC9C0\uC6D0\xB7\uACA9\uB824 \u2014 \uB9C9\uD798\uC774 \uBC18\uBCF5\uB3FC \uC9C0\uCCD0 \uC788\uC744 \uC218 \uC788\uB294 \uC0AC\uB78C\uC5D0\uAC8C \uB4E4\uC5B4 \uC8FC\uACE0 \uB3C4\uC6B8 \uC758\uC0AC\uB97C \uC804\uD568 (\uAD6C\uCCB4 \uD574\uACB0\uCC45 \uC81C\uC2DC X)
 
+\uC120\uD589 \uC2E0\uD638 \u2192 \uD589\uB3D9 (\uC785\uB825\uC758 '\uC120\uD589 \uC2E0\uD638'\uAC00 \uC788\uC73C\uBA74 \uC774 \uAE30\uC900\uC73C\uB85C \uACE0\uB985\uB2C8\uB2E4. \uC774\uD0C8 \uC778\uD130\uBDF0\uC5D0\uC11C \uBC18\uBCF5\uB418\uB294 \uB3D9\uC778\uC785\uB2C8\uB2E4):
+  \uC778\uC815 \uACF5\uBC31(\uB9C8\uCE5C \uC77C\uC774 \uC788\uB294\uB370 \uC778\uC815 \uAE30\uB85D \uC5C6\uC74C)        \u2192 praise
+  \uC758\uC9C0\uB294 \uC788\uB294\uB370 \uB9C9\uD798(\uCEE8\uB514\uC158\uC740 \uAD1C\uCC2E\uC740\uB370 \uB9C9\uD798\xB7\uB300\uAE30)   \u2192 support \u2014 \uC774 \uC0AC\uB78C\uC5D0\uAC8C push \uB294 \uCD94\uCC9C\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. request \uB294 "\uB9C9\uD78C \uAC83\uC744 \uAC19\uC774 \uD480\uACA0\uB2E4"\uB294 \uB9D0\uB85C.
+  \uC131\uC7A5 \uC815\uCCB4(\uACB0\uACFC\uBB3C \uC218\uC900\uC774 \uC624\uB798 \uBE44\uC2B7, \uC0C8\uB85C \uB9E1\uC740 \uC77C \uC5C6\uC74C) \u2192 develop \u2014 \uC131\uACF5 \uAC00\uB2A5\uC131 50~70% \uC815\uB3C4\uC758 \uD55C \uB2E8\uACC4 \uC5B4\uB824\uC6B4 \uC5ED\uD560\xB7\uACFC\uC81C\uB97C \uC81C\uC548
+  \uD300\uC7A5 \uC57D\uC18D \uBC00\uB9BC(\uC774 \uD300\uC6D0\uACFC\uC758 1:1\uC5D0\uC11C \uD55C \uC57D\uC18D\uC774 \uAE30\uD55C \uC9C0\uB0A8) \u2192 one_on_one \u2014 opener \uB294 \uBC00\uB9B0 \uC57D\uC18D\uC744 \uD300\uC7A5\uC774 \uBA3C\uC800 \uAEBC\uB0B4\uB294 \uBB38\uC7A5
+  \uCC38\uC5EC \uC704\uCD95(\uAFB8\uC900\uD788 \uB098\uB204\uB358 \uCEE8\uB514\uC158 \uACF5\uC720\uAC00 2\uC8FC\uC9F8 \uB04A\uAE40) \u2192 one_on_one \u2014 opener \uB294 \uC5C5\uBB34\uAC00 \uC544\uB2CC \uC548\uBD80\uD615, \uCD94\uAD81 \uAE08\uC9C0
+  \uBD80\uB2F4 \uC694\uC778\uC774 \uACB9\uCE68(\uCEE8\uB514\uC158 \uACF5\uC720) \u2192 one_on_one(urgency \uB192\uAC8C) \u2014 opener \uB294 \uADFC\uD669\uD615, \uD300\uC6D0\uC774 \uACE0\uB978 \uD56D\uBAA9\uC744 \uADF8\uB300\uB85C \uC62E\uAE30\uC9C0 \uC54A\uC74C
+
 \uC6D0\uCE59:
 - \uD300\uC6D0\uB9C8\uB2E4 0~2\uAC1C, \uC804\uCCB4 4~8\uAC1C. \uC774\uBC88 \uC8FC\uC5D0 \uD558\uC9C0 \uC54A\uC73C\uBA74 \uC190\uD574\uAC00 \uD070 \uAC83\uBD80\uD130 urgency 3.
 - why(\uBA85\uBD84)\uB294 \uC785\uB825 \uC0AC\uC2E4\uB9CC\uC73C\uB85C 1~2\uBB38\uC7A5, [E#] \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uCD94\uCE21\xB7\uC9C4\uB2E8\xB7\uC131\uACA9 \uD310\uB2E8 \uAE08\uC9C0.
 - \uCEE8\uB514\uC158\uC774 2 \uC774\uD558\uC774\uAC70\uB098 \uB5A8\uC5B4\uC9C0\uB294 \uC0AC\uB78C\uC5D0\uAC8C push \uB97C \uCD94\uCC9C\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - '\uD300\uC7A5 \uC811\uC810'(\uCD5C\uADFC 28\uC77C \uD300\uC7A5\uC774 \uADF8 \uC0AC\uB78C\uC5D0\uAC8C \uC4F4 1:1\xB7\uCF54\uBA58\uD2B8\xB7\uAD00\uCC30\xB7\uC694\uCCAD, \uB9AC\uBDF0 \uCCAB \uBC18\uC751 \uC2DC\uAC04)\uC744 \uBD05\uB2C8\uB2E4. \uD544\uC694\uB3C4\uAC00 \uB192\uC740\uB370(\uCEE8\uB514\uC158 \uD558\uB77D\xB7\uC774\uD0C8 \uC8FC\uC758\xB7\uC2E0\uADDC\xB7\uB9C9\uD798 \uBC18\uBCF5) \uC811\uC810\uC774 \uD300 \uC911\uC559\uAC12\uBCF4\uB2E4 \uD06C\uAC8C \uC801\uAC70\uB098 \uB9AC\uBDF0 \uBC18\uC751\uC774 \uB2A6\uC740 \uC0AC\uB78C\uC5D0\uAC8C\uB294
   one_on_one \uB610\uB294 support \uB97C \uC6B0\uC120 \uCD94\uCC9C\uD558\uACE0, why \uC5D0 "\uD300\uC7A5 \uC2DC\uAC04\uC774 \uB35C \uAC00\uACE0 \uC788\uB2E4"\uB294 \uC0AC\uC2E4\uC744 \uC22B\uC790\uB85C \uBC1D\uD799\uB2C8\uB2E4. \uBC18\uB300\uB85C \uC811\uC810\uC774 \uC18C\uC218\uC5D0\uAC8C \uBAB0\uB824 \uC788\uC73C\uBA74 summary \uC5D0\uC11C \uC9DA\uC2B5\uB2C8\uB2E4. (\uC571 \uAE30\uB85D \uAE30\uC900\uC774\uB77C \uAD6C\uB450 \uB300\uD654\uB294 \uBE60\uC838 \uC788\uC744 \uC218 \uC788\uC74C)
-- praise \uC5D0\uB294 \uD300\uC6D0\uC5D0\uAC8C \uADF8\uB300\uB85C \uBCF4\uB0BC \uC218 \uC788\uB294 \uCE6D\uCC2C \uBB38\uAD6C(message) \uD55C \uBB38\uC7A5 \u2014 \uC77C\uD558\uB294 \uBC29\uC2DD\uC744 \uAD6C\uCCB4\uC801\uC73C\uB85C, \uACFC\uC7A5 \uC5C6\uC774.
+- praise \uC5D0\uB294 \uD300\uC6D0\uC5D0\uAC8C \uADF8\uB300\uB85C \uBCF4\uB0BC \uC218 \uC788\uB294 \uCE6D\uCC2C \uBB38\uAD6C(message) \uD55C \uBB38\uC7A5 \u2014 \uC5B4\uB5A4 \uD589\uB3D9\uC744 \uD588\uACE0 \uADF8\uAC8C \uD300\uC774\uB098 \uC77C\uC5D0 \uC5B4\uB5A4 \uACB0\uACFC\uB97C \uB0C8\uB294\uC9C0\uB97C \uAD6C\uCCB4\uC801\uC73C\uB85C, \uACFC\uC7A5 \uC5C6\uC774. "\uC218\uACE0\uD588\uC5B4\uC694", "\uACE0\uC0DD \uB9CE\uC558\uC5B4\uC694" \uAC19\uC740 \uC77C\uBC18\uC801\uC778 \uB9D0\uB85C \uB05D\uB0B4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
+- support \uC758 request \uB294 \uC9C0\uCCD0 \uBCF4\uC774\uB294 \uC774\uC720\uC5D0 \uB9DE\uCDA5\uB2C8\uB2E4: \uBE44\uD310\xB7\uBCF4\uC644 \uC694\uCCAD\uC774 \uC774\uC5B4\uC9C4 \uC0AC\uB78C\uC5D0\uAC8C\uB294 \uAE30\uB300\uD558\uB294 \uAE30\uC900\uC744 \uD568\uAED8 \uC815\uB9AC\uD558\uC790\uB294 \uB9D0, \uC77C\uC5D0\uC11C \uC18C\uC678\uB3FC \uBCF4\uC774\uB294 \uC0AC\uB78C\uC5D0\uAC8C\uB294 \uD575\uC2EC \uB17C\uC758\uC5D0 \uD568\uAED8\uD558\uC790\uB294 \uB9D0, \uD558\uB294 \uC77C\uC758 \uC758\uBBF8\uAC00 \uD750\uB824 \uBCF4\uC774\uB294 \uC0AC\uB78C\uC5D0\uAC8C\uB294 \uADF8 \uC77C\uC774 \uD300 \uBAA9\uD45C\uC5D0 \uC5B4\uB5BB\uAC8C \uC774\uC5B4\uC9C0\uB294\uC9C0\uB97C \uB2F4\uC740 \uB9D0. \uC6D0\uC778\uC744 \uB2E8\uC815\uD558\uC9C0 \uC54A\uACE0 \uAE30\uB85D\uC73C\uB85C \uBCF4\uC774\uB294 \uCABD\uC5D0 \uB9DE\uCDA5\uB2C8\uB2E4.
+- develop \uC758 request \uB294 \uC9C0\uAE08\uBCF4\uB2E4 \uD55C \uB2E8\uACC4 \uC5B4\uB824\uC6B4 \uC5ED\uD560\uC774\uB098 \uAE30\uD68C\uB97C \uD568\uAED8 \uC815\uD574 \uBCF4\uC790\uB294 \uC81C\uC548\uC73C\uB85C, \uD300\uC7A5\uC774 \uBB34\uC5C7\uC744 \uC9C0\uC6D0\uD560\uC9C0 \uD55C \uAD6C\uC808 \uB123\uC2B5\uB2C8\uB2E4.
 - one_on_one \uC5D0\uB294 \uB300\uD654\uB97C \uC5EC\uB294 \uCCAB \uC9C8\uBB38(opener) \uD55C \uBB38\uC7A5 \u2014 \uC5C5\uBB34 \uB0B4\uC6A9\uC774 \uC544\uB2C8\uB77C \uC0AC\uB78C(\uC5D0\uB108\uC9C0\xB7\uC5B4\uB824\uC6C0\xB7\uBC14\uB77C\uB294 \uAC83)\uC5D0 \uB300\uD55C \uC9C8\uBB38.
 - push \xB7 support \xB7 develop \uC5D0\uB294 \uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0BC \uD55C \uBB38\uC7A5(request) \u2014 \uD2B9\uC815 \uACFC\uC81C \uC9C0\uC2DC\uAC00 \uC544\uB2CC \uB9AC\uB4EC\xB7\uC9C0\uC6D0\xB7\uAE30\uD68C\uC5D0 \uB300\uD55C \uB9D0.
 - members \uC5D0\uB294 \uC785\uB825\uC5D0 \uC788\uB294 \uD300\uC6D0 \uC804\uC6D0\uC744 \uB123\uC2B5\uB2C8\uB2E4. work_view \uB294 \uC5C5\uBB34 \uC218\uD589 \uACBD\uACFC(\uC9C4\uCC99\xB7\uACC4\uD68D \uB300\uBE44\xB7\uACB0\uACFC\uBB3C \uD488\uC9C8\xB7\uC694\uCCAD \uCC98\uB9AC)\uB97C \uC885\uD569\uD55C 2\uBB38\uC7A5 \uD310\uB2E8 [E#] \u2014 \uC5EC\uAE30\uC11C\uB294 \uC5C5\uBB34 \uC0AC\uC2E4\uC744 \uC368\uB3C4 \uB429\uB2C8\uB2E4.
-  flight_risk \uB294 \uC785\uB825\uC758 \uCEE8\uB514\uC158 \uCD94\uC774\xB71:1 \uACF5\uBC31\xB7\uB9C9\uD798\xB7\uC6B0\uB824 \uAD00\uCC30\uB85C\uB9CC low|medium|high \uB97C \uACE0\uB974\uACE0, flight_note \uC5D0 \uADFC\uAC70 \uD55C \uBB38\uC7A5.
+  flight_risk \uB294 \uC785\uB825\uC758 \uCEE8\uB514\uC158 \uCD94\uC774\xB71:1 \uACF5\uBC31\xB7\uB9C9\uD798\xB7\uC6B0\uB824 \uAD00\uCC30\xB7\uC120\uD589 \uC2E0\uD638\uB85C\uB9CC low|medium|high \uB97C \uACE0\uB985\uB2C8\uB2E4. medium \uC774\uC0C1\uC740 \uADFC\uAC70\uAC00 2\uAC1C \uC774\uC0C1\uC77C \uB54C\uB9CC, \uADFC\uAC70\uAC00 \uD558\uB098\uBFD0\uC774\uBA74 low \uB85C \uB450\uACE0 flight_note \uC5D0 "\uC9C0\uCF1C\uBCFC \uAC83"\uC73C\uB85C \uC501\uB2C8\uB2E4.
+  flight_note \uB294 \uADFC\uAC70 \uD55C \uBB38\uC7A5 \u2014 \uD300\uC7A5\uC774 \uBC14\uAFC0 \uC218 \uC788\uB294 \uAC83(\uC778\uC815\xB7\uC131\uC7A5 \uAE30\uD68C\xB7\uC5C5\uBB34\uB7C9\xB7\uB9C9\uD798\xB7\uD300\uC7A5 \uC57D\uC18D\xB7\uC18C\uD1B5)\uC744 \uBA3C\uC800 \uC501\uB2C8\uB2E4. \uBCF4\uC0C1\xB7\uC81C\uB3C4\uCC98\uB7FC \uD68C\uC0AC \uCC28\uC6D0 \uC774\uC720\uAC00 \uAE30\uB85D\uC5D0 \uBCF4\uC774\uBA74 \uAC1C\uBCC4 \uC561\uC158\uC73C\uB85C \uB9CC\uB4E4\uC9C0 \uB9D0\uACE0 summary \uC5D0 "\uD68C\uC0AC \uCC28\uC6D0 \uC774\uC288 \u2014 \uC0C1\uD5A5 \uBCF4\uACE0 \uD544\uC694"\uB85C\uB9CC \uC9DA\uC2B5\uB2C8\uB2E4.
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
@@ -463,6 +474,16 @@ var PEOPLE_ACTIONS = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uC8FC\uC5D0
 }`;
 
 // functions/_shared/signals.ts
+var MOOD_LABEL = {
+  rested: "\uCDA9\uBD84\uD55C \uD734\uC2DD",
+  energized: "\uC758\uC695 \uB192\uC74C",
+  good_news: "\uC88B\uC740 \uC18C\uC2DD",
+  tired: "\uC218\uBA74 \uBD80\uC871\xB7\uD53C\uB85C",
+  unwell: "\uAC74\uAC15 \uBB38\uC81C",
+  heavy: "\uC2EC\uB9AC\uC801 \uBD80\uB2F4",
+  personal: "\uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815",
+  need_rest: "\uD734\uC2DD \uD544\uC694"
+};
 var KST = 9 * 36e5;
 var kstToday = (now = Date.now()) => new Date(now + KST).toISOString().slice(0, 10);
 var addDaysYmd = (ymd, n) => new Date(Date.parse(ymd + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
@@ -471,6 +492,153 @@ var kstMonday = (now = Date.now()) => {
   const dow = (d.getUTCDay() + 6) % 7;
   return addDaysYmd(d.toISOString().slice(0, 10), -dow);
 };
+var daysSince = (iso) => Math.floor((Date.now() - Date.parse(iso)) / 864e5);
+async function safe(p, fallback) {
+  try {
+    const { data, error } = await p;
+    return error ? fallback : data ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+async function loadRaw(db, teamId, leaderId, minEvidence) {
+  const mon = kstMonday();
+  const since60 = new Date(Date.now() - 60 * 864e5).toISOString();
+  const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
+  const [goals, metrics, items, schedule, portfolio, care, checkins, subs, depth, perf, level, obs, requests, late, rlogs, orgNotes, orgImpacts, decisionsDue, jscores] = await Promise.all([
+    safe(db.rpc("goal_outlook", { p_team: teamId }), null),
+    safe(db.from("metrics").select("id, item_id").eq("team_id", teamId).not("target", "is", null).order("created_at").limit(4), []),
+    safe(db.from("work_items").select("id, parent_id, owner_id, title, status, measure, progress, start_date, due_date, base_due, replan_count, recur, needs_plan, updated_at, created_at, est_hours_per_week").eq("team_id", teamId).neq("status", "dropped"), []),
+    safe(db.rpc("item_schedule", { p_team: teamId }), null),
+    safe(db.rpc("task_portfolio", { p_team: teamId }), null),
+    safe(db.rpc("care_radar", { p_team: teamId }), null),
+    // moods·note 는 24_condition.sql 이후 — 아직 안 돌렸으면 예전 칸만 읽는다
+    (async () => {
+      const r = await db.from("checkins").select("user_id, week_start, condition, moods, note, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35));
+      return r.error ? safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []) : r.data ?? [];
+    })().catch(() => []),
+    safe(db.from("submissions").select("id, author_id, status, created_at, submission_versions(version, created_at)").eq("team_id", teamId).gte("updated_at", since60), []),
+    safe(db.rpc("member_data_depth", { p_team: teamId }), null),
+    safe(db.rpc("team_performance_map", { p_team: teamId }), null),
+    safe(db.rpc("team_insight_level", { p_team: teamId }), null),
+    safe(db.from("observations").select("subject_id, polarity, created_at").eq("team_id", teamId).gte("created_at", since30), []),
+    safe(db.from("team_requests").select("id, to_id, title, kind, due_date, created_at, status").eq("team_id", teamId).eq("from_id", leaderId).eq("status", "open"), []),
+    safe(db.from("action_items").select("id, due_date, one_on_one_id").eq("team_id", teamId).eq("owner_id", leaderId).is("done_at", null).lt("due_date", kstToday()), []),
+    safe(db.from("work_item_logs").select("item_id, period, done").eq("team_id", teamId).eq("kind", "recurring").gte("period", addDaysYmd(kstToday(), -100)), []),
+    safe(db.from("org_notes").select("id, kind, title, event_date, status, created_at").eq("team_id", teamId).eq("status", "open").order("created_at", { ascending: false }).limit(40), []),
+    safe(db.from("ai_outputs").select("ref_id").eq("team_id", teamId).eq("kind", "org_impact").gte("created_at", since60), []),
+    safe(db.from("decisions").select("id, title, decided_at, review_on").eq("team_id", teamId).is("outcome", null).order("decided_at").limit(20), []),
+    safe(db.from("judgment_scores").select("user_id, score, scored_at").eq("team_id", teamId).gte("scored_at", new Date(Date.now() - 120 * 864e5).toISOString()).order("scored_at"), [])
+  ]);
+  const ooIds = [...new Set(late.map((a) => a.one_on_one_id).filter(Boolean))];
+  const oos = ooIds.length ? await safe(db.from("one_on_ones").select("id, member_id").in("id", ooIds), []) : [];
+  const memberOf = new Map(oos.map((o) => [o.id, o.member_id]));
+  const latePromiseBy = late.filter((a) => a.one_on_one_id && memberOf.has(a.one_on_one_id)).map((a) => ({ member_id: memberOf.get(a.one_on_one_id), days: a.due_date ? daysSince(a.due_date) : 0 }));
+  const forecasts = (await Promise.all(metrics.map(async (m) => {
+    const f = await safe(db.rpc("metric_forecast", { p_metric: m.id }), null);
+    return f ? { ...f, item_id: m.item_id } : null;
+  }))).filter(Boolean);
+  const thisYear = Number(kstToday().slice(0, 4));
+  const pastIds = /* @__PURE__ */ new Set();
+  const kids = /* @__PURE__ */ new Map();
+  for (const it of items) if (it.parent_id) kids.set(it.parent_id, [...kids.get(it.parent_id) ?? [], it.id]);
+  for (const it of items) {
+    if (it.parent_id || it.status !== "done") continue;
+    if (Number((it.start_date ?? it.due_date ?? it.created_at).slice(0, 4)) >= thisYear) continue;
+    const stack = [it.id];
+    while (stack.length) {
+      const id = stack.pop();
+      pastIds.add(id);
+      stack.push(...kids.get(id) ?? []);
+    }
+  }
+  if (pastIds.size) {
+    const keep = items.filter((it) => !pastIds.has(it.id));
+    items.length = 0;
+    items.push(...keep);
+  }
+  const goalsNow = goals ? goals.filter((g) => !pastIds.has(g.goal_id)) : goals;
+  return {
+    goals: goalsNow,
+    forecasts,
+    items,
+    schedule,
+    portfolio,
+    care,
+    checkins,
+    subs,
+    depth,
+    perf,
+    level,
+    obs,
+    requests,
+    recurringLogs: rlogs,
+    latePromises: late.length,
+    minEvidence,
+    latePromiseBy,
+    jscores,
+    orgNotes,
+    orgImpacts: orgImpacts.map((o) => o.ref_id),
+    decisionsDue
+  };
+}
+var FLAG_LABEL = {
+  frustrated: "\uC758\uC9C0\uB294 \uC788\uB294\uB370 \uB9C9\uD798",
+  recog_gap: "\uC778\uC815 \uACF5\uBC31",
+  growth_stall: "\uC131\uC7A5 \uC815\uCCB4",
+  promise_late: "\uD300\uC7A5 \uC57D\uC18D \uBC00\uB9BC",
+  withdrawn: "\uCC38\uC5EC \uC704\uCD95"
+};
+function flagsFor(raw, uid) {
+  const out = [];
+  const mon = kstMonday();
+  const recentFrom = addDaysYmd(mon, -14);
+  const mine = raw.checkins.filter((c) => c.user_id === uid).sort((a, b) => a.week_start.localeCompare(b.week_start));
+  const lastCond = [...mine].reverse().find((c) => c.condition != null && c.week_start >= recentFrom)?.condition ?? null;
+  if (lastCond != null && lastCond >= 3) {
+    const why = [];
+    if ((raw.care ?? []).some((r) => r.user_id === uid && r.signals.some((x) => x.type === "blocked_repeat"))) why.push("\uAC19\uC740 \uB9C9\uD798 2\uC8FC \uC5F0\uC18D");
+    const blk = raw.items.filter((i) => i.owner_id === uid && i.status === "blocked");
+    if (blk.length) why.push(`\uB9C9\uD798 \uC0C1\uD0DC \uD56D\uBAA9 ${blk.length}\uAC74`);
+    const waiting = raw.subs.filter((x) => x.author_id === uid && x.status === "in_review" && daysSince(x.submission_versions.reduce((a, v) => v.created_at > a ? v.created_at : a, x.created_at)) >= 3);
+    if (waiting.length) why.push(`\uB9AC\uBDF0 \uB300\uAE30 3\uC77C \uB118\uC740 \uACB0\uACFC\uBB3C ${waiting.length}\uAC74`);
+    if (why.length) out.push({ key: "frustrated", label: FLAG_LABEL.frustrated, detail: `\uCEE8\uB514\uC158 ${lastCond}/5 \xB7 ${why.join(" \xB7 ")}` });
+  }
+  const done = raw.items.filter((i) => i.owner_id === uid && i.status === "done" && daysSince(i.updated_at) <= 30).length;
+  const appr = raw.subs.filter((x) => x.author_id === uid && x.status === "approved" && daysSince(x.created_at) <= 45).length;
+  const pos = raw.obs.filter((o) => o.subject_id === uid && o.polarity === "positive").length;
+  if (done + appr >= 2 && pos === 0) out.push({ key: "recog_gap", label: FLAG_LABEL.recog_gap, detail: `\uCD5C\uADFC \uB9C8\uCE5C \uC77C ${done}\uAC74 \xB7 \uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C ${appr}\uAC74, 30\uC77C\uAC04 \uCE6D\uCC2C\xB7\uAE0D\uC815 \uAD00\uCC30 0\uAC74` });
+  const js = (raw.jscores ?? []).filter((j) => j.user_id === uid).map((j) => ({ s: Number(j.score), at: j.scored_at }));
+  if (js.length >= 4) {
+    const last4 = js.slice(-4).map((j) => j.s);
+    const spanDays = (Date.parse(js[js.length - 1].at) - Date.parse(js[js.length - 4].at)) / 864e5;
+    const mean = last4.reduce((a, b) => a + b, 0) / 4;
+    const fresh = raw.items.some((i) => i.owner_id === uid && daysSince(i.created_at) <= 60);
+    if (spanDays >= 56 && Math.max(...last4) - Math.min(...last4) <= 0.5 && mean < 3.5 && !fresh)
+      out.push({ key: "growth_stall", label: FLAG_LABEL.growth_stall, detail: `\uCD5C\uADFC \uACB0\uACFC\uBB3C 4\uAC74 \uD310\uB2E8 \uAE4A\uC774 \uD3C9\uADE0 ${Math.round(mean * 10) / 10}/4\uB85C \uBE44\uC2B7 \xB7 60\uC77C\uAC04 \uC0C8\uB85C \uB9E1\uC740 \uC77C \uC5C6\uC74C` });
+  }
+  const pr = (raw.latePromiseBy ?? []).filter((x) => x.member_id === uid);
+  if (pr.length >= 2 || pr.some((x) => x.days >= 14))
+    out.push({ key: "promise_late", label: FLAG_LABEL.promise_late, detail: `\uAE30\uD55C \uC9C0\uB09C \uC57D\uC18D ${pr.length}\uAC74 \xB7 \uCD5C\uC7A5 ${Math.max(...pr.map((x) => x.days))}\uC77C` });
+  const shared = (c) => c.condition != null || (c.moods ?? []).length > 0 || !!(c.did ?? "").trim();
+  const before = [2, 3, 4, 5].map((k) => addDaysYmd(mon, -7 * k));
+  const priorN = before.filter((w) => mine.some((c) => c.week_start === w && shared(c))).length;
+  const recentN = [addDaysYmd(mon, -7), mon].filter((w) => mine.some((c) => c.week_start === w && shared(c))).length;
+  if (priorN >= 3 && recentN === 0)
+    out.push({ key: "withdrawn", label: FLAG_LABEL.withdrawn, detail: `\uADF8 \uC804 4\uC8FC \uC911 ${priorN}\uC8FC \uCEE8\uB514\uC158\uC744 \uB098\uB234\uB294\uB370 \uCD5C\uADFC 2\uC8FC\uB294 \uC5C6\uC74C` });
+  return out;
+}
+
+// functions/_shared/condition.ts
+var COND_LABEL = { 1: "\uB9CE\uC774 \uC9C0\uCE68", 2: "\uB2E4\uC18C \uC9C0\uCE68", 3: "\uBCF4\uD1B5", 4: "\uC591\uD638", 5: "\uB9E4\uC6B0 \uC88B\uC74C" };
+function conditionText(c) {
+  const parts = [];
+  if (c.condition != null) parts.push(`\uCEE8\uB514\uC158 ${c.condition}/5 (${COND_LABEL[c.condition] ?? ""})`);
+  const ms = (c.moods ?? []).map((k) => MOOD_LABEL[k] ?? k);
+  if (ms.length) parts.push(`\uC601\uD5A5 \uC694\uC778: ${ms.join(", ")}`);
+  if (c.note?.trim()) parts.push(`\uBA54\uBAA8: ${c.note.trim()}`);
+  return parts.join(" / ") || "\uC785\uB825 \uC5C6\uC74C";
+}
 
 // functions/_shared/notes.ts
 var NOTE_RULE = `
@@ -505,7 +673,7 @@ async function actionsFor(teamId, createdBy) {
   const touches = [...attn.values()].map((r) => Number(r.touch)).sort((a, b) => a - b);
   const medTouch = touches.length ? touches[Math.floor(touches.length / 2)] : null;
   const [cis, oos, obs, scores, items, subs, reqs] = await Promise.all([
-    admin.from("checkins").select("id, user_id, week_start, did, blocked, condition").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -42)).order("week_start"),
+    admin.from("checkins").select("id, user_id, week_start, condition, moods, note").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -42)).order("week_start"),
     admin.from("one_on_ones").select("id, member_id, scheduled_at, status").eq("team_id", teamId).gte("scheduled_at", since(120)),
     admin.from("observations").select("id, subject_id, kind, body, occurred_at").eq("team_id", teamId).gte("occurred_at", addDaysYmd(today, -60)),
     admin.from("judgment_scores").select("user_id, score, scored_at").eq("team_id", teamId).gte("scored_at", since(240)).order("scored_at"),
@@ -517,6 +685,7 @@ async function actionsFor(teamId, createdBy) {
   const blocks = [];
   const leaderId = (tm ?? []).find((x) => x.role === "leader")?.user_id;
   const myNotes = leaderId ? await loadLeaderNotes(teamId, leaderId, { types: ["member"], limit: 40 }) : [];
+  const raw = leaderId ? await loadRaw(admin, teamId, leaderId, 8).catch(() => null) : null;
   for (const m of members) {
     const uid = m.user_id;
     const name = m.profiles?.full_name ?? "\uD300\uC6D0";
@@ -559,11 +728,15 @@ async function actionsFor(teamId, createdBy) {
         const a = attn.get(uid);
         return `\uD300\uC7A5 \uC811\uC810 28\uC77C ${a.touch} (\uD300 \uC911\uC559\uAC12 ${medTouch ?? "-"}; 1:1 ${a.oo} \xB7 \uB9AC\uBDF0 \uCF54\uBA58\uD2B8 ${a.comments} \xB7 \uAD00\uCC30 ${a.obs} \xB7 \uCE6D\uCC2C ${a.praise} \xB7 \uC694\uCCAD ${a.reqs} \xB7 \uACFC\uC81C \uCF54\uBA58\uD2B8 ${a.item_comments}) \xB7 \uB9AC\uBDF0 \uCCAB \uBC18\uC751 \uD3C9\uADE0 ${a.resp_hours ?? "-"}\uC2DC\uAC04 \xB7 \uBC18\uC751 \uAE30\uB2E4\uB9AC\uB294 \uACB0\uACFC\uBB3C ${a.waiting}`;
       })()] : [],
-      `\uC785\uC0AC ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}\uC77C`
+      `\uC785\uC0AC ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}\uC77C`,
+      (() => {
+        const f = raw ? flagsFor(raw, uid) : [];
+        return `\uC120\uD589 \uC2E0\uD638 ${f.length ? f.map((x) => `${x.label}(${x.detail})`).join(" \xB7 ") : "\uC5C6\uC74C"}`;
+      })()
     ].join(" / ");
     const tag = book.add("member", uid, `${name} \uC774\uBC88 \uC8FC \uC0AC\uC2E4`, facts);
     const extra = [];
-    if (lastCi) extra.push(book.add("checkin", lastCi.id, `\uCCB4\uD06C\uC778 ${name} ${weekLabel(lastCi.week_start)}`, `\uD55C \uC77C: ${lastCi.did} / \uB9C9\uD798: ${lastCi.blocked || "\uC5C6\uC74C"} / \uCEE8\uB514\uC158 ${lastCi.condition ?? "-"}`));
+    if (lastCi) extra.push(book.add("checkin", lastCi.id, `\uCEE8\uB514\uC158 \uACF5\uC720 ${name} ${weekLabel(lastCi.week_start)}`, conditionText(lastCi)));
     for (const o of ob.filter((x) => x.kind !== "note").slice(-2)) extra.push(book.add("observation", o.id, `\uAD00\uCC30 ${name} ${o.occurred_at}`, `${o.kind === "praise" ? "\uCE6D\uCC2C" : "\uC6B0\uB824"}: ${o.body}`));
     for (const i of [...overdue, ...behind].slice(0, 2)) extra.push(book.add("task", i.id, `${name} \uB2F4\uB2F9 \xB7 ${i.title}`, `\uC9C4\uCC99 ${i.progress}% \xB7 \uB9C8\uAC10 ${i.due_date ?? "-"} \xB7 \uC0C1\uD0DC ${i.status}${i.replan_count ? ` \xB7 \uACC4\uD68D \uBCC0\uACBD ${i.replan_count}\uD68C` : ""}`));
     for (const s of sb.filter((x) => x.status === "approved").slice(0, 1)) extra.push(book.add("submission", s.id, `${name} \uACB0\uACFC\uBB3C \uC2B9\uC778`, s.title));

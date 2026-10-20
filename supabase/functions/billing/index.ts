@@ -110,6 +110,13 @@ serve(async (req) => {
     if (!b.authKey || !b.plan_id) throw new HttpError(400, 'MISSING_PARAMS');
     const { data: plan } = await admin.from('plans').select('*').eq('id', b.plan_id).eq('active', true).maybeSingle();
     if (!plan || plan.id === 'free') throw new HttpError(400, 'BAD_PLAN');
+    // 지금 팀원 수보다 작은 요금제는 고를 수 없다 (배포본에 있던 검사를 소스로 옮김)
+    const { data: owned } = await admin.from('teams').select('id').eq('owner_id', caller.userId).eq('is_demo', false);
+    const ids = (owned ?? []).map((t) => t.id);
+    if (ids.length) {
+      const { count } = await admin.from('team_members').select('user_id', { count: 'exact', head: true }).in('team_id', ids).eq('role', 'member').eq('status', 'active');
+      if ((count ?? 0) > plan.max_members) throw new HttpError(400, 'PLAN_TOO_SMALL', `지금 팀원이 ${count}명이라 팀원 ${plan.max_members}명까지인 ${plan.name}은(는) 고를 수 없습니다`);
+    }
     const cycle = b.cycle === 'year' ? 'year' : 'month';
     const issued = await toss('/billing/authorizations/issue', { authKey: b.authKey, customerKey: sub.customer_key });
     const billingKey: string = issued.billingKey;

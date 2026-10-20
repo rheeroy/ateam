@@ -91,7 +91,7 @@ export default function OneOnOnes({ embedded }: { embedded?: boolean } = {}) {
               upcoming.map((o) => (
                 <Link key={o.id} to={`/one-on-ones/${o.id}`} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50 border-t border-slate-100 first:border-t-0">
                   <div className="text-center w-16 shrink-0"><div className="text-xs text-slate-400">{relDay(o.scheduled_at)}</div><div className="font-mono font-semibold num">{fmtTime(o.scheduled_at)}</div></div>
-                  <div className="flex-1"><div className="font-semibold flex items-center gap-2">{nameOf(o.member_id)}<AiChip label="AI 준비 노트" title="면담 화면에서 지난 대화·체크인·결과물을 엮은 준비 노트를 만듭니다" /></div><div className="text-sm text-slate-500">{fmtDate(o.scheduled_at, true)} · {o.duration_min}분</div></div>
+                  <div className="flex-1"><div className="font-semibold flex items-center gap-2">{nameOf(o.member_id)}<AiChip label="AI 준비 노트" title="면담 화면에서 지난 대화·컨디션 공유·결과물을 엮은 준비 노트를 만듭니다" /></div><div className="text-sm text-slate-500">{fmtDate(o.scheduled_at, true)} · {o.duration_min}분</div></div>
                   <ChevronRight size={16} className="text-slate-300" />
                 </Link>
               ))}

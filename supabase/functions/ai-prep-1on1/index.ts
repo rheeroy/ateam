@@ -4,6 +4,7 @@ import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, weekLabel, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { PREP } from '../_shared/prompts/index.ts';
+import { conditionText } from '../_shared/condition.ts';
 import { NOTE_RULE, addLeaderNotes } from '../_shared/notes.ts';
 
 serve(async (req) => {
@@ -32,12 +33,11 @@ serve(async (req) => {
   }
 
   const { data: checkins } = await admin
-    .from('checkins').select('id, week_start, did, blocked, next, condition')
+    .from('checkins').select('id, week_start, condition, moods, note')
     .eq('team_id', oo.team_id).eq('user_id', oo.member_id).gte('week_start', since.slice(0, 10))
     .order('week_start').limit(6);
   for (const c of checkins ?? []) {
-    book.add('checkin', c.id, `체크인 ${weekLabel(c.week_start)}`,
-      `한 일: ${c.did} / 막힘: ${c.blocked || '없음'} / 다음: ${c.next} / 컨디션: ${c.condition ?? '-'}`);
+    book.add('checkin', c.id, `컨디션 공유 ${weekLabel(c.week_start)}`, conditionText(c));
   }
 
   const { data: items } = await admin

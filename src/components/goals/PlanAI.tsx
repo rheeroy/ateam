@@ -148,7 +148,7 @@ export function PlanDraftModal({ open, onClose, byId, parentId, year }: { open: 
             </select>
           </Field>
           <textarea rows={8} className={inputCls} value={text} onChange={(e) => setText(e.target.value)}
-            placeholder={isLeader ? '예) 하반기 목표: 파트너 채널 매출 20억\n- 10월까지 파트너 후보 10곳 발굴 (정우성)\n- 11월 제안서 3건 (김도현) ...' : '예) 제휴 채널 신규 고객 확대를 맡음 — 상반기 A·C사 제휴 오픈, 월 1만 명 유입\n- CRM 웰컴 메시지 개편으로 재방문율 높이기\n- 데이터 분석 역량 키우고 싶음'} />
+            placeholder={isLeader ? '예) 하반기 목표: 파트너 채널 매출 20억\n- 10월까지 파트너 후보 10곳 발굴 (정우성)\n- 11월 제안서 3건 (김현정) ...' : '예) 제휴 채널 신규 고객 확대를 맡음 — 상반기 A·C사 제휴 오픈, 월 1만 명 유입\n- CRM 웰컴 메시지 개편으로 재방문율 높이기\n- 데이터 분석 역량 키우고 싶음'} />
           <label className="flex items-center gap-2 text-sm cursor-pointer w-fit text-slate-600 hover:text-indigo-700">
             <FileUp size={15} />{file ? file.name : '파일 첨부 (Word·PowerPoint·텍스트' + (isLeader ? '·PDF' : '') + ')'}
             <input type="file" className="sr-only" accept={ACCEPT_KNOWHOW} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
@@ -172,7 +172,7 @@ export function PlanEditBar({ byId, scopeId }: { byId: Map<string, Node>; scopeI
   const [err, setErr] = useState<string | null>(null);
   const [out, setOut] = useState<AiOutput<PlanOut> | null>(null);
   const examples = useMemo(() => isLeader
-    ? ['제안서 마감 2주 미루고 김도현에게 넘겨줘', '팀 역량 강화 아래 과제를 3개로 쪼개줘', '완료된 할 일은 정리하고 막힌 과제는 우선순위 1로']
+    ? ['제안서 마감 2주 미루고 김현정에게 넘겨줘', '팀 역량 강화 아래 과제를 3개로 쪼개줘', '완료된 할 일은 정리하고 막힌 과제는 우선순위 1로']
     : ['내 과제 마감을 다음 주 금요일로 옮겨줘', '이 과제를 할 일 3개로 쪼개줘'], [isLeader]);
   const run = async () => {
     if (!text.trim()) return;

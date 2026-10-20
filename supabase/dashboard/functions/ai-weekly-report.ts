@@ -422,9 +422,9 @@ var fmtDate = (d) => d ? d.slice(0, 10) : "";
 
 // functions/_shared/prompts/index.ts
 var WEEKLY_REPORT = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC0C1\uC704 \uC870\uC9C1\uC7A5\uC5D0\uAC8C \uBCF4\uB0BC \uC8FC\uAC04 \uC5C5\uBB34 \uBCF4\uACE0 \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4.
-\uD300\uC6D0 \uCCB4\uD06C\uC778, \uACFC\uC81C \uD604\uD669, 1:1 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C, \uC0C1\uC704 \uC870\uC9C1\uC7A5\uC774 30\uCD08 \uC548\uC5D0 \uD30C\uC545\uD560 \uC218 \uC788\uAC8C \uC501\uB2C8\uB2E4.
+\uACFC\uC81C \uD604\uD669, \uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C, 1:1 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C, \uC0C1\uC704 \uC870\uC9C1\uC7A5\uC774 30\uCD08 \uC548\uC5D0 \uD30C\uC545\uD560 \uC218 \uC788\uAC8C \uC501\uB2C8\uB2E4.
 \uC774\uC288\uC5D0\uB294 '\uB204\uAD6C\uC5D0\uAC8C \uBB34\uC5C7\uC744 \uC5B8\uC81C\uAE4C\uC9C0' \uC694\uCCAD\uD558\uB294\uC9C0 \uAD6C\uCCB4\uC801\uC73C\uB85C \uC801\uB418, \uAE30\uB85D\uC5D0 \uC5C6\uB294 \uB0A0\uC9DC\uB294 \uB9CC\uB4E4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-'\uD300\uC7A5 \uBA54\uBAA8'\uAC00 \uC788\uC73C\uBA74 \uCCB4\uD06C\uC778\uACFC \uAC19\uC740 \uBB34\uAC8C\uC758 \uAE30\uB85D\uC73C\uB85C \uC501\uB2C8\uB2E4. \uD300\uC6D0 \uCCB4\uD06C\uC778\uC774 \uC5C6\uC5B4\uB3C4 \uD300\uC7A5 \uBA54\uBAA8\uB9CC\uC73C\uB85C \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4.
+'\uD300\uC7A5 \uBA54\uBAA8'\uAC00 \uC788\uC73C\uBA74 \uACFC\uC81C \uAE30\uB85D\uACFC \uAC19\uC740 \uBB34\uAC8C\uC758 \uAE30\uB85D\uC73C\uB85C \uC501\uB2C8\uB2E4. \uACFC\uC81C \uAE30\uB85D\uC774 \uC801\uC5B4\uB3C4 \uD300\uC7A5 \uBA54\uBAA8\uB9CC\uC73C\uB85C \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4. \uD300\uC6D0 \uAC1C\uC778\uC758 \uCEE8\uB514\uC158\xB7\uC0AC\uC815\uC740 \uBCF4\uACE0\uC11C\uC5D0 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 '\uD300\uC7A5\uC758 \uAE30\uC900'\uC5D0 \uBCF4\uACE0 \uC591\uC2DD\xB7\uBB38\uCCB4 \uC6D0\uCE59\uC774 \uC788\uC73C\uBA74 \uADF8\uB300\uB85C \uB530\uB985\uB2C8\uB2E4.
 '\uC704\uC5D0\uC11C \uC628 \uAC83'(\uC804\uC0AC \uBC29\uCE68\xB7\uC784\uC6D0 \uAD00\uC2EC\uC0AC\xB7\uC0C1\uC704 \uC694\uCCAD)\uC774 \uC788\uC73C\uBA74 \uBCF4\uACE0\uAC00 \uADF8 \uAD00\uC2EC\uC0AC\uC5D0 \uBA3C\uC800 \uB2F5\uD558\uB3C4\uB85D \uC21C\uC11C\uB97C \uC7A1\uACE0, '\uBCF4\uACE0\uD560 \uBB38\uC7A5 \uCD08\uC548'\uC740 \uB2E4\uB4EC\uC5B4\uC11C \uC501\uB2C8\uB2E4.
 
@@ -455,11 +455,6 @@ serve(async (req) => {
   const { data: members } = await admin.from("team_members").select("user_id, role, profiles(full_name)").eq("team_id", body.team_id).eq("status", "active");
   const nameOf = new Map((members ?? []).map((m) => [m.user_id, m.profiles?.full_name ?? ""]));
   const book = new SourceBook();
-  const { data: checkins } = await admin.from("checkins").select("id, user_id, did, blocked, next").eq("team_id", body.team_id).eq("week_start", week);
-  for (const c of checkins ?? []) {
-    book.add("checkin", c.id, `\uCCB4\uD06C\uC778 ${nameOf.get(c.user_id)}`, `\uD55C \uC77C: ${c.did} / \uB9C9\uD798: ${c.blocked || "\uC5C6\uC74C"} / \uB2E4\uC74C \uC8FC: ${c.next}`);
-  }
-  const missing = (members ?? []).filter((m) => m.role === "member" && !(checkins ?? []).some((c) => c.user_id === m.user_id)).map((m) => nameOf.get(m.user_id));
   const { data: tasks } = await admin.from("work_items").select("id, title, status, progress, due_date, owner_id, base_due, replan_count, measure").eq("team_id", body.team_id).in("status", ["active", "blocked", "done"]).not("parent_id", "is", null).gte("updated_at", new Date(Date.now() - 21 * 864e5).toISOString()).limit(50);
   const ST = { active: "\uC9C4\uD589", blocked: "\uB9C9\uD798", done: "\uC644\uB8CC" };
   for (const t of tasks ?? []) {
@@ -471,7 +466,7 @@ serve(async (req) => {
   for (const s of approved ?? []) book.add("submission", s.id, `\uC2B9\uC778\uB41C \uACB0\uACFC\uBB3C`, `${s.title} (${nameOf.get(s.author_id)})`);
   const notes = (body.leader_notes ?? "").trim().slice(0, 4e3);
   if (notes) book.add("leader_note", null, "\uD300\uC7A5 \uBA54\uBAA8", notes);
-  if (book.size === 0) throw new HttpError(422, "NO_DATA", "\uC774\uBC88 \uC8FC \uCCB4\uD06C\uC778\xB7\uACFC\uC81C \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uD300\uC7A5 \uBA54\uBAA8\uB97C \uBA87 \uC904 \uC801\uC73C\uBA74 \uADF8\uAC83\uC73C\uB85C \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4.");
+  if (book.size === 0) throw new HttpError(422, "NO_DATA", "\uC774\uBC88 \uC8FC \uACFC\uC81C\xB7\uACB0\uACFC\uBB3C \uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uD300\uC7A5 \uBA54\uBAA8\uB97C \uBA87 \uC904 \uC801\uC73C\uBA74 \uADF8\uAC83\uC73C\uB85C \uCD08\uC548\uC744 \uC501\uB2C8\uB2E4.");
   await addKnowhow(book, body.team_id, "report");
   const { output } = await runAi({
     teamId: body.team_id,
@@ -481,7 +476,6 @@ serve(async (req) => {
     content: [{ type: "text", text: `\uD300: ${team?.name}
 \uBBF8\uC158: ${team?.mission}
 \uBCF4\uACE0 \uC8FC\uAC04: ${week} ~ ${weekEnd}
-\uCCB4\uD06C\uC778 \uBBF8\uC81C\uCD9C: ${missing.join(", ") || "\uC5C6\uC74C"}
 
 ${book.knowhowText()}
 
@@ -493,7 +487,7 @@ ${book.text("\uC774\uBC88 \uC8FC \uAE30\uB85D")}` }],
     periodStart: week,
     periodEnd: weekEnd,
     maxTokens: 1400,
-    extra: { missing, counts: book.byType(), leader_notes: notes || void 0 }
+    extra: { counts: book.byType(), leader_notes: notes || void 0 }
   });
   return json(output);
 });

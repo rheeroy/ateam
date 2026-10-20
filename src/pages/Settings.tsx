@@ -17,7 +17,7 @@ const KIND_LABEL: Record<string, string> = {
 
 /** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · 크레딧뿐 */
 const INCLUDED: { title: string; sub: string; items: string[] }[] = [
-  { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제 (팀원 계획 · 승인)', '업무플랫폼 (개인 · 그룹 스페이스)', '체크인 · 1:1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '내 노하우 · 내 메모'] },
+  { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제 (팀원 계획 · 승인)', '업무플랫폼 (개인 · 그룹 스페이스)', '컨디션 공유 · 1:1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '내 노하우 · 내 메모'] },
   { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트 (매일 · 매주 · 매월)', 'ATEAM의 제안 (매주 월요일)', '팀원관리 액션', '결과물 AI 1차 검토', '1:1 준비 · ATEAM의 코칭', '임원 브리핑', '컨설팅 기준 DB (Pro부터)'] },
   { title: '프리미엄', sub: '월 크레딧으로', items: ['평가 시뮬레이션 5 (Pro부터)', '목표 초안 2', '노하우 정리 2', '성과 해석 1'] },
 ];
@@ -338,7 +338,7 @@ export default function SettingsPage() {
 /** 팀원: 내 기록은 누가 보고 무엇에 쓰이나 */
 function MyDataGuide() {
   const rows: [string, string, string][] = [
-    ['체크인 (한 일 · 막힌 일 · 컨디션)', '나와 팀장님', '팀장님의 1:1 준비, 주간 보고 초안. 컨디션은 도움이 필요한 때를 알아차리는 데 씁니다.'],
+    ['컨디션 공유 (컨디션 · 영향 요인 · 메모)', '나와 팀장님', '팀장님이 도움이 필요한 때를 알아차리고 1:1을 준비하는 데만 씁니다. 평가·주간보고에는 쓰지 않습니다.'],
     ['업무플랫폼에 올린 결과물', '나와 팀장님', 'AI가 팀장님보다 먼저 읽고 1차 의견을 정리합니다. 승인된 결과물과 피드백은 성과 기록으로 남습니다.'],
     ['1:1 함께 보는 노트 · 약속', '나와 팀장님', '다음 1:1 준비와 약속 챙기기.'],
     ['목표 · 과제 진척', '팀 전체', '팀 목표 진행 상황과 계획 대비 확인.'],
@@ -348,7 +348,7 @@ function MyDataGuide() {
   return (
     <Card className="p-5">
       <div className="font-semibold">내 기록은 이렇게 쓰여요</div>
-      <p className="text-xs text-slate-500 mt-1">ATEAM에 남긴 기록을 누가 보고, 무엇에 쓰는지 정리했습니다. 다른 팀원은 내 체크인·결과물·1:1을 볼 수 없습니다.</p>
+      <p className="text-xs text-slate-500 mt-1">ATEAM에 남긴 기록을 누가 보고, 무엇에 쓰는지 정리했습니다. 다른 팀원은 내 컨디션 공유·결과물·1:1을 볼 수 없습니다.</p>
       <div className="mt-3 divide-y divide-slate-100 text-sm">
         {rows.map(([k, who, use]) => (
           <div key={k} className="py-2.5 grid sm:grid-cols-[180px_90px_1fr] gap-1 sm:gap-3">

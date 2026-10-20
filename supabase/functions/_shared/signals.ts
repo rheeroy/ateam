@@ -2,6 +2,13 @@
 // 외부 의존 없이 순수 TypeScript. 숫자는 SQL 모델 값을 그대로 쓰고, 규칙에 걸린 것만 '신호'로 만든다.
 // AI 인사이트는 이 신호들을 '사실'로 받아 엮고 해석한다.
 
+// 컨디션 공유의 '요즘 상태' 키 (src/lib/condition.ts 와 같게) — 이 파일은 브라우저도 쓰므로 import 없이 여기 둔다
+export const MOOD_LABEL: Record<string, string> = {
+  rested: '충분한 휴식', energized: '의욕 높음', good_news: '좋은 소식',
+  tired: '수면 부족·피로', unwell: '건강 문제', heavy: '심리적 부담', personal: '개인·가족 사정', need_rest: '휴식 필요',
+};
+export const HEAVY_MOODS = ['tired', 'unwell', 'heavy', 'personal', 'need_rest'];
+
 export type Domain = 'goal' | 'exec' | 'people' | 'output' | 'growth' | 'org';
 /** 신호가 속하는 홈 섹션: 내가 할 일(대기열) · 의사결정 · 팀 성과 · 사람 · 조직·전사 (리스크 섹션은 여러 섹션의 위험 신호를 모아 보여 준다) */
 export type HomeSection = 'todo' | 'decide' | 'perf' | 'people' | 'org';
@@ -29,7 +36,7 @@ export interface DomainSummary {
 export const DOMAIN_META: Record<Domain, { name: string; desc: string; period: string }> = {
   goal: { name: '목표·실적', desc: '목표 달성 가능성과 실적 전망', period: '월간 전망' },
   exec: { name: '실행·과제', desc: '계획 대비 지연·막힘·시간 배분', period: '주간 진척' },
-  people: { name: '사람·컨디션', desc: '컨디션 추세, 1:1 간격, 체크인', period: '주간 추세' },
+  people: { name: '사람·컨디션', desc: '컨디션 추세, 1:1 간격, 컨디션 공유', period: '주간 추세' },
   output: { name: '결과물·리뷰', desc: '리뷰 대기와 재작업 패턴', period: '주간 흐름' },
   growth: { name: '육성·평가', desc: '평가 근거와 성장 신호', period: '월간 궤적' },
   org: { name: '조직·전사', desc: '상위 방향·요청·전사 일정', period: '수시' },
@@ -64,7 +71,7 @@ export interface Raw {
   schedule: { item_id: string; title: string; owner_id: string | null; slip_days: number | null; replan_count: number; projected_delay: number | null; projected_done: string | null; due_date: string | null }[] | null;
   portfolio: { task_id: string; title: string; mission_contribution: number; hours: number; share_pct: number | null }[] | null;
   care: { user_id: string; full_name: string; signals: { type: string; label: string; detail?: string }[] }[] | null;
-  checkins: { user_id: string; week_start: string; condition: number | null; did?: string | null; blocked?: string | null }[];
+  checkins: { user_id: string; week_start: string; condition: number | null; moods?: string[] | null; note?: string | null; did?: string | null; blocked?: string | null }[];
   subs: { id: string; author_id: string; status: string; created_at: string; submission_versions: { version: number; created_at: string }[] }[];
   depth: { user_id: string; full_name: string; judgment_evidence: number; eligible: boolean }[] | null;
   perf: { user_id: string; full_name: string; x: number; y: number; prev_x: number; prev_y: number; withheld: boolean }[] | null;
@@ -111,7 +118,11 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
     safe<Raw['schedule']>(db.rpc('item_schedule', { p_team: teamId }), null),
     safe<Raw['portfolio']>(db.rpc('task_portfolio', { p_team: teamId }), null),
     safe<Raw['care']>(db.rpc('care_radar', { p_team: teamId }), null),
-    safe<Raw['checkins']>(db.from('checkins').select('user_id, week_start, condition, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35)), []),
+    // moods·note 는 24_condition.sql 이후 — 아직 안 돌렸으면 예전 칸만 읽는다
+    (async () => {
+      const r = await db.from('checkins').select('user_id, week_start, condition, moods, note, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35));
+      return r.error ? safe<Raw['checkins']>(db.from('checkins').select('user_id, week_start, condition, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35)), []) : ((r.data ?? []) as Raw['checkins']);
+    })().catch(() => [] as Raw['checkins']),
     safe<Raw['subs']>(db.from('submissions').select('id, author_id, status, created_at, submission_versions(version, created_at)').eq('team_id', teamId).gte('updated_at', since60), []),
     safe<Raw['depth']>(db.rpc('member_data_depth', { p_team: teamId }), null),
     safe<Raw['perf']>(db.rpc('team_performance_map', { p_team: teamId }), null),
@@ -207,18 +218,13 @@ export function flagsFor(raw: Raw, uid: string): MemberFlag[] {
   const pr = (raw.latePromiseBy ?? []).filter((x) => x.member_id === uid);
   if (pr.length >= 2 || pr.some((x) => x.days >= 14))
     out.push({ key: 'promise_late', label: FLAG_LABEL.promise_late, detail: `기한 지난 약속 ${pr.length}건 · 최장 ${Math.max(...pr.map((x) => x.days))}일` });
-  // 5) 참여 위축 — 체크인이 예전보다 크게 짧아지거나 빠지고, 막힘 칸도 비어 있음
-  const w1 = recentFrom, w2 = addDaysYmd(mon, -7);
-  const len = (c: (typeof mine)[number]) => (c.did ?? '').trim().length;
-  const prior = mine.filter((c) => c.week_start < w1 && len(c) > 0);
-  const priorAvg = prior.length ? prior.reduce((a, c) => a + len(c), 0) / prior.length : 0;
-  if (prior.length >= 2 && priorAvg >= 30) {
-    const rec = [w1, w2].map((w) => mine.find((c) => c.week_start === w) ?? null);
-    const present = rec.filter(Boolean) as (typeof mine);
-    const quiet = rec.every((c) => !c || len(c) < priorAvg * 0.4);
-    if (present.length && quiet && !present.some((c) => (c.blocked ?? '').trim()))
-      out.push({ key: 'withdrawn', label: FLAG_LABEL.withdrawn, detail: `최근 2주 체크인 ${present.length}회 · 글 길이 평소의 ${Math.round((present.reduce((a, c) => a + len(c), 0) / present.length / priorAvg) * 100)}% · 막힘 칸 비어 있음` });
-  }
+  // 5) 참여 위축 — 꾸준히 컨디션을 나누던 사람이 최근 2주 아무것도 나누지 않음 (컨디션 공유는 업무 글이 아니라 길이는 보지 않는다)
+  const shared = (c: (typeof mine)[number]) => c.condition != null || (c.moods ?? []).length > 0 || !!(c.did ?? '').trim();
+  const before = [2, 3, 4, 5].map((k) => addDaysYmd(mon, -7 * k));
+  const priorN = before.filter((w) => mine.some((c) => c.week_start === w && shared(c))).length;
+  const recentN = [addDaysYmd(mon, -7), mon].filter((w) => mine.some((c) => c.week_start === w && shared(c))).length;
+  if (priorN >= 3 && recentN === 0)
+    out.push({ key: 'withdrawn', label: FLAG_LABEL.withdrawn, detail: `그 전 4주 중 ${priorN}주 컨디션을 나눴는데 최근 2주는 없음` });
   return out;
 }
 
@@ -366,18 +372,27 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   for (const r of raw.care ?? []) for (const s of r.signals) {
     if (s.type === 'condition_down') S.push({ id: `care-cond-${r.user_id}`, domain: 'people', type: 'risk', severity: 3, periods: DW,
       title: `${r.full_name}님 컨디션이 3주 연속 떨어졌습니다 (${s.label.replace('컨디션 ', '')})`, detail: '번아웃·이탈 신호일 수 있습니다. 이번 주 안에 1:1을 권합니다.',
-      rule: '체크인 컨디션 3주 연속 하락, 최근 값 3 이하', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
+      rule: '공유한 컨디션 3주 연속 하락, 최근 값 3 이하', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
     if (s.type === 'blocked_repeat' && !has(r.user_id, 'frustrated')) S.push({ id: `care-block-${r.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
       title: `${r.full_name}님이 2주째 같은 문제로 막혀 있습니다`, detail: s.detail ? `"${s.detail}"` : undefined,
-      rule: '체크인 막힘 항목 2주 연속', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
+      rule: '막힌 일 2주 연속 (예전 주간 체크인 기록)', action: { label: '1:1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
     if (s.type === 'no_one_on_one') noOO.push(r.full_name);
     if (s.type === 'checkin_missing') missing.push(r.full_name);
   }
   if (noOO.length) S.push({ id: `care-oo-${noOO.length}`, domain: 'people', type: 'missed', severity: 2, periods: W,
     title: `1:1을 2주 넘게 안 한 팀원 ${noOO.length}명`, detail: names(noOO), rule: '마지막 완료 1:1이 14일 전', action: { label: '1:1 잡기', to: '/people?new=1' } });
   const thisMon = kstMonday();
+  for (const m of mem) {
+    const c = raw.checkins.find((x) => x.user_id === m.user_id && x.week_start === thisMon);
+    if (!c) continue;
+    const moods = c.moods ?? [];
+    const heavy = moods.filter((k) => HEAVY_MOODS.includes(k));
+    if (heavy.length >= 2 || (heavy.length >= 1 && c.condition != null && c.condition <= 2)) S.push({ id: `care-heavy-${m.user_id}-${thisMon}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
+      title: `${m.name}님 컨디션 저하 요인 공유`, detail: [heavy.map((k) => MOOD_LABEL[k]).join(' · '), c.note ? `"${c.note}"` : ''].filter(Boolean).join(' — '),
+      rule: '이번 주 부담 요인 2개 이상, 또는 컨디션 2 이하 + 부담 요인', action: { label: '팀원 보기', to: `/people/${m.user_id}` } });
+  }
   if (missing.length) S.push({ id: `care-ci-${thisMon}`, domain: 'people', type: 'data', severity: 1, periods: DW,
-    title: `이번 주 체크인을 안 낸 팀원 ${missing.length}명`, detail: `${names(missing)} — 체크인이 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 체크인 없음', action: { label: '체크인 요청 보내기', to: '/settings?tab=members' } });
+    title: `이번 주 컨디션을 공유하지 않은 팀원 ${missing.length}명`, detail: `${names(missing)} — 컨디션 공유가 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 컨디션 공유 없음', action: { label: '컨디션 공유 요청 보내기', to: '/settings?tab=members' } });
   const condOf = (pred: (w: string) => boolean) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition!);
   const thisWeek = condOf((w) => w >= thisMon);
   const lastMon = addDaysYmd(thisMon, -7);
@@ -407,8 +422,8 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
       title: `${nm}님과의 1:1에서 한 약속이 밀려 있습니다 — 다음 1:1 첫 안건으로`, detail: f.detail,
       rule: '이 팀원과의 1:1에서 정한 팀장 할 일, 기한 지난 것 2건 이상 또는 14일 이상', action: { label: '약속 보기', to: '#today' } });
     if (f.key === 'withdrawn') S.push({ id: `care-quiet-${m.user_id}`, domain: 'people', type: 'pattern', severity: 1, periods: W,
-      title: `${nm}님 체크인이 눈에 띄게 짧아졌습니다 — 추궁보다 안부부터`, detail: f.detail,
-      rule: '이전 체크인 평균 대비 최근 2주 40% 미만 또는 빠짐, 막힘 칸 비어 있음', action: { label: '1:1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
+      title: `${nm}님 컨디션 공유가 눈에 띄게 짧아졌습니다 — 추궁보다 안부부터`, detail: f.detail,
+      rule: '이전 컨디션 공유 평균 대비 최근 2주 40% 미만 또는 빠짐, 막힘 칸 비어 있음', action: { label: '1:1 잡기', to: `/one-on-ones?new=${m.user_id}` } });
   }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
   const ciLast = new Set(raw.checkins.filter((c) => c.week_start === lastMon).map((c) => c.user_id)).size;
@@ -435,7 +450,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const silent = mem.filter((m) => !raw.subs.some((s) => s.author_id === m.user_id) && !raw.checkins.some((c) => c.user_id === m.user_id && c.week_start >= addDaysYmd(thisMon, -14)));
   if (nMem >= 2 && silent.length) S.push({ id: `out-silent-${silent.length}`, domain: 'output', type: 'missed', severity: 1, periods: WM,
     title: `2주 넘게 ATEAM에 흔적이 없는 팀원 ${silent.length}명`, detail: `${names(silent.map((m) => m.name))} — 요청을 보내면 팀원 화면에 할 일로 뜹니다.`,
-    rule: '최근 2주 체크인·공유·결과물 0건', action: { label: '요청 보내기', to: '/settings?tab=members' } });
+    rule: '최근 2주 컨디션 공유·업무 공유·결과물 0건', action: { label: '요청 보내기', to: '/settings?tab=members' } });
 
   // ---------------- 육성·평가 ----------------
   const depth = raw.depth ?? [];
@@ -495,8 +510,8 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
     const next = lv.levels[lv.level];
     const gap = next.conditions.find((c) => c.current < c.target);
     if (gap) {
-      const gl = gap.label;
-      const gd: Domain = /체크인|1:1/.test(gl) ? 'people' : /결과물/.test(gl) ? 'output' : /근거/.test(gl) ? 'growth' : /공수/.test(gl) ? 'exec' : 'goal';
+      const gl = gap.label.replace('체크인이 쌓인 주', '컨디션 공유가 쌓인 주');   // SQL 이름표(옛 이름) → 화면 이름
+      const gd: Domain = /체크인|컨디션|1:1/.test(gl) ? 'people' : /결과물/.test(gl) ? 'output' : /근거/.test(gl) ? 'growth' : /공수/.test(gl) ? 'exec' : 'goal';
       S.push({ id: `level-${lv.level}-${gl}`, domain: gd, type: 'data', severity: 1, periods: M,
         title: `${gl} ${gap.target - gap.current}${gap.unit ?? ''}만 더 쌓이면 AI가 'L${next.level} ${next.name}'까지 봅니다`,
         detail: `지금은 L${lv.level} ${lv.levels[lv.level - 1].name} 단계입니다.`, rule: 'AI 인사이트 레벨 조건', action: { label: '레벨 조건 보기', to: '/insight' } });
@@ -524,9 +539,9 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
       line: pick('exec')?.title ?? (work.length ? '지연·막힘 없이 진행 중입니다' : '과제를 세우면 계획 대비를 봅니다'),
       confidence: !work.length ? 0 : effortPct >= 60 && sched.length >= 3 ? 3 : sched.length ? 2 : 1, confidenceNote: `진행 항목 ${work.length}건 · 공수 입력 ${effortPct}%`, to: '/goals', period: DOMAIN_META.exec.period },
     { domain: 'people', status: statusOf('people', !nMem),
-      kpi: curC != null ? `${curC.toFixed(1)}` : '—', kpiLabel: curC != null ? `팀 컨디션 (5점) · 체크인 ${ciThis || ciLast}/${nMem}명` : '컨디션 기록 없음',
+      kpi: curC != null ? `${curC.toFixed(1)}` : '—', kpiLabel: curC != null ? `팀 컨디션 (5점) · 컨디션 공유 ${ciThis || ciLast}/${nMem}명` : '컨디션 기록 없음',
       line: pick('people')?.title ?? (nMem ? '특별히 챙길 신호가 없습니다' : '팀원을 초대하면 컨디션 추세를 봅니다'),
-      confidence: !nMem ? 0 : ciWeeks >= 4 ? 3 : ciWeeks >= 2 ? 2 : 1, confidenceNote: `최근 5주 중 체크인 있는 주 ${ciWeeks}주`, to: '/people', period: DOMAIN_META.people.period },
+      confidence: !nMem ? 0 : ciWeeks >= 4 ? 3 : ciWeeks >= 2 ? 2 : 1, confidenceNote: `최근 5주 중 컨디션 공유 있는 주 ${ciWeeks}주`, to: '/people', period: DOMAIN_META.people.period },
     { domain: 'output', status: statusOf('output', !raw.subs.length),
       kpi: `${inReview.length}`, kpiLabel: inReview.length ? `리뷰 대기 · 최장 ${maxWait}일` : '리뷰 대기',
       line: pick('output')?.title ?? (raw.subs.length ? `최근 60일 승인 ${approved}건 · 한 번에 통과 ${firstPass}건 · 공유 ${shared}건` : '결과물이 올라오면 리뷰 흐름을 봅니다'),

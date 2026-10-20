@@ -593,7 +593,7 @@ export function MemberStrip({ raw, onMemo, flush }: { raw: Raw; onMemo: (who: st
   };
   const care = new Map((raw.care ?? []).map((c) => [c.user_id, c.signals]));
   const depth = new Map((raw.depth ?? []).map((d) => [d.user_id, d]));
-  const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1:1 공백', checkin_missing: '체크인 없음' };
+  const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1:1 공백', checkin_missing: '컨디션 공유 없음' };
   return (
     <div className={cx('grid sm:grid-cols-2 gap-x-4 gap-y-0.5', !flush && 'px-5 py-3 border-b border-slate-100')}>
       {members.map((m) => {

@@ -114,7 +114,7 @@ export function memberIndex(p: {
   const prev = vals.length >= 3 ? vals[vals.length - 3] : vals[0] ?? null;
   const flags = new Set((p.raw?.care ?? []).find((c) => c.user_id === uid)?.signals.map((s) => s.type) ?? []);
   const ooDays = p.lastOoAt ? daysAgo(p.lastOoAt) : null;
-  // 이탈 가능성: 컨디션 수준·하락 · 1:1 공백 · 반복 막힘 · 체크인 누락 · 우려 관찰
+  // 이탈 가능성: 컨디션 수준·하락 · 1:1 공백 · 반복 막힘 · 컨디션 공유 누락 · 우려 관찰
   let score = 0;
   if (cond != null) score += cond <= 2 ? 35 : cond === 3 ? 12 : 0;
   if (cond != null && prev != null && cond < prev) score += 15 + (prev - cond) * 5;
@@ -152,7 +152,7 @@ export function memberIndex(p: {
     condition: cond,
     flight: { score, level: lv, label: lvLabel, ai: !!ai, note: p.view?.flight_note ?? flagNote },
     indices: [
-      { key: 'cond', label: '컨디션', value: cond != null ? `${cond}/5` : '—', sub: cond != null && prev != null && cond !== prev ? `3주 전 ${prev}` : '체크인 기준', level: cond == null ? 'none' : cond <= 2 ? 'risk' : cond === 3 ? 'watch' : 'good', pct: cond != null ? cond * 20 : undefined },
+      { key: 'cond', label: '컨디션', value: cond != null ? `${cond}/5` : '—', sub: cond != null && prev != null && cond !== prev ? `3주 전 ${prev}` : '컨디션 공유 기준', level: cond == null ? 'none' : cond <= 2 ? 'risk' : cond === 3 ? 'watch' : 'good', pct: cond != null ? cond * 20 : undefined },
       { key: 'flight', label: '이탈 가능성', value: lvLabel, sub: ai ? 'AI 판단' : `지표 ${score}`, level: lv, pct: ai ? ({ risk: 85, watch: 50, good: 15, none: 0 } as const)[lv] : score },
       { key: 'load', label: '업무 부하', value: load != null ? `${load}%` : '—', sub: `${load == null ? '' : load <= 90 ? '여유 · ' : load <= 110 ? '가끔 몰림 · ' : load <= 130 ? '종종 시간외 · ' : '상시 시간외 · '}진행 ${mine.length}건 · 주 ${hours}h`, level: load == null ? 'none' : load > 110 ? 'risk' : load > 90 ? 'watch' : 'good', pct: load != null ? Math.min(100, load) : undefined },
       { key: 'growth', label: '성장', value: gNow != null ? `${gNow}/4` : '—', sub: gNow != null && gPrev != null ? `직전 대비 ${sign(Math.round((gNow - gPrev) * 10) / 10)}` : '판단 깊이', level: gNow == null ? 'none' : gPrev != null && gNow - gPrev <= -0.3 ? 'watch' : 'good', pct: gNow != null ? gNow * 25 : undefined },
@@ -173,7 +173,7 @@ export function ruleActions(members: TeamMember[], idx: Map<string, MemberIndex>
     const oo = ix.indices.find((i) => i.key === 'oo')!;
     const flags = new Set((raw?.care ?? []).find((c) => c.user_id === m.user_id)?.signals.map((s) => s.type) ?? []);
     if (ix.flight.level === 'risk' || oo.level === 'risk') out.push({ user_id: m.user_id, type: 'one_on_one', urgency: ix.flight.level === 'risk' ? 3 : 2, title: `${name} 님과 1:1`, why: `이탈 가능성 ${ix.flight.label} · 마지막 1:1 ${oo.value}` });
-    if (flags.has('blocked_repeat')) out.push({ user_id: m.user_id, type: 'support', urgency: 2, title: `${name} 님 챙기기 — 어려운 점 들어 주기`, why: '막힌 체크인이 반복돼 지쳐 있을 수 있습니다', request: '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.' });
+    if (flags.has('blocked_repeat')) out.push({ user_id: m.user_id, type: 'support', urgency: 2, title: `${name} 님 챙기기 — 어려운 점 들어 주기`, why: '컨디션 공유에 막힌 일이 반복돼 지쳐 있을 수 있습니다', request: '요즘 혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.' });
     const at = ix.indices.find((i) => i.key === 'attn');
     if (at?.level === 'risk' && oo.level !== 'risk') out.push({ user_id: m.user_id, type: 'one_on_one', urgency: 2, title: `${name} 님에게 시간 더 쓰기`, why: `최근 4주 팀장 접점이 필요도에 비해 적습니다 (${at.sub})`, opener: '요즘 일하면서 제가 더 챙겨 줬으면 하는 게 있어요?' });
     const ev = ix.indices.find((i) => i.key === 'ev')!;

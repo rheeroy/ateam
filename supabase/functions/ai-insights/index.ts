@@ -5,6 +5,7 @@ import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, addKnowhow, weekLabel, type AiKind } from '../_shared/gateway.ts';
 import { MODEL_FAST, MODEL_SMART } from '../_shared/anthropic.ts';
 import { INSIGHT, INSIGHT_PERIOD } from '../_shared/prompts/index.ts';
+import { conditionText, HEAVY_MOODS } from '../_shared/condition.ts';
 import { analyze, loadRaw, signalsFor, kstToday, kstMonday, addDaysYmd, DOMAIN_META, TYPE_LABEL, type Period, type RawMember } from '../_shared/signals.ts';
 
 const KIND: Record<Period, AiKind> = { daily: 'insight_daily', weekly: 'insight_weekly', monthly: 'insight_monthly' };
@@ -29,9 +30,11 @@ async function insightFor(teamId: string, period: Period, createdBy: string | nu
 
   // 기간 원본 기록 (짧게)
   const since = new Date(Date.now() - SPAN[period] * 86400000).toISOString();
-  const { data: cis } = await admin.from('checkins').select('id, user_id, week_start, did, blocked, condition')
+  const { data: cis } = await admin.from('checkins').select('id, user_id, week_start, condition, moods, note')
     .eq('team_id', teamId).gte('updated_at', period === 'daily' ? new Date(Date.now() - 7 * 86400000).toISOString() : since).limit(30);
-  for (const c of cis ?? []) if (c.blocked || period !== 'daily') book.add('checkin', c.id, `체크인 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`, `한 일: ${c.did} / 막힘: ${c.blocked || '없음'} / 컨디션 ${c.condition ?? '-'}`);
+  // 하루 인사이트는 신경 쓸 만한 것만 (컨디션 2 이하 · 부담 요인)
+  const notable = (c: { condition: number | null; moods: string[] | null }) => (c.condition != null && c.condition <= 2) || (c.moods ?? []).some((k) => HEAVY_MOODS.includes(k));
+  for (const c of cis ?? []) if (period !== 'daily' || notable(c)) book.add('checkin', c.id, `컨디션 공유 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`, conditionText(c));
   const { data: cms } = await admin.from('work_item_comments').select('id, item_id, author_id, body, kind, work_items(title)').eq('team_id', teamId).gte('created_at', since).limit(15);
   for (const c of cms ?? []) book.add('item_comment', c.id, `코멘트 · ${(c.work_items as unknown as { title: string })?.title}`, `${nameOf.get(c.author_id)}: ${c.body}`);
   const { data: evs } = await admin.from('work_item_events').select('id, item_id, kind, reason, old, new, work_items(title)').eq('team_id', teamId).in('kind', ['replan', 'target']).gte('created_at', since).limit(15);

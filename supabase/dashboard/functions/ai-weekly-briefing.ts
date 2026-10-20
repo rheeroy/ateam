@@ -438,25 +438,44 @@ var BRIEFING = `\uACFC\uC81C: \uC6D4\uC694\uC77C \uC544\uCE68 \uD300\uC7A5\uC5D0
 }
 items \uB294 3~5\uAC1C, \uC911\uC694\uD55C \uC21C\uC11C.`;
 
+// functions/_shared/signals.ts
+var MOOD_LABEL = {
+  rested: "\uCDA9\uBD84\uD55C \uD734\uC2DD",
+  energized: "\uC758\uC695 \uB192\uC74C",
+  good_news: "\uC88B\uC740 \uC18C\uC2DD",
+  tired: "\uC218\uBA74 \uBD80\uC871\xB7\uD53C\uB85C",
+  unwell: "\uAC74\uAC15 \uBB38\uC81C",
+  heavy: "\uC2EC\uB9AC\uC801 \uBD80\uB2F4",
+  personal: "\uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815",
+  need_rest: "\uD734\uC2DD \uD544\uC694"
+};
+var KST = 9 * 36e5;
+
+// functions/_shared/condition.ts
+var COND_LABEL = { 1: "\uB9CE\uC774 \uC9C0\uCE68", 2: "\uB2E4\uC18C \uC9C0\uCE68", 3: "\uBCF4\uD1B5", 4: "\uC591\uD638", 5: "\uB9E4\uC6B0 \uC88B\uC74C" };
+function conditionText(c) {
+  const parts = [];
+  if (c.condition != null) parts.push(`\uCEE8\uB514\uC158 ${c.condition}/5 (${COND_LABEL[c.condition] ?? ""})`);
+  const ms = (c.moods ?? []).map((k) => MOOD_LABEL[k] ?? k);
+  if (ms.length) parts.push(`\uC601\uD5A5 \uC694\uC778: ${ms.join(", ")}`);
+  if (c.note?.trim()) parts.push(`\uBA54\uBAA8: ${c.note.trim()}`);
+  return parts.join(" / ") || "\uC785\uB825 \uC5C6\uC74C";
+}
+
 // functions/ai-weekly-briefing/index.ts
 async function briefTeam(teamId, createdBy) {
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
   const book = new SourceBook();
   const { data: members } = await admin.from("team_members").select("user_id, profiles(full_name)").eq("team_id", teamId).eq("status", "active");
   const nameOf = new Map((members ?? []).map((m) => [m.user_id, m.profiles?.full_name ?? ""]));
-  const { data: checkins } = await admin.from("checkins").select("id, user_id, week_start, did, blocked, condition").eq("team_id", teamId).gte("updated_at", since);
+  const { data: checkins } = await admin.from("checkins").select("id, user_id, week_start, condition, moods, note").eq("team_id", teamId).gte("updated_at", since);
   for (const c of checkins ?? []) {
-    book.add(
-      "checkin",
-      c.id,
-      `\uCCB4\uD06C\uC778 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`,
-      `\uD55C \uC77C: ${c.did} / \uB9C9\uD798: ${c.blocked || "\uC5C6\uC74C"} / \uCEE8\uB514\uC158 ${c.condition ?? "-"}`
-    );
+    book.add("checkin", c.id, `\uCEE8\uB514\uC158 \uACF5\uC720 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`, conditionText(c));
   }
   const prevWeek = new Date(Date.now() - 14 * 864e5).toISOString();
-  const { data: prevChecks } = await admin.from("checkins").select("id, user_id, week_start, blocked, condition").eq("team_id", teamId).gte("updated_at", prevWeek).lt("updated_at", since);
+  const { data: prevChecks } = await admin.from("checkins").select("id, user_id, week_start, condition, moods, note").eq("team_id", teamId).gte("updated_at", prevWeek).lt("updated_at", since);
   for (const c of prevChecks ?? []) {
-    book.add("checkin", c.id, `\uC9C0\uB09C\uC8FC \uCCB4\uD06C\uC778 ${nameOf.get(c.user_id)}`, `\uB9C9\uD798: ${c.blocked || "\uC5C6\uC74C"} / \uCEE8\uB514\uC158 ${c.condition ?? "-"}`);
+    book.add("checkin", c.id, `\uC9C0\uB09C\uC8FC \uCEE8\uB514\uC158 \uACF5\uC720 ${nameOf.get(c.user_id)}`, conditionText(c));
   }
   const { data: oos } = await admin.from("one_on_ones").select("id, member_id, scheduled_at, shared_notes").eq("team_id", teamId).eq("status", "done").gte("scheduled_at", since);
   for (const o of oos ?? []) book.add("one_on_one", o.id, `1:1 ${nameOf.get(o.member_id)} ${fmtDate(o.scheduled_at)}`, o.shared_notes);
@@ -477,7 +496,7 @@ async function briefTeam(teamId, createdBy) {
   }
   const { data: radar } = await admin.rpc("care_radar", { p_team: teamId });
   for (const r of radar ?? []) {
-    book.add("signal", r.user_id, `\uCF00\uC5B4 \uC2E0\uD638 ${r.full_name}`, r.signals.map((s) => s.label).join(", "));
+    book.add("signal", r.user_id, `\uCF00\uC5B4 \uC2E0\uD638 ${r.full_name}`, r.signals.map((s) => s.label.replace("\uCCB4\uD06C\uC778 \uBBF8\uC81C\uCD9C", "\uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C")).join(", "));
   }
   if (book.size === 0) return null;
   await addKnowhow(book, teamId, "briefing", 1500);
@@ -490,7 +509,7 @@ async function briefTeam(teamId, createdBy) {
     kind: "briefing",
     model: MODEL_SMART,
     system: BRIEFING,
-    content: [{ type: "text", text: `\uACC4\uC0B0\uB41C \uAC12: \uCCB4\uD06C\uC778 ${submitted}/${memberCount}\uBA85 \uC81C\uCD9C, \uD3C9\uADE0 \uCEE8\uB514\uC158 ${avg ?? "-"}
+    content: [{ type: "text", text: `\uACC4\uC0B0\uB41C \uAC12: \uCEE8\uB514\uC158 \uACF5\uC720 ${submitted}/${memberCount}\uBA85 \uC81C\uCD9C, \uD3C9\uADE0 \uCEE8\uB514\uC158 ${avg ?? "-"}
 
 ${book.knowhowText()}
 

@@ -43,7 +43,7 @@ begin
   for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
     if exists (select 1 from leader_notes where team_id = r.team_id) then continue; end if;
     select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
-    select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이정규' limit 1;
+    select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이동욱' limit 1;
     select id into v_goal from work_items where team_id = r.team_id and parent_id is null and title like '제휴%' limit 1;
     select id into v_exec from executives where team_id = r.team_id order by sort limit 1;
     insert into leader_notes (team_id, owner_id, body, kind, anchor_type, anchor_id, pinned, created_at, updated_at) values

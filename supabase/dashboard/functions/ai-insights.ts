@@ -443,7 +443,7 @@ var INSIGHT = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uAE30\uAC04\uC5D0 
 summary \uC640 headline \uC740 \uD55C \uCC28\uC6D0 \uC704\uC758 '\uC9C4\uB2E8'\uC785\uB2C8\uB2E4 (\uD300\uC7A5 \uD648\uC5D0 \uC774 \uBB38\uC7A5\uB9CC \uBCF4\uC785\uB2C8\uB2E4):
 - \uAC1C\uBCC4 \uC0AC\uAC74\uC744 \uB2E4\uC2DC \uB9D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uADF8 \uC601\uC5ED\uC774 \uC9C0\uAE08 \uC798 \uB418\uACE0 \uC788\uB294\uC9C0\xB7\uC548 \uB418\uACE0 \uC788\uB294\uC9C0, \uADF8 '\uAD6C\uC870\uC801 \uC774\uC720'(\uC5EC\uB7EC \uC2E0\uD638\uC5D0 \uACF5\uD1B5\uB41C \uC6D0\uC778\xB7\uD328\uD134\xB7\uC6B4\uC601 \uBC29\uC2DD), \uADF8\uB798\uC11C \uBB34\uC5C7\uC774 \uAC78\uB824 \uC788\uB294\uC9C0\uB97C 1~2\uBB38\uC7A5\uC73C\uB85C.
 - \uC0AC\uB78C \uC774\uB984\uC774\uB098 \uACFC\uC81C\uBA85 \uD558\uB098\uB97C \uC8FC\uC5B4\uB85C \uC138\uC6B0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC601\uC5ED\uC744 \uC8FC\uC5B4\uB85C \uC501\uB2C8\uB2E4.
-  \uB098\uC05C \uC608: "\uC774\uC815\uADDC \uB2D8 \uCEE8\uB514\uC158\uC774 \uB5A8\uC5B4\uC84C\uC2B5\uB2C8\uB2E4." / "\uC81C\uC548\uC11C\uAC00 \uC9C0\uC5F0\uB418\uACE0 \uC788\uC2B5\uB2C8\uB2E4."
+  \uB098\uC05C \uC608: "\uC774\uB3D9\uC6B1 \uB2D8 \uCEE8\uB514\uC158\uC774 \uB5A8\uC5B4\uC84C\uC2B5\uB2C8\uB2E4." / "\uC81C\uC548\uC11C\uAC00 \uC9C0\uC5F0\uB418\uACE0 \uC788\uC2B5\uB2C8\uB2E4."
   \uC88B\uC740 \uC608: "\uD300\uC6D0\uAD00\uB9AC\uAC00 \uD754\uB4E4\uB9AC\uB294 \uAC74 \uAC1C\uC778 \uBB38\uC81C\uBCF4\uB2E4 \uC6B4\uC601 \uB9AC\uB4EC \uB54C\uBB38\uC785\uB2C8\uB2E4 \u2014 1:1 \uAC04\uACA9\uC774 \uBC8C\uC5B4\uC9C4 \uC2DC\uAE30\uC5D0 \uB9C9\uD798\uC744 \uD63C\uC790 \uB04C\uC5B4\uC548\uB294 \uD328\uD134\uC774 \uACB9\uCCE4\uC2B5\uB2C8\uB2E4."
            "\uC131\uACFC\uB294 \uC21C\uD56D\uACFC \uC815\uCCB4\uB85C \uAC08\uB824 \uC788\uACE0, \uC6D0\uC778\uC740 \uC2E4\uD589\uB825\uBCF4\uB2E4 \uC678\uBD80 \uC758\uC874 \uACFC\uC81C\uC5D0 \uB300\uCCB4 \uACBD\uB85C\uAC00 \uC5C6\uB294 \uACC4\uD68D \uAD6C\uC870\uC785\uB2C8\uB2E4."
 - \uAD6C\uCCB4\uC801\uC778 \uC0AC\uB78C\xB7\uACFC\uC81C\xB7\uC22B\uC790\uB294 items \uC5D0 \uC501\uB2C8\uB2E4. headline \uC740 \uD300 \uC804\uCCB4\uC5D0 \uB300\uD55C \uAC19\uC740 \uC218\uC900\uC758 \uC9C4\uB2E8 \uD55C \uBB38\uC7A5.
@@ -478,10 +478,21 @@ var INSIGHT_PERIOD = {
 };
 
 // functions/_shared/signals.ts
+var MOOD_LABEL = {
+  rested: "\uCDA9\uBD84\uD55C \uD734\uC2DD",
+  energized: "\uC758\uC695 \uB192\uC74C",
+  good_news: "\uC88B\uC740 \uC18C\uC2DD",
+  tired: "\uC218\uBA74 \uBD80\uC871\xB7\uD53C\uB85C",
+  unwell: "\uAC74\uAC15 \uBB38\uC81C",
+  heavy: "\uC2EC\uB9AC\uC801 \uBD80\uB2F4",
+  personal: "\uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815",
+  need_rest: "\uD734\uC2DD \uD544\uC694"
+};
+var HEAVY_MOODS = ["tired", "unwell", "heavy", "personal", "need_rest"];
 var DOMAIN_META = {
   goal: { name: "\uBAA9\uD45C\xB7\uC2E4\uC801", desc: "\uBAA9\uD45C \uB2EC\uC131 \uAC00\uB2A5\uC131\uACFC \uC2E4\uC801 \uC804\uB9DD", period: "\uC6D4\uAC04 \uC804\uB9DD" },
   exec: { name: "\uC2E4\uD589\xB7\uACFC\uC81C", desc: "\uACC4\uD68D \uB300\uBE44 \uC9C0\uC5F0\xB7\uB9C9\uD798\xB7\uC2DC\uAC04 \uBC30\uBD84", period: "\uC8FC\uAC04 \uC9C4\uCC99" },
-  people: { name: "\uC0AC\uB78C\xB7\uCEE8\uB514\uC158", desc: "\uCEE8\uB514\uC158 \uCD94\uC138, 1:1 \uAC04\uACA9, \uCCB4\uD06C\uC778", period: "\uC8FC\uAC04 \uCD94\uC138" },
+  people: { name: "\uC0AC\uB78C\xB7\uCEE8\uB514\uC158", desc: "\uCEE8\uB514\uC158 \uCD94\uC138, 1:1 \uAC04\uACA9, \uCEE8\uB514\uC158 \uACF5\uC720", period: "\uC8FC\uAC04 \uCD94\uC138" },
   output: { name: "\uACB0\uACFC\uBB3C\xB7\uB9AC\uBDF0", desc: "\uB9AC\uBDF0 \uB300\uAE30\uC640 \uC7AC\uC791\uC5C5 \uD328\uD134", period: "\uC8FC\uAC04 \uD750\uB984" },
   growth: { name: "\uC721\uC131\xB7\uD3C9\uAC00", desc: "\uD3C9\uAC00 \uADFC\uAC70\uC640 \uC131\uC7A5 \uC2E0\uD638", period: "\uC6D4\uAC04 \uADA4\uC801" },
   org: { name: "\uC870\uC9C1\xB7\uC804\uC0AC", desc: "\uC0C1\uC704 \uBC29\uD5A5\xB7\uC694\uCCAD\xB7\uC804\uC0AC \uC77C\uC815", period: "\uC218\uC2DC" }
@@ -522,7 +533,11 @@ async function loadRaw(db, teamId, leaderId, minEvidence) {
     safe(db.rpc("item_schedule", { p_team: teamId }), null),
     safe(db.rpc("task_portfolio", { p_team: teamId }), null),
     safe(db.rpc("care_radar", { p_team: teamId }), null),
-    safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []),
+    // moods·note 는 24_condition.sql 이후 — 아직 안 돌렸으면 예전 칸만 읽는다
+    (async () => {
+      const r = await db.from("checkins").select("user_id, week_start, condition, moods, note, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35));
+      return r.error ? safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []) : r.data ?? [];
+    })().catch(() => []),
     safe(db.from("submissions").select("id, author_id, status, created_at, submission_versions(version, created_at)").eq("team_id", teamId).gte("updated_at", since60), []),
     safe(db.rpc("member_data_depth", { p_team: teamId }), null),
     safe(db.rpc("team_performance_map", { p_team: teamId }), null),
@@ -635,17 +650,12 @@ function flagsFor(raw, uid) {
   const pr = (raw.latePromiseBy ?? []).filter((x) => x.member_id === uid);
   if (pr.length >= 2 || pr.some((x) => x.days >= 14))
     out.push({ key: "promise_late", label: FLAG_LABEL.promise_late, detail: `\uAE30\uD55C \uC9C0\uB09C \uC57D\uC18D ${pr.length}\uAC74 \xB7 \uCD5C\uC7A5 ${Math.max(...pr.map((x) => x.days))}\uC77C` });
-  const w1 = recentFrom, w2 = addDaysYmd(mon, -7);
-  const len = (c) => (c.did ?? "").trim().length;
-  const prior = mine.filter((c) => c.week_start < w1 && len(c) > 0);
-  const priorAvg = prior.length ? prior.reduce((a, c) => a + len(c), 0) / prior.length : 0;
-  if (prior.length >= 2 && priorAvg >= 30) {
-    const rec = [w1, w2].map((w) => mine.find((c) => c.week_start === w) ?? null);
-    const present = rec.filter(Boolean);
-    const quiet = rec.every((c) => !c || len(c) < priorAvg * 0.4);
-    if (present.length && quiet && !present.some((c) => (c.blocked ?? "").trim()))
-      out.push({ key: "withdrawn", label: FLAG_LABEL.withdrawn, detail: `\uCD5C\uADFC 2\uC8FC \uCCB4\uD06C\uC778 ${present.length}\uD68C \xB7 \uAE00 \uAE38\uC774 \uD3C9\uC18C\uC758 ${Math.round(present.reduce((a, c) => a + len(c), 0) / present.length / priorAvg * 100)}% \xB7 \uB9C9\uD798 \uCE78 \uBE44\uC5B4 \uC788\uC74C` });
-  }
+  const shared = (c) => c.condition != null || (c.moods ?? []).length > 0 || !!(c.did ?? "").trim();
+  const before = [2, 3, 4, 5].map((k) => addDaysYmd(mon, -7 * k));
+  const priorN = before.filter((w) => mine.some((c) => c.week_start === w && shared(c))).length;
+  const recentN = [addDaysYmd(mon, -7), mon].filter((w) => mine.some((c) => c.week_start === w && shared(c))).length;
+  if (priorN >= 3 && recentN === 0)
+    out.push({ key: "withdrawn", label: FLAG_LABEL.withdrawn, detail: `\uADF8 \uC804 4\uC8FC \uC911 ${priorN}\uC8FC \uCEE8\uB514\uC158\uC744 \uB098\uB234\uB294\uB370 \uCD5C\uADFC 2\uC8FC\uB294 \uC5C6\uC74C` });
   return out;
 }
 function analyze(raw, members) {
@@ -949,7 +959,7 @@ function analyze(raw, members) {
       periods: DW,
       title: `${r.full_name}\uB2D8 \uCEE8\uB514\uC158\uC774 3\uC8FC \uC5F0\uC18D \uB5A8\uC5B4\uC84C\uC2B5\uB2C8\uB2E4 (${s.label.replace("\uCEE8\uB514\uC158 ", "")})`,
       detail: "\uBC88\uC544\uC6C3\xB7\uC774\uD0C8 \uC2E0\uD638\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC774\uBC88 \uC8FC \uC548\uC5D0 1:1\uC744 \uAD8C\uD569\uB2C8\uB2E4.",
-      rule: "\uCCB4\uD06C\uC778 \uCEE8\uB514\uC158 3\uC8FC \uC5F0\uC18D \uD558\uB77D, \uCD5C\uADFC \uAC12 3 \uC774\uD558",
+      rule: "\uACF5\uC720\uD55C \uCEE8\uB514\uC158 3\uC8FC \uC5F0\uC18D \uD558\uB77D, \uCD5C\uADFC \uAC12 3 \uC774\uD558",
       action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
     });
     if (s.type === "blocked_repeat" && !has(r.user_id, "frustrated")) S.push({
@@ -960,7 +970,7 @@ function analyze(raw, members) {
       periods: DW,
       title: `${r.full_name}\uB2D8\uC774 2\uC8FC\uC9F8 \uAC19\uC740 \uBB38\uC81C\uB85C \uB9C9\uD600 \uC788\uC2B5\uB2C8\uB2E4`,
       detail: s.detail ? `"${s.detail}"` : void 0,
-      rule: "\uCCB4\uD06C\uC778 \uB9C9\uD798 \uD56D\uBAA9 2\uC8FC \uC5F0\uC18D",
+      rule: "\uB9C9\uD78C \uC77C 2\uC8FC \uC5F0\uC18D (\uC608\uC804 \uC8FC\uAC04 \uCCB4\uD06C\uC778 \uAE30\uB85D)",
       action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
     });
     if (s.type === "no_one_on_one") noOO.push(r.full_name);
@@ -978,16 +988,33 @@ function analyze(raw, members) {
     action: { label: "1:1 \uC7A1\uAE30", to: "/people?new=1" }
   });
   const thisMon = kstMonday();
+  for (const m of mem) {
+    const c = raw.checkins.find((x) => x.user_id === m.user_id && x.week_start === thisMon);
+    if (!c) continue;
+    const moods = c.moods ?? [];
+    const heavy = moods.filter((k) => HEAVY_MOODS.includes(k));
+    if (heavy.length >= 2 || heavy.length >= 1 && c.condition != null && c.condition <= 2) S.push({
+      id: `care-heavy-${m.user_id}-${thisMon}`,
+      domain: "people",
+      type: "risk",
+      severity: 2,
+      periods: DW,
+      title: `${m.name}\uB2D8 \uCEE8\uB514\uC158 \uC800\uD558 \uC694\uC778 \uACF5\uC720`,
+      detail: [heavy.map((k) => MOOD_LABEL[k]).join(" \xB7 "), c.note ? `"${c.note}"` : ""].filter(Boolean).join(" \u2014 "),
+      rule: "\uC774\uBC88 \uC8FC \uBD80\uB2F4 \uC694\uC778 2\uAC1C \uC774\uC0C1, \uB610\uB294 \uCEE8\uB514\uC158 2 \uC774\uD558 + \uBD80\uB2F4 \uC694\uC778",
+      action: { label: "\uD300\uC6D0 \uBCF4\uAE30", to: `/people/${m.user_id}` }
+    });
+  }
   if (missing.length) S.push({
     id: `care-ci-${thisMon}`,
     domain: "people",
     type: "data",
     severity: 1,
     periods: DW,
-    title: `\uC774\uBC88 \uC8FC \uCCB4\uD06C\uC778\uC744 \uC548 \uB0B8 \uD300\uC6D0 ${missing.length}\uBA85`,
-    detail: `${names(missing)} \u2014 \uCCB4\uD06C\uC778\uC774 \uBE60\uC9C0\uBA74 \uCEE8\uB514\uC158\xB7\uB9C9\uD798 \uC2E0\uD638\uB97C \uB193\uCE69\uB2C8\uB2E4.`,
-    rule: "\uC218\uC694\uC77C \uC774\uD6C4 \uC774\uBC88 \uC8FC \uCCB4\uD06C\uC778 \uC5C6\uC74C",
-    action: { label: "\uCCB4\uD06C\uC778 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/settings?tab=members" }
+    title: `\uC774\uBC88 \uC8FC \uCEE8\uB514\uC158\uC744 \uACF5\uC720\uD558\uC9C0 \uC54A\uC740 \uD300\uC6D0 ${missing.length}\uBA85`,
+    detail: `${names(missing)} \u2014 \uCEE8\uB514\uC158 \uACF5\uC720\uAC00 \uBE60\uC9C0\uBA74 \uCEE8\uB514\uC158\xB7\uB9C9\uD798 \uC2E0\uD638\uB97C \uB193\uCE69\uB2C8\uB2E4.`,
+    rule: "\uC218\uC694\uC77C \uC774\uD6C4 \uC774\uBC88 \uC8FC \uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C",
+    action: { label: "\uCEE8\uB514\uC158 \uACF5\uC720 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/settings?tab=members" }
   });
   const condOf = (pred) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition);
   const thisWeek = condOf((w) => w >= thisMon);
@@ -1079,9 +1106,9 @@ function analyze(raw, members) {
       type: "pattern",
       severity: 1,
       periods: W,
-      title: `${nm}\uB2D8 \uCCB4\uD06C\uC778\uC774 \uB208\uC5D0 \uB744\uAC8C \uC9E7\uC544\uC84C\uC2B5\uB2C8\uB2E4 \u2014 \uCD94\uAD81\uBCF4\uB2E4 \uC548\uBD80\uBD80\uD130`,
+      title: `${nm}\uB2D8 \uCEE8\uB514\uC158 \uACF5\uC720\uAC00 \uB208\uC5D0 \uB744\uAC8C \uC9E7\uC544\uC84C\uC2B5\uB2C8\uB2E4 \u2014 \uCD94\uAD81\uBCF4\uB2E4 \uC548\uBD80\uBD80\uD130`,
       detail: f.detail,
-      rule: "\uC774\uC804 \uCCB4\uD06C\uC778 \uD3C9\uADE0 \uB300\uBE44 \uCD5C\uADFC 2\uC8FC 40% \uBBF8\uB9CC \uB610\uB294 \uBE60\uC9D0, \uB9C9\uD798 \uCE78 \uBE44\uC5B4 \uC788\uC74C",
+      rule: "\uC774\uC804 \uCEE8\uB514\uC158 \uACF5\uC720 \uD3C9\uADE0 \uB300\uBE44 \uCD5C\uADFC 2\uC8FC 40% \uBBF8\uB9CC \uB610\uB294 \uBE60\uC9D0, \uB9C9\uD798 \uCE78 \uBE44\uC5B4 \uC788\uC74C",
       action: { label: "1:1 \uC7A1\uAE30", to: `/one-on-ones?new=${m.user_id}` }
     });
   }
@@ -1134,7 +1161,7 @@ function analyze(raw, members) {
     periods: WM,
     title: `2\uC8FC \uB118\uAC8C ATEAM\uC5D0 \uD754\uC801\uC774 \uC5C6\uB294 \uD300\uC6D0 ${silent.length}\uBA85`,
     detail: `${names(silent.map((m) => m.name))} \u2014 \uC694\uCCAD\uC744 \uBCF4\uB0B4\uBA74 \uD300\uC6D0 \uD654\uBA74\uC5D0 \uD560 \uC77C\uB85C \uB739\uB2C8\uB2E4.`,
-    rule: "\uCD5C\uADFC 2\uC8FC \uCCB4\uD06C\uC778\xB7\uACF5\uC720\xB7\uACB0\uACFC\uBB3C 0\uAC74",
+    rule: "\uCD5C\uADFC 2\uC8FC \uCEE8\uB514\uC158 \uACF5\uC720\xB7\uC5C5\uBB34 \uACF5\uC720\xB7\uACB0\uACFC\uBB3C 0\uAC74",
     action: { label: "\uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/settings?tab=members" }
   });
   const depth = raw.depth ?? [];
@@ -1267,8 +1294,8 @@ function analyze(raw, members) {
     const next = lv.levels[lv.level];
     const gap = next.conditions.find((c) => c.current < c.target);
     if (gap) {
-      const gl = gap.label;
-      const gd = /체크인|1:1/.test(gl) ? "people" : /결과물/.test(gl) ? "output" : /근거/.test(gl) ? "growth" : /공수/.test(gl) ? "exec" : "goal";
+      const gl = gap.label.replace("\uCCB4\uD06C\uC778\uC774 \uC313\uC778 \uC8FC", "\uCEE8\uB514\uC158 \uACF5\uC720\uAC00 \uC313\uC778 \uC8FC");
+      const gd = /체크인|컨디션|1:1/.test(gl) ? "people" : /결과물/.test(gl) ? "output" : /근거/.test(gl) ? "growth" : /공수/.test(gl) ? "exec" : "goal";
       S.push({
         id: `level-${lv.level}-${gl}`,
         domain: gd,
@@ -1319,10 +1346,10 @@ function analyze(raw, members) {
       domain: "people",
       status: statusOf("people", !nMem),
       kpi: curC != null ? `${curC.toFixed(1)}` : "\u2014",
-      kpiLabel: curC != null ? `\uD300 \uCEE8\uB514\uC158 (5\uC810) \xB7 \uCCB4\uD06C\uC778 ${ciThis || ciLast}/${nMem}\uBA85` : "\uCEE8\uB514\uC158 \uAE30\uB85D \uC5C6\uC74C",
+      kpiLabel: curC != null ? `\uD300 \uCEE8\uB514\uC158 (5\uC810) \xB7 \uCEE8\uB514\uC158 \uACF5\uC720 ${ciThis || ciLast}/${nMem}\uBA85` : "\uCEE8\uB514\uC158 \uAE30\uB85D \uC5C6\uC74C",
       line: pick("people")?.title ?? (nMem ? "\uD2B9\uBCC4\uD788 \uCC59\uAE38 \uC2E0\uD638\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4" : "\uD300\uC6D0\uC744 \uCD08\uB300\uD558\uBA74 \uCEE8\uB514\uC158 \uCD94\uC138\uB97C \uBD05\uB2C8\uB2E4"),
       confidence: !nMem ? 0 : ciWeeks >= 4 ? 3 : ciWeeks >= 2 ? 2 : 1,
-      confidenceNote: `\uCD5C\uADFC 5\uC8FC \uC911 \uCCB4\uD06C\uC778 \uC788\uB294 \uC8FC ${ciWeeks}\uC8FC`,
+      confidenceNote: `\uCD5C\uADFC 5\uC8FC \uC911 \uCEE8\uB514\uC158 \uACF5\uC720 \uC788\uB294 \uC8FC ${ciWeeks}\uC8FC`,
       to: "/people",
       period: DOMAIN_META.people.period
     },
@@ -1357,6 +1384,17 @@ function signalsFor(period, signals) {
   return signals.filter((s) => s.periods.includes(period));
 }
 
+// functions/_shared/condition.ts
+var COND_LABEL = { 1: "\uB9CE\uC774 \uC9C0\uCE68", 2: "\uB2E4\uC18C \uC9C0\uCE68", 3: "\uBCF4\uD1B5", 4: "\uC591\uD638", 5: "\uB9E4\uC6B0 \uC88B\uC74C" };
+function conditionText(c) {
+  const parts = [];
+  if (c.condition != null) parts.push(`\uCEE8\uB514\uC158 ${c.condition}/5 (${COND_LABEL[c.condition] ?? ""})`);
+  const ms = (c.moods ?? []).map((k) => MOOD_LABEL[k] ?? k);
+  if (ms.length) parts.push(`\uC601\uD5A5 \uC694\uC778: ${ms.join(", ")}`);
+  if (c.note?.trim()) parts.push(`\uBA54\uBAA8: ${c.note.trim()}`);
+  return parts.join(" / ") || "\uC785\uB825 \uC5C6\uC74C";
+}
+
 // functions/ai-insights/index.ts
 var KIND = { daily: "insight_daily", weekly: "insight_weekly", monthly: "insight_monthly" };
 var SPAN = { daily: 2, weekly: 7, monthly: 31 };
@@ -1375,8 +1413,9 @@ async function insightFor(teamId, period, createdBy) {
   for (const s of picked) book.add("signal", null, `${DOMAIN_META[s.domain].name} \xB7 ${TYPE_LABEL[s.type]}`, `${s.title}${s.detail ? ` \u2014 ${s.detail}` : ""} (\uADDC\uCE59: ${s.rule})`);
   const domainLine = domains.map((d) => `${DOMAIN_META[d.domain].name}: \uC0C1\uD0DC ${d.status}, ${d.kpiLabel} ${d.kpi}, \uB370\uC774\uD130 \uCDA9\uC2E4\uB3C4 ${d.confidence}/3`).join("\n");
   const since = new Date(Date.now() - SPAN[period] * 864e5).toISOString();
-  const { data: cis } = await admin.from("checkins").select("id, user_id, week_start, did, blocked, condition").eq("team_id", teamId).gte("updated_at", period === "daily" ? new Date(Date.now() - 7 * 864e5).toISOString() : since).limit(30);
-  for (const c of cis ?? []) if (c.blocked || period !== "daily") book.add("checkin", c.id, `\uCCB4\uD06C\uC778 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`, `\uD55C \uC77C: ${c.did} / \uB9C9\uD798: ${c.blocked || "\uC5C6\uC74C"} / \uCEE8\uB514\uC158 ${c.condition ?? "-"}`);
+  const { data: cis } = await admin.from("checkins").select("id, user_id, week_start, condition, moods, note").eq("team_id", teamId).gte("updated_at", period === "daily" ? new Date(Date.now() - 7 * 864e5).toISOString() : since).limit(30);
+  const notable = (c) => c.condition != null && c.condition <= 2 || (c.moods ?? []).some((k) => HEAVY_MOODS.includes(k));
+  for (const c of cis ?? []) if (period !== "daily" || notable(c)) book.add("checkin", c.id, `\uCEE8\uB514\uC158 \uACF5\uC720 ${nameOf.get(c.user_id)} ${weekLabel(c.week_start)}`, conditionText(c));
   const { data: cms } = await admin.from("work_item_comments").select("id, item_id, author_id, body, kind, work_items(title)").eq("team_id", teamId).gte("created_at", since).limit(15);
   for (const c of cms ?? []) book.add("item_comment", c.id, `\uCF54\uBA58\uD2B8 \xB7 ${c.work_items?.title}`, `${nameOf.get(c.author_id)}: ${c.body}`);
   const { data: evs } = await admin.from("work_item_events").select("id, item_id, kind, reason, old, new, work_items(title)").eq("team_id", teamId).in("kind", ["replan", "target"]).gte("created_at", since).limit(15);

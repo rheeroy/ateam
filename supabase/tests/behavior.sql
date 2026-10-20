@@ -3,7 +3,7 @@
 \set A '22222222-2222-2222-2222-222222222222'
 \set B '33333333-3333-3333-3333-333333333333'
 insert into auth.users (id, email, raw_user_meta_data) values
- (:'L', 'leader@x.com', '{"full_name":"이경훈"}'), (:'A', 'a@x.com', '{"full_name":"김도현"}'), (:'B', 'b@y.com', '{}');
+ (:'L', 'leader@x.com', '{"full_name":"이경훈"}'), (:'A', 'a@x.com', '{"full_name":"김현정"}'), (:'B', 'b@y.com', '{}');
 
 create or replace function pg_temp.as_user(u uuid) returns void language sql as $$
   select set_config('request.jwt.claim.sub', u::text, false), set_config('request.jwt.claim.role', 'authenticated', false) $$;

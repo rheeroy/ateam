@@ -136,7 +136,7 @@ export interface AiJob {
   periodEnd?: string;
   visibility?: 'leader' | 'subject' | 'team';
   credits?: number;
-  /** 모델 출력 외에 함께 저장할 계산값 (예: 체크인 미제출자) */
+  /** 모델 출력 외에 함께 저장할 계산값 (예: 컨디션 공유 미제출자) */
   extra?: Record<string, unknown>;
   /** true면 10분 안의 같은 결과를 재사용하지 않고 새로 만든다 */
   force?: boolean;

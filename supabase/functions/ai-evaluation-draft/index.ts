@@ -6,7 +6,7 @@ import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { EVALUATION } from '../_shared/prompts/index.ts';
 
 const LABEL: Record<string, string> = {
-  checkin: '체크인', one_on_one: '1:1', submission: '결과물', review_comment: '리뷰 코멘트',
+  checkin: '컨디션 공유', one_on_one: '1:1', submission: '결과물', review_comment: '리뷰 코멘트',
   observation: '관찰 메모', leader_note: '팀장 메모', task: '과제', metric: '실적', decision: '의사결정', ai: 'AI 검토 신호',
 };
 const JUDGMENT = ['submission', 'observation', 'review_comment', 'leader_note', 'task'];
@@ -26,12 +26,12 @@ serve(async (req) => {
 
   const { data: ev } = await admin.from('evidence')
     .select('id, source, competency, polarity, summary, occurred_at, provenance')
-    .eq('team_id', b.team_id).eq('subject_user_id', b.member_id)
+    .eq('team_id', b.team_id).eq('subject_user_id', b.member_id).neq('source', 'checkin')   // 컨디션은 평가 근거가 아니다
     .gte('occurred_at', b.period_start).lte('occurred_at', `${b.period_end}T23:59:59Z`)
     .order('occurred_at').limit(160);
 
   const book = new SourceBook();
-  // 판단 근거를 먼저, 맥락(체크인·1:1)은 뒤에 요약 수준으로
+  // 판단 근거를 먼저, 맥락(1:1)은 뒤에 요약 수준으로
   const judg = (ev ?? []).filter((e) => JUDGMENT.includes(e.source));
   const ctx = (ev ?? []).filter((e) => !JUDGMENT.includes(e.source)).slice(-40);
   for (const e of [...judg, ...ctx]) {

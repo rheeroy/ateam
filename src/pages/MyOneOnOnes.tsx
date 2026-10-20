@@ -9,6 +9,7 @@ import { fmtDate, fmtTime, relDay } from '../lib/format';
 import { Button, Card, CardHead, Empty, PageHeader, Pill, Spinner, inputCls, useToast } from '../components/ui';
 import { MyPraise, MyRequests, PromiseList, RequestOOModal, useMyOORequest } from '../components/member/Member';
 import { MyCoaching } from '../components/people/Coaching';
+import { ConditionShare } from '../components/member/ConditionShare';
 
 /** 다가오는 1:1 — 이야기하고 싶은 것을 미리 (함께 보는 노트에 저장) */
 function NextAgenda({ o }: { o: OneOnOne }) {
@@ -37,7 +38,7 @@ function NextAgenda({ o }: { o: OneOnOne }) {
   );
 }
 
-/** 팀원: 팀장님과 — 지금 답할 것(요청 · 내 약속) · 다음 1:1 · 팀장님이 해 준 것(코칭 · 칭찬 · 1:1 기록) */
+/** 팀원: 팀장님과 — 지금 답할 것(요청 · 이번 주 컨디션 공유 · 내 약속) · 다음 1:1 · 팀장님이 해 준 것(코칭 · 칭찬 · 1:1 기록) */
 export default function MyOneOnOnes() {
   const { team, uid, nameOf } = useTeam();
   const [params] = useSearchParams();
@@ -53,12 +54,13 @@ export default function MyOneOnOnes() {
   const req = pending.data?.[0];
   return (
     <section>
-      <PageHeader title="팀장님과" sub="팀장님 요청 · 1:1과 약속 · 받은 코칭과 칭찬이 여기에 모입니다"
+      <PageHeader title="팀장님과" sub="팀장님 요청 · 이번 주 컨디션 · 1:1과 약속 · 받은 코칭과 칭찬"
         right={req ? <span className="text-xs text-teal-700 bg-teal-50 ring-1 ring-teal-200 rounded-lg px-3 py-2">1:1 요청함 · {fmtDate(req.created_at)} · 일정 기다리는 중</span>
           : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1:1 요청하기</Button>} />
       <div className="grid lg:grid-cols-5 gap-5 items-start">
         <div className="lg:col-span-3 space-y-5">
           <MyRequests />
+          <ConditionShare />
           {next && <NextAgenda o={next} />}
           <Card className="p-5">
             <div className="font-semibold mb-3">1:1에서 정한 약속</div>

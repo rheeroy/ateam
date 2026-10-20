@@ -170,6 +170,12 @@ serve(async (req) => {
     if (!b.authKey || !b.plan_id) throw new HttpError(400, "MISSING_PARAMS");
     const { data: plan } = await admin.from("plans").select("*").eq("id", b.plan_id).eq("active", true).maybeSingle();
     if (!plan || plan.id === "free") throw new HttpError(400, "BAD_PLAN");
+    const { data: owned } = await admin.from("teams").select("id").eq("owner_id", caller.userId).eq("is_demo", false);
+    const ids = (owned ?? []).map((t) => t.id);
+    if (ids.length) {
+      const { count } = await admin.from("team_members").select("user_id", { count: "exact", head: true }).in("team_id", ids).eq("role", "member").eq("status", "active");
+      if ((count ?? 0) > plan.max_members) throw new HttpError(400, "PLAN_TOO_SMALL", `\uC9C0\uAE08 \uD300\uC6D0\uC774 ${count}\uBA85\uC774\uB77C \uD300\uC6D0 ${plan.max_members}\uBA85\uAE4C\uC9C0\uC778 ${plan.name}\uC740(\uB294) \uACE0\uB97C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4`);
+    }
     const cycle = b.cycle === "year" ? "year" : "month";
     const issued = await toss("/billing/authorizations/issue", { authKey: b.authKey, customerKey: sub.customer_key });
     const billingKey = issued.billingKey;

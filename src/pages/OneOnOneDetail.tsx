@@ -36,7 +36,7 @@ function PrepPanel({ oo, onAddQuestion }: { oo: OneOnOne; onAddQuestion: (q: str
       {prep.isLoading ? <Spinner /> : !p ? (
         <Empty icon={<Sparkles size={18} />} title="면담 전 2분 요약"
           action={<Button loading={gen.isPending} onClick={() => gen.mutate({ one_on_one_id: oo.id })}>준비 노트 만들기 · 구독 포함</Button>}>
-          지난 1:1 이후의 체크인, 남은 약속, 최근 결과물을 읽고 오늘 물어볼 질문을 정리합니다.
+          지난 1:1 이후의 컨디션 공유, 남은 약속, 최근 결과물을 읽고 오늘 물어볼 질문을 정리합니다.
         </Empty>
       ) : (
         <div className="p-5 space-y-5 text-sm">
