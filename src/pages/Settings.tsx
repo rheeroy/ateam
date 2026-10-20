@@ -7,6 +7,7 @@ import { supabase, q, invoke, errorText } from '../lib/supabase';
 import type { Plan } from '../lib/types';
 import { cx, fmtDate, won } from '../lib/format';
 import { PasswordForm } from '../components/PasswordForm';
+import { InstallButton } from '../components/InstallPrompt';
 import TeamPage from './Team';
 import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
@@ -292,6 +293,18 @@ function ProfileSettings() {
   );
 }
 
+function AppInstall() {
+  return (
+    <Card className="p-5 max-w-lg space-y-3">
+      <div>
+        <div className="font-semibold">앱으로 설치</div>
+        <p className="text-sm text-slate-500 mt-0.5">바탕화면·작업표시줄에서 브라우저 없이 바로 엽니다.</p>
+      </div>
+      <InstallButton />
+    </Card>
+  );
+}
+
 function PasswordSettings() {
   const toast = useToast();
   return (
@@ -317,7 +330,7 @@ export default function SettingsPage() {
     <section>
       <PageHeader title="설정" />
       <div className="mb-5"><Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={items} /></div>
-      {tab === 'billing' && isLeader ? <Billing /> : tab === 'members' && isLeader ? <TeamPage embedded /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings />{!isLeader && <MyDataGuide />}<PasswordSettings /></div>}
+      {tab === 'billing' && isLeader ? <Billing /> : tab === 'members' && isLeader ? <TeamPage embedded /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings />{!isLeader && <MyDataGuide />}<PasswordSettings /><AppInstall /></div>}
     </section>
   );
 }

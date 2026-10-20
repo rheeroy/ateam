@@ -1,0 +1,17 @@
+{
+  "name": "ATEAM - 팀관리 슈퍼에이전트",
+  "short_name": "ATEAM",
+  "description": "팀장을 위한 AI 성과관리",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F6F7F9",
+  "theme_color": "#4F46E5",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

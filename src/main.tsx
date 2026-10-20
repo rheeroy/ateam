@@ -8,6 +8,9 @@ import { ToastProvider } from './components/ui';
 import { AiMarkProvider } from './components/Prov';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import './index.css';
+import { initPwa } from './lib/pwa';
+
+initPwa();
 
 const qc = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },

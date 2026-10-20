@@ -15,6 +15,7 @@ import { dDay, useHomeModel, usePeriod } from './home/shared';
 import { usePriorities } from './decide/priorities';
 import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { QuickNote } from './notes/Notes';
+import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
 import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
@@ -208,6 +209,7 @@ export default function Layout() {
       </main>
       {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} />}
       {isLeader && <QuickNote />}
+      <InstallPrompt />
       <ProvLegend />
     </div>
   );
@@ -246,3 +248,4 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
     </div>
   );
 }
+
