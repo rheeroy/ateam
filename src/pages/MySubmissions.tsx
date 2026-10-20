@@ -38,11 +38,13 @@ export default function MySubmissions() {
         <h1 className="text-xl font-bold tracking-tight">업무플랫폼</h1>
         <p className="text-sm text-slate-500">결과물·자료·진행 상황을 올리고 팀장님과 대화하는 공간입니다</p>
       </div>
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-3 overflow-x-auto">
+      <div className="flex items-end gap-2 border-b border-slate-200 mb-3">
+        <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden min-w-0 flex-1 -mb-px pb-px">
         <TabBtn on={!group} onClick={() => setTab('me')} n={group ? n({ kind: 'user', id: uid }) : 0}>내 스페이스</TabBtn>
         {myGroups.map((g) => <TabBtn key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })} icon>{g.name}</TabBtn>)}
         <button onClick={() => setGroupModal({})} className="px-3 py-2.5 text-sm text-slate-400 hover:text-indigo-700 inline-flex items-center gap-1 whitespace-nowrap"><Plus size={14} />그룹 만들기</button>
-        <span className="ml-auto pl-2 pb-1 shrink-0"><GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} /></span>
+        </div>
+        <span className="shrink-0 pb-1.5"><GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} /></span>
       </div>
       {group && <GroupBar g={group} onEdit={() => setGroupModal({ group })} />}
       <Space space={group ? { kind: 'group', id: group.id } : { kind: 'user', id: uid }} group={group} offset={group ? '16.5rem' : '12.5rem'} />
