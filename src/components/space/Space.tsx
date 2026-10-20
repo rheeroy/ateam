@@ -123,7 +123,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
 
   const panel = sel?.t === 'sub' ? <SubPanel key={sel.id} id={sel.id} onClose={() => setSel(null)} leaderView={!!leaderView} canUploadFor={canUpload} byId={byId} />
     : sel?.t === 'msg' ? <MsgPanel key={sel.id} space={space} root={msgs.find((m) => m.id === sel.id)} replies={msgs.filter((m) => m.parent_id === sel.id)} byId={byId} onClose={() => setSel(null)} />
-    : sel?.t === 'req' ? <ReqPanel key={sel.id} r={reqs.find((r) => r.id === sel.id)} onAnswer={(r) => setAnswering(r)} onClose={() => setSel(null)} />
+    : sel?.t === 'req' ? <ReqPanel key={sel.id} space={space} r={reqs.find((r) => r.id === sel.id)} replies={msgs.filter((m) => m.request_id === sel.id)} onAnswer={(r) => setAnswering(r)} onClose={() => setSel(null)} />
     : filterItem ? <TaskPanel n={filterItem} entries={entries.filter((e) => tagged(e, filterItem.id))} />
     : <InfoPanel space={space} group={group} />;
 
@@ -224,7 +224,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
   const thread = (() => {
     if (!showThread) return null;
     if (e.t === 'msg') { const r = msgs.filter((m) => m.parent_id === e.m.id); return r.length ? { n: r.length, last: r[r.length - 1].author_id, body: r[r.length - 1].body, open: () => onSel({ t: 'msg', id: e.m.id }) } : { n: 0, open: () => onSel({ t: 'msg', id: e.m.id }) }; }
-    if (e.t === 'req') return null;
+    if (e.t === 'req') { const r = msgs.filter((m) => m.request_id === e.r.id); const l = r[r.length - 1]; return { n: r.length, last: l?.author_id, body: l?.body ?? '', open: () => onSel({ t: 'req', id: e.r.id }) }; }
     const cs = [...(e.s.review_comments ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
     const l = cs[cs.length - 1];
     return { n: cs.length, last: l?.author_id, body: l ? (l.body || l.file_name || '파일') : '', open: () => onSel({ t: 'sub', id: e.s.id }) };
@@ -264,7 +264,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
           </>
         )}
 
-        {(tag || (thread && (thread.n > 0 || e.t === 'msg'))) && (
+        {(tag || (thread && (thread.n > 0 || e.t === 'msg' || e.t === 'req'))) && (
           <div className={cx('flex items-center gap-2 text-[11px] max-w-full', me && 'flex-row-reverse')}>
             {tag && <span className="rounded-full bg-slate-100 text-slate-500 px-2 py-0.5 truncate max-w-[180px]"># {tag}</span>}
             {thread && thread.n > 0 ? (
@@ -508,35 +508,47 @@ function VersionMini({ sub, v, latest }: { sub: Submission; v: SubmissionVersion
   );
 }
 
+/** 스레드 말풍선 */
+function MsgBubble({ m }: { m: SpaceMessage }) {
+  const { uid, nameOf } = useTeam();
+  const me = m.author_id === uid;
+  return (
+    <div className={cx('flex gap-2', me && 'flex-row-reverse')}>
+      <Avatar name={nameOf(m.author_id)} size={7} tone={me ? 'indigo' : 'slate'} />
+      <div className={cx('max-w-[82%] flex flex-col', me ? 'items-end' : 'items-start')}>
+        <div className="text-[10px] text-slate-400 mb-0.5"><b className="text-slate-600">{me ? '나' : nameOf(m.author_id)}</b> · {fmtDate(m.created_at)}</div>
+        <div className={cx('rounded-2xl px-3 py-1.5 text-[13px] leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-100 text-slate-800 rounded-tl-sm')}>{m.body}</div>
+      </div>
+    </div>
+  );
+}
+
+/** 스레드 답글 입력 */
+function ReplyBox({ body, setBody, onSubmit, busy, autoFocus }: { body: string; setBody: (v: string) => void; onSubmit: () => void; busy: boolean; autoFocus?: boolean }) {
+  return (
+    <div className="p-3 border-t border-slate-100 flex gap-2">
+      <textarea rows={1} ref={(el) => { if (autoFocus && el && !el.dataset.f) { el.dataset.f = '1'; el.focus({ preventScroll: true }); } }} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글 — Enter 보내기"
+        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onSubmit(); } }}
+        className="flex-1 resize-none text-sm rounded-xl ring-1 ring-slate-200 px-3 py-2 focus:outline-none focus:ring-indigo-400" />
+      <Button onClick={onSubmit} loading={busy} aria-label="보내기"><Send size={14} /></Button>
+    </div>
+  );
+}
+
 /** 대화 스레드 */
 function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; root?: SpaceMessage; replies: SpaceMessage[]; byId: Map<string, Node>; onClose: () => void }) {
-  const { uid, nameOf, isLeader } = useTeam();
+  const { isLeader } = useTeam();
   const send = useSendMessage(space);
   const [body, setBody] = useState('');
   const [ck, setCk] = useState(false);
   if (!root) return null;
-  const Msg = ({ m }: { m: SpaceMessage }) => {
-    const me = m.author_id === uid;
-    return (
-      <div className={cx('flex gap-2', me && 'flex-row-reverse')}>
-        <Avatar name={nameOf(m.author_id)} size={7} tone={me ? 'indigo' : 'slate'} />
-        <div className={cx('max-w-[82%] flex flex-col', me ? 'items-end' : 'items-start')}>
-          <div className="text-[10px] text-slate-400 mb-0.5"><b className="text-slate-600">{me ? '나' : nameOf(m.author_id)}</b> · {fmtDate(m.created_at)}</div>
-          <div className={cx('rounded-2xl px-3 py-1.5 text-[13px] leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-100 text-slate-800 rounded-tl-sm')}>{m.body}</div>
-        </div>
-      </div>
-    );
-  };
   const submit = () => { if (body.trim()) send.mutate({ body, parent_id: root.id }, { onSuccess: () => setBody('') }); };
+  const Msg = ({ m }: { m: SpaceMessage }) => <MsgBubble m={m} />;
   return (
     <PanelShell onClose={onClose} title={<><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">스레드</span></>}
       actions={!isLeader ? <Button size="sm" variant="soft" onClick={() => setCk(true)}><Crosshair size={12} />이걸로 체크인</Button> : undefined}
       sub={root.item_id && byId.get(root.item_id) ? <span className="inline-flex items-center gap-0.5"><Hash size={11} />{byId.get(root.item_id)!.title}</span> : undefined}
-      footer={<div className="p-3 border-t border-slate-100 flex gap-2">
-        <textarea rows={1} ref={(el) => { if (el && !el.dataset.f) { el.dataset.f = '1'; el.focus({ preventScroll: true }); } }} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글 — Enter 보내기"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
-          className="flex-1 resize-none text-sm rounded-xl ring-1 ring-slate-200 px-3 py-2 focus:outline-none focus:ring-indigo-400" />
-        <Button onClick={submit} loading={send.isPending} aria-label="보내기"><Send size={14} /></Button></div>}>
+      footer={<ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} autoFocus />}>
       <div className="p-3.5 space-y-3 bg-slate-50/50 min-h-full">
         <Msg m={root} />
         <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
@@ -549,8 +561,10 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
 }
 
 /** 팀장 요청 */
-function ReqPanel({ r, onAnswer, onClose }: { r?: TeamRequest; onAnswer: (r: TeamRequest) => void; onClose: () => void }) {
+function ReqPanel({ space, r, replies, onAnswer, onClose }: { space: SpaceRef; r?: TeamRequest; replies: SpaceMessage[]; onAnswer: (r: TeamRequest) => void; onClose: () => void }) {
   const { uid, nameOf } = useTeam();
+  const send = useSendMessage(space);
+  const [body, setBody] = useState('');
   const qc = useQueryClient();
   const done = useMutation({
     mutationFn: () => q(supabase.from('team_requests').update({ status: 'done', response: '확인했습니다' }).eq('id', r!.id)),
@@ -558,8 +572,10 @@ function ReqPanel({ r, onAnswer, onClose }: { r?: TeamRequest; onAnswer: (r: Tea
   });
   if (!r) return null;
   const mine = r.to_id === uid;
+  const submit = () => { if (body.trim()) send.mutate({ body, request_id: r.id }, { onSuccess: () => setBody('') }); };
   return (
     <PanelShell onClose={onClose} title={<><Send size={15} className="text-violet-600" /><span className="font-semibold text-sm">요청 · {REQUEST_KIND[r.kind]?.label}</span></>}
+      footer={<ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} />}
       sub={<><span>{nameOf(r.from_id)} → {nameOf(r.to_id)}</span><span>· {fmtDate(r.created_at)}</span>{r.due_date && <span className="font-semibold text-violet-700">· {fmtShort(r.due_date)}까지</span>}</>}>
       <div className="p-4 space-y-3 text-sm">
         <div className="font-semibold text-base">{r.title}</div>
@@ -573,6 +589,12 @@ function ReqPanel({ r, onAnswer, onClose }: { r?: TeamRequest; onAnswer: (r: Tea
           </div>
         ) : <p className="text-slate-500">아직 답을 기다리는 중입니다.</p>}
       </div>
+      {replies.length > 0 && (
+        <div className="px-4 pb-4 space-y-3">
+          <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
+          {replies.map((m) => <MsgBubble key={m.id} m={m} />)}
+        </div>
+      )}
     </PanelShell>
   );
 }
