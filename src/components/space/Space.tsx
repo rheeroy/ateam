@@ -128,27 +128,27 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
     : <InfoPanel space={space} group={group} />;
 
   return (
-    <div className="grid lg:grid-cols-[220px_minmax(0,1fr)_320px] gap-3 lg:h-[var(--sp-h)] lg:min-h-[520px]" style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
-      {/* 왼쪽 레일 */}
-      <aside className="rounded-2xl bg-white ring-1 ring-slate-200 p-2.5 lg:overflow-y-auto">
-        <div className="px-2 pt-1 pb-1.5 text-[11px] font-semibold text-slate-400 hidden lg:block">모아보기</div>
-        <div className="flex lg:block gap-1 overflow-x-auto">
+    <div className="relative grid gap-3 md:h-[var(--sp-h)] md:min-h-[520px] md:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_300px] min-[1180px]:grid-rows-[minmax(0,1fr)] min-[1180px]:grid-cols-[200px_minmax(0,1fr)_300px] xl:grid-cols-[220px_minmax(0,1fr)_320px]" style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
+      {/* 왼쪽 레일 — 창이 좁으면 위쪽 한 줄로 */}
+      <aside className="rounded-2xl bg-white ring-1 ring-slate-200 p-1.5 flex items-center gap-1 overflow-x-auto lg:col-span-2 min-[1180px]:col-span-1 min-[1180px]:block min-[1180px]:p-2.5 min-[1180px]:overflow-x-visible min-[1180px]:overflow-y-auto">
+        <div className="px-2 pt-1 pb-1.5 text-[11px] font-semibold text-slate-400 hidden min-[1180px]:block">모아보기</div>
+        <div className="flex min-[1180px]:block gap-1 shrink-0">
           <RailItem on={filter === 'all'} onClick={() => setFilter('all')} icon={<Inbox size={14} />} label="전체" n={counts.all} />
           <RailItem on={filter === 'wait'} onClick={() => setFilter('wait')} icon={<CircleDot size={14} className="text-indigo-500" />} label="결론 대기" n={counts.wait} />
           <RailItem on={filter === 'fix'} onClick={() => setFilter('fix')} icon={<RotateCcw size={14} className="text-amber-500" />} label="보완 중" n={counts.fix} />
           <RailItem on={filter === 'unread'} onClick={() => setFilter('unread')} icon={<MessageSquare size={14} className="text-rose-500" />} label="안 읽음" n={counts.unread} dot={counts.unread > 0} />
           {counts.unread > 0 && <button onClick={() => { setAllReadAt(new Date(Date.now() + 1000).toISOString()); if (filter === 'unread') setFilter('all'); }}
-            className="hidden lg:block w-full text-left pl-9 pr-2 pb-1 text-[11px] text-slate-400 hover:text-indigo-700">모두 읽음으로</button>}
+            className="hidden min-[1180px]:block w-full text-left pl-9 pr-2 pb-1 text-[11px] text-slate-400 hover:text-indigo-700">모두 읽음으로</button>}
         </div>
-        <div className="mt-2 border-t border-slate-100 pt-2">
-          <div className="px-2 pb-1.5 text-[11px] font-semibold text-slate-400 flex items-center gap-1"><Target size={11} />{space.kind === 'user' ? '맡은 과제' : '그룹 과제'}</div>
-          <div className="flex lg:block gap-1 overflow-x-auto">
+        <div className="flex items-center gap-1 border-l border-slate-100 pl-1 shrink-0 min-[1180px]:block min-[1180px]:mt-2 min-[1180px]:border-l-0 min-[1180px]:border-t min-[1180px]:pl-0 min-[1180px]:pt-2">
+          <div className="px-2 pb-1.5 text-[11px] font-semibold text-slate-400 hidden min-[1180px]:flex items-center gap-1"><Target size={11} />{space.kind === 'user' ? '맡은 과제' : '그룹 과제'}</div>
+          <div className="flex min-[1180px]:block gap-1">
             {tasks.map((n) => (
-              <button key={n.id} onClick={() => setFilter(`i:${n.id}`)} className={cx('shrink-0 lg:w-full rounded-lg px-2.5 py-2 text-left', filter === `i:${n.id}` ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
+              <button key={n.id} onClick={() => setFilter(`i:${n.id}`)} className={cx('shrink-0 min-[1180px]:w-full rounded-lg px-2.5 py-1.5 min-[1180px]:py-2 text-left', filter === `i:${n.id}` ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
                 <div className="flex items-center gap-1.5 text-sm"><Hash size={13} className="text-slate-400 shrink-0" />
                   <span className={cx('flex-1 truncate max-w-[180px]', filter === `i:${n.id}` ? 'font-semibold text-indigo-800' : 'text-slate-700')}>{n.title}</span>
                   <span className="text-[11px] text-slate-400 num">{countFor(n.id)}</span></div>
-                <div className="mt-1.5 ml-5 hidden lg:flex items-center gap-2"><span className="flex-1 h-1 rounded-full bg-slate-100"><span className="block h-1 rounded-full bg-indigo-500" style={{ width: `${n.progress}%` }} /></span>
+                <div className="mt-1.5 ml-5 hidden min-[1180px]:flex items-center gap-2"><span className="flex-1 h-1 rounded-full bg-slate-100"><span className="block h-1 rounded-full bg-indigo-500" style={{ width: `${n.progress}%` }} /></span>
                   <span className="text-[10px] text-slate-400 num">{n.progress}%{n.due_date ? ` · ~${fmtShort(n.due_date)}` : ''}</span></div>
               </button>
             ))}
@@ -158,7 +158,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
       </aside>
 
       {/* 가운데 대화 흐름 */}
-      <section className={cx('rounded-2xl bg-slate-50/80 ring-1 ring-slate-200 flex flex-col h-[72vh] lg:h-auto lg:min-h-0 relative overflow-hidden', drag && 'ring-2 ring-indigo-500')}
+      <section className={cx('rounded-2xl bg-slate-50/80 ring-1 ring-slate-200 flex flex-col h-[72vh] md:h-auto md:min-h-0 relative overflow-hidden', drag && 'ring-2 ring-indigo-500')}
         onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) setDrag(true); }}
         onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setDrag(false); }}
@@ -195,15 +195,15 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           recent={subs.filter((x) => x.author_id === uid && x.kind !== 'checkin').slice(-10).reverse().map((x) => ({ id: x.id, title: x.title }))} />
       </section>
 
-      {/* 오른쪽 스레드 — 좁은 화면에선 덮어서 */}
-      <div className={cx('lg:block lg:min-h-0 lg:h-full', sel ? 'fixed inset-0 z-40 bg-white p-2 lg:static lg:p-0 lg:bg-transparent' : 'hidden')}>{panel}</div>
+      {/* 오른쪽 스레드 — 넓으면 한 칸, 태블릿 폭이면 대화 위로 오른쪽에서 덮고, 폰이면 전체 화면 */}
+      <div className={cx('lg:block lg:min-h-0 lg:h-full', sel ? 'fixed inset-0 z-40 bg-white p-2 md:absolute md:inset-auto md:top-0 md:bottom-0 md:right-0 md:w-[360px] md:p-0 md:bg-transparent md:shadow-2xl md:rounded-2xl lg:static lg:w-auto lg:shadow-none' : 'hidden')}>{panel}</div>
     </div>
   );
 }
 
 function RailItem({ on, onClick, icon, label, n, dot }: { on: boolean; onClick: () => void; icon: React.ReactNode; label: string; n: number; dot?: boolean }) {
   return (
-    <button onClick={onClick} className={cx('shrink-0 lg:w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-left whitespace-nowrap', on ? 'bg-indigo-50 text-indigo-800 font-semibold' : 'text-slate-600 hover:bg-slate-50')}>
+    <button onClick={onClick} className={cx('shrink-0 min-[1180px]:w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-left whitespace-nowrap', on ? 'bg-indigo-50 text-indigo-800 font-semibold' : 'text-slate-600 hover:bg-slate-50')}>
       {icon}<span className="flex-1 truncate">{label}</span>{dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}<span className="text-[11px] text-slate-400 num">{n}</span>
     </button>
   );
@@ -399,7 +399,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
 // ---------------------------------------------------------------------
 function PanelShell({ title, sub, actions, onClose, children, footer }: { title: React.ReactNode; sub?: React.ReactNode; actions?: React.ReactNode; onClose?: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
   return (
-    <aside className="rounded-2xl bg-white ring-1 ring-slate-200 flex flex-col h-full min-h-0 max-h-[calc(100vh-1rem)] lg:max-h-none overflow-hidden">
+    <aside className="rounded-2xl bg-white ring-1 ring-slate-200 flex flex-col h-full min-h-0 max-h-[calc(100vh-1rem)] md:max-h-none overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-100">
         <div className="flex items-center gap-2 min-w-0">{title}{onClose && <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700 shrink-0" aria-label="닫기"><X size={16} /></button>}</div>
         {sub && <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">{sub}</div>}
