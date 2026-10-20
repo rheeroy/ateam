@@ -128,7 +128,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
     : <InfoPanel space={space} group={group} />;
 
   return (
-    <div className="grid lg:grid-cols-[220px_minmax(0,1fr)_380px] gap-3 lg:h-[var(--sp-h)] lg:min-h-[520px]" style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
+    <div className="grid lg:grid-cols-[220px_minmax(0,1fr)_320px] gap-3 lg:h-[var(--sp-h)] lg:min-h-[520px]" style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
       {/* 왼쪽 레일 */}
       <aside className="rounded-2xl bg-white ring-1 ring-slate-200 p-2.5 lg:overflow-y-auto">
         <div className="px-2 pt-1 pb-1.5 text-[11px] font-semibold text-slate-400 hidden lg:block">모아보기</div>
