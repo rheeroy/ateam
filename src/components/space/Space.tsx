@@ -239,6 +239,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
   /** 승인된 내 결과물 — '이 결과로 성과입력 할까요?' */ nudge?: boolean; onPerf?: () => void; onSkip?: () => void;
 }) {
   const { uid, nameOf, members } = useTeam();
+  const finish = useFinishRequest();
   const leaderId = members.find((m) => m.role === 'leader')?.user_id;
   const who = e.t === 'msg' ? e.m.author_id : e.t === 'req' ? e.r.from_id : e.t === 'ver' ? e.v.created_by : e.s.author_id;
   const me = who === uid;
@@ -273,7 +274,13 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
               {e.r.body && <div className="mt-0.5 text-xs text-slate-500 line-clamp-2">{e.r.body}</div>}
               {e.r.status === 'done' && e.r.response && <div className="mt-1.5 text-xs text-emerald-800 bg-emerald-50 rounded px-2 py-1">답: {e.r.response}</div>}
             </button>
-            {e.r.status === 'open' && e.r.to_id === uid && <Button size="sm" variant="soft" className="mt-2" onClick={() => onAnswer(e.r)}><MessageSquare size={13} />답하기</Button>}
+            {e.r.status === 'open' && e.r.to_id === uid && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <Button size="sm" variant="soft" onClick={() => onAnswer(e.r)}><MessageSquare size={13} />답하기</Button>
+                <button disabled={finish.isPending} onClick={() => finish.mutate({ id: e.r.id, response: [...msgs].reverse().find((m) => m.request_id === e.r.id && m.author_id === uid)?.body })}
+                  title="답은 대화로 했다면 여기서 바로 완료" className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"><Check size={12} />완료</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -406,7 +413,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
       if (r.kind === 'req') {
         setAsReq(false); setDue('');
         ['requests', 'space-delta'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-        toast('요청을 보냈습니다. 답이 오면 완료로 바뀌고, 답이 늦으면 대시보드에 알려 드립니다.');
+        toast('요청을 보냈습니다. 완료되면 알림이 가고, 기한을 넘기면 대시보드에 알려 드립니다.');
         return;
       }
       if (r.kind === 'work') {
@@ -431,7 +438,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
           <label className="inline-flex items-center gap-1">기한
             <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="rounded-md border border-violet-200 bg-white px-1.5 py-0.5 text-xs text-violet-900" />
           </label>
-          <span className="text-violet-500 hidden sm:inline truncate">· 첫 줄이 제목 · 답이 오면 완료로 바뀝니다</span>
+          <span className="text-violet-500 hidden sm:inline truncate">· [요청] 기능은 완료 여부를 추적하는 메시지입니다.</span>
           <button onClick={() => { setAsReq(false); setDue(''); }} className="ml-auto text-violet-500 hover:text-violet-800" aria-label="요청 취소"><X size={14} /></button>
         </div>
       )}
@@ -672,6 +679,17 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
 }
 
 /** 팀장 요청 */
+/** 요청 완료 — 받은 사람이 표시. 완료 답변은 넘겨준 글(보통 내 마지막 답글), 없으면 '확인했습니다' */
+function useFinishRequest() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (p: { id: string; response?: string }) => q(supabase.from('team_requests').update({ status: 'done', response: (p.response || '확인했습니다').slice(0, 300) }).eq('id', p.id)),
+    onSuccess: () => { ['requests', 'space-delta', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); toast('완료로 표시했습니다. 팀장님께 알림이 갑니다.'); },
+    onError: (e) => toast(errorText(e)),
+  });
+}
+
 function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamRequest; replies: SpaceMessage[]; onClose: () => void }) {
   // 요청에 대한 대화는 전부 여기(스레드)에서. 답글은 답일 뿐, 완료는 받은 사람이 따로 한 번 누른다.
   //   자료로 답하기: 업무 카드로 올라가고(과제 태그 = 요청의 과제) 요청은 완료된다.
@@ -683,11 +701,7 @@ function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamReq
   const [andDone, setAndDone] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const inval = () => ['requests', 'space-delta', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-  const finish = useMutation({
-    mutationFn: (response: string) => q(supabase.from('team_requests').update({ status: 'done', response: response.slice(0, 300) }).eq('id', r!.id)),
-    onSuccess: () => { inval(); toast('완료로 표시했습니다. 팀장님께 알림이 갑니다.'); },
-    onError: (e) => toast(errorText(e)),
-  });
+  const finish = useFinishRequest();
   const reopen = useMutation({
     mutationFn: async () => {
       await q(supabase.from('team_requests').update({ status: 'open', response: '', responded_at: null }).eq('id', r!.id));
@@ -717,7 +731,7 @@ function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamReq
   const lastReply = [...replies].reverse().find((m) => m.author_id === uid)?.body ?? '';
   const submit = () => {
     const b = body.trim(); if (!b) return;
-    send.mutate({ body: b, request_id: r.id }, { onSuccess: () => { setBody(''); if (andDone && mine && open) { finish.mutate(b); setAndDone(false); } } });
+    send.mutate({ body: b, request_id: r.id }, { onSuccess: () => { setBody(''); if (andDone && mine && open) { finish.mutate({ id: r.id, response: b }); setAndDone(false); } } });
   };
   const footer = (
     <div className="border-t border-slate-100">
@@ -730,7 +744,7 @@ function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamReq
           <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ''; }} />
           <span className="ml-auto flex gap-1.5">
             <Button size="sm" variant="ghost" loading={upload.isPending} onClick={() => fileRef.current?.click()} title="파일을 업무 카드로 올리고 이 요청을 완료합니다"><Paperclip size={12} />자료로 답하기</Button>
-            <Button size="sm" variant="secondary" loading={finish.isPending} onClick={() => finish.mutate(lastReply || '확인했습니다')}><CheckCircle2 size={12} />완료로 표시</Button>
+            <Button size="sm" variant="secondary" loading={finish.isPending} onClick={() => finish.mutate({ id: r.id, response: lastReply })}><CheckCircle2 size={12} />완료로 표시</Button>
           </span>
         </div>
       )}
@@ -751,8 +765,7 @@ function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamReq
             {r.from_id === uid && <button onClick={() => reopen.mutate()} disabled={reopen.isPending} className="shrink-0 text-emerald-700 hover:text-emerald-900 font-semibold">다시 요청</button>}
           </div>
         )}
-        {open && mine && <p className="text-[11px] text-slate-400">아래에 답글로 답하고, 끝났으면 [완료로 표시]를 눌러 주세요. 자료가 필요하면 [자료로 답하기]로 올리면 바로 완료됩니다.</p>}
-        {open && !mine && <p className="text-[11px] text-slate-400">답을 기다리는 중입니다. 대화는 이 스레드에서 이어 가세요.</p>}
+        {open && <p className="text-[11px] text-slate-400">[요청] 카드는 기한 내 완료 여부를 추적하는 메시지입니다.</p>}
       </div>
       <div className="px-4 pb-4 space-y-3">
         <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
@@ -797,7 +810,7 @@ function InfoPanel({ space, group }: { space: SpaceRef; group?: WorkGroup | null
             : <>많이 할수록 <b className="text-slate-800">내 성과를 높일 수 있는 기회</b>가 증대됩니다.</>}</li>
           <li>파일·링크·캡처를 올리면 <b className="text-slate-800">업무 카드</b>가 됩니다. 컨펌·의견·공유를 고르면 상태와 버전이 따라갑니다.</li>
           <li><b className="text-slate-800"># 과제 태그</b>를 붙이면 왼쪽에서 과제별로 모아 볼 수 있습니다.</li>
-          {isLeader && space.kind === 'user' && <li>무언가를 맡길 때는 입력창의 <b className="text-slate-800">＋ › 요청 보내기</b>를 쓰세요. 기한을 정할 수 있고, 답이 오면 완료로 바뀌며 늦으면 대시보드에 알려 드립니다.</li>}
+          {isLeader && space.kind === 'user' && <li>무언가를 맡길 때는 입력창의 <b className="text-slate-800">＋ › 요청 보내기</b>를 쓰세요. 기한 내 완료 여부가 추적되고, 기한을 넘기면 대시보드에 알려 드립니다.</li>}
           <li>말풍선이나 카드를 누르면 여기에서 <b className="text-slate-800">스레드</b>로 이어 갑니다.</li>
         </ul>
         {space.kind === 'group' && group && (
