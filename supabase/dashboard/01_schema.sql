@@ -2670,7 +2670,7 @@ begin
   -- 김현정: '팀장님과' 받은함 예시 (열린 것 · 답한 것이 섞이게)
   begin
     insert into team_requests (team_id, from_id, to_id, kind, title, body, due_date, created_at) values
-      (T, L, m_kim, 'meeting', '목요일 30분, 런칭 FGI 결과 같이 봐요', '정리 안 된 상태로 가져와도 됩니다', current_date + 2, now() - interval '6 hours'),
+      (T, L, m_kim, 'other', '목요일 30분, 런칭 FGI 결과 같이 봐요', '정리 안 된 상태로 가져와도 됩니다', current_date + 2, now() - interval '6 hours'),
       (T, L, m_kim, 'grow', '하반기 신규 브랜드 론칭을 리드해 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', null, now() - interval '3 days');
     insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, status, response, responded_at, created_at) values
       (T, L, m_kim, 'share', t1, '런칭 기획서 v2 올려 주세요', '임원 보고 전에 한 번 보고 싶어요', 'done', '업무플랫폼에 v2 올렸습니다', now() - interval '19 days', now() - interval '20 days'),

@@ -4,10 +4,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCircle2, CircleDot, Crosshair, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
+import { Check, CheckCircle2, CircleDot, Crosshair, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, Plus, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import { buildTree, useItems, type Node } from '../../lib/items';
+import { currentLabel, latestPayload } from '../../lib/checkin';
 import { REQ_TAG, useCloseSubmission } from '../../lib/work';
 import { CheckinCard, CheckinDetail, CheckinModal, PERF_TIP } from '../checkin/Checkin';
 import { baseName, createPost, isUrl, namedPaste, startReview } from '../../lib/post';
@@ -44,6 +45,9 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const reqs = data.reqs.data ?? [];
   const entries = useMemo(() => buildEntries(subs, msgs, reqs), [subs, msgs, reqs]);
   const loaded = !data.subs.isLoading && !data.msgs.isLoading;
+  const usedAsEvidence = useMemo(() => new Set(subs.filter((x) => x.kind === 'checkin').flatMap((x) => (latestPayload(x)?.evidence ?? []).map((ev) => ev.id))), [subs]);
+  const nudgeFor = (x: SpaceSub) => !leaderView && x.author_id === uid && x.kind !== 'checkin' && x.status === 'approved' && !x.closed_at
+    && !!x.approved_at && Date.now() - Date.parse(x.approved_at) < 21 * 86400000 && !usedAsEvidence.has(x.id) && !skipped.includes(x.id);
   const latest = useMemo(() => [...entries.map((e) => e.at), ...msgs.map((m) => m.created_at), ...subs.flatMap((s) => (s.review_comments ?? []).map((c) => c.created_at))].reduce((m, t) => (t > m ? t : m), ''), [entries, msgs, subs]);
   const seenAt = useSpaceRead(space, loaded, latest);
   // 읽음은 바로 반영: 스레드를 열면 그 글은 읽음, '모두 읽음'을 누르면 전부 읽음 (새로고침 없이)
@@ -58,6 +62,11 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [answering, setAnswering] = useState<TeamRequest | null>(null);
+  // 승인된 내 결과물 → 성과입력 안내 (최근 21일 · 아직 근거로 쓰지 않은 것 · '다음에' 누르지 않은 것)
+  const NUDGE_KEY = 'ateam.perfnudge.skip';
+  const [skipped, setSkipped] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) ?? '[]'); } catch { return []; } });
+  const skip = (id: string) => { const n = [...skipped, id].slice(-200); setSkipped(n); try { localStorage.setItem(NUDGE_KEY, JSON.stringify(n)); } catch { /* 이번 화면에서만 */ } };
+  const [perfFor, setPerfFor] = useState<SpaceSub | null>(null);
   // 열어 둔 스레드는 새 글이 와도 읽음으로
   useEffect(() => {
     if (!sel) return;
@@ -186,7 +195,9 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
                 {day && <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400"><span className="flex-1 h-px bg-slate-200" />{day}<span className="flex-1 h-px bg-slate-200" /></div>}
                 <EntryView e={e} msgs={msgs} byId={byId} unread={unread(e)} group={!!group} leaderView={!!leaderView}
                   showThread={e.t === 'post' || e.t === 'ver' ? lastEntryOf.get(e.s.id) === e.id : true}
-                  sel={sel} onSel={setSel} onAnswer={(r) => setAnswering(r)} />
+                  sel={sel} onSel={setSel} onAnswer={(r) => setAnswering(r)}
+                  nudge={(e.t === 'post' || e.t === 'ver') && lastEntryOf.get(e.s.id) === e.id && nudgeFor(e.s)}
+                  onPerf={() => (e.t === 'post' || e.t === 'ver') && setPerfFor(e.s)} onSkip={() => (e.t === 'post' || e.t === 'ver') && skip(e.s.id)} />
               </div>
             );
           })}
@@ -195,6 +206,8 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           recent={subs.filter((x) => x.author_id === uid && x.kind !== 'checkin').slice(-10).reverse().map((x) => ({ id: x.id, title: x.title }))} />
       </section>
 
+      {perfFor && <CheckinModal open onClose={() => setPerfFor(null)} itemId={perfFor.item_id} evidence={{ t: 'sub', id: perfFor.id, title: perfFor.title }}
+        spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
       {/* 오른쪽 스레드 — 넓으면 한 칸, 태블릿 폭이면 대화 위로 오른쪽에서 덮고, 폰이면 전체 화면 */}
       <div className={cx('lg:block lg:min-h-0 lg:h-full', sel ? 'fixed inset-0 z-40 bg-white p-2 md:absolute md:inset-auto md:top-0 md:bottom-0 md:right-0 md:w-[360px] md:p-0 md:bg-transparent md:shadow-2xl md:rounded-2xl lg:static lg:w-auto lg:shadow-none' : 'hidden')}>{panel}</div>
     </div>
@@ -212,8 +225,9 @@ function RailItem({ on, onClick, icon, label, n, dot }: { on: boolean; onClick: 
 // ---------------------------------------------------------------------
 // 흐름 한 칸
 // ---------------------------------------------------------------------
-function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: {
+function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nudge, onPerf, onSkip }: {
   e: Entry; msgs: SpaceMessage[]; byId: Map<string, Node>; unread: boolean; group?: boolean; leaderView?: boolean; showThread: boolean; sel: Sel; onSel: (s: Sel) => void; onAnswer: (r: TeamRequest) => void;
+  /** 승인된 내 결과물 — '이 결과로 성과입력 할까요?' */ nudge?: boolean; onPerf?: () => void; onSkip?: () => void;
 }) {
   const { uid, nameOf, members } = useTeam();
   const leaderId = members.find((m) => m.role === 'leader')?.user_id;
@@ -244,7 +258,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
         {e.t === 'req' && (
           <div className={cx('rounded-2xl bg-white ring-1 px-3.5 py-2.5 w-[340px] max-w-full', isSel ? 'ring-2 ring-violet-500' : 'ring-violet-200', me ? 'rounded-tr-sm' : 'rounded-tl-sm')}>
             <button onClick={() => onSel({ t: 'req', id: e.r.id })} className="w-full text-left">
-              <div className="flex items-center gap-1.5 text-xs"><Send size={12} className="text-violet-600" /><b className="text-violet-700">요청 · {REQUEST_KIND[e.r.kind]?.label ?? '요청'}</b>
+              <div className="flex items-center gap-1.5 text-xs"><Send size={12} className="text-violet-600" /><b className="text-violet-700">{e.r.kind === 'other' ? '요청' : `요청 · ${REQUEST_KIND[e.r.kind]?.label ?? ''}`}</b>
                 <span className={cx('ml-auto font-semibold', e.r.status === 'open' ? 'text-violet-700' : 'text-emerald-700')}>{e.r.status === 'open' ? (e.r.due_date ? `${fmtShort(e.r.due_date)}까지` : '열림') : '완료'}</span></div>
               <div className="mt-1 text-sm font-semibold text-slate-800">{e.r.title}</div>
               {e.r.body && <div className="mt-0.5 text-xs text-slate-500 line-clamp-2">{e.r.body}</div>}
@@ -261,6 +275,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
             {e.s.kind === 'checkin'
               ? <CheckinCard s={e.s} item={e.s.item_id ? byId.get(e.s.item_id) : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />
               : <WorkCard s={e.s} v={e.t === 'ver' ? e.v : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />}
+            {nudge && <PerfNudge item={e.s.item_id ? byId.get(e.s.item_id) ?? null : null} onPerf={onPerf!} onSkip={onSkip!} />}
           </>
         )}
 
@@ -273,6 +288,26 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
             ) : thread && <button onClick={thread.open} className="text-slate-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-1"><MessageSquare size={11} />답글</button>}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** 승인된 내 결과물 아래 — 이 결과로 성과입력 할까요? (한 번, '다음에'로 닫음) */
+function PerfNudge({ item, onPerf, onSkip }: { item: Node | null; onPerf: () => void; onSkip: () => void }) {
+  return (
+    <div className="w-[360px] max-w-full rounded-xl bg-indigo-50 ring-1 ring-indigo-200 px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <Crosshair size={14} className="text-indigo-600 mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold text-indigo-900">이 결과로 성과입력 할까요?</div>
+          <div className="text-[11px] text-indigo-700/80 mt-0.5 leading-snug">목표 달성에 대한 공식 성과로 올리고 팀장님 승인을 받습니다. 이 결과물이 근거로 붙습니다.</div>
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" onClick={onPerf}><Crosshair size={12} />성과입력</Button>
+            <button onClick={onSkip} className="text-xs text-slate-500 hover:text-slate-800 px-1">다음에</button>
+            {item && <span className="ml-auto text-[10px] text-indigo-500 truncate">{item.title} · 지금 {currentLabel(item)}</span>}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -298,7 +333,10 @@ function WorkCard({ s, v, on, onClick }: { s: SpaceSub; v: { version: number; fi
 }
 
 // ---------------------------------------------------------------------
-// 입력창 — 평소엔 메시지. 파일·링크가 붙으면 업무 카드(요청 종류 선택)
+// 입력창 — 평소엔 대화만: [＋] 입력칸 [#] [보내기]
+//   기록을 만드는 행동은 ＋ 하나로: 파일·캡처(업무 카드) · 성과입력(팀원) · 요청 보내기(팀장, 개인 스페이스)
+//   고르면 입력창 위에 '모드 띠'가 생긴다 (파일 · 요청 · 요청에 답하는 중). ✕ 로 대화로 돌아온다.
+//   과제 태그는 왼쪽에서 과제를 골라 보면 자동으로 붙고, 붙었을 때만 이름이 보인다.
 // ---------------------------------------------------------------------
 function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, clearAnswer, recent }: {
   space: SpaceRef; tasks: Node[]; defaultTag: string | null; file: File | null; setFile: (f: File | null) => void; answering: TeamRequest | null; clearAnswer: () => void;
@@ -313,16 +351,37 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
   const [title, setTitle] = useState('');
   const [req, setReq] = useState<RequestType>('approval');
   const [tag, setTag] = useState<string>('');
+  const [menu, setMenu] = useState(false);
+  const [asReq, setAsReq] = useState(false);
+  const [due, setDue] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (defaultTag) setTag(defaultTag); }, [defaultTag]);
-  useEffect(() => { if (file) { setTitle(baseName(file.name)); area.current?.focus({ preventScroll: true }); } }, [file]);
-  useEffect(() => { if (answering) { if (answering.item_id) setTag(answering.item_id); setReq('share'); area.current?.focus({ preventScroll: true }); } }, [answering]);
+  useEffect(() => { if (file) { setTitle(baseName(file.name)); setAsReq(false); area.current?.focus({ preventScroll: true }); } }, [file]);
+  useEffect(() => { if (answering) { if (answering.item_id) setTag(answering.item_id); setReq('share'); setAsReq(false); area.current?.focus({ preventScroll: true }); } }, [answering]);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as globalThis.Node)) setMenu(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [menu]);
   const link = !file && isUrl(text) ? text.trim() : null;
   const work = !!file || !!link;
+  const canReq = isLeader && space.kind === 'user' && !answering;
+  const reqOn = canReq && asReq && !work;
+  const tagName = tag ? tasks.find((t) => t.id === tag)?.title : null;
   const post = useMutation({
     mutationFn: async () => {
       const body = text.trim();
+      if (reqOn) {
+        const [first, ...rest] = body.split('\n');
+        await q(supabase.from('team_requests').insert({
+          team_id: team.id, to_id: space.id, kind: 'other', item_id: tag || null,
+          title: first.trim().slice(0, 120), body: rest.join('\n').trim(), due_date: due || null,
+        }));
+        return { kind: 'req' as const };
+      }
       if (work) {
         const r = await createPost({
           teamId: team.id, uid, ...(space.kind === 'user' ? { spaceId: space.id } : { groupId: space.id }), itemId: tag || null,
@@ -338,6 +397,12 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
     },
     onSuccess: (r) => {
       setText(''); setFile(null); setTitle('');
+      if (r.kind === 'req') {
+        setAsReq(false); setDue('');
+        ['requests', 'space-delta'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+        toast('요청을 보냈습니다. 답이 오면 완료로 바뀌고, 답이 늦으면 대시보드에 알려 드립니다.');
+        return;
+      }
       if (answering) { clearAnswer(); qc.invalidateQueries({ queryKey: ['requests'] }); toast('요청에 답했습니다. 완료로 바뀝니다.'); }
       if (r.kind === 'work') {
         // 이 스페이스는 '바뀐 것만' 받아 합치고, 다른 화면의 목록만 새로
@@ -350,47 +415,98 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
     onError: (e) => toast(errorText(e)),
   });
   const ready = !!file || !!text.trim();
+  const pick = (fn: () => void) => { setMenu(false); fn(); };
   return (
     <div className="p-3 border-t border-slate-100 bg-white">
       <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ''; }} />
+      {/* 모드 띠 */}
       {answering && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-violet-50 ring-1 ring-violet-200 px-3 py-1.5 text-xs text-violet-800">
           <Send size={12} /><span className="truncate">요청에 답하는 중 · <b>{answering.title}</b> — 메시지나 파일로 답하면 완료로 바뀝니다</span>
           <button onClick={clearAnswer} className="ml-auto text-violet-500 hover:text-violet-800" aria-label="답하기 취소"><X size={14} /></button>
         </div>
       )}
-      {file && (
-        <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-50 ring-1 ring-slate-200 px-3 py-2">
-          {IMAGE.test(file.type) ? <ImageIcon size={16} className="text-indigo-600 shrink-0" /> : <FileText size={16} className="text-indigo-600 shrink-0" />}
-          <input className="flex-1 min-w-0 bg-transparent text-sm font-medium focus:outline-none" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="제목" placeholder="제목" />
-          <span className="text-[11px] text-slate-400 truncate max-w-[35%]">{file.name}</span>
-          <button onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-700" aria-label="파일 빼기"><X size={15} /></button>
+      {reqOn && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-violet-50 ring-1 ring-violet-200 px-3 py-1.5 text-xs text-violet-800">
+          <Send size={12} /><b>요청</b><span className="text-violet-300">·</span>
+          <label className="inline-flex items-center gap-1">기한
+            <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="rounded-md border border-violet-200 bg-white px-1.5 py-0.5 text-xs text-violet-900" />
+          </label>
+          <span className="text-violet-500 hidden sm:inline truncate">· 첫 줄이 제목 · 답이 오면 완료로 바뀝니다</span>
+          <button onClick={() => { setAsReq(false); setDue(''); }} className="ml-auto text-violet-500 hover:text-violet-800" aria-label="요청 취소"><X size={14} /></button>
         </div>
       )}
-      <div className="rounded-xl ring-1 ring-slate-200 focus-within:ring-indigo-400">
+      {file && (
+        <div className="mb-2 rounded-xl bg-slate-50 ring-1 ring-slate-200 px-3 py-2">
+          <div className="flex items-center gap-2">
+            {IMAGE.test(file.type) ? <ImageIcon size={16} className="text-indigo-600 shrink-0" /> : <FileText size={16} className="text-indigo-600 shrink-0" />}
+            <input className="flex-1 min-w-0 bg-transparent text-sm font-medium focus:outline-none" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="제목" placeholder="제목" />
+            <span className="text-[11px] text-slate-400 truncate max-w-[35%]">{file.name}</span>
+            <button onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-700" aria-label="파일 빼기"><X size={15} /></button>
+          </div>
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs flex-wrap">
+            {isLeader ? <span className="text-slate-400">팀장님이 올린 자료는 '공유'로 올라갑니다</span>
+              : (['approval', 'feedback', 'share'] as RequestType[]).map((r) => (
+                <button key={r} onClick={() => setReq(r)} className={cx('rounded-full border px-2.5 py-0.5', req === r ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500 bg-white')}>{REQ_TAG[r].label}</button>
+              ))}
+          </div>
+        </div>
+      )}
+      {link && !isLeader && (
+        <div className="mb-2 flex items-center gap-1.5 text-xs flex-wrap">
+          <span className="text-slate-500 inline-flex items-center gap-1"><Link2 size={12} />링크는 업무 카드로 올라갑니다</span>
+          {(['approval', 'feedback', 'share'] as RequestType[]).map((r) => (
+            <button key={r} onClick={() => setReq(r)} className={cx('rounded-full border px-2.5 py-0.5', req === r ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500 bg-white')}>{REQ_TAG[r].label}</button>
+          ))}
+        </div>
+      )}
+      <div className={cx('flex items-end gap-1.5 rounded-xl ring-1 px-1.5 py-1.5', reqOn ? 'ring-violet-300 focus-within:ring-violet-500' : 'ring-slate-200 focus-within:ring-indigo-400')}>
+        <div className="relative shrink-0" ref={menuRef}>
+          <button onClick={() => setMenu((x) => !x)} aria-expanded={menu} aria-label="더하기" title="파일 · 성과입력 · 요청"
+            className={cx('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', menu ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100')}>
+            <Plus size={18} className={cx('transition-transform', menu && 'rotate-45')} />
+          </button>
+          {menu && (
+            <div className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-white shadow-lg ring-1 ring-slate-200 py-1.5 text-sm z-20">
+              <MenuItem icon={<Paperclip size={15} className="text-slate-500" />} title="파일·캡처 올리기" sub="업무 카드로 올라갑니다 · 끌어다 놓아도 됩니다" onClick={() => pick(() => fileRef.current?.click())} />
+              {!isLeader && <MenuItem icon={<Crosshair size={15} className="text-indigo-600" />} title="성과입력" sub="목표 달성에 대한 공식 성과 · 팀장님 승인" onClick={() => pick(() => setCk(true))} />}
+              {canReq && <MenuItem icon={<Send size={15} className="text-violet-600" />} title="요청 보내기" sub="기한 · 완료 추적 · 늦으면 알림" onClick={() => pick(() => { setAsReq(true); setFile(null); area.current?.focus(); })} />}
+            </div>
+          )}
+        </div>
         <textarea ref={area} rows={Math.min(5, Math.max(1, text.split('\n').length))} value={text} onChange={(e) => setText(e.target.value)} aria-label="메시지"
           onPaste={(e) => { const f = e.clipboardData.files?.[0]; if (f) { e.preventDefault(); setFile(namedPaste(f)); } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (ready && !post.isPending) post.mutate(); } }}
-          className="w-full resize-none text-sm px-3.5 pt-2.5 leading-6 focus:outline-none placeholder:text-slate-400 rounded-t-xl"
-          placeholder={work ? '덧붙일 말 (선택) — Enter로 올리기' : '메시지 — Enter 보내기 · 파일을 끌어다 놓거나 캡처를 붙여 넣으면 업무 카드로 올라갑니다'} />
-        <div className="flex items-center gap-1.5 px-2 pb-2 text-xs flex-wrap">
-          <button onClick={() => fileRef.current?.click()} className="p-1.5 rounded text-slate-500 hover:bg-slate-100" title="파일 첨부" aria-label="파일 첨부"><Paperclip size={16} /></button>
-          <select aria-label="과제 태그" value={tag} onChange={(e) => setTag(e.target.value)}
-            className={cx('rounded-full border px-2.5 py-1 bg-white max-w-[200px]', tag ? 'border-indigo-300 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500')}>
-            <option value=""># 과제 태그 (선택)</option>{tasks.map((t) => <option key={t.id} value={t.id}># {t.title}</option>)}
-          </select>
-          {work && !isLeader && (['approval', 'feedback', 'share'] as RequestType[]).map((r) => (
-            <button key={r} onClick={() => setReq(r)} className={cx('rounded-full border px-2.5 py-1', req === r ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500')}>{REQ_TAG[r].label}</button>
-          ))}
-          {work && isLeader && <span className="text-slate-400">팀장님이 올린 자료는 '공유'로 올라갑니다</span>}
-          {!isLeader && !work && <button onClick={() => setCk(true)} title={PERF_TIP}
-            className="rounded-full px-2.5 py-1 font-semibold inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"><Crosshair size={12} />성과입력</button>}
-          <Button size="sm" className="ml-auto" disabled={!ready} loading={post.isPending} onClick={() => post.mutate()}>{work ? <><FileUp size={13} />올리기</> : <><Send size={13} />보내기</>}</Button>
-        </div>
+          className="flex-1 min-w-0 resize-none text-sm px-1.5 py-1.5 leading-6 focus:outline-none placeholder:text-slate-400 bg-transparent"
+          placeholder={work ? '덧붙일 말 (선택) — Enter로 올리기' : reqOn ? '요청할 내용 — 첫 줄이 제목이 됩니다 (Shift+Enter 줄바꿈)' : '메시지 — Enter 보내기 · 파일은 끌어다 놓아도 됩니다'} />
+        {tagName ? (
+          <span className="shrink-0 mb-1 inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 pl-2 pr-1 py-0.5 text-xs font-semibold max-w-[40%]">
+            <Hash size={11} className="shrink-0" /><span className="truncate">{tagName}</span>
+            <button onClick={() => setTag('')} className="text-indigo-400 hover:text-indigo-700" aria-label="태그 떼기"><X size={11} /></button>
+          </span>
+        ) : (
+          <label className="relative shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 cursor-pointer" title="과제 태그 붙이기">
+            <Hash size={16} />
+            <select aria-label="과제 태그" value={tag} onChange={(e) => setTag(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer">
+              <option value="">과제 태그 없음</option>{tasks.map((t) => <option key={t.id} value={t.id}># {t.title}</option>)}
+            </select>
+          </label>
+        )}
+        <Button size="sm" className={cx('shrink-0 mb-0.5', reqOn && 'bg-violet-600 hover:bg-violet-700')} disabled={!ready} loading={post.isPending} onClick={() => post.mutate()}>
+          {work ? <><FileUp size={13} />올리기</> : reqOn ? <><Send size={13} />요청 보내기</> : <><Send size={13} />보내기</>}
+        </Button>
       </div>
       {ck && <CheckinModal open onClose={() => setCk(false)} itemId={tag || null} recent={recent}
         spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
     </div>
+  );
+}
+
+function MenuItem({ icon, title, sub, onClick }: { icon: React.ReactNode; title: string; sub: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full text-left px-3 py-2 flex items-center gap-2.5 hover:bg-slate-50">
+      {icon}<span className="min-w-0"><span className="block font-medium text-slate-800">{title}</span><span className="block text-[11px] text-slate-400 truncate">{sub}</span></span>
+    </button>
   );
 }
 
@@ -454,7 +570,8 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
   const flow = [...versions.map((v) => ({ at: v.created_at, v, c: null as ReviewComment | null })), ...(comQ.data ?? []).map((c) => ({ at: c.created_at, v: null as SubmissionVersion | null, c }))].sort((a, b) => a.at.localeCompare(b.at));
   const isLeaderPost = leaderView && sub.author_id === uid;
   const isCheckin = sub.kind === 'checkin';
-  const canCk = !leaderView && !isCheckin && sub.status !== 'needs_work';
+  // 성과입력은 승인된 내 결과물에서만 (업무 → 승인 → 공식 성과)
+  const canCk = !leaderView && !isCheckin && sub.status === 'approved' && sub.author_id === uid;
   return (
     <PanelShell onClose={onClose}
       title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', isCheckin ? 'bg-indigo-600 text-white' : rq.cls)}>{isCheckin ? '성과입력' : rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
@@ -537,16 +654,13 @@ function ReplyBox({ body, setBody, onSubmit, busy, autoFocus }: { body: string; 
 
 /** 대화 스레드 */
 function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; root?: SpaceMessage; replies: SpaceMessage[]; byId: Map<string, Node>; onClose: () => void }) {
-  const { isLeader } = useTeam();
   const send = useSendMessage(space);
   const [body, setBody] = useState('');
-  const [ck, setCk] = useState(false);
   if (!root) return null;
   const submit = () => { if (body.trim()) send.mutate({ body, parent_id: root.id }, { onSuccess: () => setBody('') }); };
   const Msg = ({ m }: { m: SpaceMessage }) => <MsgBubble m={m} />;
   return (
     <PanelShell onClose={onClose} title={<><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">스레드</span></>}
-      actions={!isLeader ? <Button size="sm" variant="soft" title={PERF_TIP} onClick={() => setCk(true)}><Crosshair size={12} />이 업무로 성과입력</Button> : undefined}
       sub={root.item_id && byId.get(root.item_id) ? <span className="inline-flex items-center gap-0.5"><Hash size={11} />{byId.get(root.item_id)!.title}</span> : undefined}
       footer={<ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} autoFocus />}>
       <div className="p-3.5 space-y-3 bg-slate-50/50 min-h-full">
@@ -554,8 +668,6 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
         <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
         {replies.map((r) => <Msg key={r.id} m={r} />)}
       </div>
-      {ck && <CheckinModal open onClose={() => setCk(false)} itemId={root.item_id} evidence={{ t: 'msg', id: root.id, title: root.body.slice(0, 40) }}
-        spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
     </PanelShell>
   );
 }
@@ -574,7 +686,7 @@ function ReqPanel({ space, r, replies, onAnswer, onClose }: { space: SpaceRef; r
   const mine = r.to_id === uid;
   const submit = () => { if (body.trim()) send.mutate({ body, request_id: r.id }, { onSuccess: () => setBody('') }); };
   return (
-    <PanelShell onClose={onClose} title={<><Send size={15} className="text-violet-600" /><span className="font-semibold text-sm">요청 · {REQUEST_KIND[r.kind]?.label}</span></>}
+    <PanelShell onClose={onClose} title={<><Send size={15} className="text-violet-600" /><span className="font-semibold text-sm">{r.kind === 'other' ? '요청' : `요청 · ${REQUEST_KIND[r.kind]?.label ?? ''}`}</span></>}
       footer={<ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} />}
       sub={<><span>{nameOf(r.from_id)} → {nameOf(r.to_id)}</span><span>· {fmtDate(r.created_at)}</span>{r.due_date && <span className="font-semibold text-violet-700">· {fmtShort(r.due_date)}까지</span>}</>}>
       <div className="p-4 space-y-3 text-sm">
@@ -633,6 +745,7 @@ function InfoPanel({ space, group }: { space: SpaceRef; group?: WorkGroup | null
             : <>많이 할수록 <b className="text-slate-800">내 성과를 높일 수 있는 기회</b>가 증대됩니다.</>}</li>
           <li>파일·링크·캡처를 올리면 <b className="text-slate-800">업무 카드</b>가 됩니다. 컨펌·의견·공유를 고르면 상태와 버전이 따라갑니다.</li>
           <li><b className="text-slate-800"># 과제 태그</b>를 붙이면 왼쪽에서 과제별로 모아 볼 수 있습니다.</li>
+          {isLeader && space.kind === 'user' && <li>무언가를 맡길 때는 입력창의 <b className="text-slate-800">＋ › 요청 보내기</b>를 쓰세요. 기한을 정할 수 있고, 답이 오면 완료로 바뀌며 늦으면 대시보드에 알려 드립니다.</li>}
           <li>말풍선이나 카드를 누르면 여기에서 <b className="text-slate-800">스레드</b>로 이어 갑니다.</li>
         </ul>
         {space.kind === 'group' && group && (

@@ -11,7 +11,7 @@ export type SpaceRef = { kind: 'user'; id: string } | { kind: 'group'; id: strin
 export const spaceKey = (r: SpaceRef) => `${r.kind === 'user' ? 'u' : 'g'}:${r.id}`;
 
 export interface SpaceMessage { id: string; team_id: string; space_user: string | null; group_id: string | null; author_id: string; parent_id: string | null; item_id: string | null; body: string; created_at: string; request_id?: string | null }
-export interface SpaceVersion { id: string; version: number; created_at: string; created_by: string; note: string; file_name: string | null; mime_type: string | null }
+export interface SpaceVersion { id: string; version: number; created_at: string; created_by: string; note: string; file_name: string | null; mime_type: string | null; checkin?: import('./types').CheckinPayload | null }
 export interface SpaceComment { id: string; author_id: string; body: string; created_at: string; parent_id: string | null; file_name: string | null }
 export type SpaceSub = Submission & { space_id?: string | null; submission_versions: SpaceVersion[]; review_comments: SpaceComment[] };
 
@@ -21,7 +21,7 @@ export type Entry =
   | { t: 'ver'; at: string; id: string; s: SpaceSub; v: SpaceVersion }
   | { t: 'req'; at: string; id: string; r: TeamRequest };
 
-const SUBSEL = '*, submission_versions(id, version, created_at, created_by, note, file_name, mime_type), review_comments(id, author_id, body, created_at, parent_id, file_name)';
+const SUBSEL = '*, submission_versions(id, version, created_at, created_by, note, file_name, mime_type, checkin), review_comments(id, author_id, body, created_at, parent_id, file_name)';
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 19) + 'Z';
 const byCreated = <T extends { id: string; created_at: string }>(rows: T[]) => [...new Map(rows.map((r) => [r.id, r])).values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
