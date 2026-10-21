@@ -93,7 +93,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
   const today = new Date().toISOString().slice(0, 10);
   const CTA: Partial<Record<TeamRequest['kind'], { label: string; to: (r: TeamRequest) => string }>> = {
     plan: { label: '계획 세우기', to: (r) => `/my/goals${r.item_id ? `?item=${r.item_id}` : ''}` },
-    progress: { label: '진척 올리기', to: (r) => `/my/goals${r.item_id ? `?item=${r.item_id}` : ''}` },
+    progress: { label: '성과입력 하기', to: (r) => `/my/goals${r.item_id ? `?item=${r.item_id}` : ''}` },
     share: { label: '업무플랫폼에 올리기', to: () => '/my/submissions' },
   };
   const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인' };

@@ -28,7 +28,7 @@ export function TableView({ rows, onOpen, canEditItem, canProgress = canEditItem
           {rows.map((n) => {
             const ed = canEditItem(n);
             const edp = canProgress(n);
-            const edv = edp && (isLeader || !(n.role === 'metric' || (n.depth === 0 && n.measure !== 'children')));   // 지표 값은 체크인 → 승인으로만
+            const edv = edp && (isLeader || !(n.role === 'metric' || (n.depth === 0 && n.measure !== 'children')));   // 지표 값은 성과입력 → 승인으로만
             return (
               <tr key={`${n.id}-${n.updated_at}`} className="border-t border-slate-100 hover:bg-slate-50/60">
                 <td className="px-2 py-1 min-w-[260px]" style={{ paddingLeft: 8 + n.depth * 16 }}>

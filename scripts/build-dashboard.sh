@@ -42,3 +42,4 @@ cp migrations/20261011000007_knowhow.sql dashboard/03_add_knowhow.sql
 echo "done: supabase/dashboard"
 { echo "-- ATEAM 컨디션 공유 + 팀장님과 개편 + 1on1 이름 통일 (영향 요인 · 메모 칸 · 컨디션을 평가 근거에서 제외 · 칭찬 알림 · 코칭 알림 링크 · 알림 문구 1on1) — 23_goal_metrics 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261102000029_condition.sql; } > dashboard/24_condition.sql
 { echo "-- ATEAM 1on1 함께 보는 노트 글 쌓기 (작성자·시간이 붙은 글 · 내 글만 수정 · 기존 노트 옮기기) — 24_condition 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261103000030_oo_entries.sql; } > dashboard/25_oo_entries.sql
+{ echo "-- ATEAM 이름 바꾸기: 성과 체크인 → 성과입력 (이미 올라간 카드·알림의 제목 머리말) — 25_oo_entries 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261104000031_perf_input_name.sql; } > dashboard/26_perf_input_name.sql

@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
-import { CheckinModal } from '../components/checkin/Checkin';
+import { CheckinModal, PERF_TIP, PerfGuide } from '../components/checkin/Checkin';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { yearOf } from '../lib/plan';
@@ -219,10 +219,10 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
             <Link to={`/goals${year !== nowYear ? `?year=${year}` : ''}`} className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link>
             {isLeader && <PlanToggle />}
           </div>) : undefined}
-        sub={mode === 'member' ? '성과가 나면 [체크인]으로 목표에 점을 찍으세요 — 팀장님이 승인하면 공식 진척이 됩니다. 내 과제 아래 할 일은 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
+        sub={mode === 'member' ? '목표 달성에 대한 공식 성과는 [성과입력]으로 올려 팀장님 승인을 받으세요 — 승인되면 팀목표 진척에 반영됩니다. 내 과제 아래 할 일은 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
         right={mode === 'member' && !isLeader ? <div className="flex gap-2">
           {rules.open && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>}
-          <Button onClick={() => setCk(true)}><Crosshair size={15} />체크인</Button></div> : undefined} />
+          <Button onClick={() => setCk(true)} title={PERF_TIP}><Crosshair size={15} />성과입력</Button></div> : undefined} />
       {ck && <CheckinModal open onClose={() => setCk(false)} spaceId={uid} />}
       {/* 팀장 도구 — 제목 아래 줄에 고정 (오른쪽 위는 팀원 목표수정 토글) */}
       {mode === 'leader' && isLeader && (
@@ -234,13 +234,15 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
         </div>
       )}
 
+      {/* 팀원: 성과입력이 무엇인지 (처음 한 번, 닫으면 다시 안 뜸) */}
+      {mode === 'member' && !isLeader && <div className="mb-3"><PerfGuide onStart={() => setCk(true)} /></div>}
       {/* 팀원: 지금 고칠 수 있는 것 */}
       {mode === 'member' && !isLeader && (
         <div className={cx('mb-3 rounded-xl px-4 py-2.5 text-sm flex items-start gap-2.5', rules.open ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-700')}>
           {rules.open ? <LockOpen size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <Lock size={15} className="mt-0.5 shrink-0 text-slate-400" />}
           <p>{rules.open
             ? <><b>지금은 목표·과제를 고칠 수 있어요.</b> 새로 쓰거나 고친 목표·과제는 팀장님 승인 후 반영됩니다. 할 일은 언제든 자유롭게 쓰세요.</>
-            : <><b>지금은 목표·과제 수정이 꺼져 있습니다.</b> 성과 체크인과 내 과제 아래 할 일은 언제든 할 수 있어요. 목표·과제를 바꿔야 하면 항목을 열어 [변경 요청]을 보내세요.</>}</p>
+            : <><b>지금은 목표·과제 수정이 꺼져 있습니다.</b> 성과입력과 내 과제 아래 할 일은 언제든 할 수 있어요. 목표·과제를 바꿔야 하면 항목을 열어 [변경 요청]을 보내세요.</>}</p>
         </div>
       )}
 

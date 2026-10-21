@@ -718,13 +718,13 @@ begin
     for r in select * from (values (45, '30%', 21, '디자인팀 고정 슬롯 확보, 1차 프로세스 문서 공유'), (55, '45%', 14, '리드타임 측정 시작 — 평균 9일'), (66, '55%', 5, '월 제작 건수 지표 추가, 4건 시범 적용'))
                     as x(v, prev, ago, note) loop
       insert into submissions (team_id, author_id, item_id, space_id, title, kind, request_type, created_at)
-        values (T, m_choi, t5, m_choi, '체크인 · 콘텐츠 제작 프로세스 개선 ' || r.v || '%', 'checkin', 'approval', now() - (r.ago || ' days')::interval) returning id into ck;
+        values (T, m_choi, t5, m_choi, '성과입력 · 콘텐츠 제작 프로세스 개선 ' || r.v || '%', 'checkin', 'approval', now() - (r.ago || ' days')::interval) returning id into ck;
       insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, value, checkin, created_at)
         values (ck, T, 1, r.note, r.note, m_choi, r.v, jsonb_build_object('type', 'percent', 'value', r.v, 'prev', r.prev, 'label', r.v || '%'), now() - (r.ago || ' days')::interval);
       update submissions set status = 'approved', approved_by = L, updated_at = now() - (r.ago || ' days')::interval + interval '4 hours' where id = ck;
     end loop;
     insert into submissions (team_id, author_id, item_id, space_id, title, kind, request_type, created_at)
-      values (T, m_choi, t5, m_choi, '체크인 · 콘텐츠 제작 프로세스 개선 75%', 'checkin', 'approval', now() - interval '3 hours') returning id into ck;
+      values (T, m_choi, t5, m_choi, '성과입력 · 콘텐츠 제작 프로세스 개선 75%', 'checkin', 'approval', now() - interval '3 hours') returning id into ck;
     insert into submission_versions (submission_id, team_id, version, extracted_text, note, created_by, value, checkin, created_at)
       values (ck, T, 1, '샘플 3건 리드타임 9일 → 6일', '샘플 3건 리드타임 9일 → 6일', m_choi, 75, jsonb_build_object('type', 'percent', 'value', 75, 'prev', '66%', 'label', '75%'), now() - interval '3 hours');
   exception when others then null;

@@ -146,7 +146,7 @@ export function Outline({ rows, byId, collapsed, toggle, onOpen, canEditItem, ca
                   ? <button onClick={() => setMetricFor(n)} className="shrink-0 text-[10px] font-bold rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-200 px-1.5 py-0.5">지표 더하기</button>
                   : <span className="shrink-0 text-[10px] font-bold rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-200 px-1.5 py-0.5">지표 필요</span>)}
                 {n.measure === 'stage' && <span className="text-xs text-slate-500 shrink-0">{currentLabel(n)}{n.stages?.length ? ` · ${n.stage_current ?? 0}/${n.stages.length}` : ''}</span>}
-                {!!pendingCk.data?.get(n.id) && <button onClick={() => onOpen(n.id)} className="shrink-0 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 px-1.5 py-0.5 inline-flex items-center gap-0.5"><Crosshair size={10} />체크인 대기</button>}
+                {!!pendingCk.data?.get(n.id) && <button onClick={() => onOpen(n.id)} title="팀원이 목표 달성에 대한 공식 성과를 입력했습니다. 승인하면 팀목표 진척에 반영됩니다" className="shrink-0 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 px-1.5 py-0.5 inline-flex items-center gap-0.5"><Crosshair size={10} />성과입력 승인 대기</button>}
               </div>
               {/* 계획 대비 */}
               {(slip ?? 0) !== 0 && <span className={cx('text-[11px] shrink-0 inline-flex items-center gap-0.5', (slip ?? 0) > 0 ? 'text-amber-700' : 'text-emerald-700')} title={`처음 계획 ${fmtShort(n.base_due)} · 변경 ${n.replan_count}회`}>

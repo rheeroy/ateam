@@ -159,7 +159,7 @@ export function MetricModal({ open, onClose, goal }: { open: boolean; onClose: (
             {m.kind === 'number' && (
               <Field label="실적 데이터와 연결" hint="연결하면 월 실적이 값이 됩니다">
                 <select className={inputCls} value={metricId} onChange={(e) => setMetricId(e.target.value)}>
-                  <option value="">연결 안 함 (체크인으로)</option>{(metricsQ.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  <option value="">연결 안 함 (성과입력으로)</option>{(metricsQ.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </select></Field>
             )}
           </div>

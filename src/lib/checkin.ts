@@ -1,4 +1,4 @@
-// 성과 체크인 — 목표 하나에 성과를 점찍고, 팀장이 승인하면 그 항목의 공식 값이 된다 (22_checkin.sql)
+// 성과입력(코드 이름 checkin) — 목표 하나에 성과를 남기고, 팀장이 승인하면 그 항목의 공식 값이 된다 (22_checkin.sql)
 //   기록은 업무 카드(submissions.kind = 'checkin')로 남아 업무플랫폼 흐름 · 스레드 · 승인 · 알림 · 성과 근거를 그대로 쓴다
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, q, errorText } from './supabase';
@@ -31,7 +31,7 @@ export function payloadLabel(c: CheckinPayload, n?: Pick<WorkItem, 'unit' | 'sta
   if (c.type === 'percent') return `${num(c.value)}%`;
   if (c.type === 'stage') return (n?.stages ?? [])[(c.stage ?? 1) - 1] ?? `${c.stage}단계`;
   if (c.type === 'done') return '완료';
-  return '성과 기록';
+  return '서술 성과';
 }
 
 /** 새 값이면 목표 대비 몇 % (숫자·퍼센트·단계만) */
@@ -93,7 +93,7 @@ export function useCreateCheckin() {
       const label = p.payload.label ?? '';
       const sub = await q<Submission>(supabase.from('submissions').insert({
         team_id: team.id, author_id: uid, item_id: p.item.id, kind: 'checkin', request_type: 'approval',
-        title: `체크인 · ${p.item.title}${label ? ` ${label}` : ''}`.slice(0, 120),
+        title: `성과입력 · ${p.item.title}${label ? ` ${label}` : ''}`.slice(0, 120),
         ...(p.groupId ? { group_id: p.groupId } : { space_id: p.spaceId ?? uid }),
       }).select().single());
       await q(supabase.from('submission_versions').insert({
@@ -103,12 +103,12 @@ export function useCreateCheckin() {
       return sub;
     },
     onSuccess: () => {
-      toast('체크인을 올렸습니다. 팀장님이 승인하면 팀목표에 반영됩니다.');
+      toast('성과입력을 올렸습니다. 팀장님이 승인하면 팀목표에 반영됩니다.');
       qc.invalidateQueries({ queryKey: ['space-delta'] });
       ['checkins-item', 'checkins-pending', 'member-badges', 'review-queue'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       qc.invalidateQueries({ queryKey: ['subs'], predicate: (x) => x.queryKey[2] !== 'space' });
     },
-    onError: (e) => toast(errorText(e).includes('submissions_kind_check') || errorText(e).includes('checkin') ? '체크인 SQL(22_checkin.sql)을 먼저 실행해 주세요.' : errorText(e)),
+    onError: (e) => toast(errorText(e).includes('submissions_kind_check') || errorText(e).includes('checkin') ? '성과입력 SQL(22_checkin.sql)을 먼저 실행해 주세요.' : errorText(e)),
   });
 }
 

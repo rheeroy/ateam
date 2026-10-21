@@ -1,4 +1,5 @@
-// 성과 체크인 화면 조각 — 입력(모달) · 스트림 카드(작게) · 스레드 패널 내용 · 항목의 체크인 이력
+// 성과입력 화면 조각 — 입력(모달) · 스트림 카드(작게) · 스레드 패널 내용 · 항목의 성과입력 이력
+//   (코드·DB 이름은 checkin 그대로. 화면 이름만 '성과입력')
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, CheckCircle2, Crosshair, FileText, MessageSquare, RotateCcw } from 'lucide-react';
@@ -12,6 +13,59 @@ import { cx, fmtDate, fmtShort } from '../../lib/format';
 import { Button, Modal, inputCls } from '../ui';
 
 type Evidence = NonNullable<CheckinPayload['evidence']>[number];
+
+/** 성과입력 정의 — 화면 여러 곳(안내 카드 · 입력 창 · 버튼 설명)이 같은 말을 쓴다 */
+export const PERF_DEF = '목표 달성에 대한 공식 성과를 입력하고 팀장님 승인을 받는 기능입니다';
+export const PERF_TIP = '목표 달성에 대한 공식 성과를 입력하고 팀장님 승인을 받는 기능입니다. 승인되면 팀목표의 공식 진척에 반영됩니다';
+
+/** 성과입력이 어떻게 반영되는지 — 3단계 */
+export function PerfFlow({ className }: { className?: string }) {
+  const steps = ['내가 입력', '팀장님 승인', '팀목표 진척에 반영'];
+  return (
+    <ol className={cx('flex items-center gap-1.5 text-[11px] text-slate-500', className)}>
+      {steps.map((t, i) => (
+        <li key={t} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-slate-300">→</span>}
+          <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center num">{i + 1}</span>{t}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const GUIDE_KEY = 'ateam.guide.perf-input';
+/** 팀원 팀목표 첫 화면 — 성과입력이 무엇인지 (닫으면 다시 안 뜸) */
+export function PerfGuide({ onStart }: { onStart?: () => void }) {
+  const [hide, setHide] = useState(() => { try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch { return false; } });
+  if (hide) return null;
+  const close = () => { setHide(true); try { localStorage.setItem(GUIDE_KEY, '1'); } catch { /* 저장 못 해도 이번엔 닫힘 */ } };
+  const EX: [string, string][] = [
+    ['숫자 지표', '신규 계약 12건 → 15건'],
+    ['단계 목표', '기획 → 개발 착수'],
+    ['한 번에 끝나는 일', '완료로 표시'],
+    ['숫자로 못 재는 성과', '고객 인터뷰 12건, 핵심 니즈 3개 도출'],
+  ];
+  return (
+    <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
+      <div className="flex items-start gap-3">
+        <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><Crosshair size={16} /></span>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm">성과입력이란</div>
+          <p className="mt-0.5 text-sm text-slate-700"><b>{PERF_DEF}.</b> 승인되면 팀목표의 공식 진척이 됩니다. 일하면서 나눈 대화나 올린 자료는 그 자체로는 진척에 반영되지 않고, 성과입력으로 올려 승인받아야 공식 성과가 됩니다.</p>
+          <PerfFlow className="mt-2.5" />
+          <div className="mt-3 grid sm:grid-cols-2 gap-1.5">
+            {EX.map(([k, v]) => (
+              <div key={k} className="rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="text-slate-500">{k}</span><span className="block text-slate-800 font-medium mt-0.5">{v}</span></div>
+            ))}
+          </div>
+          <p className="mt-2.5 text-[11px] text-slate-400">언제 하나요? 숫자가 바뀌었을 때, 단계가 넘어갔을 때, 일이 끝났을 때. 업무플랫폼에 올린 결과물에서 바로 할 수도 있습니다.</p>
+        </div>
+        <button onClick={close} className="text-xs text-slate-400 hover:text-slate-700 shrink-0">닫기</button>
+      </div>
+      {onStart && <div className="mt-3 flex justify-end"><Button size="sm" onClick={() => { close(); onStart(); }}><Crosshair size={13} />첫 성과입력 하기</Button></div>}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------
 // 입력 — 어느 목표에 · 지금 값(또는 성과) · 한 줄 · 근거
@@ -27,13 +81,13 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
   const { byId } = useMemo(() => buildTree(items.data ?? []), [items.data]);
   // 내가 맡은 목표·과제 (진행 중)
   const mine = useMemo(() => [...byId.values()]
-    // 지표 · 숫자를 건 목표 · 과제 (지표로 판단하는 목표 자체에는 체크인하지 않는다 — 그 아래 지표에)
+    // 지표 · 숫자를 건 목표 · 과제 (지표로 판단하는 목표 자체에는 입력하지 않는다 — 그 아래 지표에)
     .filter((n) => n.owner_id === uid && n.depth <= 1 && ['active', 'blocked'].includes(n.status) && !(n.depth === 0 && n.measure === 'children'))
     .sort((a, b) => Number(b.role === 'metric' || b.depth === 0) - Number(a.role === 'metric' || a.depth === 0))
     .sort((a, b) => a.path.concat(a.id).join('/').localeCompare(b.path.concat(b.id).join('/'))), [byId, uid]);
   const [pick, setPick] = useState<string>(itemId ?? '');
   const n = byId.get(pick || itemId || '') ?? (resubmit ? null : mine[0] ?? null);
-  const linked = !!n?.metric_id;   // 실적 데이터와 연결된 지표: 값은 실적이 정한다 → 성과 기록만
+  const linked = !!n?.metric_id;   // 실적 데이터와 연결된 지표: 값은 실적이 정한다 → 서술만
   const base = n && !linked ? checkinTypeFor(n) : 'note';
   const [asNote, setAsNote] = useState(resubmit?.payload?.type === 'note');
   const type: CheckinType = asNote ? 'note' : base;
@@ -53,12 +107,16 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
   const submit = () => full && n && create.mutate({ item: n, payload: full, note: note.trim(), spaceId, groupId, resubmit: resubmit ? { id: resubmit.id, version: resubmit.version } : undefined }, { onSuccess: onClose });
 
   return (
-    <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Crosshair size={16} className="text-indigo-600" />성과 체크인<span className="text-xs font-normal text-slate-400">팀장님 승인 후 팀목표에 반영됩니다</span></span>}>
+    <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Crosshair size={16} className="text-indigo-600" />성과입력</span>}>
       <div className="space-y-4">
+        <div>
+          <p className="text-sm text-slate-600">{PERF_DEF}.</p>
+          <PerfFlow className="mt-2" />
+        </div>
         <div>
           <div className="text-xs font-semibold text-slate-600 mb-1">어느 목표에</div>
           {resubmit && n ? <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"># {n.title}</div> : !mine.length ? (
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">진행 중인 내 목표·과제가 없습니다. 팀목표에서 승인된 항목에 체크인할 수 있어요.</p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">진행 중인 내 목표·과제가 없습니다. 팀목표에서 승인된 항목에 성과입력을 할 수 있어요.</p>
           ) : (
             <select className={inputCls} value={n?.id ?? ''} onChange={(e) => { setPick(e.target.value); setValue(''); setStage(null); setAsNote(false); }}>
               {mine.map((m) => <option key={m.id} value={m.id}>{m.role === 'metric' || m.depth === 0 ? '[지표] ' : '[과제] '}{m.title} — 지금 {currentLabel(m)}{m.measure === 'number' && m.num_target != null ? ` / ${m.num_target}${m.unit}` : ''}</option>)}
@@ -67,11 +125,11 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
         </div>
 
         {!n ? null : <>
-        {linked && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">이 지표는 실적 데이터로 값이 자동 반영됩니다. 숫자 대신 무엇이 그 숫자를 만들었는지 남겨 주세요.</p>}
+        {linked && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">이 지표는 월별 실적 데이터로 값이 자동 반영됩니다. 여기에는 무엇이 그 숫자를 만들었는지만 남겨 주세요.</p>}
         {(base !== 'note') && (
           <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
-            <button onClick={() => setAsNote(false)} className={cx('px-3 py-1 rounded-md', !asNote ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>{base === 'done' ? '완료' : base === 'stage' ? '단계' : '값'} 체크인</button>
-            <button onClick={() => setAsNote(true)} className={cx('px-3 py-1 rounded-md', asNote ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>성과로 기록</button>
+            <button onClick={() => setAsNote(false)} className={cx('px-3 py-1 rounded-md', !asNote ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>{base === 'done' ? '완료' : base === 'stage' ? '단계' : '숫자'}로 입력</button>
+            <button onClick={() => setAsNote(true)} className={cx('px-3 py-1 rounded-md', asNote ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>서술로 입력</button>
           </div>
         )}
 
@@ -109,7 +167,7 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
         {n && type === 'done' && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">승인되면 이 항목이 '완료'로 바뀝니다.</p>}
 
         <div>
-          <div className="text-xs font-semibold text-slate-600 mb-1">{type === 'note' ? '어떤 성과인가요' : '한 줄'}{type !== 'note' && <span className="font-normal text-slate-400"> (선택)</span>}</div>
+          <div className="text-xs font-semibold text-slate-600 mb-1">{type === 'note' ? '어떤 성과인가요' : '한 줄 설명'}{type !== 'note' && <span className="font-normal text-slate-400"> (선택)</span>}</div>
           {type === 'note'
             ? <textarea rows={3} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="예) 고객 인터뷰 12건 완료, 핵심 니즈 3개 도출 — 다음 기획에 반영" />
             : <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="예) A사 1차 계약분 3억 반영" />}
@@ -133,7 +191,7 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
           </div>
         )}
 
-        <Button className="w-full" disabled={!full} loading={create.isPending} onClick={submit}><Crosshair size={14} />{resubmit ? '고쳐서 다시 올리기' : '체크인 승인 요청'}</Button>
+        <Button className="w-full" disabled={!full} loading={create.isPending} onClick={submit}><Crosshair size={14} />{resubmit ? '고쳐서 다시 올리기' : '팀장님께 승인 요청'}</Button>
         </>}
       </div>
     </Modal>
@@ -151,13 +209,13 @@ export function CheckinCard({ s, on, onClick, item }: { s: Submission & { submis
     <button onClick={onClick} className={cx('text-left rounded-xl bg-white ring-1 px-3 py-2 w-[340px] max-w-full hover:ring-indigo-300', on ? 'ring-2 ring-indigo-500' : s.status === 'approved' ? 'ring-emerald-200' : 'ring-indigo-200')}>
       <div className="flex items-center gap-1.5 text-[11px]">
         <Crosshair size={12} className={s.status === 'approved' ? 'text-emerald-600' : 'text-indigo-600'} />
-        <b className="text-slate-700 truncate">{item?.title ?? s.title.replace(/^체크인 · /, '')}</b>
+        <b className="text-slate-700 truncate">{item?.title ?? s.title.replace(/^(체크인|성과입력) · /, '')}</b>
         <span className={cx('ml-auto font-semibold shrink-0', st.cls)}>{st.t}</span>
       </div>
       {c && (
         <div className="mt-1 flex items-center gap-2">
           <span className="text-sm min-w-0 truncate">
-            {c.type === 'note' ? <span className="text-slate-700">성과 기록</span>
+            {c.type === 'note' ? <span className="text-slate-700">서술 성과</span>
               : <>{c.prev && <span className="text-slate-400">{c.prev} → </span>}<b className="text-slate-900">{payloadLabel(c, item)}</b></>}
           </span>
           {pct != null && <span className="ml-auto flex items-center gap-1.5 shrink-0"><span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden"><span className={cx('block h-full', s.status === 'approved' ? 'bg-emerald-500' : 'bg-indigo-400')} style={{ width: `${pct}%` }} /></span><span className="text-[11px] font-semibold num text-slate-600">{pct}%</span></span>}
@@ -168,7 +226,7 @@ export function CheckinCard({ s, on, onClick, item }: { s: Submission & { submis
 }
 
 // ---------------------------------------------------------------------
-// 스레드 패널 안 — 체크인 내용 · 근거 · 팀장 승인 / 팀원 다시 올리기
+// 스레드 패널 안 — 성과입력 내용 · 근거 · 팀장 승인 / 팀원 다시 올리기
 // ---------------------------------------------------------------------
 export function CheckinDetail({ sub, versions, leaderView }: { sub: Submission; versions: SubmissionVersion[]; leaderView: boolean }) {
   const { team, uid } = useTeam();
@@ -200,6 +258,7 @@ export function CheckinDetail({ sub, versions, leaderView }: { sub: Submission; 
         ))}</div>
       )}
       {sub.status === 'approved' && <p className="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1"><CheckCircle2 size={13} />승인 · 팀목표에 반영됨{sub.approved_at && ` · ${fmtDate(sub.approved_at)}`}</p>}
+      {leaderView && wait && <p className="text-[11px] text-slate-500">팀원이 목표 달성에 대한 공식 성과를 입력했습니다. 승인하면 이 값이 팀목표의 공식 진척이 됩니다.</p>}
       {leaderView && wait && (
         <div className="pt-1 flex items-center gap-1.5 flex-wrap">
           {c.type === 'note' && item?.measure === 'percent' && (
@@ -220,7 +279,7 @@ export function CheckinDetail({ sub, versions, leaderView }: { sub: Submission; 
 }
 
 // ---------------------------------------------------------------------
-// 팀목표 항목 — 체크인 이력 (점 하나가 체크인 하나)
+// 팀목표 항목 — 성과입력 이력 (점 하나가 성과입력 하나)
 // ---------------------------------------------------------------------
 export function CheckinHistory({ item, canCheckin, onCheckin }: { item: Node; canCheckin: boolean; onCheckin: () => void }) {
   const { isLeader } = useTeam();
@@ -230,11 +289,11 @@ export function CheckinHistory({ item, canCheckin, onCheckin }: { item: Node; ca
   return (
     <div className="rounded-xl border border-slate-200 p-3.5">
       <div className="flex items-center gap-2">
-        <Crosshair size={14} className="text-indigo-600" /><span className="text-sm font-semibold">체크인</span>
+        <Crosshair size={14} className="text-indigo-600" /><span className="text-sm font-semibold">성과입력</span>
         <span className="text-xs text-slate-400">지금 공식 {currentLabel(item)}</span>
-        {canCheckin && <Button size="sm" variant="secondary" className="ml-auto" onClick={onCheckin}><Crosshair size={13} />체크인</Button>}
+        {canCheckin && <Button size="sm" variant="secondary" className="ml-auto" title={PERF_TIP} onClick={onCheckin}><Crosshair size={13} />성과입력</Button>}
       </div>
-      {!rows.length ? <p className="mt-2 text-xs text-slate-400">아직 체크인이 없습니다. 성과가 나면 업무플랫폼이나 여기서 점을 찍어 주세요 — 팀장님이 승인하면 공식 진척이 됩니다.</p> : (
+      {!rows.length ? <p className="mt-2 text-xs text-slate-400">아직 성과입력이 없습니다. 숫자가 바뀌거나 단계가 넘어가면 [성과입력]으로 남겨 주세요 — 팀장님이 승인하면 팀목표 진척에 반영됩니다.</p> : (
         <ol className="mt-2.5 space-y-1.5">
           {[...rows].reverse().map((s) => {
             const c = latestPayload(s);
@@ -245,7 +304,7 @@ export function CheckinHistory({ item, canCheckin, onCheckin }: { item: Node; ca
                 <span className={cx('mt-1 w-2 h-2 rounded-full shrink-0', s.status === 'approved' ? 'bg-indigo-600' : s.status === 'needs_work' ? 'bg-amber-400' : 'ring-2 ring-indigo-400 bg-white')} />
                 <span className="text-slate-400 w-10 shrink-0 num">{fmtShort(s.created_at)}</span>
                 <span className="min-w-0 flex-1">
-                  <b className="text-slate-800">{c ? (c.type === 'note' ? '성과 기록' : payloadLabel(c, item)) : '체크인'}</b>
+                  <b className="text-slate-800">{c ? (c.type === 'note' ? '서술 성과' : payloadLabel(c, item)) : '성과입력'}</b>
                   <span className={cx('ml-1.5', s.status === 'approved' ? 'text-slate-400' : s.status === 'needs_work' ? 'text-amber-700' : 'text-indigo-600 font-semibold')}>{s.status === 'approved' ? '승인' : s.status === 'needs_work' ? '보완 요청' : '승인 대기'}</span>
                   {v?.note && <span className="block text-slate-500 truncate">{v.note}</span>}
                 </span>

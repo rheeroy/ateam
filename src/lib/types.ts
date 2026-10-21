@@ -28,7 +28,7 @@ export interface Submission { id: string; team_id: string; author_id: string; it
 export type ShareKind = 'document' | 'link' | 'image' | 'number' | 'note' | 'checkin';
 export type RequestType = 'approval' | 'feedback' | 'share';
 export interface SubmissionVersion { id: string; submission_id: string; team_id: string; version: number; file_path: string | null; file_name: string | null; mime_type: string | null; extracted_text: string; note: string; created_by: string; value: number | null; created_at: string; checkin?: CheckinPayload | null }
-/** 성과 체크인 — 목표 하나에 성과를 점찍는다. 승인되면 그 항목의 공식 값이 된다 */
+/** 성과입력(코드 이름 checkin) — 목표 하나에 성과를 남긴다. 승인되면 그 항목의 공식 값이 된다 */
 export type CheckinType = 'number' | 'percent' | 'stage' | 'done' | 'note';
 export interface CheckinPayload { type: CheckinType; value?: number | null; stage?: number | null; progress?: number | null; prev?: string | null; label?: string | null; evidence?: { t: 'sub' | 'msg'; id: string; title: string }[] }
 export interface ReviewComment { id: string; submission_id: string; version_id: string | null; team_id: string; parent_id: string | null; author_id: string; section_ref: string | null; body: string; provenance: string; file_path?: string | null; file_name?: string | null; mime_type?: string | null; created_at: string }

@@ -9,7 +9,7 @@ import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import { buildTree, useItems, type Node } from '../../lib/items';
 import { REQ_TAG, useCloseSubmission } from '../../lib/work';
-import { CheckinCard, CheckinDetail, CheckinModal } from '../checkin/Checkin';
+import { CheckinCard, CheckinDetail, CheckinModal, PERF_TIP } from '../checkin/Checkin';
 import { baseName, createPost, isUrl, namedPaste, startReview } from '../../lib/post';
 import { buildEntries, lastOther, useSendMessage, useSpace, useSpaceRead, type Entry, type SpaceMessage, type SpaceRef, type SpaceSub } from '../../lib/space';
 import type { WorkGroup } from '../../lib/groups';
@@ -257,7 +257,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer }: 
         {(e.t === 'post' || e.t === 'ver') && (
           <>
             {e.t === 'post' && e.v?.note && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm')}>{e.v.note}</div>}
-            {e.t === 'ver' && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm')}>{e.s.kind === 'checkin' ? <><b>체크인</b>을 고쳐 다시 올렸어요</> : <><b>새 버전 v{e.v.version}</b>을 올렸어요</>}{e.v.note ? ` — ${e.v.note}` : ''}</div>}
+            {e.t === 'ver' && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm')}>{e.s.kind === 'checkin' ? <><b>성과입력</b>을 고쳐 다시 올렸어요</> : <><b>새 버전 v{e.v.version}</b>을 올렸어요</>}{e.v.note ? ` — ${e.v.note}` : ''}</div>}
             {e.s.kind === 'checkin'
               ? <CheckinCard s={e.s} item={e.s.item_id ? byId.get(e.s.item_id) : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />
               : <WorkCard s={e.s} v={e.t === 'ver' ? e.v : null} on={isSel} onClick={() => onSel({ t: 'sub', id: e.s.id })} />}
@@ -383,8 +383,8 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
             <button key={r} onClick={() => setReq(r)} className={cx('rounded-full border px-2.5 py-1', req === r ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500')}>{REQ_TAG[r].label}</button>
           ))}
           {work && isLeader && <span className="text-slate-400">팀장님이 올린 자료는 '공유'로 올라갑니다</span>}
-          {!isLeader && !work && <button onClick={() => setCk(true)} title="목표에 성과를 점찍고 팀장님 승인을 받습니다"
-            className="rounded-full px-2.5 py-1 font-semibold inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"><Crosshair size={12} />체크인</button>}
+          {!isLeader && !work && <button onClick={() => setCk(true)} title={PERF_TIP}
+            className="rounded-full px-2.5 py-1 font-semibold inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"><Crosshair size={12} />성과입력</button>}
           <Button size="sm" className="ml-auto" disabled={!ready} loading={post.isPending} onClick={() => post.mutate()}>{work ? <><FileUp size={13} />올리기</> : <><Send size={13} />보내기</>}</Button>
         </div>
       </div>
@@ -457,12 +457,12 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
   const canCk = !leaderView && !isCheckin && sub.status !== 'needs_work';
   return (
     <PanelShell onClose={onClose}
-      title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', isCheckin ? 'bg-indigo-600 text-white' : rq.cls)}>{isCheckin ? '체크인' : rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
+      title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', isCheckin ? 'bg-indigo-600 text-white' : rq.cls)}>{isCheckin ? '성과입력' : rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
         <Link to={`/work/${sub.id}`} className="shrink-0 text-slate-400 hover:text-indigo-700" title="크게 보기" aria-label="크게 보기"><Maximize2 size={14} /></Link></>}
       sub={<>{tag && <span className="inline-flex items-center gap-0.5"><Hash size={11} />{tag}</span>}
         {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{isCheckin && sub.status === 'in_review' ? '승인 대기' : STATUS[sub.status].label}</Pill>}
         <span>{nameOf(sub.author_id)} · {fmtDate(sub.created_at)}</span></>}
-      actions={canCk ? <Button size="sm" variant="soft" onClick={() => setCk(true)}><Crosshair size={12} />이걸로 체크인</Button> : leaderView && !isLeaderPost && !isCheckin ? <>
+      actions={canCk ? <Button size="sm" variant="soft" title={PERF_TIP} onClick={() => setCk(true)}><Crosshair size={12} />이 업무로 성과입력</Button> : leaderView && !isLeaderPost && !isCheckin ? <>
         <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs">
           <button onClick={() => setTab('talk')} className={cx('px-2.5 py-1 rounded-md', tab === 'talk' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>대화</button>
           <button onClick={() => setTab('ai')} className={cx('px-2.5 py-1 rounded-md inline-flex items-center gap-1', tab === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={11} className="text-violet-600" />AI 검토</button>
@@ -546,7 +546,7 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
   const Msg = ({ m }: { m: SpaceMessage }) => <MsgBubble m={m} />;
   return (
     <PanelShell onClose={onClose} title={<><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">스레드</span></>}
-      actions={!isLeader ? <Button size="sm" variant="soft" onClick={() => setCk(true)}><Crosshair size={12} />이걸로 체크인</Button> : undefined}
+      actions={!isLeader ? <Button size="sm" variant="soft" title={PERF_TIP} onClick={() => setCk(true)}><Crosshair size={12} />이 업무로 성과입력</Button> : undefined}
       sub={root.item_id && byId.get(root.item_id) ? <span className="inline-flex items-center gap-0.5"><Hash size={11} />{byId.get(root.item_id)!.title}</span> : undefined}
       footer={<ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} autoFocus />}>
       <div className="p-3.5 space-y-3 bg-slate-50/50 min-h-full">

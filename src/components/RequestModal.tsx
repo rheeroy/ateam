@@ -10,7 +10,7 @@ import { Button, Field, Modal, inputCls, useToast } from './ui';
 
 export const REQUEST_KIND: Record<TeamRequest['kind'], { label: string; example: string }> = {
   plan: { label: '계획 세우기', example: '이 목표 아래 과제와 일정을 세워 주세요' },
-  progress: { label: '진척 공유', example: '진행 상황과 막힌 점을 업데이트해 주세요' },
+  progress: { label: '성과입력 요청', example: '이번 주 결과를 성과입력으로 남겨 주세요' },
   share: { label: '자료 올리기', example: '회의 자료를 ATEAM에 올려 주세요' },
   meeting: { label: '1on1·미팅', example: '이번 주에 30분 이야기 나눠요' },
   other: { label: '기타', example: '' },

@@ -38,6 +38,8 @@ const KNOWN: Record<string, string> = {
   INSUFFICIENT_DATA: '실적이 2개월 이상 쌓여야 해석할 수 있습니다.',
   AI_NOT_CONFIGURED: 'AI 키가 설정되지 않았습니다 (Supabase secrets: ANTHROPIC_API_KEY).',
   ALREADY_HAS_GOALS: '이미 전략 목표가 있습니다.',
+  CHECKIN_ONLY: '지표 값은 [성과입력]으로 남겨 주세요. 팀장님이 승인하면 반영됩니다.',
+  NOT_CHECKIN: '성과입력이 아닌 항목입니다.',
   forbidden: '권한이 없습니다.',
   '팀장 승인 전에는': '팀장 승인 전에는 진행 상태로 바꿀 수 없습니다.',
 };

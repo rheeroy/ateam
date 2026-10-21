@@ -142,9 +142,9 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const parentOptions = [...byId.values()].filter((n) => n.id !== item.id && !n.path.includes(item.id) && n.status !== 'dropped');
   const ro = !canPlan;
   const pro = !canEdit;
-  // 목표·과제의 성과 값(숫자·진척률·단계)은 팀원이 직접 못 바꾼다 — 체크인 → 팀장 승인
+  // 목표·과제의 성과 값(숫자·진척률·단계)은 팀원이 직접 못 바꾼다 — 성과입력 → 팀장 승인
   const isMetric = item.role === 'metric' || (item.depth === 0 && item.measure !== 'children');
-  const valLock = pro || (!isLeader && isMetric);   // 지표 값은 체크인 → 팀장 승인 (과제 진척은 자유)
+  const valLock = pro || (!isLeader && isMetric);   // 지표 값은 성과입력 → 팀장 승인 (과제 진척은 자유)
   const canCheckin = !isLeader && mine && item.depth < 2 && ['active', 'blocked'].includes(item.status) && !(item.depth === 0 && item.measure === 'children');
   const noMetric = item.depth === 0 && item.measure === 'children' && !item.children.some((c) => c.role === 'metric' && c.status !== 'dropped');
   const S = (k: keyof WorkItem) => (v: unknown) => setF((p) => ({ ...p, [k]: v }));
@@ -184,7 +184,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
             <Lock size={13} className="mt-0.5 shrink-0 text-slate-400" />
             <span>{PENDING.includes(item.status)
               ? <>지금은 팀원 수정이 꺼져 있어 검토 중인 계획도 고칠 수 없어요. 팀장님이 켜면 고칠 수 있습니다.</>
-              : <>지금은 팀원 수정이 꺼져 있어 {levelName(item.depth)}는 체크인과 상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
+              : <>지금은 팀원 수정이 꺼져 있어 {levelName(item.depth)}는 성과입력과 상태만 남길 수 있어요. 일정·목표값·내용을 바꿔야 하면 아래 <b>[변경 요청]</b>으로 팀장님께 알려 주세요. 하위 할 일은 언제든 자유롭게 씁니다.</>}</span>
           </div>
         )}
         {!isLeader && mine && canPlan && rules.reapproves(item) && item.status !== 'changes_requested' && (
@@ -279,7 +279,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
               )}
             </div>
           )}
-          {!isLeader && isMetric && <p className="text-[11px] text-slate-400">성과 값은 위의 [체크인]으로 남기고, 팀장님이 승인하면 바뀝니다.</p>}
+          {!isLeader && isMetric && <p className="text-[11px] text-slate-400">성과 값은 위의 [성과입력]으로 남기고, 팀장님이 승인하면 바뀝니다.</p>}
           {f.measure === 'children' && <p className="text-xs text-slate-500">하위 항목 {item.children.length}개의 평균 진척 {item.progress}% (제안·중단 제외)</p>}
         </div>
 
