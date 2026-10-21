@@ -30,7 +30,7 @@ export function Notifications() {
   const go = async (n: AppNotification) => {
     setOpen(false);
     if (!n.read_at) { await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id); qc.invalidateQueries({ queryKey: ['notifications'] }); }
-    // 팀원에게 온 팀장 요청 알림은 예전 링크가 '/'(업무플랫폼) — 받은 곳(팀장님과)으로
+    // 팀원에게 온 팀장 요청 알림은 예전 링크가 '/'(업무플랫폼) — 받은 곳(매니징 보드)으로
     const link = !isLeader && n.link === '/' && /^(request|praise|coaching)/.test(n.kind) ? '/my/one-on-ones' : n.link;
     if (link) nav(link);
   };

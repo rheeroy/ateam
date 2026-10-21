@@ -1,4 +1,4 @@
-// 팀원: 팀장님과 — 팀장과 '사람으로서' 주고받는 곳. (업무 결과물은 업무플랫폼, 목표는 팀목표)
+// 팀원: 매니징 보드 — 팀장과 '사람으로서' 주고받는 곳. (업무 결과물은 업무플랫폼, 목표는 팀목표)
 //   ① 이번 주 컨디션 (한 줄)
 //   ② 팀장님에게서 — 요청 · 성장 제안 · 격려 · 칭찬 · ATEAM 코칭을 한 줄기로, 답할 것이 위로
 //   ③ 1on1 — 다음 1on1(미리 꺼낼 이야기) · 1on1에서 정한 할 일 · 지난 1on1
@@ -88,7 +88,7 @@ function OneOnOnePanel() {
   );
 }
 
-/** 팀원: 팀장님과 */
+/** 팀원: 매니징 보드 */
 export default function MyOneOnOnes() {
   const [params] = useSearchParams();
   const [reqOpen, setReqOpen] = useState(false);
@@ -97,7 +97,7 @@ export default function MyOneOnOnes() {
   const focus = params.get('coach') ?? params.get('req') ?? params.get('praise');
   return (
     <section>
-      <PageHeader title="팀장님과" sub="팀장님이 보낸 요청 · 칭찬 · 코칭과 1on1을 한곳에서"
+      <PageHeader title="매니징 보드" sub="팀장님이 보낸 요청 · 칭찬 · 코칭, 컨디션 공유와 1on1을 한곳에서"
         right={req ? <span className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">1on1 요청함 · {fmtDate(req.created_at)} · 일정 대기</span>
           : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1on1 요청하기</Button>} />
       <div className="space-y-5">

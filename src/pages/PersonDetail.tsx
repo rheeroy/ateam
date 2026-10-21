@@ -230,7 +230,7 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
   const last = [...pts].reverse().find((v) => v != null) ?? null;
   return (
     <Box title="컨디션" right={<span className="text-slate-400">최근 12주</span>}>
-      {ci.isLoading ? <Spinner /> : !rows.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 공유한 컨디션이 없습니다. 팀원은 '팀장님과'에서 매주 공유합니다.</p> : (
+      {ci.isLoading ? <Spinner /> : !rows.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 공유한 컨디션이 없습니다. 팀원은 '매니징 보드'에서 매주 공유합니다.</p> : (
         <div className="p-4 grid sm:grid-cols-5 gap-4">
           <div className="sm:col-span-2">
             <div className="text-[11px] text-slate-500">지금 컨디션</div>
@@ -257,7 +257,7 @@ function Condition({ teamId, uid }: { teamId: string; uid: string }) {
 
 
 
-/** 최근 4주 — 영향 요인 · 메모 (팀원이 '팀장님과'에서 선택한 것. 팀장만 열람) */
+/** 최근 4주 — 영향 요인 · 메모 (팀원이 '매니징 보드'에서 선택한 것. 팀장만 열람) */
 function RecentMoods({ rows }: { rows: Checkin[] }) {
   const recent = [...rows].reverse().filter((c) => (c.moods ?? []).length || c.note).slice(0, 4);
   if (!recent.length) return null;

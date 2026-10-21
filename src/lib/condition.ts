@@ -1,5 +1,5 @@
 // 컨디션 공유 — 업무가 아닌 '사람'의 상태. 팀장만 열람하고, 평가·업무 보고에는 쓰지 않는다.
-//   컨디션 5단계 + 영향 요인(복수) + 선택 메모. (1on1 요청은 '팀장님과' 우측 상단 버튼)
+//   컨디션 5단계 + 영향 요인(복수) + 선택 메모. (1on1 요청은 '매니징 보드' 우측 상단 버튼)
 //   키는 DB(checkins.moods)와 AI 함수(supabase/functions/_shared/signals.ts MOOD_LABEL)가 같이 쓴다 — 바꾸면 양쪽 다.
 
 export const CONDITIONS = [

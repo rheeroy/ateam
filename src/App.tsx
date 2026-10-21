@@ -78,7 +78,7 @@ function Moved({ to, extra }: { to: string; extra?: Record<string, string> }) {
   return <Navigate to={`${to}${qs ? `?${qs}` : ''}`} replace />;
 }
 
-/** 팀원의 '/' — 예전 알림 링크(/?coach=…)는 팀장님과로 */
+/** 팀원의 '/' — 예전 알림 링크(/?coach=…)는 매니징 보드로 */
 function MemberIndex() {
   const [params] = useSearchParams();
   const coach = params.get('coach');

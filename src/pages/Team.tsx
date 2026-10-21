@@ -82,7 +82,7 @@ export default function TeamPage({ embedded, section = 'all' }: { embedded?: boo
       {params.get('welcome') && (
         <div className="mb-5 rounded-2xl bg-indigo-600 text-white p-5">
           <div className="font-semibold">팀을 만들었습니다. 이제 팀원을 초대하세요.</div>
-          <p className="text-sm text-indigo-100 mt-1">초대 링크를 만들어 메신저로 보내면, 팀원이 로그인해서 바로 합류합니다. 합류한 팀원은 '팀장님과'에서 이번 주 컨디션 공유부터 시작합니다.</p>
+          <p className="text-sm text-indigo-100 mt-1">초대 링크를 만들어 메신저로 보내면, 팀원이 로그인해서 바로 합류합니다. 합류한 팀원은 '매니징 보드'에서 이번 주 컨디션 공유부터 시작합니다.</p>
         </div>
       )}
       <div className="grid lg:grid-cols-3 gap-5 items-start">

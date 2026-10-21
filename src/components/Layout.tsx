@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, ListTree, LogOut, MessageSquare,
+  BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, LogOut, MessageSquare,
   ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -83,7 +83,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
 export default function Layout() {
   const { team, isLeader, profile, memberships, setTeamId, credits } = useSession();
   const mb = useMemberBadges(!isLeader);
-  const leaderTodo = (mb.data?.requests ?? 0) + (mb.data?.coaching ?? 0) + (mb.data?.promises ?? 0);   // 팀장님과: 답할 것
+  const leaderTodo = (mb.data?.requests ?? 0) + (mb.data?.coaching ?? 0) + (mb.data?.promises ?? 0);   // 매니징 보드: 답할 것
   const { on, toggle } = useAiMark();
   const nav = useNavigate();
   const loc = useLocation();
@@ -137,8 +137,8 @@ export default function Layout() {
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/my/submissions" label="업무플랫폼" icon={FileUp} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
-            <NavItem to="/my/goals" label="팀목표" icon={ListTree} />
-            <NavItem to="/my/one-on-ones" label="팀장님과" icon={MessageSquare} tip={mb.data?.conditionDue ? '팀장님과 · 이번 주 컨디션 미공유' : undefined}
+            <NavItem to="/my/goals" label="팀목표" icon={Target} />
+            <NavItem to="/my/one-on-ones" label="매니징 보드" icon={MessageSquare} tip={mb.data?.conditionDue ? '매니징 보드 · 이번 주 컨디션 미공유' : undefined}
               badge={leaderTodo ? `${leaderTodo}` : mb.data?.conditionDue ? '컨디션' : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
@@ -219,8 +219,8 @@ export default function Layout() {
 /** 팀원 모바일 하단 탭 */
 function MemberTabBar({ needsWork, withLeader }: { needsWork: number; withLeader: boolean }) {
   const tabs = [
-    { to: '/my/submissions', label: '업무플랫폼', I: FileUp, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: ListTree },
-    { to: '/my/one-on-ones', label: '팀장님과', I: MessageSquare, dot: withLeader },
+    { to: '/my/submissions', label: '업무플랫폼', I: FileUp, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: Target },
+    { to: '/my/one-on-ones', label: '매니징 보드', I: MessageSquare, dot: withLeader },
   ];
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
