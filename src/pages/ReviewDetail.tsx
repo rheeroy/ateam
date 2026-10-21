@@ -154,7 +154,7 @@ export function useSignedUrl(path: string | null) {
 }
 
 /** 올린 것 한 건(버전)의 본문 — 길면 접어 둔다 */
-export function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionVersion; older?: boolean }) {
+export function VersionBody({ sub, v, older, preview = true }: { sub: Submission; v: SubmissionVersion; older?: boolean; /** 파일 미리보기(PDF·이미지) — 좁은 스레드에선 끈다 */ preview?: boolean }) {
   const url = useSignedUrl(v.file_path);
   const [open, setOpen] = useState(false);
   const long = (v.extracted_text ?? '').length > (older ? 160 : 600);
@@ -167,8 +167,8 @@ export function VersionBody({ sub, v, older }: { sub: Submission; v: SubmissionV
           <span className="text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 shrink-0">열기<ExternalLink size={12} /></span>
         </a>
       )}
-      {v.mime_type === 'application/pdf' && url && <iframe title="PDF" src={url} className="mt-3 w-full h-[520px] rounded-lg border border-slate-200" />}
-      {url && v.mime_type && IMAGE.test(v.mime_type) && <img src={url} alt={sub.title} className="mt-3 max-h-[480px] rounded-lg border border-slate-200" />}
+      {preview && v.mime_type === 'application/pdf' && url && <iframe title="PDF" src={url} className="mt-3 w-full h-[520px] rounded-lg border border-slate-200" />}
+      {preview && url && v.mime_type && IMAGE.test(v.mime_type) && <img src={url} alt={sub.title} className="mt-3 max-h-[480px] rounded-lg border border-slate-200" />}
       {v.version === 1 && sub.link_url && <a href={sub.link_url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-indigo-700 font-semibold break-all hover:underline">{sub.link_url} ↗</a>}
       {v.value != null && <div className="mt-2 text-3xl font-bold num">{v.value}</div>}
       {!!v.extracted_text && (
