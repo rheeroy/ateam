@@ -148,7 +148,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   return (
     <div className="relative grid gap-3 md:h-[var(--sp-h)] md:min-h-[520px] md:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_360px] min-[1180px]:grid-rows-[minmax(0,1fr)] min-[1180px]:grid-cols-[172px_minmax(0,1fr)_380px] xl:grid-cols-[184px_minmax(0,1fr)_420px]" style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
       {/* 왼쪽 레일 — 창이 좁으면 위쪽 한 줄로 */}
-      <aside className="rounded-2xl bg-white ring-1 ring-slate-200 p-1.5 flex items-center gap-1 overflow-x-auto lg:col-span-2 min-[1180px]:col-span-1 min-[1180px]:block min-[1180px]:p-2 min-[1180px]:overflow-x-visible min-[1180px]:overflow-y-auto">
+      <aside className="rounded-2xl bg-[#EEF1F5] p-1.5 flex items-center gap-1 overflow-x-auto lg:col-span-2 min-[1180px]:col-span-1 min-[1180px]:block min-[1180px]:p-2 min-[1180px]:overflow-x-visible min-[1180px]:overflow-y-auto">
         <div className="px-2 pt-0.5 pb-1 text-[10px] font-semibold text-slate-400 hidden min-[1180px]:block">모아보기</div>
         <div className="flex min-[1180px]:block gap-1 shrink-0">
           <RailItem on={filter === 'all'} onClick={() => setFilter('all')} icon={<Inbox size={13} />} label="전체" n={counts.all} />
@@ -158,16 +158,16 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           {counts.unread > 0 && <button onClick={() => { setAllReadAt(new Date(Date.now() + 1000).toISOString()); if (filter === 'unread') setFilter('all'); }}
             className="hidden min-[1180px]:block w-full text-left pl-7 pr-2 pb-1 text-[10px] text-slate-400 hover:text-indigo-700">모두 읽음으로</button>}
         </div>
-        <div className="flex items-center gap-1 border-l border-slate-100 pl-1 shrink-0 min-[1180px]:block min-[1180px]:mt-2 min-[1180px]:border-l-0 min-[1180px]:border-t min-[1180px]:pl-0 min-[1180px]:pt-2">
+        <div className="flex items-center gap-1 border-l border-slate-300/50 pl-1 shrink-0 min-[1180px]:block min-[1180px]:mt-2 min-[1180px]:border-l-0 min-[1180px]:border-t min-[1180px]:pl-0 min-[1180px]:pt-2">
           <div className="px-2 pb-1 text-[10px] font-semibold text-slate-400 hidden min-[1180px]:flex items-center gap-1"><Target size={10} />{space.kind === 'user' ? '맡은 과제' : '그룹 과제'}</div>
           <div className="flex min-[1180px]:block gap-1">
             {tasks.map((n) => (
               <div key={n.id} role="button" tabIndex={0} onClick={() => setFilter(`i:${n.id}`)} onKeyDown={(ev) => { if (ev.key === 'Enter') setFilter(`i:${n.id}`); }}
-                className={cx('group/task shrink-0 min-[1180px]:w-full rounded-lg px-2 py-1 min-[1180px]:py-1.5 text-left cursor-pointer', filter === `i:${n.id}` ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
+                className={cx('group/task shrink-0 min-[1180px]:w-full rounded-lg px-2 py-1 min-[1180px]:py-1.5 text-left cursor-pointer', filter === `i:${n.id}` ? 'bg-white shadow-sm ring-1 ring-slate-900/5' : 'hover:bg-white/60')}>
                 <div className="flex items-center gap-1 text-[13px]"><Hash size={12} className="text-slate-400 shrink-0" />
                   <span className={cx('flex-1 truncate max-w-[150px]', filter === `i:${n.id}` ? 'font-semibold text-indigo-800' : 'text-slate-700')}>{n.title}</span>
                   <span className="text-[10px] text-slate-400 num">{countFor(n.id)}</span></div>
-                <div className="mt-1 ml-4 hidden min-[1180px]:flex items-center gap-1.5"><span className="flex-1 h-1 rounded-full bg-slate-100"><span className="block h-1 rounded-full bg-indigo-500" style={{ width: `${n.progress}%` }} /></span>
+                <div className="mt-1 ml-4 hidden min-[1180px]:flex items-center gap-1.5"><span className="flex-1 h-1 rounded-full bg-slate-300/50"><span className="block h-1 rounded-full bg-indigo-500" style={{ width: `${n.progress}%` }} /></span>
                   <span className="text-[10px] text-slate-400 num">{n.progress}%{n.due_date ? ` · ~${fmtShort(n.due_date)}` : ''}</span>
                   {canPerf && n.owner_id === uid && <button onClick={(ev) => { ev.stopPropagation(); setPerfItem({ itemId: n.id }); }} title={`${n.title} — ${PERF_TIP}`} aria-label="이 과제 성과입력"
                     className="shrink-0 -my-1 rounded-md p-1 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700"><Crosshair size={13} /></button>}</div>
@@ -232,7 +232,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
 
 function RailItem({ on, onClick, icon, label, n, dot }: { on: boolean; onClick: () => void; icon: React.ReactNode; label: string; n: number; dot?: boolean }) {
   return (
-    <button onClick={onClick} className={cx('shrink-0 min-[1180px]:w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] text-left whitespace-nowrap', on ? 'bg-indigo-50 text-indigo-800 font-semibold' : 'text-slate-600 hover:bg-slate-50')}>
+    <button onClick={onClick} className={cx('shrink-0 min-[1180px]:w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] text-left whitespace-nowrap', on ? 'bg-white text-indigo-800 font-semibold shadow-sm ring-1 ring-slate-900/5' : 'text-slate-600 hover:bg-white/60')}>
       {icon}<span className="flex-1 truncate">{label}</span>{dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}<span className="text-[10px] text-slate-400 num">{n}</span>
     </button>
   );
