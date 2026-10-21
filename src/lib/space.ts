@@ -56,15 +56,18 @@ export function useSpace(ref: SpaceRef) {
   });
 
   // 바뀐 것만: 새 대화 · 바뀐 결과물(상태·새 버전) · 새 댓글이 달린 결과물
+  //   새 대화는 '내가 가진 마지막 메시지의 서버 시각' 기준으로 받는다 (기기 시계가 서버와 어긋나도 빠지지 않게).
   const synced = useRef('');
   useEffect(() => { synced.current = ''; }, [key, days]);
-  useQuery({
+  const delta = useQuery({
     queryKey: ['space-delta', team.id, key, days], enabled: subs.isSuccess && msgs.isSuccess, refetchInterval: 15_000,
     queryFn: async () => {
       const since = synced.current || iso(Math.min(subs.dataUpdatedAt, msgs.dataUpdatedAt) - 5000);
       const next = iso(Date.now() - 5000);
+      const have0 = qc.getQueryData<SpaceMessage[]>(msgsKey) ?? [];
+      const lastMsg = have0.length ? iso(Date.parse(have0[have0.length - 1].created_at) - 2000) : since0;
       const [nm, ns, nc] = await Promise.all([
-        q<SpaceMessage[]>(supabase.from('space_messages').select('*').eq('team_id', team.id).eq(mcol, ref.id).gt('created_at', since).order('created_at')),
+        q<SpaceMessage[]>(supabase.from('space_messages').select('*').eq('team_id', team.id).eq(mcol, ref.id).gt('created_at', lastMsg).order('created_at')),
         q<{ id: string }[]>(supabase.from('submissions').select('id').eq('team_id', team.id).eq(col, ref.id).gt('updated_at', since)),
         q<{ submission_id: string }[]>(supabase.from('review_comments').select('submission_id').eq('team_id', team.id).gt('created_at', since)),
       ]);
@@ -79,6 +82,27 @@ export function useSpace(ref: SpaceRef) {
       return nm.length + changed.length;
     },
   });
+
+  // 실시간 — 상대가 쓴 대화·요청 변화·업무 카드 변화를 바로 받는다 (27_realtime.sql). 15초 확인은 끊겼을 때의 안전망.
+  const refetchDelta = useRef(delta.refetch); refetchDelta.current = delta.refetch;
+  useEffect(() => {
+    if (typeof (supabase as { channel?: unknown }).channel !== 'function') return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const soon = () => { clearTimeout(t); t = setTimeout(() => refetchDelta.current(), 300); };
+    const ch = supabase.channel(`space:${team.id}:${key}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'space_messages', filter: `${mcol}=eq.${ref.id}` }, (p) => {
+        const m = p.new as SpaceMessage;
+        if (m.team_id !== team.id) return;
+        qc.setQueriesData<SpaceMessage[]>({ queryKey: ['space-msgs', team.id, key] }, (old) => (old ? byCreated([...old, m]) : old));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions', filter: `${col}=eq.${ref.id}` }, soon);
+    if (ref.kind === 'user') ch.on('postgres_changes', { event: '*', schema: 'public', table: 'team_requests', filter: `to_id=eq.${ref.id}` }, () => {
+      qc.invalidateQueries({ queryKey: ['requests', team.id] });
+    });
+    ch.subscribe();
+    return () => { clearTimeout(t); supabase.removeChannel(ch); };
+  }, [team.id, key]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return { subs, msgs, reqs, days, more: () => setDays((d) => d + 60), missing: !!subs.error && errorText(subs.error).includes('space_id') };
 }
 
@@ -167,8 +191,12 @@ export function useSendMessage(ref: SpaceRef) {
     mutationFn: (p: { body: string; item_id?: string | null; parent_id?: string | null; request_id?: string | null }) => q(supabase.from('space_messages').insert({
       team_id: team.id, author_id: uid, body: p.body.trim(), item_id: p.item_id ?? null, parent_id: p.parent_id ?? null, ...(p.request_id ? { request_id: p.request_id } : {}),
       ...(ref.kind === 'user' ? { space_user: ref.id } : { group_id: ref.id }),
-    })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['space-delta', team.id, spaceKey(ref)] }),
+    }).select('*').single()),
+    onSuccess: (row) => {
+      // 내가 보낸 글은 서버 응답을 받자마자 흐름에 넣는다 (다음 확인 주기를 기다리지 않음)
+      if (row) qc.setQueriesData<SpaceMessage[]>({ queryKey: ['space-msgs', team.id, spaceKey(ref)] }, (old) => (old ? byCreated([...old, row as SpaceMessage]) : old));
+      else qc.invalidateQueries({ queryKey: ['space-delta', team.id, spaceKey(ref)] });
+    },
     onError: (e) => toast(errorText(e).includes('request_id') ? '요청 답글 SQL(24_request_thread.sql)을 먼저 실행해 주세요.' : errorText(e).includes('space_messages') ? '업무 스페이스 SQL(19_work_space.sql)을 먼저 실행해 주세요.' : errorText(e)),
   });
 }
