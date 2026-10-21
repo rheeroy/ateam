@@ -67,6 +67,9 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const [skipped, setSkipped] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) ?? '[]'); } catch { return []; } });
   const skip = (id: string) => { const n = [...skipped, id].slice(-200); setSkipped(n); try { localStorage.setItem(NUDGE_KEY, JSON.stringify(n)); } catch { /* 이번 화면에서만 */ } };
   const [perfFor, setPerfFor] = useState<SpaceSub | null>(null);
+  // 성과입력 열기 (머리 버튼 · 과제 목록 · 과제 패널) — itemId 가 있으면 그 과제로
+  const [perfItem, setPerfItem] = useState<{ itemId: string | null } | null>(null);
+  const canPerf = !leaderView;
   // 열어 둔 스레드는 새 글이 와도 읽음으로
   useEffect(() => {
     if (!sel) return;
@@ -133,7 +136,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const panel = sel?.t === 'sub' ? <SubPanel key={sel.id} id={sel.id} onClose={() => setSel(null)} leaderView={!!leaderView} canUploadFor={canUpload} byId={byId} />
     : sel?.t === 'msg' ? <MsgPanel key={sel.id} space={space} root={msgs.find((m) => m.id === sel.id)} replies={msgs.filter((m) => m.parent_id === sel.id)} byId={byId} onClose={() => setSel(null)} />
     : sel?.t === 'req' ? <ReqPanel key={sel.id} space={space} r={reqs.find((r) => r.id === sel.id)} replies={msgs.filter((m) => m.request_id === sel.id)} onAnswer={(r) => setAnswering(r)} onClose={() => setSel(null)} />
-    : filterItem ? <TaskPanel n={filterItem} entries={entries.filter((e) => tagged(e, filterItem.id))} />
+    : filterItem ? <TaskPanel n={filterItem} entries={entries.filter((e) => tagged(e, filterItem.id))} onPerf={canPerf ? () => setPerfItem({ itemId: filterItem.id }) : undefined} />
     : <InfoPanel space={space} group={group} />;
 
   return (
@@ -153,13 +156,16 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           <div className="px-2 pb-1.5 text-[11px] font-semibold text-slate-400 hidden min-[1180px]:flex items-center gap-1"><Target size={11} />{space.kind === 'user' ? '맡은 과제' : '그룹 과제'}</div>
           <div className="flex min-[1180px]:block gap-1">
             {tasks.map((n) => (
-              <button key={n.id} onClick={() => setFilter(`i:${n.id}`)} className={cx('shrink-0 min-[1180px]:w-full rounded-lg px-2.5 py-1.5 min-[1180px]:py-2 text-left', filter === `i:${n.id}` ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
+              <div key={n.id} role="button" tabIndex={0} onClick={() => setFilter(`i:${n.id}`)} onKeyDown={(ev) => { if (ev.key === 'Enter') setFilter(`i:${n.id}`); }}
+                className={cx('group/task shrink-0 min-[1180px]:w-full rounded-lg px-2.5 py-1.5 min-[1180px]:py-2 text-left cursor-pointer', filter === `i:${n.id}` ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
                 <div className="flex items-center gap-1.5 text-sm"><Hash size={13} className="text-slate-400 shrink-0" />
                   <span className={cx('flex-1 truncate max-w-[180px]', filter === `i:${n.id}` ? 'font-semibold text-indigo-800' : 'text-slate-700')}>{n.title}</span>
                   <span className="text-[11px] text-slate-400 num">{countFor(n.id)}</span></div>
                 <div className="mt-1.5 ml-5 hidden min-[1180px]:flex items-center gap-2"><span className="flex-1 h-1 rounded-full bg-slate-100"><span className="block h-1 rounded-full bg-indigo-500" style={{ width: `${n.progress}%` }} /></span>
-                  <span className="text-[10px] text-slate-400 num">{n.progress}%{n.due_date ? ` · ~${fmtShort(n.due_date)}` : ''}</span></div>
-              </button>
+                  <span className="text-[10px] text-slate-400 num">{n.progress}%{n.due_date ? ` · ~${fmtShort(n.due_date)}` : ''}</span>
+                  {canPerf && n.owner_id === uid && <button onClick={(ev) => { ev.stopPropagation(); setPerfItem({ itemId: n.id }); }} title={`${n.title} — ${PERF_TIP}`} aria-label="이 과제 성과입력"
+                    className="shrink-0 -my-1 rounded-md p-1 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700"><Crosshair size={13} /></button>}</div>
+              </div>
             ))}
             <RailItem on={filter === 'none'} onClick={() => setFilter('none')} icon={<Hash size={13} className="text-slate-300" />} label="기타 (태그 없음)" n={counts.none} />
           </div>
@@ -177,6 +183,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           {filterItem ? <><Hash size={14} className="text-indigo-600" /><b className="truncate">{filterItem.title}</b><span className="text-xs text-slate-400 shrink-0">이 과제 태그가 붙은 것만</span></>
             : <><Inbox size={14} className="text-slate-500" /><b>{({ all: '전체', wait: '결론 대기', fix: '보완 중', unread: '안 읽음', none: '기타 (태그 없음)' } as Record<string, string>)[filter]}</b><span className="text-xs text-slate-400 truncate">대화와 올린 업무가 시간순으로 · 업무는 스레드에서 이어 갑니다</span></>}
           {filter !== 'all' && <button onClick={() => setFilter('all')} className="ml-auto text-xs text-slate-500 hover:text-indigo-700 shrink-0">전체 보기</button>}
+          {canPerf && <Button size="sm" className={cx('shrink-0', filter === 'all' && 'ml-auto')} title={PERF_TIP} onClick={() => setPerfItem({ itemId: filterItem?.id ?? null })}><Crosshair size={13} />성과입력</Button>}
         </div>
         <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3.5">
           {loaded && data.days < 400 && (
@@ -206,6 +213,9 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
           recent={subs.filter((x) => x.author_id === uid && x.kind !== 'checkin').slice(-10).reverse().map((x) => ({ id: x.id, title: x.title }))} />
       </section>
 
+      {perfItem && <CheckinModal open onClose={() => setPerfItem(null)} itemId={perfItem.itemId}
+        recent={subs.filter((x) => x.author_id === uid && x.kind !== 'checkin').slice(-10).reverse().map((x) => ({ id: x.id, title: x.title }))}
+        spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
       {perfFor && <CheckinModal open onClose={() => setPerfFor(null)} itemId={perfFor.item_id} evidence={{ t: 'sub', id: perfFor.id, title: perfFor.title }}
         spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
       {/* 오른쪽 스레드 — 넓으면 한 칸, 태블릿 폭이면 대화 위로 오른쪽에서 덮고, 폰이면 전체 화면 */}
@@ -712,13 +722,14 @@ function ReqPanel({ space, r, replies, onAnswer, onClose }: { space: SpaceRef; r
 }
 
 /** 과제로 모아볼 때 — 과제 요약 */
-function TaskPanel({ n, entries }: { n: Node; entries: Entry[] }) {
+function TaskPanel({ n, entries, onPerf }: { n: Node; entries: Entry[]; onPerf?: () => void }) {
   const posts = entries.filter((e) => e.t === 'post');
   const wait = posts.filter((e) => e.t === 'post' && e.s.status === 'in_review' && e.s.request_type !== 'share').length;
   const last = entries.reduce((m, e) => (e.at > m ? e.at : m), '');
   return (
     <PanelShell title={<><Target size={15} className="text-indigo-600" /><span className="font-semibold text-sm truncate">{n.title}</span></>}
-      sub={<span>{n.due_date ? `~${fmtShort(n.due_date)}` : '기한 없음'}</span>}>
+      sub={<span>{n.due_date ? `~${fmtShort(n.due_date)}` : '기한 없음'}</span>}
+      actions={onPerf ? <Button size="sm" title={PERF_TIP} onClick={onPerf}><Crosshair size={12} />이 과제 성과입력</Button> : undefined}>
       <div className="p-4 space-y-4 text-sm">
         <div><div className="text-xs text-slate-500 mb-1">진척</div>{n.measure === 'recurring' ? <span className="text-xs text-slate-400">정기 업무</span> : <PlanBar item={n} />}</div>
         <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-xs text-slate-600">
