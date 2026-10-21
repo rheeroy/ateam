@@ -249,3 +249,4 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
     </div>
   );
 }
+
