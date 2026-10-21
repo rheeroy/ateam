@@ -76,3 +76,14 @@
    `ai-advisor` `ai-checkin-draft` `ai-coach` `ai-evaluation-draft` `ai-exec-brief` `ai-ingest-knowhow` `ai-insights` `ai-interpret` `ai-org-impact` `ai-people-actions` `ai-plan` `ai-prep-1on1` `ai-review-submission` `ai-weekly-briefing` `ai-weekly-report` `ai-work-brief`
    - Verify JWT: **끈 상태(OFF) 그대로** 둡니다 (지금 쓰는 설정과 같게). `billing`은 바뀌지 않아 다시 배포하지 않아도 됩니다.
 3. 프런트(Vercel)는 SQL을 먼저 실행한 뒤 배포하세요. (순서가 바뀌면 '내 노하우'의 컨설팅 기준 칸이 잠깐 비어 보입니다)
+
+## ATEAM 플레이북 (2026-11) — 컨설팅 기준 21장 → 방법론 78장
+1. SQL Editor → `29_playbook.sql` 붙여넣기 → Run (16 다음 · 다시 Run 해도 안전)
+   - 모든 팀에 새 카드가 들어갑니다. 팀장이 고친 카드·켜고 끈 상태·반영할 곳은 그대로 둡니다.
+   - Starter 팀은 지금처럼 꺼진 채로 들어가고(읽기만 가능), Pro부터 AI가 씁니다.
+   - 데모 팀에는 적용 이력과 AI 검토의 '기준 점검'이 함께 채워집니다. (`06_demo_accounts.sql` 을 다시 돌려도 자동으로 채워짐)
+2. Edge Functions → 아래 16개를 새 파일로 코드 교체 후 Deploy (공통 코드 `_shared/gateway.ts` 가 바뀜 · `billing`은 그대로)
+   `ai-advisor` `ai-checkin-draft` `ai-coach` `ai-evaluation-draft` `ai-exec-brief` `ai-ingest-knowhow` `ai-insights` `ai-interpret` `ai-org-impact` `ai-people-actions` `ai-plan` `ai-prep-1on1` `ai-review-submission` `ai-weekly-briefing` `ai-weekly-report` `ai-work-brief`
+3. 프런트(Vercel) 배포 — SQL을 먼저 실행한 뒤. (SQL 전이면 플레이북 화면의 '언제 쓰나·예시·출처'가 비어 보입니다)
+- 카드 문안을 고치려면 `supabase/playbook/playbook.json` 을 고치고 `node scripts/build-playbook.mjs` → 새 `29_playbook.sql` 을 다시 Run.
+

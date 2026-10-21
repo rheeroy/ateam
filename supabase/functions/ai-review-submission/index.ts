@@ -9,7 +9,7 @@ import { MODEL_SMART, toBase64, type Block } from '../_shared/anthropic.ts';
 import { REVIEW } from '../_shared/prompts/index.ts';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-const AUTO_SHARE = 0.6;
+const AUTO_SHARE = 0.75;
 
 /** 두 본문이 얼마나 같은가 (줄 단위, 공백 무시) — 0~1 */
 function sameness(a: string, b: string) {
@@ -119,7 +119,8 @@ serve(async (req) => {
   const { data: comps } = await admin.from('competencies').select('name')
     .or(`team_id.is.null,team_id.eq.${sub.team_id}`).order('sort');
 
-  await addKnowhow(book, sub.team_id, 'review');
+  // 플레이북은 이 결과물 본문에 맞는 방법론부터 고른다 (제목·변경 메모·본문 앞부분)
+  await addKnowhow(book, sub.team_id, 'review', undefined, false, true, [sub.title, ver.note ?? '', (ver.extracted_text ?? '').slice(0, 6000)].join('\n'));
   const { data: author } = await admin.from('profiles').select('full_name').eq('id', sub.author_id).maybeSingle();
   const text = [
     `결과물 제목: ${sub.title} (v${ver.version})`,

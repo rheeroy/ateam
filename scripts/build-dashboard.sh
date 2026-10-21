@@ -45,3 +45,5 @@ echo "done: supabase/dashboard"
 { echo "-- ATEAM 이름 바꾸기: 성과 체크인 → 성과입력 (이미 올라간 카드·알림의 제목 머리말) — 25_oo_entries 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261104000031_perf_input_name.sql; } > dashboard/26_perf_input_name.sql
 { echo "-- ATEAM 업무 스페이스 실시간 반영 — 26_perf_input_name 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261105000032_realtime.sql; } > dashboard/27_realtime.sql
 { echo "-- ATEAM AI 분석 완료 실시간 반영 — 27_realtime 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261106000033_realtime_ai.sql; } > dashboard/28_realtime_ai.sql
+# 29: ATEAM 플레이북 — supabase/playbook/playbook.json 에서 만든다 (migrations 0034 · docs/PLAYBOOK.md 도 같이)
+node ../scripts/build-playbook.mjs

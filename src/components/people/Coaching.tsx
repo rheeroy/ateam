@@ -2,13 +2,14 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, RefreshCw, Send } from 'lucide-react';
+import { Eye, Library, RefreshCw, Send } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, invoke, errorText } from '../../lib/supabase';
 import type { AiOutput } from '../../lib/types';
 import { cx, fmtDate } from '../../lib/format';
 import { Button, Modal, Spinner, inputCls, useToast } from '../ui';
 import { LogoMark } from '../Brand';
+import { methodTitle } from '../../lib/playbook';
 
 export interface CoachingNote { id: string; team_id: string; member_id: string; title: string; body: string; seen_at: string | null; acked_at: string | null; helpful: boolean | null; created_at: string }
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -68,10 +69,16 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
   const toast = useToast();
   const sent = useCoachingFor(memberId);
   const [f, setF] = useState({ title: '', body: '' });
+  const [methods, setMethods] = useState<string[]>([]);
   const [preview, setPreview] = useState(false);
   const gen = useMutation({
     mutationFn: () => invoke<AiOutput<{ title: string; body: string }>>('ai-coach', { team_id: team.id, member_id: memberId }),
-    onSuccess: (o) => setF({ title: strip(o.content?.title ?? ''), body: strip(o.content?.body ?? '') }),
+    onSuccess: (o) => {
+      setF({ title: strip(o.content?.title ?? ''), body: strip(o.content?.body ?? '') });
+      // 초안에 실제로 녹인 플레이북 방법론 (본문에 제목이 들어간 것만)
+      const body = `${o.content?.title ?? ''} ${o.content?.body ?? ''}`;
+      setMethods((o.sources ?? []).filter((s) => s.type === 'consulting').map((s) => methodTitle(s.label)).filter((t) => body.includes(t.split(' (')[0])));
+    },
   });
   const send = useMutation({
     mutationFn: async () => {
@@ -101,6 +108,7 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
           <div className="flex items-center gap-3 text-xs">
             <button onClick={() => setPreview(true)} className="font-semibold text-indigo-700 hover:underline inline-flex items-center gap-1"><Eye size={13} />{name} 님에게 이렇게 보여요</button>
             <button onClick={() => gen.mutate()} className="text-slate-500 hover:text-slate-900 inline-flex items-center gap-1"><RefreshCw size={12} />다시 만들기</button>
+            {methods.length > 0 && <span className="inline-flex items-center gap-1 text-[#7D5414]" title="ATEAM 플레이북에서 이 팀원의 보완점에 맞는 방법론을 골라 녹였습니다"><Library size={12} />{methods.join(', ')}</span>}
             {last && <span className="ml-auto text-slate-400">최근 보낸 코칭 {fmtDate(last.created_at)} · {last.acked_at ? '확인함' : last.seen_at ? '읽음' : '안 읽음'}</span>}
           </div>
         </div>

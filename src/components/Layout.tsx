@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BookOpen, ClipboardCheck, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, LogOut, MessageSquare,
+  ClipboardCheck, Library, ChevronDown, FileText, FileUp, Home, LayoutDashboard, Layers, LogOut, MessageSquare,
   ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -73,7 +73,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/notes" label="내 메모 모아보기" icon={StickyNote} />
-            <NavItem to="/knowhow" label="내 노하우" icon={BookOpen} />
+            <NavItem to="/knowhow" label="노하우 라이브러리" icon={Library} />
             <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
             <NavItem to="/settings" label="설정" icon={Settings} />
     </>

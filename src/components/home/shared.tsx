@@ -903,7 +903,7 @@ export function QuickStart({ teamId }: { teamId: string }) {
     { done: st.data.it > 0, title: '목표 세우기', desc: '계획서를 넣으면 AI가 목표·과제 초안을 만듭니다', to: '/goals' },
     { done: members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/settings?tab=members' },
     { done: st.data.org > 0, title: '위에서 온 것 남기기', desc: '전사 방침·임원 관심사를 넣으면 팀 목표와 맞춰 봅니다', to: '/upward' },
-    { done: st.data.kh > 0, title: '내 노하우 넣기', desc: '원칙·자료를 넣으면 AI가 팀장님 기준으로 일합니다', to: '/knowhow' },
+    { done: st.data.kh > 0, title: '내 노하우 넣기', desc: '원칙·자료를 넣으면 AI가 ATEAM 플레이북보다 팀장님 기준을 먼저 적용합니다', to: '/knowhow?tab=mine' },
   ];
   const doneN = steps.filter((x) => x.done).length;
   if (doneN === steps.length) return null;

@@ -2,7 +2,7 @@
 //   초안은 팀장에게만 돌아가고, 팀장이 고쳐서 보내면 coaching_notes에 저장된다(여기서는 저장·발송하지 않음).
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
-import { runAi, SourceBook, depthOf, fmtDate, weekLabel } from '../_shared/gateway.ts';
+import { runAi, SourceBook, depthOf, fmtDate, weekLabel, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { COACH } from '../_shared/prompts/index.ts';
 
@@ -56,9 +56,13 @@ serve(async (req) => {
   const prevText = (prev ?? []).map((p) => `${fmtDate(p.created_at)} "${p.title}"`).join(' / ');
 
   if (book.size === 0) throw new HttpError(422, 'NO_DATA', `${member.full_name} 님의 최근 업무 기록이 아직 적어 코칭할 점을 찾지 못했습니다.`);
+  // ATEAM 플레이북: 이 팀원의 보완점·막힘에 맞는 방법론 몇 장 (팀장 개인 노하우는 싣지 않음 — 팀원에게 그대로 보이는 글)
+  await addKnowhow(book, team_id, 'review', 1600, false, true, '', false);
+  const playbook = book.knowhowText();
   const text = [
     `오늘: ${today} / 팀원: ${member.full_name}`,
     prevText ? `## 최근 30일에 이미 보낸 코칭 (같은 내용 반복 금지)\n${prevText}` : '',
+    playbook,
     book.text('최근 업무 기록'),
   ].filter(Boolean).join('\n\n');
   const { output } = await runAi({

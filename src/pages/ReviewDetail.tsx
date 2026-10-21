@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Check, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
+import { BookOpen, Check, Library, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
@@ -16,6 +16,7 @@ import { Avatar, Button, Empty, Pill, Spinner, useToast } from '../components/ui
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
 import { FILE_ACCEPT, IMAGE } from '../components/Upload';
 import { STATUS } from './MySubmissions';
+import { PLAYBOOK } from '../lib/playbook';
 
 export interface Review {
   depth_score: number; summary: string; decisions?: string[];
@@ -80,7 +81,7 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
       {rv.isLoading ? <Spinner /> : !r ? (
         <Empty icon={<Sparkles size={18} />} title="아직 1차 검토가 없습니다"
           action={<Button loading={gen.isPending} onClick={() => gen.mutate({ version_id: version.id })}>지금 검토하기 · 구독 포함</Button>}>
-          팀원이 올릴 때 자동으로 시작됩니다. 자동 검토는 이번 달 AI 사용량의 60%까지만 쓰고 나머지는 팀장님 몫으로 남겨 두니, 비어 있으면 여기서 직접 요청하세요.
+          팀원이 올릴 때 자동으로 시작됩니다. 자동 검토는 이번 달 AI 사용량의 75%까지만 쓰고 나머지는 팀장님 몫으로 남겨 두니, 비어 있으면 여기서 직접 요청하세요.
         </Empty>
       ) : (
         <>
@@ -93,14 +94,22 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
           )}
           {!!r.content.criteria_check?.length ? (
             <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 text-sm">
-              <div className="text-xs font-semibold text-indigo-800 mb-1.5 inline-flex items-center gap-1"><BookOpen size={12} />팀장님 기준으로 본 결과</div>
+              <div className="text-xs font-semibold text-indigo-800 mb-1.5 inline-flex items-center gap-1"><BookOpen size={12} />기준 점검 <span className="font-normal text-indigo-700/70">· 팀장님 노하우와 {PLAYBOOK}</span></div>
               <ul className="space-y-1.5">
-                {r.content.criteria_check.map((c, i) => (
-                  <li key={i} className="flex gap-2">
-                    {c.met ? <CheckCircle2 size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <XCircle size={15} className="text-rose-500 mt-0.5 shrink-0" />}
-                    <span className="text-slate-700"><b className="font-semibold">{c.criterion}</b> — {c.note}{c.tag && <TaggedText text={` [${c.tag}]`} sources={r.sources} />}</span>
-                  </li>
-                ))}
+                {r.content.criteria_check.map((c, i) => {
+                  const src = r.sources.find((s) => s.tag === c.tag);
+                  return (
+                    <li key={i} className="flex gap-2">
+                      {c.met ? <CheckCircle2 size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <XCircle size={15} className="text-rose-500 mt-0.5 shrink-0" />}
+                      <span className="text-slate-700">
+                        <b className="font-semibold">{c.criterion}</b>
+                        {src?.type === 'consulting' && <span className="ml-1 align-[1px] inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold text-[#7D5414] bg-[#FAF1E1]"><Library size={10} />플레이북</span>}
+                        {src?.type === 'knowhow' && <span className="ml-1 align-[1px] rounded px-1 py-px text-[10px] font-semibold text-indigo-700 bg-indigo-100/70">내 기준</span>}
+                        {' '}— {c.note}{c.tag && <TaggedText text={` [${c.tag}]`} sources={r.sources} />}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : kh.data === 0 ? (

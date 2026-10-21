@@ -1,9 +1,13 @@
 // AI 출처 표시 체계: ✦ AI 생성 · Σ 모델 계산 · ✎ 팀장 수정 · ✓ 팀장 확정 · ◌ 판단 보류
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, CircleDashed, PenLine, Sigma, Sparkles } from 'lucide-react';
+import { BadgeCheck, BookOpen, CircleDashed, Library, PenLine, Sigma, Sparkles } from 'lucide-react';
 import type { AiStatus, SourceRef } from '../lib/types';
 import { cx } from '../lib/format';
+import { PLAYBOOK, methodTitle } from '../lib/playbook';
+
+/** 근거 중 '기준'(내 노하우 · ATEAM 플레이북)은 기록과 나눠 '적용한 기준'으로 보여 준다 */
+const isMethod = (s: SourceRef | string) => typeof s !== 'string' && (s.type === 'knowhow' || s.type === 'consulting');
 
 export type ProvKind = 'ai' | 'calc' | 'edited' | 'final' | 'hold';
 
@@ -118,16 +122,41 @@ export function ProvChip({ kind, label, sources = [], level, depth, note, classN
           </div>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">{m.d}</p>
           {note && <p className="text-[13px] text-slate-700 mt-2 leading-relaxed">{note}</p>}
-          {sources.length > 0 && (
-            <>
-              <div className="mt-3 text-[11px] font-semibold text-slate-400">근거 {sources.length}건</div>
-              <ul className="mt-1 space-y-0.5 text-[13px] text-slate-700 max-h-40 overflow-y-auto">
-                {sources.slice(0, 30).map((s, i) => (
-                  <li key={i}>· {typeof s === 'string' ? s : s.label}</li>
-                ))}
-              </ul>
-            </>
-          )}
+          {(() => {
+            const methods = sources.filter(isMethod) as SourceRef[];
+            const records = sources.filter((s) => !isMethod(s));
+            return (
+              <>
+                {records.length > 0 && (
+                  <>
+                    <div className="mt-3 text-[11px] font-semibold text-slate-400">근거 {records.length}건</div>
+                    <ul className="mt-1 space-y-0.5 text-[13px] text-slate-700 max-h-40 overflow-y-auto">
+                      {records.slice(0, 30).map((s, i) => (
+                        <li key={i}>· {typeof s === 'string' ? s : s.label}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {methods.length > 0 && (
+                  <>
+                    <div className="mt-3 text-[11px] font-semibold text-slate-400">적용한 기준 {methods.length}개</div>
+                    <ul className="mt-1 space-y-1 text-[13px] max-h-40 overflow-y-auto">
+                      {methods.slice(0, 12).map((s, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          {s.type === 'consulting'
+                            ? <Library size={13} className="mt-[3px] shrink-0 text-[#9A6A1F]" aria-label={PLAYBOOK} />
+                            : <BookOpen size={13} className="mt-[3px] shrink-0 text-indigo-500" aria-label="내 노하우" />}
+                          <span className="text-slate-700">{methodTitle(s.label)}<span className="ml-1 text-[11px] text-slate-400">{s.type === 'consulting' ? '플레이북' : '내 노하우'}</span></span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link to={methods.some((m) => m.type === 'consulting') ? '/knowhow?tab=playbook' : '/knowhow?tab=mine'} onClick={() => setOpen(false)}
+                      className="mt-1.5 inline-block text-[11px] font-semibold text-slate-500 hover:text-slate-900">노하우 라이브러리에서 보기</Link>
+                  </>
+                )}
+              </>
+            );
+          })()}
           {d > 0 && (
             <div className="mt-3 flex items-center justify-between text-xs">
               <span className="text-slate-500">데이터 깊이</span>

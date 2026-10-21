@@ -47,13 +47,17 @@ export class SourceBook {
     const ls = this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line);
     return ls.length ? `## ${title}\n${ls.join('\n')}` : `## ${title}\n(기록 없음)`;
   }
-  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
+  /** 지금까지 실은 기록 본문 (노하우 제외) — 플레이북 카드를 상황에 맞게 고를 때 쓴다 */
+  evidenceText() {
+    return this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line).join('\n');
+  }
+  /** 팀장의 기준 섹션 + ATEAM 플레이북 섹션 (없으면 빈 문자열) */
   knowhowText() {
     const own = this.lines.filter((l) => l.type === 'knowhow').map((l) => l.line);
     const con = this.lines.filter((l) => l.type === 'consulting').map((l) => l.line);
     return [
       own.length ? `## 팀장의 기준 (팀장이 직접 넣은 노하우 — 일반 상식보다 우선)\n${own.join('\n')}` : '',
-      con.length ? `## 컨설팅 기준 (기본 제공 — 팀장의 기준과 어긋나면 팀장의 기준을 따름)\n${con.join('\n')}` : '',
+      con.length ? `## ATEAM 플레이북 (검증된 업무 방법론 중 이 상황에 맞는 것 — 팀장의 기준과 어긋나면 팀장의 기준을 따름)\n${con.join('\n')}` : '',
     ].filter(Boolean).join('\n\n');
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
@@ -70,29 +74,79 @@ export class SourceBook {
   }
 }
 
-/** 노하우 근거 종류: 팀장 카드(knowhow) · 기본 제공 컨설팅 카드(consulting) — 기록(근거) 수에는 세지 않는다 */
+/** 노하우 근거 종류: 팀장 카드(knowhow) · ATEAM 플레이북 카드(consulting) — 기록(근거) 수에는 세지 않는다 */
 const KH_TYPES = ['knowhow', 'consulting'];
 
 export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario' | 'plan';
 
+// ---------- ATEAM 플레이북: 상황에 맞는 방법론 고르기 ----------
+/** 기능마다 먼저 볼 플레이북 영역 (supabase/playbook/playbook.json 의 domain) */
+const FEATURE_DOMAINS: Record<KnowhowFeature, string[]> = {
+  review: ['logic', 'writing', 'creative', 'decision'],
+  report: ['writing', 'comm'],
+  prep: ['coach'],
+  briefing: ['team', 'decision', 'coach'],
+  strategy: ['goal', 'decision', 'creative'],
+  scenario: ['team', 'decision'],
+  plan: ['goal', 'creative', 'logic'],
+  evaluation: [],
+};
+/** 한 번에 싣는 플레이북 카드 수 상한 — 많이 실으면 AI가 흐려진다 */
+const MAX_PLAYBOOK = 8;
+type TplMeta = { tier: number; domain: string; sort: number };
+let tplCache: { at: number; map: Map<string, TplMeta> } | null = null;
+async function templateMeta(): Promise<Map<string, TplMeta>> {
+  if (tplCache && Date.now() - tplCache.at < 10 * 60_000) return tplCache.map;
+  const { data, error } = await admin.from('knowhow_templates').select('key, tier, domain, sort');
+  const map = new Map<string, TplMeta>();
+  // 29_playbook.sql 전이면 tier·domain 칸이 없다 → 예전처럼 순서대로
+  if (!error) for (const t of (data ?? []) as { key: string; tier?: number; domain?: string; sort?: number }[]) map.set(t.key, { tier: t.tier ?? 2, domain: t.domain ?? '', sort: t.sort ?? 0 });
+  tplCache = { at: Date.now(), map };
+  return map;
+}
+const norm = (s: string) => s.toLowerCase().replace(/[\s·・\-_/()'"‘’“”]/g, '');
+/** 카드 하나가 지금 상황에 얼마나 맞는가: 고정 > 본문·기록과 겹치는 키워드 > 기능에 맞는 영역 > 대표 방법론 */
+function playbookScore(c: KbRow, meta: Map<string, TplMeta>, feature: KnowhowFeature, ctx: string): number {
+  const m = meta.get(c.template_key ?? '');
+  let s = c.pinned ? 100 : 0;
+  if (m?.tier === 1) s += 3;
+  if (m && FEATURE_DOMAINS[feature]?.includes(m.domain)) s += 2;
+  if (ctx) {
+    let hits = 0;
+    for (const k of c.keywords ?? []) { const nk = norm(k); if (nk.length >= 2 && ctx.includes(nk)) hits++; }
+    s += Math.min(hits, 4) * 3;
+  }
+  return s;
+}
+type KbRow = { id: string; title: string; body: string; rules: unknown; pinned?: boolean; source?: string | null; template_key?: string | null; keywords?: string[] | null };
+
 /** 팀장이 켜 둔 노하우 카드 중 이 기능에 해당하는 것을 근거책에 싣는다
- *  순서: 팀장 카드(고정 → 최근) 먼저, 남는 글자 수 안에서 컨설팅 기준 카드(source='consulting').
- *  consulting=false 면 컨설팅 카드는 싣지 않는다 (예: 팀원 액션) */
-export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 2600, onlyShared = false, consulting = true): Promise<number> {
+ *  순서: 팀장 카드(고정 → 최근) 먼저, 남는 글자 수 안에서 ATEAM 플레이북 카드(source='consulting').
+ *  플레이북은 지금 상황(context — 비우면 근거책에 이미 실린 기록)에 맞는 순서로 골라 최대 MAX_PLAYBOOK 장.
+ *  consulting=false 면 플레이북 카드는 싣지 않는다 (예: 팀원 액션) · own=false 면 팀장 카드는 싣지 않는다 (예: 팀원에게 그대로 보이는 코칭) */
+export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 3200, onlyShared = false, consulting = true, context = '', own = true): Promise<number> {
   let qb = admin.from('knowhow_cards')
-    .select('id, kind, title, body, rules, pinned, updated_at, source')
+    .select('id, kind, title, body, rules, pinned, updated_at, source, template_key, keywords')
     .eq('team_id', teamId).eq('active', true).contains('applies_to', [feature]);
   if (onlyShared) qb = qb.eq('shared', true);
-  const { data } = await qb.order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(40);
-  const rows = (data ?? []) as { id: string; title: string; body: string; rules: unknown; source?: string | null }[];
+  const { data } = await qb.order('pinned', { ascending: false }).order('updated_at', { ascending: false }).limit(160);
+  const rows = (data ?? []) as KbRow[];
   const isCon = (c: { source?: string | null }) => c.source === 'consulting';
-  const ordered = [...rows.filter((c) => !isCon(c)), ...(consulting ? rows.filter(isCon) : [])];
-  let used = 0, n = 0;
+  let con = consulting ? rows.filter(isCon) : [];
+  if (con.length > 1) {
+    const meta = await templateMeta();
+    const ctx = norm((context || book.evidenceText()).slice(0, 20000));
+    con = con.map((c) => ({ c, s: playbookScore(c, meta, feature, ctx), o: meta.get(c.template_key ?? '')?.sort ?? 9999 }))
+      .sort((a, b) => b.s - a.s || a.o - b.o).map((x) => x.c);
+  }
+  const ordered = [...(own ? rows.filter((c) => !isCon(c)) : []), ...con];
+  let used = 0, n = 0, nCon = 0;
   for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? (c.rules as string[]).filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / 규칙: ${rules.join(' · ')}` : ''}`;
+    if (isCon(c) && nCon >= MAX_PLAYBOOK) break;
     if (used + text.length > limitChars && n > 0) { if (isCon(c)) break; continue; }
-    if (isCon(c)) book.add('consulting', c.id, `컨설팅 기준 · ${c.title}`, text);
+    if (isCon(c)) { book.add('consulting', c.id, `ATEAM 플레이북 · ${c.title}`, text); nCon++; }
     else book.add('knowhow', c.id, `내 노하우 · ${c.title}`, text);
     used += text.length; n++;
   }
@@ -116,7 +170,7 @@ export const BASE_RULES = `당신은 한국 기업 팀장의 성과관리를 돕
 5. 문체: 한국 기업 실무 보고서처럼 짧고 담백하게, '~합니다'체. 과장, 감탄, 영어 직역투, 이모지는 쓰지 않습니다.
 6. 출력은 요청한 JSON 객체 하나만. 앞뒤 설명이나 코드 펜스를 붙이지 않습니다.
 7. '팀장의 기준' 섹션이 있으면 그 기준을 일반적인 상식보다 우선해 적용하고, 기준을 적용한 문장에는 해당 근거 태그를 붙입니다. 기준과 기록이 어긋나면 그 점을 짚습니다.
-8. '컨설팅 기준' 섹션은 기본 제공 기준입니다. 일반 상식보다는 우선하되 '팀장의 기준'과 어긋나면 팀장의 기준을 따르고, 적용한 문장에는 해당 근거 태그를 붙입니다.`;
+8. 'ATEAM 플레이북' 섹션은 이 상황에 맞춰 고른 검증된 업무 방법론입니다. 일반 상식보다는 우선하되 '팀장의 기준'과 어긋나면 팀장의 기준을 따릅니다. 실제로 이 기록에 들어맞는 방법론만 쓰고, 적용한 문장에는 해당 근거 태그를 붙입니다. 방법론 이름을 늘어놓거나 이론을 설명하지 말고, 기록에 비춘 구체적인 판단과 행동으로 씁니다.`;
 
 export interface AiJob {
   teamId: string;

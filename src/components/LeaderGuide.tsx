@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, X } from 'lucide-react';
+import { BookOpen, Library, X } from 'lucide-react';
 import { supabase, q } from '../lib/supabase';
 import type { KnowhowCard } from '../lib/types';
 import { Button, Card } from './ui';
@@ -19,7 +19,7 @@ function GuideList({ list, max = 6 }: { list: KnowhowCard[]; max?: number }) {
     <ul className="space-y-3 text-sm">
       {list.slice(0, max).map((c) => (
         <li key={c.id}>
-          <div className="font-medium">{c.title}</div>
+          <div className="font-medium">{c.title}{c.source === 'consulting' && <span className="ml-1.5 align-[1px] inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold text-[#7D5414] bg-[#FAF1E1]"><Library size={10} />ATEAM 플레이북</span>}</div>
           {c.rules.length > 0 ? (
             <ul className="mt-0.5 text-slate-600">{c.rules.map((r, i) => <li key={i} className="flex gap-1.5"><span className="text-indigo-500">›</span>{r}</li>)}</ul>
           ) : <p className="text-slate-600 whitespace-pre-wrap">{c.body}</p>}
