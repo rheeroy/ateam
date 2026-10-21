@@ -1,9 +1,9 @@
 // 업무 상세 — 대화창: 올린 버전과 말풍선이 시간순으로 한 흐름. 맨 아래 대화창 하나로 보내기·파일(새 버전/첨부)
-//   왼쪽은 이 업무 카드의 스레드(버전 + 대화), 말풍선의 [답글]은 오른쪽 '답글'에서 이어 간다. 팀장은 오른쪽에서 AI 1차 검토를 본다(팀원에게는 보이지 않음).
+//   왼쪽은 이 업무 카드의 스레드(버전 + 대화). 스레드 안에서 또 답글을 달지는 않는다. 팀장은 오른쪽에서 AI 1차 검토를 본다(팀원에게는 보이지 않음).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Check, CheckCircle2, ChevronDown, CornerDownRight, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
@@ -12,7 +12,7 @@ import { cx, fmtDate, fmtShort } from '../lib/format';
 import { addVersion, namedPaste, startReview, uploadAttachment } from '../lib/post';
 import { useGroups } from '../lib/groups';
 import { KIND_TAG, REQ_TAG, useCloseSubmission } from '../lib/work';
-import { Avatar, Button, Empty, Pill, Spinner, inputCls, useToast } from '../components/ui';
+import { Avatar, Button, Empty, Pill, Spinner, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
 import { FILE_ACCEPT, IMAGE } from '../components/Upload';
 import { STATUS } from './MySubmissions';
@@ -24,7 +24,8 @@ export interface Review {
   questions: string[]; change_from_previous?: string; trend_note?: string;
   criteria_check?: { criterion: string; met: boolean; note: string; tag?: string }[];
 }
-type Panel = { kind: 'ai'; versionId: string } | { kind: 'thread'; commentId: string } | { kind: 'help' } | null;
+/** 오른쪽 AI 검토에서 보고 있는 버전 */
+type Panel = string | null;
 
 const DOT: Record<string, string> = { risk: 'bg-rose-500', watch: 'bg-amber-400', good: 'bg-emerald-500' };
 /** 한 줄 판단에서 '~해 보입니다' 부분만 (버전 흐름용) */
@@ -223,7 +224,7 @@ export default function ReviewDetail() {
   const all = comQ.data ?? [];
   const stream: Item[] = useMemo(() => [
     ...versions.map((v) => ({ t: 'v' as const, at: v.created_at, v })),
-    ...all.filter((c) => !c.parent_id).map((c) => ({ t: 'c' as const, at: c.created_at, c })),
+    ...all.map((c) => ({ t: 'c' as const, at: c.created_at, c })),  // 예전 답글도 흐름에 그대로 (스레드 안 답글은 없앰)
   ].sort((a, b) => a.at.localeCompare(b.at)), [versions, all]);
   const scroller = useRef<HTMLDivElement>(null);
   const seen = useRef(0);
@@ -249,7 +250,9 @@ export default function ReviewDetail() {
   const inGroup = !!group?.work_group_members.some((m) => m.user_id === uid);
   const canUpload = isAuthor || inGroup;
   const leaderView = isLeader && !isAuthor;
-  const cur: Panel = panel ?? (leaderView ? { kind: 'ai', versionId: latest.id } : null);
+  const showAi = leaderView && sub.request_type !== 'share' && sub.kind !== 'number';
+  const aiVer = panel ?? latest.id;
+  const setAiVer = (vid: string) => setPanel(vid);
   const rq = REQ_TAG[sub.request_type] ?? REQ_TAG.approval;
   const makers = [...new Set(versions.map((v) => v.created_by))];
   const back = isLeader
@@ -294,7 +297,7 @@ export default function ReviewDetail() {
 
       <div className="mt-5 grid lg:grid-cols-5 gap-5 items-start">
         {/* 대화 */}
-        <div className={cx('lg:col-span-3 rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col h-[calc(100vh-15rem)] min-h-[520px] relative', drag && 'ring-2 ring-indigo-500')}
+        <div className={cx(showAi ? 'lg:col-span-3' : 'lg:col-span-5', 'rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex flex-col h-[calc(100vh-15rem)] min-h-[520px] relative', drag && 'ring-2 ring-indigo-500')}
           onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) setDrag(true); }}
           onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false); }}
@@ -308,32 +311,25 @@ export default function ReviewDetail() {
           <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center gap-2 rounded-t-2xl bg-white">
             <MessageSquare size={15} className="text-indigo-600 shrink-0" /><span className="font-semibold text-sm">스레드</span>
             <span className="text-xs text-slate-400 truncate">이 업무 카드의 버전과 대화</span>
-            <span className="ml-auto shrink-0 text-[11px] text-slate-500">버전 {versions.length} · 대화 {all.filter((c) => !c.parent_id).length}</span>
+            <span className="ml-auto shrink-0 text-[11px] text-slate-500">버전 {versions.length} · 대화 {all.length}</span>
           </div>
           <div ref={scroller} className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 bg-slate-50/60">
             {stream.map((it) => it.t === 'v' ? (
               <VersionCard key={it.v.id} sub={sub} v={it.v} latest={it.v.id === latest.id}
-                ai={leaderView && sub.request_type !== 'share' && sub.kind !== 'number' ? { has: !!aiOf(it.v.id), on: cur?.kind === 'ai' && cur.versionId === it.v.id, open: () => setPanel({ kind: 'ai', versionId: it.v.id }) } : undefined} />
+                ai={showAi ? { has: !!aiOf(it.v.id), on: aiVer === it.v.id, open: () => setAiVer(it.v.id) } : undefined} />
             ) : (
-              <Bubble key={it.c.id} c={it.c} mine={it.c.author_id === uid} replies={all.filter((x) => x.parent_id === it.c.id)}
-                active={cur?.kind === 'thread' && cur.commentId === it.c.id} onThread={() => setPanel({ kind: 'thread', commentId: it.c.id })} />
+              <Bubble key={it.c.id} c={it.c} mine={it.c.author_id === uid} />
             ))}
           </div>
           <Composer sub={sub} latest={latest} canUpload={canUpload} file={file} setFile={setFile} />
         </div>
 
-        {/* 오른쪽: AI 검토(팀장) / 답글 */}
-        <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-3">
-          {leaderView && (
-            <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
-              <button onClick={() => setPanel({ kind: 'ai', versionId: cur?.kind === 'ai' ? cur.versionId : latest.id })} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={12} className="text-violet-600" />AI 검토</button>
-              <button onClick={() => setPanel({ kind: 'help' })} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind !== 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><CornerDownRight size={12} />답글</button>
-            </div>
-          )}
-          {cur?.kind === 'thread' ? <Thread sub={sub} comments={all} rootId={cur.commentId} onClose={() => setPanel(leaderView ? { kind: 'help' } : null)} />
-            : cur?.kind === 'ai' ? <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === cur.versionId) ?? latest} versions={versions} reviewOf={aiOf} onPick={(vid) => setPanel({ kind: 'ai', versionId: vid })} onToComments={(qs) => toComments.mutate(qs)} />
-            : <ReplyList comments={all} onOpen={(cid) => setPanel({ kind: 'thread', commentId: cid })} />}
-        </aside>
+        {/* 오른쪽: AI 1차 검토 (팀장, 컨펌·의견 요청만) */}
+        {showAi && (
+          <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-3">
+            <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === aiVer) ?? latest} versions={versions} reviewOf={aiOf} onPick={setAiVer} onToComments={(qs) => toComments.mutate(qs)} />
+          </aside>
+        )}
       </div>
     </section>
   );
@@ -376,7 +372,7 @@ function Attachment({ c, mine }: { c: ReviewComment; mine?: boolean }) {
 }
 
 /** 말풍선 — 내 말은 오른쪽 */
-export function Bubble({ c, mine, replies = [], active, onThread }: { c: ReviewComment; mine: boolean; replies?: ReviewComment[]; active?: boolean; onThread?: () => void }) {
+export function Bubble({ c, mine }: { c: ReviewComment; mine: boolean }) {
   const { nameOf } = useTeam();
   return (
     <div className={cx('flex gap-2.5 group', mine && 'flex-row-reverse')}>
@@ -384,13 +380,8 @@ export function Bubble({ c, mine, replies = [], active, onThread }: { c: ReviewC
       <div className={cx('max-w-[80%] min-w-0 flex flex-col', mine ? 'items-end' : 'items-start')}>
         <div className="text-[11px] text-slate-400 mb-0.5"><b className="text-slate-600 font-semibold">{nameOf(c.author_id)}</b> · {fmtDate(c.created_at)}
           {c.section_ref && <span className="ml-1.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}</div>
-        {!!c.body && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', mine ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 rounded-tl-sm text-slate-800', active && 'ring-2 ring-violet-400')}>{c.body}</div>}
+        {!!c.body && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', mine ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 rounded-tl-sm text-slate-800')}>{c.body}</div>}
         <Attachment c={c} mine={mine} />
-        {!onThread ? null : replies.length ? (
-          <button onClick={onThread} className="mt-1 text-xs text-indigo-700 font-semibold inline-flex items-center gap-1 hover:underline"><CornerDownRight size={12} />답글 {replies.length}개 · {nameOf(replies[replies.length - 1].author_id)}</button>
-        ) : (
-          <button onClick={onThread} className="mt-0.5 text-[11px] text-slate-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-1"><CornerDownRight size={11} />답글</button>
-        )}
       </div>
     </div>
   );
@@ -460,70 +451,5 @@ export function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submi
         </div>
       </div>
     </div>
-  );
-}
-
-/** 오른쪽 '답글' — 답글이 달린 말풍선 목록 (최근 답글 순). 누르면 그 대화로 */
-function ReplyList({ comments, onOpen }: { comments: ReviewComment[]; onOpen: (id: string) => void }) {
-  const { nameOf } = useTeam();
-  const roots = comments.filter((c) => !c.parent_id).map((c) => {
-    const rs = comments.filter((x) => x.parent_id === c.id);
-    return { c, n: rs.length, last: rs[rs.length - 1] };
-  }).filter((x) => x.n > 0).sort((a, b) => b.last!.created_at.localeCompare(a.last!.created_at));
-  return (
-    <section className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07]">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><CornerDownRight size={15} className="text-violet-600" /><span className="font-semibold text-sm">답글</span>
-        {!!roots.length && <span className="text-[11px] text-slate-400">{roots.length}개 대화</span>}</div>
-      {!roots.length ? (
-        <p className="px-4 py-6 text-sm text-slate-400">아직 답글이 달린 대화가 없습니다. 왼쪽 말풍선의 <b className="text-slate-600">[답글]</b>로 시작할 수 있습니다.</p>
-      ) : (
-        <ul className="p-2">
-          {roots.map(({ c, n, last }) => (
-            <li key={c.id}>
-              <button onClick={() => onOpen(c.id)} className="w-full text-left rounded-xl px-3 py-2.5 hover:bg-slate-50 flex items-start gap-2.5">
-                <Avatar name={nameOf(c.author_id)} size={7} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] text-slate-400"><b className="text-slate-600 font-semibold">{nameOf(c.author_id)}</b> · {fmtDate(c.created_at)}</span>
-                  <span className="block text-sm text-slate-800 truncate">{c.body || c.file_name || '첨부'}</span>
-                  <span className="mt-0.5 block text-xs text-indigo-700 font-semibold">답글 {n}개 <span className="font-normal text-slate-500">· {nameOf(last!.author_id)}: {last!.body || last!.file_name}</span></span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-/** 오른쪽 스레드: 말풍선 하나와 답글 */
-function Thread({ sub, comments, rootId, onClose }: { sub: Submission; comments: ReviewComment[]; rootId: string; onClose: () => void }) {
-  const { uid, team } = useTeam();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [body, setBody] = useState('');
-  const root = comments.find((c) => c.id === rootId);
-  const reps = comments.filter((c) => c.parent_id === rootId);
-  const add = useMutation({
-    mutationFn: () => q(supabase.from('review_comments').insert({ submission_id: sub.id, version_id: root?.version_id ?? null, team_id: team.id, author_id: uid, body: body.trim(), parent_id: rootId })),
-    onSuccess: () => { setBody(''); qc.invalidateQueries({ queryKey: ['comments', sub.id] }); },
-    onError: (e) => toast(errorText(e)),
-  });
-  if (!root) return null;
-  return (
-    <section className="rounded-2xl bg-white ring-1 ring-violet-200 shadow-sm flex flex-col max-h-[calc(100vh-10rem)]">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><CornerDownRight size={15} className="text-violet-600" /><span className="font-semibold text-sm">답글</span><span className="text-[11px] text-slate-400">말풍선 하나에 이어지는 대화</span>
-        <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={16} /></button></div>
-      <div className="p-4 space-y-3.5 overflow-y-auto">
-        <Bubble c={root} mine={root.author_id === uid} />
-        <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {reps.length}개<span className="flex-1 h-px bg-slate-200" /></div>
-        {reps.map((r) => <Bubble key={r.id} c={r} mine={r.author_id === uid} />)}
-      </div>
-      <form className="p-3 border-t border-slate-100 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate(); }}>
-        <textarea rows={1} autoFocus className={cx(inputCls, 'resize-none')} value={body} onChange={(e) => setBody(e.target.value)} placeholder="답글 — Enter 보내기"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (body.trim() && !add.isPending) add.mutate(); } }} />
-        <Button type="submit" className="self-end" loading={add.isPending} aria-label="보내기"><Send size={14} /></Button>
-      </form>
-    </section>
   );
 }
