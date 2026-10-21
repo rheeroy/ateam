@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCircle2, CircleDot, Crosshair, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, Plus, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
+import { Check, CheckCircle2, CircleDot, Crosshair, Download, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, Plus, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import { buildTree, useItems, type Node } from '../../lib/items';
@@ -336,21 +336,34 @@ function PerfNudge({ item, onPerf, onSkip }: { item: Node | null; onPerf: () => 
 }
 
 /** 말풍선 안의 업무 카드 — 제목 · 버전 · 요청 · 상태 */
-function WorkCard({ s, v, on, onClick }: { s: SpaceSub; v: { version: number; file_name: string | null } | null; on: boolean; onClick: () => void }) {
+function WorkCard({ s, v, on, onClick }: { s: SpaceSub; v: { version: number; file_name: string | null; file_path?: string | null } | null; on: boolean; onClick: () => void }) {
   const vs = s.submission_versions ?? [];
   const latestV = vs.reduce((m, x) => (x.version > m.version ? x : m), vs[0] ?? { version: 1, file_name: null } as never);
   const Icon = KIND_ICON[s.kind as keyof typeof KIND_ICON] ?? FileText;
   const rq = REQ_TAG[s.request_type] ?? REQ_TAG.approval;
   const fileName = (v ?? latestV)?.file_name;
+  const filePath = (v ?? latestV)?.file_path;
+  const toast = useToast();
+  // 대화창에서 바로 받기 — 스레드를 열지 않아도 된다 (이 말풍선의 버전 파일)
+  const download = async (ev: React.MouseEvent) => {
+    ev.stopPropagation();
+    if (!filePath) return;
+    const { data, error } = await supabase.storage.from('submissions').createSignedUrl(filePath, 120, { download: fileName || true });
+    if (error || !data?.signedUrl) { toast('파일을 받지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
+    window.location.href = data.signedUrl;
+  };
   return (
-    <button onClick={onClick} className={cx('text-left rounded-xl bg-white ring-1 px-3 py-2.5 w-[360px] max-w-full flex items-center gap-2.5 hover:ring-indigo-300', on ? 'ring-2 ring-indigo-500' : 'ring-slate-200')}>
+    <div role="button" tabIndex={0} onClick={onClick} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onClick(); } }}
+      className={cx('cursor-pointer text-left rounded-xl bg-white ring-1 px-3 py-2.5 w-[360px] max-w-full flex items-center gap-2.5 hover:ring-indigo-300', on ? 'ring-2 ring-indigo-500' : 'ring-slate-200')}>
       <span className={cx('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', s.kind === 'note' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600')}><Icon size={16} /></span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5"><span className="text-sm font-semibold text-slate-800 truncate">{s.title}</span><span className="shrink-0 font-mono text-[10px] text-indigo-600">v{v?.version ?? latestV?.version ?? 1}</span></span>
         <span className="block text-[11px] text-slate-500 truncate"><span className={cx('font-semibold', s.request_type === 'approval' ? 'text-indigo-700' : s.request_type === 'feedback' ? 'text-sky-700' : 'text-slate-500')}>{rq.label}</span>{fileName ? ` · ${fileName}` : s.link_url ? ` · ${s.link_url}` : ''}</span>
       </span>
+      {filePath ? <button onClick={download} title={`받기 · ${fileName ?? ''}`} aria-label="파일 받기" className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-700 hover:bg-indigo-50"><Download size={15} /></button>
+        : s.link_url ? <a href={s.link_url} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} title="링크 열기" aria-label="링크 열기" className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-700 hover:bg-indigo-50"><ExternalLink size={14} /></a> : null}
       {s.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5 shrink-0">정리됨</span> : <Pill tone={STATUS[s.status].tone} className="shrink-0">{STATUS[s.status].label}</Pill>}
-    </button>
+    </div>
   );
 }
 
