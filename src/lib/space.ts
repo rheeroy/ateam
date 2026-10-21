@@ -83,7 +83,7 @@ export function useSpace(ref: SpaceRef) {
     },
   });
 
-  // 실시간 — 상대가 쓴 대화·요청 변화·업무 카드 변화를 바로 받는다 (27_realtime.sql). 15초 확인은 끊겼을 때의 안전망.
+  // 실시간 — 상대가 쓴 대화·요청 변화·업무 카드 변화·AI 분석 완료를 바로 받는다 (27_realtime.sql · 28_realtime_ai.sql). 15초 확인은 끊겼을 때의 안전망.
   const refetchDelta = useRef(delta.refetch); refetchDelta.current = delta.refetch;
   useEffect(() => {
     if (typeof (supabase as { channel?: unknown }).channel !== 'function') return;
@@ -96,6 +96,8 @@ export function useSpace(ref: SpaceRef) {
         qc.setQueriesData<SpaceMessage[]>({ queryKey: ['space-msgs', team.id, key] }, (old) => (old ? byCreated([...old, m]) : old));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions', filter: `${col}=eq.${ref.id}` }, soon);
+    // AI 1차 분석이 끝나면 (팀장만 받는다 — ai_outputs 읽기 권한) 표시와 패널을 바로 갱신
+    ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ai_outputs', filter: `team_id=eq.${team.id}` }, () => qc.invalidateQueries({ queryKey: ['ai', team.id] }));
     if (ref.kind === 'user') ch.on('postgres_changes', { event: '*', schema: 'public', table: 'team_requests', filter: `to_id=eq.${ref.id}` }, () => {
       qc.invalidateQueries({ queryKey: ['requests', team.id] });
     });

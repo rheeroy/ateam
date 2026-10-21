@@ -24,7 +24,7 @@ import { AiReview, Bubble, Composer, VersionBody, type Review } from '../../page
 import { STATUS } from '../../pages/MySubmissions';
 
 type Filter = 'all' | 'wait' | 'fix' | 'unread' | 'none' | `i:${string}`;
-type Sel = { t: 'sub' | 'msg' | 'req'; id: string } | null;
+type Sel = { t: 'sub' | 'msg' | 'req'; id: string; /** 업무 카드: AI 분석 탭으로 열기 (그 버전) */ aiVer?: string } | null;
 
 const dayLabel = (iso: string) => {
   const d = new Date(iso); const t = new Date(); const y = new Date(Date.now() - 86400000);
@@ -51,6 +51,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const reqs = data.reqs.data ?? [];
   const entries = useMemo(() => buildEntries(subs, msgs, reqs), [subs, msgs, reqs]);
   const loaded = !data.subs.isLoading && !data.msgs.isLoading;
+  const aiMarks = useAiMarks(data.subs.data ?? [], !!leaderView);
   const usedAsEvidence = useMemo(() => new Set(subs.filter((x) => x.kind === 'checkin').flatMap((x) => (latestPayload(x)?.evidence ?? []).map((ev) => ev.id))), [subs]);
   const nudgeFor = (x: SpaceSub) => !leaderView && x.author_id === uid && x.kind !== 'checkin' && x.status === 'approved' && !x.closed_at
     && !!x.approved_at && Date.now() - Date.parse(x.approved_at) < 21 * 86400000 && !usedAsEvidence.has(x.id) && !skipped.includes(x.id);
@@ -138,7 +139,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   };
   const defaultTag = filterItem?.id ?? null;
 
-  const panel = sel?.t === 'sub' ? <SubPanel key={sel.id} id={sel.id} onClose={() => setSel(null)} leaderView={!!leaderView} canUploadFor={canUpload} byId={byId} />
+  const panel = sel?.t === 'sub' ? <SubPanel key={sel.id + (sel.aiVer ?? '')} id={sel.id} openAi={sel.aiVer} onClose={() => setSel(null)} leaderView={!!leaderView} canUploadFor={canUpload} byId={byId} />
     : sel?.t === 'msg' ? <MsgPanel key={sel.id} space={space} root={msgs.find((m) => m.id === sel.id)} replies={msgs.filter((m) => m.parent_id === sel.id)} byId={byId} onClose={() => setSel(null)} />
     : sel?.t === 'req' ? <ReqPanel key={sel.id} space={space} r={reqs.find((r) => r.id === sel.id)} replies={msgs.filter((m) => m.request_id === sel.id)} onClose={() => setSel(null)} />
     : filterItem ? <TaskPanel n={filterItem} entries={entries.filter((e) => tagged(e, filterItem.id))} onPerf={canPerf ? () => setPerfItem({ itemId: filterItem.id }) : undefined} />
@@ -207,7 +208,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
                 {day && <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400"><span className="flex-1 h-px bg-slate-200" />{day}<span className="flex-1 h-px bg-slate-200" /></div>}
                 <EntryView e={e} msgs={msgs} byId={byId} unread={unread(e)} group={!!group} leaderView={!!leaderView}
                   showThread={e.t === 'post' || e.t === 'ver' ? lastEntryOf.get(e.s.id) === e.id : true}
-                  sel={sel} onSel={setSel} onAnswer={(r) => setSel({ t: 'req', id: r.id })}
+                  sel={sel} onSel={setSel} onAnswer={(r) => setSel({ t: 'req', id: r.id })} aiMark={e.t === 'ver' ? aiMarks(e.s, e.v) : e.t === 'post' ? aiMarks(e.s, latestOf(e.s)) : null}
                   nudge={(e.t === 'post' || e.t === 'ver') && lastEntryOf.get(e.s.id) === e.id && nudgeFor(e.s)}
                   onPerf={() => (e.t === 'post' || e.t === 'ver') && setPerfFor(e.s)} onSkip={() => (e.t === 'post' || e.t === 'ver') && skip(e.s.id)} />
               </div>
@@ -240,7 +241,8 @@ function RailItem({ on, onClick, icon, label, n, dot }: { on: boolean; onClick: 
 // ---------------------------------------------------------------------
 // 흐름 한 칸
 // ---------------------------------------------------------------------
-function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nudge, onPerf, onSkip }: {
+function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nudge, onPerf, onSkip, aiMark }: {
+  aiMark?: AiMarkT | null;
   e: Entry; msgs: SpaceMessage[]; byId: Map<string, Node>; unread: boolean; group?: boolean; leaderView?: boolean; showThread: boolean; sel: Sel; onSel: (s: Sel) => void; onAnswer: (r: TeamRequest) => void;
   /** 승인된 내 결과물 — '이 결과로 성과입력 할까요?' */ nudge?: boolean; onPerf?: () => void; onSkip?: () => void;
 }) {
@@ -265,7 +267,8 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
     <div className={cx('flex gap-2.5 group', me && 'flex-row-reverse')}>
       <Avatar name={nameOf(who)} size={8} tone={me ? 'indigo' : 'slate'} />
       <div className={cx('max-w-[82%] sm:max-w-[75%] min-w-0 flex flex-col gap-1', me ? 'items-end' : 'items-start')}>
-        <div className="text-[11px] text-slate-400"><b className="text-slate-600">{nm(who)}</b> · {time}{unread && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle" />}</div>
+        <div className={cx('text-[11px] text-slate-400 flex items-center gap-1', aiMark && 'w-[360px] max-w-full')}><span><b className="text-slate-600">{nm(who)}</b> · {time}{unread && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle" />}</span>
+          {aiMark && (e.t === 'post' || e.t === 'ver') && <AiMark m={aiMark} onClick={() => onSel({ t: 'sub', id: e.s.id, aiVer: aiMark.versionId })} />}</div>
 
         {e.t === 'msg' && (
           <button onClick={() => onSel({ t: 'msg', id: e.m.id })} className={cx('text-left rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm', isSel && 'ring-2 ring-violet-400')}>{e.m.body}</button>
@@ -332,6 +335,52 @@ function PerfNudge({ item, onPerf, onSkip }: { item: Node | null; onPerf: () => 
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// AI 분석 표시 (팀장만) — 카드 위 줄 오른쪽 끝에 'AI 분석 ●'. 초록 양호 · 노랑 보완 필요 · 빨강 주요 문제 · 회색 깜빡임 분석 중
+// ---------------------------------------------------------------------
+type AiMarkT = { versionId: string; tone: 'good' | 'watch' | 'risk' | 'none' | 'run'; text: string };
+const AI_DOT = { good: 'bg-emerald-500', watch: 'bg-amber-400', risk: 'bg-rose-500', none: 'bg-indigo-300', run: 'bg-slate-300 animate-pulse' } as const;
+const AI_WORD = { good: '양호', watch: '보완 필요', risk: '주요 문제', none: '분석됨', run: '분석 중' } as const;
+/** 업무 카드에 보이는 버전 = 최신 버전 (새 버전 말풍선은 그 버전) */
+const latestOf = (s: SpaceSub) => (s.submission_versions ?? []).reduce<SpaceSub['submission_versions'][number] | null>((m, x) => (!m || x.version > m.version ? x : m), null);
+function useAiMarks(subs: SpaceSub[], on: boolean) {
+  const { team } = useTeam();
+  const target = (s: SpaceSub) => s.request_type !== 'share' && !['number', 'note', 'checkin'].includes(s.kind) && !s.closed_at;
+  const ids = on ? subs.filter(target).flatMap((s) => (s.submission_versions ?? []).map((v) => v.id)) : [];
+  const key = ids.slice().sort().join(',');
+  const q1 = useQuery({
+    queryKey: ['ai', team.id, 'marks', key], enabled: on && ids.length > 0, staleTime: 60_000,
+    queryFn: async () => {
+      const out: { ref_id: string; brief: Review['brief'] | null; summary: string | null }[] = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await supabase.from('ai_outputs').select('ref_id, brief:content->brief, summary:content->>summary')
+          .eq('team_id', team.id).eq('kind', 'review').eq('ref_table', 'submission_versions').in('ref_id', ids.slice(i, i + 100));
+        if (error) throw new Error(error.message);
+        out.push(...(data as typeof out));
+      }
+      return out;
+    },
+  });
+  // 결과가 아직 없고 막 올라온 버전은 '분석 중' — 3분이 지나도 없으면 표시하지 않는다(한도·설정으로 건너뛴 것)
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!on) return; const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, [on]);
+  return (s: SpaceSub, v: { id: string; created_at: string } | null): AiMarkT | null => {
+    if (!on || !v || !target(s)) return null;
+    const r = q1.data?.find((x) => x.ref_id === v.id);
+    if (r) return { versionId: v.id, tone: r.brief?.tone ?? 'none', text: r.brief?.text || r.summary?.split(/[.。]/)[0] || '' };
+    if (q1.isSuccess && now - Date.parse(v.created_at) < 3 * 60_000) return { versionId: v.id, tone: 'run', text: 'AI가 분석하고 있습니다' };
+    return null;
+  };
+}
+function AiMark({ m, onClick }: { m: AiMarkT; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={m.text ? `${AI_WORD[m.tone]} — ${m.text}` : AI_WORD[m.tone]}
+      className="ml-auto pr-1 inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 hover:text-violet-700">
+      AI 분석<span className={cx('w-1.5 h-1.5 rounded-full', AI_DOT[m.tone])} /><span className="sr-only">{AI_WORD[m.tone]}</span>
+    </button>
   );
 }
 
@@ -581,7 +630,7 @@ function PanelShell({ title, sub, actions, onClose, children, footer }: { title:
 }
 
 /** 업무 카드 스레드 — 버전 · 대화 · (팀장) AI 검토 · 승인 */
-function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string; onClose: () => void; leaderView: boolean; canUploadFor: (s: Submission) => boolean; byId: Map<string, Node> }) {
+function SubPanel({ id, openAi, onClose, leaderView, canUploadFor, byId }: { id: string; openAi?: string; onClose: () => void; leaderView: boolean; canUploadFor: (s: Submission) => boolean; byId: Map<string, Node> }) {
   const { team, uid, nameOf } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -597,9 +646,9 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
     queryFn: () => q<{ ref_id: string; content: Review }[]>(supabase.from('ai_outputs').select('ref_id, content').eq('team_id', team.id).eq('kind', 'review').eq('ref_table', 'submission_versions').in('ref_id', vIds).order('created_at', { ascending: false })),
   });
   const aiOf = (vid: string) => aiQ.data?.find((a) => a.ref_id === vid)?.content;
-  const [tab, setTab] = useState<'talk' | 'ai'>('talk');
+  const [tab, setTab] = useState<'talk' | 'ai'>(openAi && leaderView ? 'ai' : 'talk');
   const [ck, setCk] = useState(false);
-  const [aiVer, setAiVer] = useState<string | null>(null);
+  const [aiVer, setAiVer] = useState<string | null>(openAi ?? null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const close = useCloseSubmission(team.id);
