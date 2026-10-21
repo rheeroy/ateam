@@ -32,6 +32,12 @@ const dayLabel = (iso: string) => {
   if (d.toDateString() === y.toDateString()) return '어제';
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
 };
+/** 팀원이 업무를 올리는 세 가지 방식 */
+const UPLOAD_TYPES: { r: RequestType; sub: string; ai: boolean; tone: string }[] = [
+  { r: 'approval', sub: '팀장님 승인이 필요한 결과물', ai: true, tone: 'text-indigo-700' },
+  { r: 'feedback', sub: '승인 없이 의견만 받기', ai: true, tone: 'text-sky-700' },
+  { r: 'share', sub: '참고용 · 기록만 남습니다', ai: false, tone: 'text-slate-700' },
+];
 const KIND_ICON = { document: FileText, image: ImageIcon, link: Link2, note: StickyNote, number: Hash } as const;
 
 export function Space({ space, group, leaderView, offset = '14rem' }: { space: SpaceRef; group?: WorkGroup | null; leaderView?: boolean; offset?: string }) {
@@ -374,7 +380,13 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
   const area = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (defaultTag) setTag(defaultTag); }, [defaultTag]);
-  useEffect(() => { if (file) { setTitle(baseName(file.name)); setAsReq(false); area.current?.focus({ preventScroll: true }); } }, [file]);
+  // 파일이 붙으면(＋ · 끌어다 놓기 · 붙여 넣기) 팀원은 먼저 '어떻게 올릴지'를 고른다
+  const [askType, setAskType] = useState(false);
+  useEffect(() => {
+    if (file) { setTitle(baseName(file.name)); setAsReq(false); if (!isLeader) setAskType(true); else area.current?.focus({ preventScroll: true }); }
+    else setAskType(false);
+  }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
+  const chooseType = (r: RequestType) => { setReq(r); setAskType(false); area.current?.focus({ preventScroll: true }); };
   useEffect(() => {
     if (!menu) return;
     const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as globalThis.Node)) setMenu(false); };
@@ -426,11 +438,32 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
     },
     onError: (e) => toast(errorText(e)),
   });
-  const ready = !!file || !!text.trim();
+  const ready = (!!file || !!text.trim()) && !askType;
   const pick = (fn: () => void) => { setMenu(false); fn(); };
   return (
     <div className="p-3 border-t border-slate-100 bg-white">
       <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ''; }} />
+      {/* 올리는 방식 고르기 — 컨펌·의견 요청은 AI 1차 검토가 붙는다 */}
+      {askType && file && (
+        <div className="relative">
+          <div role="dialog" aria-label="올리는 방식" className="absolute bottom-full left-0 right-0 mb-2 z-30 rounded-xl bg-white shadow-lg ring-1 ring-slate-200 p-2">
+            <div className="px-2 pt-1 pb-2 flex items-center gap-2">
+              <span className="text-sm font-semibold">어떻게 올릴까요?</span>
+              <span className="text-[11px] text-slate-400 truncate flex-1">{file.name}</span>
+              <button onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-700" aria-label="올리기 취소"><X size={15} /></button>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-1.5">
+              {UPLOAD_TYPES.map((t) => (
+                <button key={t.r} onClick={() => chooseType(t.r)} className={cx('text-left rounded-lg ring-1 px-3 py-2.5 hover:ring-indigo-400 hover:bg-indigo-50/40', req === t.r ? 'ring-indigo-300' : 'ring-slate-200')}>
+                  <span className="flex items-center gap-1.5"><b className={cx('text-sm', t.tone)}>{REQ_TAG[t.r].label}</b>
+                    {t.ai && <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-semibold text-violet-700 bg-violet-50 rounded px-1.5 py-0.5"><Sparkles size={10} />AI 검토</span>}</span>
+                  <span className="block mt-0.5 text-[11px] text-slate-500 leading-snug">{t.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* 모드 띠 */}
       {reqOn && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-violet-50 ring-1 ring-violet-200 px-3 py-1.5 text-xs text-violet-800">
@@ -442,7 +475,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
           <button onClick={() => { setAsReq(false); setDue(''); }} className="ml-auto text-violet-500 hover:text-violet-800" aria-label="요청 취소"><X size={14} /></button>
         </div>
       )}
-      {file && (
+      {file && !askType && (
         <div className="mb-2 rounded-xl bg-slate-50 ring-1 ring-slate-200 px-3 py-2">
           <div className="flex items-center gap-2">
             {IMAGE.test(file.type) ? <ImageIcon size={16} className="text-indigo-600 shrink-0" /> : <FileText size={16} className="text-indigo-600 shrink-0" />}
@@ -455,6 +488,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
               : (['approval', 'feedback', 'share'] as RequestType[]).map((r) => (
                 <button key={r} onClick={() => setReq(r)} className={cx('rounded-full border px-2.5 py-0.5', req === r ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 text-slate-500 bg-white')}>{REQ_TAG[r].label}</button>
               ))}
+            {!isLeader && <span className="text-[11px] text-slate-400 truncate">{UPLOAD_TYPES.find((t) => t.r === req)?.sub}</span>}
           </div>
         </div>
       )}
@@ -586,10 +620,10 @@ function SubPanel({ id, onClose, leaderView, canUploadFor, byId }: { id: string;
         {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{isCheckin && sub.status === 'in_review' ? '승인 대기' : STATUS[sub.status].label}</Pill>}
         <span>{nameOf(sub.author_id)} · {fmtDate(sub.created_at)}</span></>}
       actions={canCk ? <Button size="sm" variant="soft" title={PERF_TIP} onClick={() => setCk(true)}><Crosshair size={12} />이 업무로 성과입력</Button> : leaderView && !isLeaderPost && !isCheckin ? <>
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs">
+        {sub.request_type !== 'share' && <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs">
           <button onClick={() => setTab('talk')} className={cx('px-2.5 py-1 rounded-md', tab === 'talk' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>대화</button>
           <button onClick={() => setTab('ai')} className={cx('px-2.5 py-1 rounded-md inline-flex items-center gap-1', tab === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={11} className="text-violet-600" />AI 검토</button>
-        </div>
+        </div>}
         <span className="ml-auto flex gap-1">
           {sub.request_type !== 'share' && <>
             <Button size="sm" variant="ghost" loading={setStatus.isPending && setStatus.variables === 'needs_work'} onClick={() => setStatus.mutate('needs_work')}><RotateCcw size={12} />보완</Button>
@@ -626,7 +660,7 @@ function VersionMini({ sub, v, latest }: { sub: Submission; v: SubmissionVersion
           <span className="block text-[11px] text-slate-500 truncate">{v.note || (latest ? '최신' : '이전 버전')} · {fmtDate(v.created_at)}</span></span>
         <span className="text-[11px] font-semibold text-indigo-700 shrink-0">{open ? '접기' : '보기'}</span>
       </button>
-      {open && <div className="px-3 pb-3"><VersionBody sub={sub} v={v} older={!latest} /></div>}
+      {open && <div className="px-3 pb-3"><VersionBody sub={sub} v={v} older={!latest} preview={false} /></div>}
     </div>
   );
 }
