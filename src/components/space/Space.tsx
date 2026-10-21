@@ -61,7 +61,6 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const setSel = (s: Sel) => { setSelState(s); if (params.get('open')) { const p = new URLSearchParams(params); p.delete('open'); setParams(p, { replace: true }); } };
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
-  const [answering, setAnswering] = useState<TeamRequest | null>(null);
   // 승인된 내 결과물 → 성과입력 안내 (최근 21일 · 아직 근거로 쓰지 않은 것 · '다음에' 누르지 않은 것)
   const NUDGE_KEY = 'ateam.perfnudge.skip';
   const [skipped, setSkipped] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(NUDGE_KEY) ?? '[]'); } catch { return []; } });
@@ -76,7 +75,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
     const k = `${sel.t === 'sub' ? 's' : sel.t === 'msg' ? 'm' : 'r'}:${sel.id}`;
     setOpened((o) => ({ ...o, [k]: new Date(Date.now() + 1000).toISOString() }));
   }, [sel, latest]);
-  useEffect(() => { setOpened({}); setAllReadAt(''); setFilter('all'); setSelState(params.get('open') ? { t: 'sub', id: params.get('open')! } : null); setFile(null); setAnswering(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [space.kind, space.id]);
+  useEffect(() => { setOpened({}); setAllReadAt(''); setFilter('all'); setSelState(params.get('open') ? { t: 'sub', id: params.get('open')! } : null); setFile(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [space.kind, space.id]);
 
   const inGroup = !!group?.work_group_members.some((m) => m.user_id === uid);
   const canUpload = (s: Pick<Submission, 'author_id'>) => s.author_id === uid || inGroup;
@@ -135,7 +134,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
 
   const panel = sel?.t === 'sub' ? <SubPanel key={sel.id} id={sel.id} onClose={() => setSel(null)} leaderView={!!leaderView} canUploadFor={canUpload} byId={byId} />
     : sel?.t === 'msg' ? <MsgPanel key={sel.id} space={space} root={msgs.find((m) => m.id === sel.id)} replies={msgs.filter((m) => m.parent_id === sel.id)} byId={byId} onClose={() => setSel(null)} />
-    : sel?.t === 'req' ? <ReqPanel key={sel.id} space={space} r={reqs.find((r) => r.id === sel.id)} replies={msgs.filter((m) => m.request_id === sel.id)} onAnswer={(r) => setAnswering(r)} onClose={() => setSel(null)} />
+    : sel?.t === 'req' ? <ReqPanel key={sel.id} space={space} r={reqs.find((r) => r.id === sel.id)} replies={msgs.filter((m) => m.request_id === sel.id)} onClose={() => setSel(null)} />
     : filterItem ? <TaskPanel n={filterItem} entries={entries.filter((e) => tagged(e, filterItem.id))} onPerf={canPerf ? () => setPerfItem({ itemId: filterItem.id }) : undefined} />
     : <InfoPanel space={space} group={group} />;
 
@@ -202,14 +201,14 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
                 {day && <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400"><span className="flex-1 h-px bg-slate-200" />{day}<span className="flex-1 h-px bg-slate-200" /></div>}
                 <EntryView e={e} msgs={msgs} byId={byId} unread={unread(e)} group={!!group} leaderView={!!leaderView}
                   showThread={e.t === 'post' || e.t === 'ver' ? lastEntryOf.get(e.s.id) === e.id : true}
-                  sel={sel} onSel={setSel} onAnswer={(r) => setAnswering(r)}
+                  sel={sel} onSel={setSel} onAnswer={(r) => setSel({ t: 'req', id: r.id })}
                   nudge={(e.t === 'post' || e.t === 'ver') && lastEntryOf.get(e.s.id) === e.id && nudgeFor(e.s)}
                   onPerf={() => (e.t === 'post' || e.t === 'ver') && setPerfFor(e.s)} onSkip={() => (e.t === 'post' || e.t === 'ver') && skip(e.s.id)} />
               </div>
             );
           })}
         </div>
-        <SpaceComposer space={space} tasks={tasks} defaultTag={defaultTag} file={file} setFile={setFile} answering={answering} clearAnswer={() => setAnswering(null)}
+        <SpaceComposer space={space} tasks={tasks} defaultTag={defaultTag} file={file} setFile={setFile}
           recent={subs.filter((x) => x.author_id === uid && x.kind !== 'checkin').slice(-10).reverse().map((x) => ({ id: x.id, title: x.title }))} />
       </section>
 
@@ -274,7 +273,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
               {e.r.body && <div className="mt-0.5 text-xs text-slate-500 line-clamp-2">{e.r.body}</div>}
               {e.r.status === 'done' && e.r.response && <div className="mt-1.5 text-xs text-emerald-800 bg-emerald-50 rounded px-2 py-1">답: {e.r.response}</div>}
             </button>
-            {e.r.status === 'open' && e.r.to_id === uid && <Button size="sm" variant="soft" className="mt-2" onClick={() => onAnswer(e.r)}><FileUp size={13} />답하기</Button>}
+            {e.r.status === 'open' && e.r.to_id === uid && <Button size="sm" variant="soft" className="mt-2" onClick={() => onAnswer(e.r)}><MessageSquare size={13} />답하기</Button>}
           </div>
         )}
 
@@ -295,7 +294,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
             {thread && thread.n > 0 ? (
               <button onClick={thread.open} className="text-indigo-700 font-semibold inline-flex items-center gap-1 hover:underline min-w-0"><MessageSquare size={11} className="shrink-0" /><span className="shrink-0 whitespace-nowrap">답글 {thread.n}</span>
                 <span className="font-normal text-slate-500 truncate max-w-[220px]">· {thread.last === uid ? '나' : nameOf(thread.last!)}: {thread.body}</span></button>
-            ) : thread && <button onClick={thread.open} className="text-slate-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-1"><MessageSquare size={11} />답글</button>}
+            ) : thread && !(e.t === 'req' && e.r.status === 'open' && e.r.to_id === uid) && <button onClick={thread.open} className="text-slate-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-1"><MessageSquare size={11} />답글</button>}
           </div>
         )}
       </div>
@@ -345,11 +344,11 @@ function WorkCard({ s, v, on, onClick }: { s: SpaceSub; v: { version: number; fi
 // ---------------------------------------------------------------------
 // 입력창 — 평소엔 대화만: [＋] 입력칸 [#] [보내기]
 //   기록을 만드는 행동은 ＋ 하나로: 파일·캡처(업무 카드) · 성과입력(팀원) · 요청 보내기(팀장, 개인 스페이스)
-//   고르면 입력창 위에 '모드 띠'가 생긴다 (파일 · 요청 · 요청에 답하는 중). ✕ 로 대화로 돌아온다.
+//   고르면 입력창 위에 '모드 띠'가 생긴다 (파일 · 요청). ✕ 로 대화로 돌아온다. 요청에 대한 답은 그 요청의 스레드에서.
 //   과제 태그는 왼쪽에서 과제를 골라 보면 자동으로 붙고, 붙었을 때만 이름이 보인다.
 // ---------------------------------------------------------------------
-function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, clearAnswer, recent }: {
-  space: SpaceRef; tasks: Node[]; defaultTag: string | null; file: File | null; setFile: (f: File | null) => void; answering: TeamRequest | null; clearAnswer: () => void;
+function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
+  space: SpaceRef; tasks: Node[]; defaultTag: string | null; file: File | null; setFile: (f: File | null) => void;
   recent: { id: string; title: string }[];
 }) {
   const [ck, setCk] = useState(false);
@@ -369,7 +368,6 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (defaultTag) setTag(defaultTag); }, [defaultTag]);
   useEffect(() => { if (file) { setTitle(baseName(file.name)); setAsReq(false); area.current?.focus({ preventScroll: true }); } }, [file]);
-  useEffect(() => { if (answering) { if (answering.item_id) setTag(answering.item_id); setReq('share'); setAsReq(false); area.current?.focus({ preventScroll: true }); } }, [answering]);
   useEffect(() => {
     if (!menu) return;
     const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as globalThis.Node)) setMenu(false); };
@@ -378,7 +376,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
   }, [menu]);
   const link = !file && isUrl(text) ? text.trim() : null;
   const work = !!file || !!link;
-  const canReq = isLeader && space.kind === 'user' && !answering;
+  const canReq = isLeader && space.kind === 'user';
   const reqOn = canReq && asReq && !work;
   const tagName = tag ? tasks.find((t) => t.id === tag)?.title : null;
   const post = useMutation({
@@ -398,11 +396,9 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
           req: isLeader ? 'share' : req, title: file ? (title.trim() || baseName(file.name)) : link!.slice(0, 80), file, text: '', link,
           kind: link ? 'link' : undefined, note: file ? body : '',
         });
-        if (answering) await supabase.from('team_requests').update({ status: 'done', response: `자료 올림: ${r.sub.title}` }).eq('id', answering.id);
         return { kind: 'work' as const, ...r };
       }
       await send.mutateAsync({ body, item_id: tag || null });
-      if (answering) await supabase.from('team_requests').update({ status: 'done', response: body.slice(0, 300) }).eq('id', answering.id);
       return { kind: 'msg' as const };
     },
     onSuccess: (r) => {
@@ -413,7 +409,6 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
         toast('요청을 보냈습니다. 답이 오면 완료로 바뀌고, 답이 늦으면 대시보드에 알려 드립니다.');
         return;
       }
-      if (answering) { clearAnswer(); qc.invalidateQueries({ queryKey: ['requests'] }); toast('요청에 답했습니다. 완료로 바뀝니다.'); }
       if (r.kind === 'work') {
         // 이 스페이스는 '바뀐 것만' 받아 합치고, 다른 화면의 목록만 새로
         qc.invalidateQueries({ queryKey: ['space-delta'] });
@@ -430,12 +425,6 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, answering, cle
     <div className="p-3 border-t border-slate-100 bg-white">
       <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ''; }} />
       {/* 모드 띠 */}
-      {answering && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg bg-violet-50 ring-1 ring-violet-200 px-3 py-1.5 text-xs text-violet-800">
-          <Send size={12} /><span className="truncate">요청에 답하는 중 · <b>{answering.title}</b> — 메시지나 파일로 답하면 완료로 바뀝니다</span>
-          <button onClick={clearAnswer} className="ml-auto text-violet-500 hover:text-violet-800" aria-label="답하기 취소"><X size={14} /></button>
-        </div>
-      )}
       {reqOn && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-violet-50 ring-1 ring-violet-200 px-3 py-1.5 text-xs text-violet-800">
           <Send size={12} /><b>요청</b><span className="text-violet-300">·</span>
@@ -683,40 +672,92 @@ function MsgPanel({ space, root, replies, byId, onClose }: { space: SpaceRef; ro
 }
 
 /** 팀장 요청 */
-function ReqPanel({ space, r, replies, onAnswer, onClose }: { space: SpaceRef; r?: TeamRequest; replies: SpaceMessage[]; onAnswer: (r: TeamRequest) => void; onClose: () => void }) {
-  const { uid, nameOf } = useTeam();
+function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamRequest; replies: SpaceMessage[]; onClose: () => void }) {
+  // 요청에 대한 대화는 전부 여기(스레드)에서. 답글은 답일 뿐, 완료는 받은 사람이 따로 한 번 누른다.
+  //   자료로 답하기: 업무 카드로 올라가고(과제 태그 = 요청의 과제) 요청은 완료된다.
+  const { team, uid, nameOf, isLeader, hasFeature } = useTeam();
   const send = useSendMessage(space);
-  const [body, setBody] = useState('');
   const qc = useQueryClient();
-  const done = useMutation({
-    mutationFn: () => q(supabase.from('team_requests').update({ status: 'done', response: '확인했습니다' }).eq('id', r!.id)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['requests'] }),
+  const toast = useToast();
+  const [body, setBody] = useState('');
+  const [andDone, setAndDone] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const inval = () => ['requests', 'space-delta', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  const finish = useMutation({
+    mutationFn: (response: string) => q(supabase.from('team_requests').update({ status: 'done', response: response.slice(0, 300) }).eq('id', r!.id)),
+    onSuccess: () => { inval(); toast('완료로 표시했습니다. 팀장님께 알림이 갑니다.'); },
+    onError: (e) => toast(errorText(e)),
+  });
+  const reopen = useMutation({
+    mutationFn: async () => {
+      await q(supabase.from('team_requests').update({ status: 'open', response: '', responded_at: null }).eq('id', r!.id));
+      await send.mutateAsync({ body: '다시 요청합니다. 한 번 더 확인 부탁해요.', request_id: r!.id });
+    },
+    onSuccess: () => { inval(); toast('다시 열었습니다. 팀원에게 알림이 갑니다.'); },
+    onError: (e) => toast(errorText(e)),
+  });
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      const res = await createPost({ teamId: team.id, uid, ...(space.kind === 'user' ? { spaceId: space.id } : { groupId: space.id }), itemId: r!.item_id ?? null,
+        req: 'share', title: baseName(file.name), file, text: '', link: null, note: '' });
+      await send.mutateAsync({ body: `업무 카드로 올림 · ${res.sub.title}`, request_id: r!.id });
+      await q(supabase.from('team_requests').update({ status: 'done', response: `자료 올림: ${res.sub.title}` }).eq('id', r!.id));
+      return res;
+    },
+    onSuccess: (res) => {
+      inval(); qc.invalidateQueries({ queryKey: ['subs'], predicate: (x) => x.queryKey[2] !== 'space' });
+      if (!isLeader) startReview(res.sub, res.ver.id, hasFeature('ai_core'), () => qc.invalidateQueries({ queryKey: ['ai'] }));
+      toast('자료를 업무 카드로 올리고 요청을 완료했습니다.');
+    },
+    onError: (e) => toast(errorText(e)),
   });
   if (!r) return null;
   const mine = r.to_id === uid;
-  const submit = () => { if (body.trim()) send.mutate({ body, request_id: r.id }, { onSuccess: () => setBody('') }); };
-  return (
-    <PanelShell onClose={onClose} title={<><Send size={15} className="text-violet-600" /><span className="font-semibold text-sm">{r.kind === 'other' ? '요청' : `요청 · ${REQUEST_KIND[r.kind]?.label ?? ''}`}</span></>}
-      footer={<ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} />}
-      sub={<><span>{nameOf(r.from_id)} → {nameOf(r.to_id)}</span><span>· {fmtDate(r.created_at)}</span>{r.due_date && <span className="font-semibold text-violet-700">· {fmtShort(r.due_date)}까지</span>}</>}>
-      <div className="p-4 space-y-3 text-sm">
-        <div className="font-semibold text-base">{r.title}</div>
-        {r.body && <p className="text-slate-700 whitespace-pre-wrap">{r.body}</p>}
-        {r.status === 'done' ? (
-          <div className="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 p-3 text-emerald-900"><b>완료</b>{r.responded_at && ` · ${fmtDate(r.responded_at)}`}{r.response && <p className="mt-1 text-sm">{r.response}</p>}</div>
-        ) : mine ? (
-          <div className="space-y-2">
-            <Button className="w-full" onClick={() => onAnswer(r)}><FileUp size={14} />메시지나 자료로 답하기</Button>
-            <Button variant="ghost" className="w-full" loading={done.isPending} onClick={() => done.mutate()}>확인만 하고 완료로 표시</Button>
-          </div>
-        ) : <p className="text-slate-500">아직 답을 기다리는 중입니다.</p>}
-      </div>
-      {replies.length > 0 && (
-        <div className="px-4 pb-4 space-y-3">
-          <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
-          {replies.map((m) => <MsgBubble key={m.id} m={m} />)}
+  const open = r.status === 'open';
+  const lastReply = [...replies].reverse().find((m) => m.author_id === uid)?.body ?? '';
+  const submit = () => {
+    const b = body.trim(); if (!b) return;
+    send.mutate({ body: b, request_id: r.id }, { onSuccess: () => { setBody(''); if (andDone && mine && open) { finish.mutate(b); setAndDone(false); } } });
+  };
+  const footer = (
+    <div className="border-t border-slate-100">
+      <ReplyBox body={body} setBody={setBody} onSubmit={submit} busy={send.isPending} autoFocus={mine && open} />
+      {mine && open && (
+        <div className="px-3 pb-3 -mt-1 flex items-center gap-2 flex-wrap text-xs">
+          <label className="inline-flex items-center gap-1.5 text-slate-600 cursor-pointer select-none">
+            <input type="checkbox" checked={andDone} onChange={(e) => setAndDone(e.target.checked)} className="rounded border-slate-300 text-indigo-600" />이 답글로 완료
+          </label>
+          <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ''; }} />
+          <span className="ml-auto flex gap-1.5">
+            <Button size="sm" variant="ghost" loading={upload.isPending} onClick={() => fileRef.current?.click()} title="파일을 업무 카드로 올리고 이 요청을 완료합니다"><Paperclip size={12} />자료로 답하기</Button>
+            <Button size="sm" variant="secondary" loading={finish.isPending} onClick={() => finish.mutate(lastReply || '확인했습니다')}><CheckCircle2 size={12} />완료로 표시</Button>
+          </span>
         </div>
       )}
+    </div>
+  );
+  return (
+    <PanelShell onClose={onClose} title={<><Send size={15} className="text-violet-600" /><span className="font-semibold text-sm">{r.kind === 'other' ? '요청' : `요청 · ${REQUEST_KIND[r.kind]?.label ?? ''}`}</span>
+        <span className={cx('ml-1 text-[11px] font-semibold rounded-full px-2 py-0.5', open ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700')}>{open ? '열림' : '완료'}</span></>}
+      footer={footer}
+      sub={<><span>{nameOf(r.from_id)} → {nameOf(r.to_id)}</span><span>· {fmtDate(r.created_at)}</span>{r.due_date && <span className="font-semibold text-violet-700">· {fmtShort(r.due_date)}까지</span>}</>}>
+      <div className="p-4 space-y-2 text-sm">
+        <div className="font-semibold text-base">{r.title}</div>
+        {r.body && <p className="text-slate-700 whitespace-pre-wrap">{r.body}</p>}
+        {!open && (
+          <div className="rounded-xl bg-emerald-50 ring-1 ring-emerald-200 px-3 py-2 text-emerald-900 text-xs flex items-start gap-2">
+            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+            <span className="flex-1"><b>완료</b>{r.responded_at && ` · ${fmtDate(r.responded_at)}`}{r.response && <span className="block mt-0.5 text-emerald-800">{r.response}</span>}</span>
+            {r.from_id === uid && <button onClick={() => reopen.mutate()} disabled={reopen.isPending} className="shrink-0 text-emerald-700 hover:text-emerald-900 font-semibold">다시 요청</button>}
+          </div>
+        )}
+        {open && mine && <p className="text-[11px] text-slate-400">아래에 답글로 답하고, 끝났으면 [완료로 표시]를 눌러 주세요. 자료가 필요하면 [자료로 답하기]로 올리면 바로 완료됩니다.</p>}
+        {open && !mine && <p className="text-[11px] text-slate-400">답을 기다리는 중입니다. 대화는 이 스레드에서 이어 가세요.</p>}
+      </div>
+      <div className="px-4 pb-4 space-y-3">
+        <div className="text-[11px] text-slate-400 flex items-center gap-2"><span className="flex-1 h-px bg-slate-200" />답글 {replies.length}개<span className="flex-1 h-px bg-slate-200" /></div>
+        {replies.map((m) => <MsgBubble key={m.id} m={m} />)}
+      </div>
     </PanelShell>
   );
 }
