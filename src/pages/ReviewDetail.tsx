@@ -1,5 +1,5 @@
 // 업무 상세 — 대화창: 올린 버전과 말풍선이 시간순으로 한 흐름. 맨 아래 대화창 하나로 보내기·파일(새 버전/첨부)
-//   말풍선의 [답글]은 오른쪽 스레드에서 이어 간다. 팀장은 오른쪽에서 AI 1차 검토를 본다(팀원에게는 보이지 않음).
+//   왼쪽은 이 업무 카드의 스레드(버전 + 대화), 말풍선의 [답글]은 오른쪽 '답글'에서 이어 간다. 팀장은 오른쪽에서 AI 1차 검토를 본다(팀원에게는 보이지 않음).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -304,7 +304,13 @@ export default function ReviewDetail() {
               <FileUp size={24} /><div className="mt-1.5 font-semibold">{canUpload ? `놓으면 새 버전(v${latest.version + 1})으로 올릴 준비가 됩니다` : '놓으면 대화에 첨부됩니다'}</div>
             </div>
           )}
-          <div ref={scroller} className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 bg-slate-50/60 rounded-t-2xl">
+          {/* 이 화면의 왼쪽 = 업무 스페이스에서 이 카드를 눌렀을 때 열리던 스레드를 크게 본 것 */}
+          <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center gap-2 rounded-t-2xl bg-white">
+            <MessageSquare size={15} className="text-indigo-600 shrink-0" /><span className="font-semibold text-sm">스레드</span>
+            <span className="text-xs text-slate-400 truncate">이 업무 카드의 버전과 대화</span>
+            <span className="ml-auto shrink-0 text-[11px] text-slate-500">버전 {versions.length} · 대화 {all.filter((c) => !c.parent_id).length}</span>
+          </div>
+          <div ref={scroller} className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 bg-slate-50/60">
             {stream.map((it) => it.t === 'v' ? (
               <VersionCard key={it.v.id} sub={sub} v={it.v} latest={it.v.id === latest.id}
                 ai={leaderView && sub.request_type !== 'share' && sub.kind !== 'number' ? { has: !!aiOf(it.v.id), on: cur?.kind === 'ai' && cur.versionId === it.v.id, open: () => setPanel({ kind: 'ai', versionId: it.v.id }) } : undefined} />
@@ -316,38 +322,17 @@ export default function ReviewDetail() {
           <Composer sub={sub} latest={latest} canUpload={canUpload} file={file} setFile={setFile} />
         </div>
 
-        {/* 오른쪽: AI 검토(팀장) / 스레드 */}
+        {/* 오른쪽: AI 검토(팀장) / 답글 */}
         <aside className="lg:col-span-2 lg:sticky lg:top-4 space-y-3">
           {leaderView && (
             <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
               <button onClick={() => setPanel({ kind: 'ai', versionId: cur?.kind === 'ai' ? cur.versionId : latest.id })} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={12} className="text-violet-600" />AI 검토</button>
-              <button onClick={() => { const r = all.filter((c) => !c.parent_id).at(-1); setPanel(r ? { kind: 'thread', commentId: r.id } : { kind: 'help' }); }} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind !== 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><MessageSquare size={12} />스레드</button>
+              <button onClick={() => setPanel({ kind: 'help' })} className={cx('px-3 py-1.5 rounded-md inline-flex items-center gap-1', cur?.kind !== 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><CornerDownRight size={12} />답글</button>
             </div>
           )}
           {cur?.kind === 'thread' ? <Thread sub={sub} comments={all} rootId={cur.commentId} onClose={() => setPanel(leaderView ? { kind: 'help' } : null)} />
             : cur?.kind === 'ai' ? <AiReview teamId={sub.team_id} version={versions.find((v) => v.id === cur.versionId) ?? latest} versions={versions} reviewOf={aiOf} onPick={(vid) => setPanel({ kind: 'ai', versionId: vid })} onToComments={(qs) => toComments.mutate(qs)} />
-            : (
-              <div className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] p-5 text-sm text-slate-500 space-y-3">
-                <div>
-                  <div className="font-semibold text-slate-800 flex items-center gap-2"><MessageSquare size={15} className="text-indigo-600" />대화 안내</div>
-                  <p className="mt-1.5">말풍선 아래 <b className="text-slate-700">[답글]</b>을 누르면 여기서 그 대화를 이어 갑니다. 파일은 대화창에 끌어다 놓거나 캡처를 붙여 넣으면 됩니다.{canUpload && ' 고친 자료는 새 버전으로 올라가고, 이전 버전과 대화는 그대로 남습니다.'}</p>
-                </div>
-                {group && (
-                  <div className="pt-3 border-t border-slate-100">
-                    <div className="text-xs font-semibold text-slate-600 mb-1.5 inline-flex items-center gap-1"><Users size={12} />{group.name}</div>
-                    <div className="flex flex-wrap gap-1.5">{group.work_group_members.map((m) => <span key={m.user_id} className="inline-flex items-center gap-1 text-xs text-slate-600"><Avatar name={nameOf(m.user_id)} size={7} />{nameOf(m.user_id)}</span>)}</div>
-                  </div>
-                )}
-                {versions.length > 1 && (
-                  <div className="pt-3 border-t border-slate-100">
-                    <div className="text-xs font-semibold text-slate-600 mb-1.5">버전 흐름</div>
-                    <ol className="space-y-1 text-xs">{[...versions].reverse().map((v) => (
-                      <li key={v.id} className="flex items-center gap-2"><span className="font-mono font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5">v{v.version}</span><span className="text-slate-700 truncate flex-1">{v.note || (v.version === 1 ? '처음 올림' : '새 버전')}</span><span className="text-slate-400 shrink-0">{nameOf(v.created_by)} · {fmtShort(v.created_at)}</span></li>
-                    ))}</ol>
-                  </div>
-                )}
-              </div>
-            )}
+            : <ReplyList comments={all} onOpen={(cid) => setPanel({ kind: 'thread', commentId: cid })} />}
         </aside>
       </div>
     </section>
@@ -478,6 +463,39 @@ export function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submi
   );
 }
 
+/** 오른쪽 '답글' — 답글이 달린 말풍선 목록 (최근 답글 순). 누르면 그 대화로 */
+function ReplyList({ comments, onOpen }: { comments: ReviewComment[]; onOpen: (id: string) => void }) {
+  const { nameOf } = useTeam();
+  const roots = comments.filter((c) => !c.parent_id).map((c) => {
+    const rs = comments.filter((x) => x.parent_id === c.id);
+    return { c, n: rs.length, last: rs[rs.length - 1] };
+  }).filter((x) => x.n > 0).sort((a, b) => b.last!.created_at.localeCompare(a.last!.created_at));
+  return (
+    <section className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07]">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><CornerDownRight size={15} className="text-violet-600" /><span className="font-semibold text-sm">답글</span>
+        {!!roots.length && <span className="text-[11px] text-slate-400">{roots.length}개 대화</span>}</div>
+      {!roots.length ? (
+        <p className="px-4 py-6 text-sm text-slate-400">아직 답글이 달린 대화가 없습니다. 왼쪽 말풍선의 <b className="text-slate-600">[답글]</b>로 시작할 수 있습니다.</p>
+      ) : (
+        <ul className="p-2">
+          {roots.map(({ c, n, last }) => (
+            <li key={c.id}>
+              <button onClick={() => onOpen(c.id)} className="w-full text-left rounded-xl px-3 py-2.5 hover:bg-slate-50 flex items-start gap-2.5">
+                <Avatar name={nameOf(c.author_id)} size={7} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] text-slate-400"><b className="text-slate-600 font-semibold">{nameOf(c.author_id)}</b> · {fmtDate(c.created_at)}</span>
+                  <span className="block text-sm text-slate-800 truncate">{c.body || c.file_name || '첨부'}</span>
+                  <span className="mt-0.5 block text-xs text-indigo-700 font-semibold">답글 {n}개 <span className="font-normal text-slate-500">· {nameOf(last!.author_id)}: {last!.body || last!.file_name}</span></span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** 오른쪽 스레드: 말풍선 하나와 답글 */
 function Thread({ sub, comments, rootId, onClose }: { sub: Submission; comments: ReviewComment[]; rootId: string; onClose: () => void }) {
   const { uid, team } = useTeam();
@@ -494,7 +512,7 @@ function Thread({ sub, comments, rootId, onClose }: { sub: Submission; comments:
   if (!root) return null;
   return (
     <section className="rounded-2xl bg-white ring-1 ring-violet-200 shadow-sm flex flex-col max-h-[calc(100vh-10rem)]">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><MessageSquare size={15} className="text-violet-600" /><span className="font-semibold text-sm">스레드</span>
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2"><CornerDownRight size={15} className="text-violet-600" /><span className="font-semibold text-sm">답글</span><span className="text-[11px] text-slate-400">말풍선 하나에 이어지는 대화</span>
         <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={16} /></button></div>
       <div className="p-4 space-y-3.5 overflow-y-auto">
         <Bubble c={root} mine={root.author_id === uid} />
