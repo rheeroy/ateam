@@ -78,7 +78,7 @@ function useBriefing(m: HomeModel): BLine[] {
   const reviewed = waiting.filter((s) => s.review).length, old = waiting.filter((s) => daysAgo(latestAt(s)) >= 3).length;
   const briefFresh = !!brief.data && (team.is_demo || (brief.data.period_start ?? '') >= mondayOf());
   const nearest = m.orgSt.nearest ? dDay(m.orgSt.nearest.event_date!) : null;
-  const n = (v: number, unit: string) => <b className="text-white num">{v}{unit}</b>;
+  const n = (v: number, unit: string) => <b className="text-slate-900 num">{v}{unit}</b>;
   const out: BLine[] = [];
   const ooR = ooReq.data ?? [];
   if (ooR.length) out.push({ key: 'ooreq', tone: 'rose', icon: Users, text: <>{ooR.length === 1 ? <>{nameOf(ooR[0].from_id)} 님이</> : <>팀원 {n(ooR.length, '명')}이</>} 1on1을 요청했어요.</>, go: ooR.length === 1 ? '일정 잡기를' : '팀원관리를', to: ooR.length === 1 ? `/people/${ooR[0].from_id}?oo=1` : '/people' });
@@ -109,28 +109,26 @@ function DailyBriefing({ m }: { m: HomeModel }) {
   const lines = useBriefing(m);
   const shown = lines.slice(0, 6);
   return (
-    <section aria-label="Daily Briefing" className="relative overflow-hidden rounded-2xl bg-slate-950 text-white">
-      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,58,237,0.45),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(79,70,229,0.25),transparent_50%)]" />
-      <div className="relative">
-        <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-white/[0.06] border-b border-white/10">
-          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
-          <span className="text-base font-extrabold tracking-wide text-violet-200">DAILY BRIEFING</span>
-          <span className="text-base font-bold tracking-tight">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
-        </div>
-        {!m.loading && !!shown.length && (
-          <ul className="px-4 py-3 bg-black/20 grid md:grid-cols-2 gap-x-6 gap-y-1">
-            {shown.map((l) => (
-              <li key={l.key}>
-                <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-white/[0.08] min-w-0">
-                  <span className={cx('w-6 h-6 rounded-md flex items-center justify-center shrink-0',
-                    l.tone === 'rose' ? 'bg-rose-500/35 text-rose-100' : l.tone === 'amber' ? 'bg-amber-400/30 text-amber-100' : l.tone === 'agent' ? 'bg-violet-500/40 text-violet-100' : 'bg-white/15 text-slate-100')}><l.icon size={13} /></span>
-                  <span className="text-[13px] text-slate-100 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-200 group-hover:text-white whitespace-nowrap">{l.go} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+    <section aria-label="Daily Briefing" className="overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm">
+      <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-slate-900 text-white">
+        <span className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
+        <span className="text-sm font-extrabold tracking-wider text-violet-300">DAILY BRIEFING</span>
+        <span className="text-base font-bold tracking-tight">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
+        {!m.loading && !!shown.length && <span className="ml-auto text-xs text-slate-400 num">{shown.length}건</span>}
       </div>
+      {!m.loading && !!shown.length && (
+        <ul className="px-4 py-3 grid md:grid-cols-2 gap-x-6 gap-y-1">
+          {shown.map((l) => (
+            <li key={l.key}>
+              <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 min-w-0">
+                <span className={cx('w-6 h-6 rounded-md flex items-center justify-center shrink-0',
+                  l.tone === 'rose' ? 'bg-rose-100 text-rose-700' : l.tone === 'amber' ? 'bg-amber-100 text-amber-700' : l.tone === 'agent' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600')}><l.icon size={13} /></span>
+                <span className="text-[13px] text-slate-700 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-700 group-hover:text-violet-900 whitespace-nowrap">{l.go} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
