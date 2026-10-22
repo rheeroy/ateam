@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Copy, Database, Info, Lightbulb, Lock, Plus, ScatterChart, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Copy, Database, Info, Lightbulb, Lock, Plus, ScatterChart, Sparkles } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
@@ -22,20 +22,18 @@ export function Upsell({ feature, desc, points }: { feature: string; desc?: stri
     </Empty></Card>
   );
   return (
-    <Card className="p-6 md:p-8 max-w-2xl">
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded px-2 py-0.5"><Lock size={11} />Pro부터</span>
-      <h2 className="mt-3 text-lg font-bold text-slate-900">{feature}</h2>
-      <p className="mt-1.5 text-sm text-slate-700 leading-relaxed">{desc}</p>
+    <div className="min-h-[62vh] flex flex-col items-center justify-center text-center px-4">
+      <span className="w-11 h-11 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center"><Lock size={18} /></span>
+      <h2 className="mt-4 text-xl font-bold text-slate-900">{feature}</h2>
+      <p className="mt-2 max-w-xl text-sm text-slate-600 leading-relaxed">{desc}</p>
       {!!points?.length && (
-        <ul className="mt-4 space-y-2">
-          {points.map((p) => <li key={p} className="flex gap-2 text-sm text-slate-600"><CheckCircle2 size={15} className="text-indigo-500 shrink-0 mt-0.5" />{p}</li>)}
+        <ul className="mt-4 space-y-1.5 text-[13px] text-slate-500">
+          {points.map((p) => <li key={p}>{p}</li>)}
         </ul>
       )}
-      <div className="mt-6 pt-5 border-t border-slate-100 flex items-center gap-3 flex-wrap">
-        <p className="flex-1 min-w-[220px] text-sm text-slate-600">지금 요금제(Starter)에서는 쓸 수 없습니다. <b className="text-slate-800">Pro 요금제부터</b> 쓸 수 있고, 바꾸면 바로 열립니다.</p>
-        <Link to="/settings?tab=billing"><Button>요금제 보기</Button></Link>
-      </div>
-    </Card>
+      <p className="mt-3 text-sm text-slate-700"><b>Pro 요금제부터 사용할 수 있습니다.</b></p>
+      <Link to="/settings?tab=billing" className="mt-5"><Button>요금제 보기</Button></Link>
+    </div>
   );
 }
 
