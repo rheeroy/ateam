@@ -31,8 +31,8 @@ export function Upsell({ feature, desc, points }: { feature: string; desc?: stri
           {points.map((p) => <li key={p}>{p}</li>)}
         </ul>
       )}
-      <p className="mt-6 text-sm text-slate-700"><b>Pro 요금제부터</b> 쓸 수 있습니다. 바꾸면 바로 열립니다.</p>
-      <Link to="/settings?tab=billing" className="mt-3"><Button>요금제 보기</Button></Link>
+      <p className="mt-3 text-sm text-slate-700"><b>Pro 요금제부터 사용할 수 있습니다.</b></p>
+      <Link to="/settings?tab=billing" className="mt-5"><Button>요금제 보기</Button></Link>
     </div>
   );
 }
