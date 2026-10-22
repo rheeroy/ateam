@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardCheck, History as HistoryIcon, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
-  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
+  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Lock } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -21,10 +21,10 @@ import { AiIcon, ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand
 import { useMemberBadges } from './member/Member';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
 
-type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string };
+type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string; locked?: boolean };
 
 /** 창이 좁으면(md~xl) 아이콘만 — 이름은 마우스를 올리면 */
-function NavItem({ to, label, icon: Icon, badge, tip }: Item) {
+function NavItem({ to, label, icon: Icon, badge, tip, locked }: Item) {
   return (
     <NavLink to={to} end={to === '/'} title={tip ?? (typeof label === 'string' ? label : undefined)}
       className={({ isActive }) => cx(
@@ -32,7 +32,8 @@ function NavItem({ to, label, icon: Icon, badge, tip }: Item) {
         isActive ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-600 hover:bg-slate-100')}>
       <Icon size={16} className="shrink-0" />
       <span className="flex-1 md:hidden xl:inline">{label}</span>
-      {badge && <span className="hidden xl:inline font-mono text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5">{badge}</span>}
+      {locked && <span className="hidden xl:inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded px-1.5"><Lock size={9} />잠금</span>}
+      {!locked && badge && <span className="hidden xl:inline font-mono text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5">{badge}</span>}
       {badge && <span className="hidden md:block xl:hidden absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-violet-500" />}
     </NavLink>
   );
@@ -67,14 +68,14 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <NavItem to="/work" label="업무플랫폼" icon={LaptopMinimal} badge={todo.work ? `${todo.work}` : undefined} />
             <NavItem to="/people" label="팀원관리" icon={Users} />
             <NavItem to="/decide" label="의사결정" icon={Gavel} badge={todo.decide ? `${todo.decide}` : undefined} />
-            <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} />
+            <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} locked={!hasFeature('history')} tip={!hasFeature('history') ? '히스토리 관리 · Pro부터' : undefined} />
             <Group label="상향 관리" />
             <NavItem to="/upward" label="임원 브리핑" icon={UserRound} badge={todo.upward ? `${todo.upward}` : undefined} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
             <NavItem to="/advisor" label={<ATeamAdvice />} tip="ATEAM AI의 제안" icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
             <Group label="인사" />
-            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
+            <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} locked={!hasFeature('evaluation')} tip={!hasFeature('evaluation') ? '평가 시뮬레이션 · Pro부터' : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/notes" label="내 메모 모아보기" icon={StickyNote} />
             <NavItem to="/knowhow" label="노하우 라이브러리" icon={Library} />
@@ -143,8 +144,8 @@ export default function Layout() {
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/my/goals" label="팀목표" icon={Target} />
             <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
-            <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks} tip={mb.data?.conditionDue ? '매니징 보드 · 이번 주 컨디션 미공유' : undefined}
-              badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : mb.data?.conditionDue ? '컨디션' : undefined} />
+            <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks}
+              badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -213,7 +214,7 @@ export default function Layout() {
           {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
         </div>
       </main>
-      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!leaderTodo || !!mb.data?.conditionDue} history={hUnread.data ?? 0} />}
+      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!leaderTodo} history={hUnread.data ?? 0} />}
       {isLeader && <QuickNote />}
       <InstallPrompt />
       <ProvLegend />
@@ -254,3 +255,4 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
     </div>
   );
 }
+

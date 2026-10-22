@@ -337,26 +337,28 @@ export default function SettingsPage() {
   );
 }
 
-/** 팀원: 내 기록은 누가 보고 무엇에 쓰이나 */
+/** 팀원: 기능 안내 — 각 기능이 무엇을 하는지 (보는 사람은 옆에 작게) */
 function MyDataGuide() {
   const rows: [string, string, string][] = [
-    ['컨디션 공유 (컨디션 · 영향 요인 · 메모)', '나와 팀장님', '팀장님이 도움이 필요한 때를 알아차리고 1on1을 준비하는 데만 씁니다. 평가·주간보고에는 쓰지 않습니다.'],
-    ['업무플랫폼에 올린 결과물', '나와 팀장님', 'AI가 팀장님보다 먼저 읽고 1차 의견을 정리합니다. 승인된 결과물과 피드백은 성과 기록으로 남습니다.'],
-    ['1on1 함께 보는 노트 · 약속', '나와 팀장님', '다음 1on1 준비와 약속 챙기기.'],
-    ['목표 · 과제 진척', '팀 전체', '팀 목표 진행 상황과 계획 대비 확인.'],
-    ['받은 칭찬', '나와 팀장님', '매니징 보드에 모이고, 성과 기록으로 남습니다.'],
-    ['ATEAM AI 코칭', '나', '보낸 사람이 드러나지 않는 개선 코칭. 평가 근거로 남지 않습니다.'],
+    ['팀목표', '팀의 목표·과제와 진척을 함께 보는 곳입니다. 내 과제 아래 할 일은 자유롭게 씁니다.', '팀 전체'],
+    ['성과입력', '목표 달성에 대한 공식 성과를 입력하고 팀장님 승인을 받는 기능입니다. 승인되면 팀목표 진척에 반영됩니다.', '팀 전체'],
+    ['업무플랫폼', '결과물과 진행 상황을 올리고 팀장님과 주고받는 업무 공간입니다. 컨펌·의견 요청으로 올리면 AI가 먼저 읽고 1차 의견을 정리합니다.', '나와 팀장님'],
+    ['이번 주 컨디션', '한 주의 컨디션과 영향 요인을 팀장님께 짧게 알리는 기능입니다. 팀장님이 도움이 필요한 때를 알아차리고 1on1을 준비하는 데 쓰이며, 평가·주간보고에는 쓰이지 않습니다.', '나와 팀장님'],
+    ['받은 히스토리', '맡게 된 과제의 지금까지 흐름·확정 사항·관계자를 팀장님이 정리해 전달한 것입니다. 궁금한 점은 그 자리에서 바로 묻습니다.', '나와 팀장님'],
+    ['Feedback', '팀장님이 보낸 칭찬·육성·업무 독려·지원·격려를 모아 보고 답하는 곳입니다. 받은 칭찬은 성과 기록으로 남습니다.', '나와 팀장님'],
+    ['ATEAM 업무 피드백', '나의 업무 기록을 바탕으로 ATEAM AI가 정리하는 업무 피드백입니다. 컨설팅 DB와 팀장님의 업무 원칙에 근거하며, 평가 근거로 남지 않습니다.', '나'],
+    ['1on1', '다음 1on1에서 꺼낼 이야기를 미리 남기고, 1on1에서 정한 할 일을 함께 챙기는 노트입니다.', '나와 팀장님'],
   ];
   return (
     <Card className="p-5">
-      <div className="font-semibold">내 기록은 이렇게 쓰여요</div>
-      <p className="text-xs text-slate-500 mt-1">ATEAM에 남긴 기록을 누가 보고, 무엇에 쓰는지 정리했습니다. 다른 팀원은 내 컨디션 공유·결과물·1on1을 볼 수 없습니다.</p>
+      <div className="font-semibold">기능 안내</div>
+      <p className="text-xs text-slate-500 mt-1">ATEAM의 각 기능이 무엇을 하는지 정리했습니다. 다른 팀원은 내 컨디션·결과물·1on1을 볼 수 없습니다.</p>
       <div className="mt-3 divide-y divide-slate-100 text-sm">
-        {rows.map(([k, who, use]) => (
-          <div key={k} className="py-2.5 grid sm:grid-cols-[180px_90px_1fr] gap-1 sm:gap-3">
+        {rows.map(([k, what, who]) => (
+          <div key={k} className="py-2.5 grid sm:grid-cols-[150px_1fr_88px] gap-1 sm:gap-3">
             <span className="font-medium text-slate-800">{k}</span>
-            <span className="text-xs text-indigo-700 sm:pt-0.5">{who}</span>
-            <span className="text-slate-600">{use}</span>
+            <span className="text-slate-600">{what}</span>
+            <span className="text-[11px] text-slate-400 sm:text-right sm:pt-0.5">{who}</span>
           </div>
         ))}
       </div>
