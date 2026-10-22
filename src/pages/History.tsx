@@ -124,8 +124,7 @@ export default function HistoryPage() {
   // 처음 들어오면 히스토리가 있는 첫 과제
   useEffect(() => { if (!sel && hists.data?.length) setSel([...hists.data].sort((x, y) => y.updated_at.localeCompare(x.updated_at))[0].item_id); }, [hists.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!hasFeature('history')) return <section><Upsell feature="히스토리 관리" desc="과제마다 지금까지의 흐름을 한 장의 히스토리로 쌓아 두고, 맥락 전달이 필요할 때 팀원에게 한 번에 보내는 기능입니다. 담당자가 바뀌거나 새 팀원이 합류할 때 설명하는 시간을 줄여 줍니다."
-    points={['매주 월요일, 그 주의 기록을 더해 과제별 히스토리를 자동으로 고쳐 씁니다', '진행 흐름 · 확정 사항 · 미결 사항 · 리스크 · 관계자를 그림과 문서로 정리합니다', '팀원에게 전달하면 팀원은 확인하고 궁금한 점을 그 자리에서 묻습니다']} /></section>;
+  if (!hasFeature('history')) return <section><Upsell feature="히스토리 관리" desc="조직 내 업무 관련 히스토리를 자동으로 쌓고 인수인계 필요 시 팀원에게 정리해서 전달하는 기능입니다. 담당자가 바뀌거나 새롭게 합류한 팀원에게 유용합니다." /></section>;
   if (items.isLoading || hists.isLoading) return <Spinner />;
 
   const match = (i: WorkItem) => !qtext.trim() || i.title.toLowerCase().includes(qtext.trim().toLowerCase());
