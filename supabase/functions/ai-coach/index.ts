@@ -1,4 +1,4 @@
-// ATEAM의 코칭 — 팀장이 누르면 팀원의 최근 업무 기록에서 개선점을 골라 코칭 초안을 쓴다 (코어 AI, 팀장이 누를 때만)
+// ATEAM 업무 피드백(코칭) — 팀장이 누르면 팀원의 최근 업무 기록에서 약한 면을 골라 초안을 쓴다 (형식 지시 없이 진단 + 점검 질문) (코어 AI, 팀장이 누를 때만)
 //   초안은 팀장에게만 돌아가고, 팀장이 고쳐서 보내면 coaching_notes에 저장된다(여기서는 저장·발송하지 않음).
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
@@ -56,7 +56,9 @@ serve(async (req) => {
   const prevText = (prev ?? []).map((p) => `${fmtDate(p.created_at)} "${p.title}"`).join(' / ');
 
   if (book.size === 0) throw new HttpError(422, 'NO_DATA', `${member.full_name} 님의 최근 업무 기록이 아직 적어 코칭할 점을 찾지 못했습니다.`);
-  // ATEAM 플레이북: 이 팀원의 보완점·막힘에 맞는 방법론 몇 장 (팀장 개인 노하우는 싣지 않음 — 팀원에게 그대로 보이는 글)
+  // 팀장님 업무 원칙: 팀원에게 공개한 '팀장 가이드'만 (공개 안 한 개인 노하우는 싣지 않음 — 팀원에게 그대로 보이는 글)
+  await addKnowhow(book, team_id, 'review', 1200, true, false, '', true);
+  // ATEAM 플레이북(컨설팅 DB): 이 팀원의 약한 면에 맞는 방법론 몇 장
   await addKnowhow(book, team_id, 'review', 1600, false, true, '', false);
   const playbook = book.knowhowText();
   const text = [
