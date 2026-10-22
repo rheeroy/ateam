@@ -1,19 +1,18 @@
 // 팀원: 매니징 보드 — 팀장과 '사람으로서' 주고받는 곳. (업무 결과물은 업무플랫폼, 목표는 팀목표)
-//   ① 이번 주 컨디션 (한 줄)
 //   ② 왼쪽: 받은 히스토리 — 팀장이 넘겨준 과제 히스토리 (카드 → 오른쪽 넓은 창)
-//   ③ 오른쪽 위: 피드백 · 코칭 — 성장 제안 · 격려 · 칭찬 · ATEAM 코칭 (업무 요청은 업무플랫폼·팀목표에서)
-//   ④ 오른쪽 아래: 1on1 — 팀장님의 1on1 요청 · 다음 1on1(미리 꺼낼 이야기) · 1on1에서 정한 할 일 · 지난 1on1
+//   ③ 오른쪽(세로선으로 구분): 소통 및 피드백 — 한 묶음 안에 이번 주 컨디션(한 줄) · Feedback(칭찬 · 육성 · 업무 독려 · 지원·격려 · 코칭) | 1on1(요청 · 다음 1on1 · 정한 할 일 · 지난 1on1)
 //   1on1 요청은 우측 상단 버튼 하나로만.
 import { useState } from 'react';
 import { noteHead } from '../lib/format';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, CheckCircle2, ChevronRight, MessageSquare, MessageSquarePlus } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ChevronRight, MessageSquare, MessageSquarePlus, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { OneOnOne, TeamRequest } from '../lib/types';
 import { cx, fmtDate, fmtTime, relDay } from '../lib/format';
-import { Button, Card, PageHeader, Pill, useToast } from '../components/ui';
+import { Button, PageHeader, Pill, useToast } from '../components/ui';
+import { BoardSection } from '../components/member/BoardSection';
 import { errorText } from '../lib/supabase';
 import { ReceivedHistories } from '../components/history/ReceivedHistories';
 import { PromiseList, RequestOOModal, useMyOORequest, usePromises } from '../components/member/Member';
@@ -85,10 +84,7 @@ function OneOnOnePanel() {
   const next = [...(list.data ?? [])].filter((o) => o.status === 'scheduled' && o.scheduled_at >= now).sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))[0];
   const past = (list.data ?? []).filter((o) => o.id !== next?.id && o.status !== 'canceled');
   return (
-    <Card>
-      <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
-        <MessageSquare size={16} className="text-slate-500" /><span className="font-semibold">1on1</span>
-      </div>
+    <BoardSection sub icon={<MessageSquare size={15} className="text-slate-400" />} title="1on1">
       <div className="p-4 space-y-5">
         <LeaderMeetings />
         <section>
@@ -121,7 +117,7 @@ function OneOnOnePanel() {
           {past.length > 4 && <button onClick={() => setAll((x) => !x)} className={cx('mt-1 text-xs text-slate-500 hover:text-slate-800')}>{all ? '접기' : `전체 ${past.length}회 보기`}</button>}
         </section>
       </div>
-    </Card>
+    </BoardSection>
   );
 }
 
@@ -134,17 +130,28 @@ export default function MyOneOnOnes() {
   const focus = params.get('coach') ?? params.get('req') ?? params.get('praise');
   return (
     <section>
-      <PageHeader title="매니징 보드" sub="팀장님과 나 사이 — 받은 히스토리 · 성장 제안 · 칭찬 · 코칭 · 1on1을 한곳에서"
+      <PageHeader title="매니징 보드" sub="받은 히스토리와 팀장님과의 소통 · 피드백 · 1on1을 한곳에서"
         right={req ? <span className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">1on1 요청함 · {fmtDate(req.created_at)} · 일정 대기</span>
           : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1on1 요청하기</Button>} />
       <div className="space-y-5">
-        <ConditionShare />
-        <div className="grid lg:grid-cols-12 gap-5 items-start">
-          <div className="lg:col-span-7 min-w-0"><ReceivedHistories /></div>
-          <div className="lg:col-span-5 min-w-0 space-y-5">
-            <FromLeader focus={focus} />
-            <OneOnOnePanel />
-          </div>
+        <div className="grid lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-6 items-start">
+          <ReceivedHistories />
+          {/* 소통 및 피드백 — Feedback(팀장님 액션) · 1on1 을 한 묶음으로 */}
+          <section className="min-w-0 lg:border-l lg:border-slate-200 lg:pl-6 pt-5 lg:pt-0 border-t border-slate-200 lg:border-t-0">
+            <div className="flex items-end gap-3 mb-2.5 px-1 min-h-[44px]">
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-1.5"><Users size={16} className="text-slate-400" />소통 및 피드백</h2>
+                <p className="text-xs text-slate-500 mt-0.5">이번 주 컨디션을 나누고, 팀장님 피드백에 답하고, 1on1을 함께 준비합니다</p>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-slate-100/70 ring-1 ring-slate-200/70 p-4 space-y-4">
+              <ConditionShare stack />
+              <div className="grid md:grid-cols-2 gap-4 items-start">
+                <FromLeader focus={focus} />
+                <OneOnOnePanel />
+              </div>
+            </div>
+          </section>
         </div>
       </div>
       {reqOpen && <RequestOOModal onClose={() => setReqOpen(false)} />}

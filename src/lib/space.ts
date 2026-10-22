@@ -52,7 +52,8 @@ export function useSpace(ref: SpaceRef) {
   const reqs = useQuery({
     queryKey: ['requests', team.id, 'space', key, days], enabled: ref.kind === 'user', refetchInterval: 60_000,
     queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', ref.id).not('kind', 'in', '(meeting,change,grow,cheer)')
-      .or(`created_at.gte.${since0},status.eq.open`).order('created_at').limit(100)),
+      .or(`created_at.gte.${since0},status.eq.open`).order('created_at').limit(100))
+      .then((rs) => rs.filter((r) => !(r.kind === 'progress' && !r.item_id))),   // 업무 독려(과제 없음)는 매니징 보드 '팀장님 액션'에
   });
 
   // 바뀐 것만: 새 대화 · 바뀐 결과물(상태·새 버전) · 새 댓글이 달린 결과물

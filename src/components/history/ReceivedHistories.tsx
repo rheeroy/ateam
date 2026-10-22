@@ -1,8 +1,8 @@
 // 팀원 매니징 보드 — 받은 히스토리: 팀장이 넘겨준 과제의 흐름 · 확정 사항 · 관계자 (보낸 순간의 사본)
-//   카드를 누르면 오른쪽 넓은 창에서 자세히 (?history=<id>) · 확인했어요 · 질문 · 히스토리 요청
+//   박스 없이 보라 계열 카드 (소통 및 피드백 묶음과 구분) · 안 읽은 것은 NEW + 보라 테두리 + '미열람 · 읽기' 띠 · 카드를 누르면 오른쪽 넓은 창에서 자세히 (?history=<id>) · 확인했어요 · 질문 · 히스토리 요청
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, CircleHelp, Flag, History as HistoryIcon, Inbox, MessageSquare, Send, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, CircleHelp, Flag, History as HistoryIcon, Inbox, MessageSquare, Send, X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { useItems } from '../../lib/items';
 import { historyItems, useHistoryActions, useHistoryMessages, useShares, type HistoryShare } from '../../lib/history';
@@ -101,53 +101,65 @@ export function ReceivedHistories() {
   const got = (shares.data ?? []).filter((s) => s.status === 'sent' || s.status === 'read')
     .sort((a, b) => (a.status === b.status ? (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at) : a.status === 'sent' ? -1 : 1));
   const waiting = (shares.data ?? []).filter((s) => s.status === 'requested');
-  const unread = got.filter((s) => s.status === 'sent').length;
   const open = got.find((s) => s.id === params.get('history')) ?? null;
   const setOpen = (id: string | null) => { const p = new URLSearchParams(params); if (id) p.set('history', id); else p.delete('history'); setParams(p, { replace: !id }); };
+  // 소통 및 피드백(회색 묶음 · 흰 카드)과 구분되게 — 박스 없이, 보라 계열의 '기록 타임라인'
   return (
-    <Card>
-      <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2 flex-wrap">
-        <HistoryIcon size={16} className="text-slate-500" /><span className="font-semibold">받은 히스토리</span>
-        {!!unread && <span className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-full px-2 py-0.5">확인 전 {unread}</span>}
-        <span className="text-[11px] text-slate-400 hidden sm:inline">팀장님이 넘겨준 과제의 흐름 · 확정 사항 · 관계자</span>
-        <button onClick={() => setReqOpen(true)} className="ml-auto text-xs font-semibold text-violet-700 bg-violet-50 ring-1 ring-violet-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-1 hover:bg-violet-100"><Inbox size={13} />히스토리 요청</button>
+    <section className="min-w-0">
+      <div className="flex items-start gap-3 px-1 mb-5">
+        <span className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0"><HistoryIcon size={17} /></span>
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-1.5">받은 히스토리</h2>
+          <p className="text-xs text-slate-500 mt-0.5">업무 히스토리를 파악할 수 있게 팀장님이 전달한 내용입니다</p>
+        </div>
       </div>
-      <div className="p-4 space-y-3">
-        {shares.isLoading ? <p className="text-sm text-slate-400">불러오는 중</p> : !got.length ? (
-          <div className="rounded-xl border-2 border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-            <Inbox size={18} className="mx-auto mb-1.5 text-slate-300" />아직 받은 히스토리가 없습니다.<br />
-            <span className="text-xs text-slate-400">과제를 새로 맡거나 함께 일하게 되면 팀장님이 그 과제의 지금까지 흐름 · 확정 사항 · 관계자를 정리해서 보내 줍니다. 흐름을 모르겠다면 먼저 요청하세요.</span>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {got.map((s) => {
-              const c = s.snapshot; const isNew = s.status === 'sent';
-              return (
-                <button key={s.id} onClick={() => setOpen(s.id)} className={cx('text-left rounded-xl ring-1 p-4 hover:ring-indigo-300 transition', isNew ? 'ring-violet-300 bg-violet-50/40' : 'ring-slate-200 bg-white')}>
-                  <div className="flex items-center gap-2"><b className="text-sm truncate"># {titleOf(s.item_id)}</b>
-                    <span className={cx('ml-auto shrink-0 text-[10px] font-semibold rounded-full px-2 py-0.5', isNew ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700')}>{isNew ? '확인 전' : '확인함'}</span></div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">{nameOf(s.from_id)} 팀장님 · {fmtShort(s.sent_at ?? s.created_at)}</div>
-                  {c.summary && <p className="text-[13px] text-slate-700 mt-2 line-clamp-2">{c.summary}</p>}
-                  <div className="mt-3 flex items-center gap-1.5 text-[11px] flex-wrap">
-                    {!!c.fixed?.length && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5"><CheckCircle2 size={10} />확정 {c.fixed.length}</span>}
-                    {!!c.open?.length && <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 text-violet-700 px-2 py-0.5"><Flag size={10} />미결 {c.open.length}</span>}
-                    {!!c.gaps?.length && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-800 px-2 py-0.5"><CircleHelp size={10} />확인 필요 {c.gaps.length}</span>}
-                    {s.note && <span className="inline-flex items-center gap-1 text-indigo-700"><MessageSquare size={10} />한마디</span>}
-                    <span className="ml-auto font-semibold text-indigo-700">자세히 →</span>
+
+      {shares.isLoading ? <p className="px-1 text-sm text-slate-400">불러오는 중</p> : (
+        <div className="space-y-4">
+          {!got.length && (
+            <div className="rounded-xl bg-white/60 ring-1 ring-slate-200 px-4 py-5 text-center">
+              <p className="text-sm text-slate-600">아직 받은 히스토리가 없습니다.</p>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">과제를 새로 맡거나 함께 일하게 되면 팀장님이 지금까지의 흐름 · 확정 사항 · 관계자를 정리해서 보내 줍니다.</p>
+            </div>
+          )}
+          {got.map((s) => {
+            const c = s.snapshot; const isNew = s.status === 'sent';
+            return (
+              <button key={s.id} onClick={() => setOpen(s.id)}
+                className={cx('relative w-full text-left rounded-xl p-4 transition group', isNew ? 'bg-white ring-2 ring-violet-500 shadow-[0_4px_16px_-6px_rgba(124,58,237,0.35)] hover:ring-violet-600' : 'bg-white/60 ring-1 ring-slate-200 hover:ring-violet-300')}>
+                {isNew && <span className="absolute -top-2.5 left-4 text-[10px] font-bold tracking-wide text-white bg-violet-600 rounded-full px-2 py-0.5 inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />NEW</span>}
+                <div className="flex items-center gap-2">
+                  <b className={cx('text-sm block truncate', isNew ? 'text-slate-900' : 'text-slate-700')}>{titleOf(s.item_id)}</b>
+                  {!isNew && <span className="ml-auto shrink-0 text-[11px] text-slate-400 inline-flex items-center gap-0.5"><CheckCircle2 size={11} />확인함</span>}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5"><span className="num">{fmtShort(s.sent_at ?? s.created_at)}</span> · {nameOf(s.from_id)} 팀장님</div>
+                {c.summary && <p className={cx('text-[13px] mt-2 line-clamp-2 leading-relaxed', isNew ? 'text-slate-700' : 'text-slate-500')}>{c.summary}</p>}
+                {s.note && <p className="mt-2 text-xs text-violet-800 flex gap-1"><MessageSquare size={12} className="mt-0.5 shrink-0" /><span className="line-clamp-1">{s.note}</span></p>}
+                <div className="mt-3 flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                  {!!c.fixed?.length && <span className="inline-flex items-center gap-1"><CheckCircle2 size={11} className="text-emerald-600" />확정 {c.fixed.length}</span>}
+                  {!!c.open?.length && <span className="inline-flex items-center gap-1"><Flag size={11} className="text-violet-600" />미결 {c.open.length}</span>}
+                  {!!c.gaps?.length && <span className="inline-flex items-center gap-1"><CircleHelp size={11} className="text-amber-600" />확인 필요 {c.gaps.length}</span>}
+                  {!isNew && <span className="ml-auto font-semibold text-violet-700">다시 보기 →</span>}
+                </div>
+                {isNew && (
+                  <div className="mt-3 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl bg-violet-600 text-white text-xs font-semibold flex items-center gap-1.5 group-hover:bg-violet-700">
+                    <BookOpen size={13} />미열람<span className="ml-auto">읽기 →</span>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {!!waiting.length && (
-          <div className="text-xs text-slate-500 space-y-1">
-            {waiting.map((s) => <div key={s.id} className="flex items-center gap-1.5"><Inbox size={12} className="text-slate-400" /><b className="font-medium text-slate-600">{titleOf(s.item_id)}</b> · {fmtShort(s.created_at)} 요청 · 팀장님 확인 중</div>)}
-          </div>
-        )}
-      </div>
+                )}
+              </button>
+            );
+          })}
+          {waiting.map((s) => (
+            <div key={s.id} className="rounded-xl border border-dashed border-slate-300 px-4 py-3">
+              <div className="flex items-center gap-2"><b className="text-sm font-semibold text-slate-600 truncate">{titleOf(s.item_id)}</b><span className="ml-auto shrink-0 text-[11px] text-slate-400 num">{fmtShort(s.created_at)} 요청</span></div>
+              <p className="text-xs text-slate-400 mt-0.5">팀장님이 정리 중입니다</p>
+            </div>
+          ))}
+          <button onClick={() => setReqOpen(true)} className="w-full rounded-xl border border-dashed border-violet-300 text-violet-700 text-xs font-semibold px-4 py-2.5 inline-flex items-center justify-center gap-1.5 hover:bg-violet-50"><Inbox size={13} />히스토리 요청하기</button>
+        </div>
+      )}
       {open && <Drawer s={open} title={titleOf(open.item_id)} onClose={() => setOpen(null)} />}
       <RequestModal open={reqOpen} onClose={() => setReqOpen(false)} />
-    </Card>
+    </section>
   );
 }

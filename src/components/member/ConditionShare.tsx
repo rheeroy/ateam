@@ -23,7 +23,8 @@ export function useMyConditions() {
 
 type Cur = { condition: number | null; moods: string[]; note: string };
 
-export function ConditionShare() {
+/** stack: 좁은 칸(매니징 보드 '소통 및 피드백' 안) — 제목 · 영향 요인 한 줄, 아래 5단계 */
+export function ConditionShare({ stack }: { stack?: boolean } = {}) {
   const { team, uid } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -69,13 +70,13 @@ export function ConditionShare() {
 
   return (
     <Card className="px-4 py-3">
-      <div className="flex flex-col md:flex-row md:items-center gap-2.5 md:gap-4">
+      <div className={stack ? 'grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2.5' : 'flex flex-col md:flex-row md:items-center gap-2.5 md:gap-4'}>
         <div className="flex items-baseline gap-2 shrink-0">
           <Activity size={15} className="text-slate-500 self-center" />
           <span className="font-semibold text-sm">이번 주 컨디션</span>
           <span className="text-[11px] text-slate-400">{weekRangeLabel(week)}</span>
         </div>
-        <div className="flex-1 grid grid-cols-5 rounded-lg ring-1 ring-slate-200 overflow-hidden divide-x divide-slate-200" role="radiogroup" aria-label="이번 주 컨디션">
+        <div className={cx(stack ? 'col-span-2 order-last' : 'flex-1', 'grid grid-cols-5 rounded-lg ring-1 ring-slate-200 overflow-hidden divide-x divide-slate-200')} role="radiogroup" aria-label="이번 주 컨디션">
           {CONDITIONS.map((o) => {
             const on = cur.condition === o.n;
             return (
@@ -88,7 +89,7 @@ export function ConditionShare() {
           })}
         </div>
         <button type="button" onClick={() => setMore((x) => !x)} aria-expanded={more}
-          className={cx('shrink-0 self-start md:self-auto inline-flex items-center gap-1 text-xs rounded-md px-2 py-1.5 hover:bg-slate-50', extra ? 'text-slate-700' : 'text-slate-500')}>
+          className={cx('shrink-0 inline-flex', !stack && 'self-start md:self-auto', 'inline-flex items-center gap-1 text-xs rounded-md px-2 py-1.5 hover:bg-slate-50', extra ? 'text-slate-700' : 'text-slate-500')}>
           {summary || '영향 요인 · 메모'}<ChevronDown size={13} className={cx('transition-transform', more && 'rotate-180')} />
         </button>
       </div>
