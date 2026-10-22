@@ -271,7 +271,7 @@ export function Kpi({ label, value, sub, tone, small }: { label: string; value: 
 export function PeriodTabs({ period, setPeriod, dark }: { period: Period; setPeriod: (p: Period) => void; dark?: boolean }) {
   return (
     <div className={cx('flex gap-0.5 rounded-lg p-0.5', dark ? 'bg-white/10' : 'bg-slate-100')} role="tablist" aria-label="기간">
-      {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
+      {(['weekly', 'monthly'] as Period[]).map((p) => (
         <button key={p} role="tab" aria-selected={period === p} onClick={() => setPeriod(p)}
           className={cx('text-sm px-3 py-1 rounded-md', period === p ? (dark ? 'bg-white text-slate-900 font-semibold' : 'bg-white shadow-sm text-slate-900 font-semibold') : dark ? 'text-slate-300 hover:text-white' : 'text-slate-600')}>{PERIOD_LABEL[p]}</button>
       ))}
@@ -283,8 +283,18 @@ export function PeriodTabs({ period, setPeriod, dark }: { period: Period; setPer
 export function usePeriod(): [Period, (p: Period) => void] {
   const [sp, setSp] = useSearchParams();
   const p = sp.get('p');
-  const period: Period = p === 'weekly' || p === 'monthly' ? p : 'daily';
-  return [period, (np) => { const n = new URLSearchParams(sp); if (np === 'daily') n.delete('p'); else n.set('p', np); setSp(n, { replace: true }); }];
+  // 일별 보기는 없앰 — 주(기본)·월만
+  const period: Period = p === 'monthly' ? 'monthly' : 'weekly';
+  return [period, (np) => { const n = new URLSearchParams(sp); if (np === 'monthly') n.set('p', np); else n.delete('p'); setSp(n, { replace: true }); }];
+}
+
+/** 선택한 기간의 날짜 범위 — 주: 이번 주 월~일, 월: 이번 달 1일~말일 (예: 26.10.19~26.10.25) */
+export function periodRangeLabel(period: Period, now = new Date()): string {
+  const f = (d: Date) => `${String(d.getFullYear()).slice(2)}.${d.getMonth() + 1}.${d.getDate()}`;
+  if (period === 'monthly') return `${f(new Date(now.getFullYear(), now.getMonth(), 1))}~${f(new Date(now.getFullYear(), now.getMonth() + 1, 0))}`;
+  const mon = new Date(mondayOf(now) + 'T00:00:00');
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  return `${f(mon)}~${f(sun)}`;
 }
 
 // =====================================================================
@@ -299,9 +309,9 @@ export interface InsightOut {
 }
 export const INSIGHT_KIND: Record<Period, AiKind> = { daily: 'insight_daily', weekly: 'insight_weekly', monthly: 'insight_monthly' };
 /** 홈 섹션 → 이동할 곳 (팀 성과는 팀목표, 팀원관리는 통합 메뉴, 나머지는 섹션 상세) */
-export const sectionHref = (section: MainSection, period = 'daily') =>
+export const sectionHref = (section: MainSection, period = 'weekly') =>
   section === 'perf' ? '/goals' : section === 'decide' || section === 'risk' ? `/decide${section === 'risk' ? '?f=risk' : ''}`
-    : `${section === 'people' ? '/people' : `/brief/${section}`}${period === 'daily' ? '' : `?p=${period}`}`;
+    : `${section === 'people' ? '/people' : `/brief/${section}`}${period === 'monthly' ? `?p=${period}` : ''}`;
 export const AI_LINKS: Record<string, string> = { goals: '/goals', team: '/people', reviews: '/work', one_on_ones: '/people', perf: '/perf', sim: '/perf', knowhow: '/knowhow', report: '/upward', eval: '/eval', strategy: '/perf', org: '/upward' };
 export const fresh = (o: { created_at: string } | null | undefined, p: Period) => !!o && daysAgo(o.created_at) < (p === 'daily' ? 1 : p === 'weekly' ? 7 : 31);
 
@@ -984,4 +994,3 @@ export function MemoModal({ teamId, open, preset, onClose, onSaved, initialBody 
     </Modal>
   );
 }
-
