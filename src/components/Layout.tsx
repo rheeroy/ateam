@@ -65,9 +65,9 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <Group label="팀 워크스페이스" />
             <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/work" label="업무플랫폼" icon={LaptopMinimal} badge={todo.work ? `${todo.work}` : undefined} />
-            <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} />
             <NavItem to="/people" label="팀원관리" icon={Users} />
             <NavItem to="/decide" label="의사결정" icon={Gavel} badge={todo.decide ? `${todo.decide}` : undefined} />
+            <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} />
             <Group label="상향 관리" />
             <NavItem to="/upward" label="임원 브리핑" icon={UserRound} badge={todo.upward ? `${todo.upward}` : undefined} />
             <Group label="판단" />
