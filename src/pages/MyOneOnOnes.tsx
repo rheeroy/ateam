@@ -146,7 +146,7 @@ export default function MyOneOnOnes() {
             </div>
             <div className="rounded-2xl bg-slate-100/70 ring-1 ring-slate-200/70 p-4 space-y-4">
               <ConditionShare stack />
-              <div className="grid md:grid-cols-2 gap-4 items-start">
+              <div className="grid 2xl:grid-cols-2 gap-4 items-start">
                 <FromLeader focus={focus} />
                 <OneOnOnePanel />
               </div>
