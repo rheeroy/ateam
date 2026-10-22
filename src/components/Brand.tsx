@@ -26,9 +26,9 @@ export function ATeam({ className }: { className?: string; supCls?: string }) {
   return <span className={cx('font-black tracking-tight leading-none', className)}>ATEAM</span>;
 }
 
-/** 메뉴·제목용: ATEAM의 제안 */
-export function ATeamAdvice({ className }: { className?: string; supCls?: string }) {
-  return <span className={cx('inline-flex items-baseline', className)}><span className="font-extrabold">ATEAM</span>의 제안</span>;
+/** 메뉴·제목용: ATEAM AI의 제안 */
+export function ATeamAdvice({ className, supCls = 'text-violet-600' }: { className?: string; supCls?: string }) {
+  return <span className={cx('whitespace-nowrap', className)}><span className="font-extrabold">ATEAM</span><AiSup className={supCls} />의 제안</span>;
 }
 
 /** AI 마크 — 꼭짓점만 남은 A + 머리가 떠 있는 T. 'AI' 글자 대신 쓴다 (선 색 = currentColor) */

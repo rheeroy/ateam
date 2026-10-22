@@ -68,7 +68,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <NavItem to="/upward" label="임원 브리핑" icon={UserRound} badge={todo.upward ? `${todo.upward}` : undefined} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
-            <NavItem to="/advisor" label={<ATeamAdvice />} tip="ATEAM의 제안" icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
+            <NavItem to="/advisor" label={<ATeamAdvice />} tip="ATEAM AI의 제안" icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />
             <Group label="인사" />
             <NavItem to="/eval" label="평가 시뮬레이션" icon={ClipboardCheck} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />

@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Table2 } from 'lucide-react';
+import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
 import { CheckinModal, PERF_TIP, PerfGuide } from '../components/checkin/Checkin';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
@@ -229,7 +229,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
       {mode === 'leader' && isLeader && (
         <div className="-mt-2 mb-6 flex gap-2 flex-wrap">
           <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={15} />팀원에게 계획 요청</Button>
-          <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><AiIcon size={16} />계획 만들기</Button>
+          <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={15} /><span className="inline-flex items-center"><AiIcon size={16} />로 만들기</span></Button>
           <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>
           <Button variant="ghost" onClick={() => setSettings(true)} aria-label="설정"><Settings2 size={15} /></Button>
         </div>

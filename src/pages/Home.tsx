@@ -3,10 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel,
-  Inbox, ListTree, MessagesSquare, ScatterChart, StickyNote, Target, UserRound, Users, X,
-} from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel, Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { OrgNote } from '../lib/types';
@@ -86,7 +83,7 @@ function useBriefing(m: HomeModel): BLine[] {
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
   if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Gavel, text: <><AteamAI />가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
-  if (adv.out?.content.advice.length) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <><AteamAI />가 이번 주 운영 제안 {n(adv.out.content.advice.length, '개')}를 만들었어요.</>, go: 'ATEAM의 제안을', to: '/advisor' });
+  if (adv.out?.content.advice.length) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <><AteamAI />가 이번 주 운영 제안 {n(adv.out.content.advice.length, '개')}를 만들었어요.</>, go: 'ATEAM AI의 제안을', to: '/advisor' });
   if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <><AteamAI />가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
   if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <><AteamAI />가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
   else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });
@@ -111,7 +108,7 @@ function DailyBriefing({ m }: { m: HomeModel }) {
   return (
     <section aria-label="Daily Briefing" className="overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm">
       <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-slate-900 text-white">
-        <span className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center shrink-0"><AiIcon size={18} /></span>
+        <span className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
         <span className="text-sm font-extrabold tracking-wider text-violet-300">DAILY BRIEFING</span>
         <span className="text-base font-bold tracking-tight">{m.loading ? <><AteamAI supCls="text-violet-300" />가 팀 기록을 살펴보는 중…</> : shown.length ? <><AteamAI supCls="text-violet-300" />가 팀 기록을 살펴보고 정리했어요</> : <>오늘 따로 챙길 신호가 없어요. <AteamAI supCls="text-violet-300" />가 계속 지켜보고 있어요</>}</span>
         {!m.loading && !!shown.length && <span className="ml-auto text-xs text-slate-400 num">{shown.length}건</span>}
@@ -123,7 +120,7 @@ function DailyBriefing({ m }: { m: HomeModel }) {
               <Link to={l.to} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 min-w-0">
                 <span className={cx('w-6 h-6 rounded-md flex items-center justify-center shrink-0',
                   l.tone === 'rose' ? 'bg-rose-100 text-rose-700' : l.tone === 'amber' ? 'bg-amber-100 text-amber-700' : l.tone === 'agent' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600')}><l.icon size={13} /></span>
-                <span className="text-[13px] text-slate-700 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-700 group-hover:text-violet-900 whitespace-nowrap">{l.go} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
+                <span className="text-[13px] text-slate-700 leading-snug min-w-0 truncate">{l.text} <span className="font-semibold text-violet-700 group-hover:text-violet-900 whitespace-nowrap">{aiText(l.go)} 확인하세요<ChevronRight size={12} className="inline align-[-2px]" /></span></span>
               </Link>
             </li>
           ))}

@@ -6,7 +6,7 @@ import { useNotes, openQuickNote, getAiDefault, setAiDefault, type AnchorType } 
 import { NoteRow, useAnchorInfo } from '../components/notes/Notes';
 import { cx } from '../lib/format';
 import { Button, Card, Spinner, inputCls } from '../components/ui';
-import { AiIcon, CoreAI } from '../components/Brand';
+import { AiIcon, AteamAI, CoreAI } from '../components/Brand';
 
 type F = 'all' | 'pinned' | 'todo' | AnchorType;
 const FILTERS: { id: F; label: string }[] = [
@@ -71,7 +71,7 @@ export default function Notes() {
       <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
         <label className="inline-flex items-center gap-2 cursor-pointer"><input type="checkbox" className="accent-violet-600" checked={aiDef} onChange={(e) => { setAiDef(e.target.checked); setAiDefault(e.target.checked); }} />
           <span className="inline-flex items-center gap-1"><span>새 메모는 '<CoreAI />가 참고해도 돼요'를 켜 둔 채로 시작</span></span></label>
-        <span className="text-slate-400"><AiIcon size={11} className="text-violet-600" /> 참고를 켠 메모만 1on1 준비 노트 · 팀원 액션 · <Link to="/advisor" className="underline">ATEAM의 제안</Link> · 임원 브리핑이 읽습니다. 평가 초안은 읽지 않습니다. 메모마다 <AiIcon size={11} className="text-violet-600" /> 버튼으로 바꿀 수 있습니다.</span>
+        <span className="text-slate-400"><AiIcon size={11} className="text-violet-600" /> 참고를 켠 메모만 1on1 준비 노트 · 팀원 액션 · <Link to="/advisor" className="underline"><AteamAI />의 제안</Link> · 임원 브리핑이 읽습니다. 평가 초안은 읽지 않습니다. 메모마다 <AiIcon size={11} className="text-violet-600" /> 버튼으로 바꿀 수 있습니다.</span>
       </div>
     </div>
   );

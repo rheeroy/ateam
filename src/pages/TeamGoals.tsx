@@ -2,7 +2,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, FileText, History, Pencil, Repeat, Target } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, History, Pencil, Repeat, Sparkles, Target } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { buildTree, STATUS_META, useItems, useLevelNames, type Node } from '../lib/items';
@@ -77,7 +77,7 @@ export default function TeamGoals() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><AiIcon size={16} />계획 만들기</button>}
+          {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><Sparkles size={15} /><span className="inline-flex items-center"><AiIcon size={16} />로 만들기</span></button>}
           <Link to={`/goals/edit?${new URLSearchParams({ ...(proposed && !past ? { filter: 'proposed' } : {}), ...(cur.y !== nowYear ? { year: String(cur.y) } : {}) }).toString()}`} className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정{proposed > 0 && !past && <span className="ml-1 text-[10px] font-bold rounded-full bg-violet-500 px-1.5 py-0.5" title="팀원이 올린 계획 검토 대기">검토 {proposed}</span>}</Link>
         </div>
       </div>

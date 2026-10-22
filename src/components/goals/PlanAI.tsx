@@ -1,7 +1,7 @@
 // AI 계획: 자료 → 초안 / 말 → 변경안. 언제나 '제안'이고, 수락한 것만 반영한다.
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, FileUp, Wand2 } from 'lucide-react';
+import { ArrowRight, FileUp, Sparkles, Wand2 } from 'lucide-react';
 import { yearOf } from '../../lib/plan';
 import { useTeam } from '../../state/session';
 import { supabase, invoke, errorText } from '../../lib/supabase';
@@ -137,7 +137,7 @@ export function PlanDraftModal({ open, onClose, byId, parentId, year }: { open: 
   // 팀장: 팀 전체 목표·과제 / 팀원: 내가 담당한 것 + 요청받은 항목(parentId)
   const roots = [...byId.values()].filter((n) => n.status !== 'dropped' && n.depth <= 1 && inYear(n) && (isLeader || n.owner_id === uid || n.id === parentId));
   return (
-    <Modal open={open} onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><AiIcon size={16} className="text-violet-600" />계획 만들기</span>}>
+    <Modal open={open} onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-600" /><span className="inline-flex items-center"><AiIcon size={16} className="text-violet-600" />로 계획 만들기</span></span>}>
       {out ? <OpsReview out={out} byId={byId} parentId={scope || null} year={year} onDone={onClose} /> : (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">{aiText(isLeader ? '사업계획서, 업무 분장표, 회의 메모를 그대로 넣으세요. AI가 단계별 계획 초안을 만들고, 반영할 것만 고르면 됩니다.'
