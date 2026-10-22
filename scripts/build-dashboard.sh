@@ -48,3 +48,4 @@ echo "done: supabase/dashboard"
 # 29: ATEAM 플레이북 — supabase/playbook/playbook.json 에서 만든다 (migrations 0034 · docs/PLAYBOOK.md 도 같이)
 node ../scripts/build-playbook.mjs
 { echo "-- ATEAM 히스토리 관리 (과제별 히스토리 · 팀원에게 전달 · 질문/답 · 매주 월요일 06:00 자동 업데이트 · Pro부터) — 29_playbook 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261108000035_history.sql; } > dashboard/30_history.sql
+{ echo "-- ATEAM 초대 메일 확인 (초대받은 메일로만 합류 · 로그인 전 초대 미리보기) — 30_history 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261109000036_invite_email.sql; } > dashboard/31_invite_email.sql

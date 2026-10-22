@@ -22,7 +22,9 @@ export default function Login() {
   const nextRaw = params.get('next') || '/';
   const next = /^\/(invite|onboarding|reset-password)(\/|$|\?)/.test(nextRaw) ? nextRaw : '/';
   const [mode, setMode] = useState<Mode>(params.get('mode') === 'signup' ? 'signup' : 'login');
-  const [email, setEmail] = useState('');
+  // 초대 링크에서 왔으면 초대받은 메일을 채우고 고정 (다른 메일로는 합류할 수 없다)
+  const inviteMail = /^\/invite\//.test(next) ? (params.get('email') ?? '').trim() : '';
+  const [email, setEmail] = useState(inviteMail);
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [name, setName] = useState('');
@@ -130,7 +132,9 @@ export default function Login() {
               )}
               <label className="block">
                 <span className="text-sm font-semibold">업무 이메일</span>
-                <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputCls} mt-1.5`} placeholder="name@company.com" />
+                <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} readOnly={!!inviteMail}
+                  className={`${inputCls} mt-1.5 ${inviteMail ? 'bg-slate-50 text-slate-600' : ''}`} placeholder="name@company.com" />
+                {inviteMail && <span className="block text-[11px] text-slate-500 mt-1">초대받은 메일입니다. 이 메일로만 팀에 합류할 수 있습니다.</span>}
               </label>
               {(mode === 'login' || mode === 'signup') && (
                 <label className="block">

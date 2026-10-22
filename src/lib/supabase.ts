@@ -33,6 +33,7 @@ const KNOWN: Record<string, string> = {
   INVITE_EXPIRED: '초대 링크가 만료됐습니다. 팀장에게 새 링크를 요청하세요.',
   INVITE_USED: '이미 사용된 초대 링크입니다.',
   INVITE_NOT_FOUND: '초대 링크를 찾을 수 없습니다.',
+  INVITE_EMAIL_MISMATCH: '초대받은 메일로 로그인해야 팀에 합류할 수 있습니다.',
   NO_DATA: '아직 쌓인 기록이 없습니다.',
   NO_GOALS: '전략 목표를 먼저 등록해 주세요.',
   INSUFFICIENT_DATA: '실적이 2개월 이상 쌓여야 해석할 수 있습니다.',

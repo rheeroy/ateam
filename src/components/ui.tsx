@@ -49,7 +49,7 @@ export function PageHeader({ title, sub, right, back }: { title: ReactNode; sub?
     <div className="mb-6">
       {back}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 basis-[420px]">
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           {sub && <p className="text-sm text-slate-500 mt-1">{sub}</p>}
         </div>

@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
-import { CheckinModal, PERF_TIP, PerfGuide } from '../components/checkin/Checkin';
+import { CheckinModal, PERF_GUIDE_LEGACY, PERF_TIP, PerfGuidePanel } from '../components/checkin/Checkin';
+import { GuideLink } from '../components/GuidePanel';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { yearOf } from '../lib/plan';
@@ -135,7 +136,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const view = (params.get('view') as View) ?? 'outline';
-  const filter = (params.get('filter') as Filter) ?? (mode === 'member' ? 'mine' : 'all');
+  const filter = (params.get('filter') as Filter) ?? 'all';   // 팀원도 처음엔 전체 — 내 담당은 탭으로
   const openId = params.get('item');
   const setParam = (k: string, v: string | null) => { const p = new URLSearchParams(params); if (v) p.set(k, v); else p.delete(k); setParams(p, { replace: true }); };
 
@@ -148,6 +149,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
   const [draft, setDraft] = useState<{ open: boolean; parent: string | null }>({ open: false, parent: null });
   const [paste, setPaste] = useState(false);
   const [ck, setCk] = useState(false);
+  const [guide, setGuide] = useState(false);   // 성과입력 가이드 패널
   const [settings, setSettings] = useState(false);
   const [askPlan, setAskPlan] = useState(false);
   const [addRoot, setAddRoot] = useState(0);
@@ -220,11 +222,12 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
             <Link to={`/goals${year !== nowYear ? `?year=${year}` : ''}`} className="text-sm text-slate-500 hover:text-indigo-700">← 팀목표 타임라인</Link>
             {isLeader && <PlanToggle />}
           </div>) : undefined}
-        sub={mode === 'member' ? '목표 달성에 대한 공식 성과는 [성과입력]으로 올려 팀장님 승인을 받으세요 — 승인되면 팀목표 진척에 반영됩니다. 내 과제 아래 할 일은 자유롭게 씁니다.' : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
+        sub={mode === 'member' ? <>목표 달성에 대한 공식 성과는 [성과입력]으로 올려 팀장님 승인을 받으세요 — 승인되면 팀목표 진척에 반영됩니다. 내 과제 아래 할 일은 자유롭게 씁니다.{!isLeader && <span className="ml-1 align-middle"><GuideLink id="perf-input" label="성과입력 가이드" hint="처음이라면 성과입력이 무엇인지 여기서 먼저 보세요." onOpen={() => setGuide(true)} legacyKeys={[PERF_GUIDE_LEGACY]} /></span>}</> : `단계: ${[0, 1, 2].map(levelName).join(' › ')} · 연도별로 판을 나눠 세웁니다. 팀원에게 처음부터 계획을 요청할 수도 있습니다`}
         right={mode === 'member' && !isLeader ? <div className="flex gap-2">
           {rules.open && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>}
           <Button onClick={() => setCk(true)} title={PERF_TIP}><Crosshair size={15} />성과입력</Button></div> : undefined} />
       {ck && <CheckinModal open onClose={() => setCk(false)} spaceId={uid} />}
+      <PerfGuidePanel open={guide} onClose={() => setGuide(false)} onStart={() => setCk(true)} />
       {/* 팀장 도구 — 제목 아래 줄에 고정 (오른쪽 위는 팀원 목표수정 토글) */}
       {mode === 'leader' && isLeader && (
         <div className="-mt-2 mb-6 flex gap-2 flex-wrap">
@@ -235,8 +238,6 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
         </div>
       )}
 
-      {/* 팀원: 성과입력이 무엇인지 (처음 한 번, 닫으면 다시 안 뜸) */}
-      {mode === 'member' && !isLeader && <div className="mb-3"><PerfGuide onStart={() => setCk(true)} /></div>}
       {/* 팀원: 지금 고칠 수 있는 것 */}
       {mode === 'member' && !isLeader && (
         <div className={cx('mb-3 rounded-xl px-4 py-2.5 text-sm flex items-start gap-2.5', rules.open ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-700')}>

@@ -11,6 +11,7 @@ import {
 import type { CheckinPayload, CheckinType, Submission, SubmissionVersion, WorkItem } from '../../lib/types';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
 import { Button, Modal, inputCls } from '../ui';
+import { GuidePanel, GuideSection } from '../GuidePanel';
 
 type Evidence = NonNullable<CheckinPayload['evidence']>[number];
 
@@ -33,37 +34,56 @@ export function PerfFlow({ className }: { className?: string }) {
   );
 }
 
-const GUIDE_KEY = 'ateam.guide.perf-input';
-/** 팀원 팀목표 첫 화면 — 성과입력이 무엇인지 (닫으면 다시 안 뜸) */
-export function PerfGuide({ onStart }: { onStart?: () => void }) {
-  const [hide, setHide] = useState(() => { try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch { return false; } });
-  if (hide) return null;
-  const close = () => { setHide(true); try { localStorage.setItem(GUIDE_KEY, '1'); } catch { /* 저장 못 해도 이번엔 닫힘 */ } };
+/** 예전 안내 카드를 닫은 기록 — 있으면 첫 말풍선을 띄우지 않는다 */
+export const PERF_GUIDE_LEGACY = 'ateam.guide.perf-input';
+
+/** 팀목표 [ⓘ 성과입력 가이드] → 오른쪽 도움말 패널 (한 장짜리, 단계 넘김 없음) */
+export function PerfGuidePanel({ open, onClose, onStart }: { open: boolean; onClose: () => void; onStart?: () => void }) {
   const EX: [string, string][] = [
     ['숫자 지표', '신규 계약 12건 → 15건'],
     ['단계 목표', '기획 → 개발 착수'],
     ['한 번에 끝나는 일', '완료로 표시'],
     ['숫자로 못 재는 성과', '고객 인터뷰 12건, 핵심 니즈 3개 도출'],
   ];
+  const FLOW: [string, string][] = [
+    ['내가 입력', '목표·과제를 고르고 지금 값(또는 성과)과 한 줄 설명, 필요하면 근거 자료를 붙입니다.'],
+    ['팀장님 승인', '팀장님이 보고 승인하거나 보완을 요청합니다. 보완 요청이 오면 고쳐서 다시 올립니다.'],
+    ['팀목표 진척에 반영', '승인된 값이 팀목표의 공식 진척이 됩니다.'],
+  ];
   return (
-    <div className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
-      <div className="flex items-start gap-3">
-        <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><Crosshair size={16} /></span>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm">성과입력이란</div>
-          <p className="mt-0.5 text-sm text-slate-700"><b>{PERF_DEF}.</b> 승인되면 팀목표의 공식 진척이 됩니다. 일하면서 나눈 대화나 올린 자료는 그 자체로는 진척에 반영되지 않고, 성과입력으로 올려 승인받아야 공식 성과가 됩니다.</p>
-          <PerfFlow className="mt-2.5" />
-          <div className="mt-3 grid sm:grid-cols-2 gap-1.5">
-            {EX.map(([k, v]) => (
-              <div key={k} className="rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="text-slate-500">{k}</span><span className="block text-slate-800 font-medium mt-0.5">{v}</span></div>
-            ))}
-          </div>
-          <p className="mt-2.5 text-[11px] text-slate-400">언제 하나요? 숫자가 바뀌었을 때, 단계가 넘어갔을 때, 일이 끝났을 때. 업무플랫폼에 올린 결과물에서 바로 할 수도 있습니다.</p>
+    <GuidePanel open={open} onClose={onClose} title="성과입력" icon={<span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><Crosshair size={15} /></span>}
+      footer={onStart ? <><Button variant="ghost" size="sm" onClick={onClose}>닫기</Button><Button size="sm" onClick={() => { onClose(); onStart(); }}><Crosshair size={13} />성과입력 하기</Button></> : undefined}>
+      <GuideSection title="성과입력이란">
+        <p><b className="text-slate-800">{PERF_DEF}.</b></p>
+        <p>일하면서 나눈 대화나 올린 자료는 그 자체로는 진척에 반영되지 않습니다. 성과입력으로 올려 승인받아야 공식 성과가 됩니다.</p>
+      </GuideSection>
+      <GuideSection title="어떻게 반영되나요">
+        <ol className="space-y-2.5">
+          {FLOW.map(([t, d], i) => (
+            <li key={t} className="flex gap-3">
+              <span className="w-5 h-5 rounded-full bg-slate-800 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 num">{i + 1}</span>
+              <span><b className="block text-slate-800 font-semibold">{t}</b>{d}</span>
+            </li>
+          ))}
+        </ol>
+      </GuideSection>
+      <GuideSection title="무엇을 올리나요">
+        <p>목표·과제에 정한 방식에 맞춰 입력 칸이 바뀝니다.</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {EX.map(([k, v]) => (
+            <div key={k} className="rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="text-slate-500">{k}</span><span className="block text-slate-800 font-medium mt-0.5">{v}</span></div>
+          ))}
         </div>
-        <button onClick={close} className="text-xs text-slate-400 hover:text-slate-700 shrink-0">닫기</button>
-      </div>
-      {onStart && <div className="mt-3 flex justify-end"><Button size="sm" onClick={() => { close(); onStart(); }}><Crosshair size={13} />첫 성과입력 하기</Button></div>}
-    </div>
+      </GuideSection>
+      <GuideSection title="언제 하나요">
+        <ul className="list-disc pl-4 space-y-1">
+          <li>숫자가 바뀌었을 때</li>
+          <li>단계가 넘어갔을 때</li>
+          <li>일이 끝났을 때</li>
+        </ul>
+        <p>업무플랫폼에 올린 결과물에서 바로 성과입력을 할 수도 있습니다.</p>
+      </GuideSection>
+    </GuidePanel>
   );
 }
 
