@@ -141,8 +141,8 @@ export default function Layout() {
           </nav>
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
             <NavItem to="/my/goals" label="팀목표" icon={Target} />
+            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
             <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks} tip={mb.data?.conditionDue ? '매니징 보드 · 이번 주 컨디션 미공유' : undefined}
               badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : mb.data?.conditionDue ? '컨디션' : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
@@ -224,7 +224,7 @@ export default function Layout() {
 /** 팀원 모바일 하단 탭 */
 function MemberTabBar({ needsWork, withLeader, history }: { needsWork: number; withLeader: boolean; history: number }) {
   const tabs = [
-    { to: '/my/submissions', label: '업무플랫폼', I: LaptopMinimal, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: Target },
+    { to: '/my/goals', label: '팀목표', I: Target }, { to: '/my/submissions', label: '업무플랫폼', I: LaptopMinimal, dot: needsWork > 0 },
     { to: '/my/one-on-ones', label: '매니징 보드', I: Blocks, dot: withLeader || history > 0 },
   ];
   return (
@@ -254,4 +254,3 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
     </div>
   );
 }
-
