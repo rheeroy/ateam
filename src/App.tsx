@@ -31,6 +31,8 @@ const Decide = lazy(() => import('./pages/Decide'));
 const WorkSpace = lazy(() => import('./pages/WorkSpace'));
 const GroupSpace = lazy(() => import('./pages/GroupSpace'));
 const Notes = lazy(() => import('./pages/Notes'));
+const HistoryPage = lazy(() => import('./pages/History'));
+const MyHistory = lazy(() => import('./pages/MyHistory'));
 
 function NotConfigured() {
   return (
@@ -129,11 +131,13 @@ export default function App() {
         <Route path="insight" element={L(<Insight />)} />
         <Route path="knowhow" element={L(<Knowhow />)} />
         <Route path="notes" element={L(<Notes />)} />
+        <Route path="history" element={L(<HistoryPage />)} />
         <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
+        <Route path="my/history" element={<MyHistory />} />
         <Route path="my/record" element={<Navigate to="/my/one-on-ones" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

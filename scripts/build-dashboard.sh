@@ -47,3 +47,4 @@ echo "done: supabase/dashboard"
 { echo "-- ATEAM AI 분석 완료 실시간 반영 — 27_realtime 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261106000033_realtime_ai.sql; } > dashboard/28_realtime_ai.sql
 # 29: ATEAM 플레이북 — supabase/playbook/playbook.json 에서 만든다 (migrations 0034 · docs/PLAYBOOK.md 도 같이)
 node ../scripts/build-playbook.mjs
+{ echo "-- ATEAM 히스토리 관리 (과제별 히스토리 · 팀원에게 전달 · 질문/답 · 매주 월요일 06:00 자동 업데이트 · Pro부터) — 29_playbook 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261108000035_history.sql; } > dashboard/30_history.sql

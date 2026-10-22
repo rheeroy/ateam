@@ -72,7 +72,8 @@ function ChangeRequestModal({ item, onClose }: { item: Node; onClose: () => void
 export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   item: Node; byId: Map<string, Node>; onClose: () => void; onAiPlan?: (parentId: string) => void; mode: 'leader' | 'member';
 }) {
-  const { team, uid, members, nameOf, isLeader } = useTeam();
+  const { team, uid, members, nameOf, isLeader, hasFeature } = useTeam();
+  const [handover, setHandover] = useState<string | null>(null);
   const levelName = useLevelNames();
   const { update, remove } = useItemMutations(team.id);
   const toast = useToast();
@@ -109,7 +110,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
     for (const k of keys) if (JSON.stringify(f[k]) !== JSON.stringify(item[k])) patch[k] = f[k];
     if (planChanged && reason.trim()) patch.change_reason = reason.trim();
     const reapprove = rules.reapproves(item) && PLAN_KEYS.some((k) => k in patch);
-    update.mutate({ id: item.id, patch: patch as Partial<WorkItem> }, { onSuccess: () => { inval(); toast(reapprove ? '고친 계획을 팀장님께 올렸습니다. 승인 전까지 검토 대기로 표시됩니다.' : '저장했습니다'); } });
+    update.mutate({ id: item.id, patch: patch as Partial<WorkItem> }, { onSuccess: () => { inval(); if (isLeader && patch.owner_id && hasFeature('history')) setHandover(patch.owner_id as string); toast(reapprove ? '고친 계획을 팀장님께 올렸습니다. 승인 전까지 검토 대기로 표시됩니다.' : '저장했습니다'); } });
   };
   const decide = (status: ItemStatus, kind: WorkItemComment['kind'], body: string) => {
     update.mutate({ id: item.id, patch: { status } }, {
@@ -158,6 +159,16 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
         <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={18} /></button>
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        {/* 담당이 바뀌면 — 히스토리도 넘길지 */}
+        {handover && (
+          <div className="rounded-xl bg-violet-50 ring-1 ring-violet-100 p-3.5 text-sm flex items-start gap-2.5">
+            <History size={16} className="text-violet-600 mt-0.5 shrink-0" />
+            <div className="flex-1"><div className="font-semibold text-violet-900">담당자가 {nameOf(handover)} 님으로 바뀌었습니다</div>
+              <p className="text-xs text-violet-800 mt-0.5">이 과제의 지금까지 흐름 · 확정 사항 · 관계자를 히스토리로 함께 넘길까요?</p>
+              <Link to={`/history?item=${item.id}&send=1&to=${handover}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-white bg-violet-600 rounded-lg px-3 py-1.5"><Send size={12} />히스토리 전달</Link></div>
+            <button onClick={() => setHandover(null)} className="text-violet-400 hover:text-violet-700" aria-label="닫기"><X size={14} /></button>
+          </div>
+        )}
         {/* 승인 흐름 */}
         {(item.status === 'proposed' || item.status === 'changes_requested') && (
           <div className={cx('rounded-xl p-3.5 text-sm', item.status === 'proposed' ? 'bg-violet-50' : 'bg-amber-50')}>

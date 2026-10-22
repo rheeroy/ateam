@@ -3235,6 +3235,96 @@ begin
     end if;
   exception when others then null;
   end;
+  -- 히스토리 관리 (30_history 이후에만 들어감): 과제 3개 히스토리 + 한수진 님에게 전달 1건 · 질문/답
+  declare h_tmpl text; h_txt text; h_m text; h_sh uuid;
+  begin
+    for h_tmpl in select x from (values
+      -- 제휴 프로모션 제안서 (정우성)
+      (t3::text || '|' || $j${"summary":"3개사 제휴로 시작했다가 B사 회원 데이터 수급 지연으로 A·C 2개사 축소안 검토 중. 범위 결정과 CRM 웰컴 메시지 확정이 다음 단계.",
+ "lanes":[{"id":"L1","title":"제휴 범위"},{"id":"L2","title":"B사 데이터"},{"id":"L3","title":"A·C 프로모션"},{"id":"L4","title":"CRM 연계"}],
+ "events":[{"id":"V1","lane":"L1","date":"@-30","title":"제안서 v1","kind":"doc","detail":"A·B·C 3개사 공동 프로모션 제안서 초안."},
+  {"id":"V2","lane":"L1","date":"@-27","title":"보완: 숫자로","kind":"feedback","detail":"팀장 피드백 — 사별 기대 유입을 숫자로 제시할 것."},
+  {"id":"V3","lane":"L1","date":"@-20","title":"3개사 확정","kind":"decision","detail":"v2 승인. 3개사 동시 진행으로 확정."},
+  {"id":"V4","lane":"L2","date":"@-14","title":"데이터 지연","kind":"issue","detail":"B사 회원 데이터 수급이 11월 둘째 주 이후로 밀림 (메일 캡처 공유)."},
+  {"id":"V5","lane":"L1","date":"@-7","title":"2개사 축소안","kind":"doc","detail":"B사 제외, A·C 2개사로 범위를 줄인 안. 목표 영향 약 −1.4만 명."},
+  {"id":"V6","lane":"L3","date":"@-2","title":"일정 공유","kind":"doc","detail":"A사 11/12~25, C사 11/19~12/2 공동 프로모션 일정 공유."},
+  {"id":"V7","lane":"L4","date":"@-1","title":"웰컴 확정 필요","kind":"issue","detail":"CRM 웰컴 메시지를 A/B 결과 보고 11/8까지 확정 (이동욱)."},
+  {"id":"V8","lane":"L1","date":"@7","title":"범위 결정","kind":"decision","future":true,"detail":"축소안 채택 여부와 목표치 조정을 함께 결정."},
+  {"id":"V9","lane":"L3","date":"@21","title":"A사 시작","kind":"plan","future":true}],
+ "links":[{"from":"V4","to":"V5","label":"지연 → 축소안"},{"from":"V7","to":"V9","label":"시작 조건"}],
+ "people":[{"id":"P1","name":"정우성","org":"제휴 마케팅","scope":"team","role":"담당 · 제안서 작성"},
+  {"id":"P2","name":"이동욱","org":"CRM 마케팅","scope":"team","role":"웰컴 메시지 확정"},
+  {"id":"P3","name":"B사","org":"제휴사","scope":"external","role":"회원 데이터 지연","check":true},
+  {"id":"P4","name":"A사 제휴팀","org":"제휴사","scope":"external","role":"공동 프로모션 11/12~"},
+  {"id":"P5","name":"C사 마케팅팀","org":"제휴사","scope":"external","role":"공동 프로모션 11/19~","check":true}],
+ "fixed":[{"id":"F1","text":"제휴 보고는 사별 기대 유입·비용·리스크를 첫 장에","detail":"제안서 v1 피드백에서 팀장이 정한 보고 기준.","since":"@-27"},
+  {"id":"F2","text":"A사 11/12~25, C사 11/19~12/2 공동 프로모션","since":"@-2"}],
+ "open":[{"id":"O1","text":"진행 범위(A·C 2개사) — 목표치 조정과 함께 결정","detail":"축소안을 채택하면 연내 목표 8만 명 중 약 1.4만 명이 빠짐."},
+  {"id":"O2","text":"CRM 웰컴 메시지 확정 — A사 시작 조건"}],
+ "risks":[{"id":"K1","text":"B사 데이터 추가 지연 시 2차 합류 불가","detail":"11월 둘째 주 이후에도 수급이 안 되면 연내 합류가 어려움."}],
+ "tried":[{"id":"T1","text":"3개사 동시 진행 — B사 데이터 의존이 커서 일정 리스크"}],
+ "gaps":[{"id":"G1","text":"B사와 지연 이후 합의 내용 — 기록 없음 → 정우성 님께 확인"},{"id":"G2","text":"C사 비용 분담 비율 — 기록 없음"}],
+ "related":[{"item_id":"@t4","title":"제휴 유입 고객 CRM 연계","why":"웰컴 메시지가 시작 조건"}],
+ "progress":{"measure":"percent","unit":"%","target":100,"points":[{"date":"@-30","value":0},{"date":"@-21","value":22},{"date":"@-14","value":26},{"date":"@-7","value":28},{"date":"@0","value":30}]},
+ "owner":{"id":null,"name":"정우성","previous":[]}}$j$),
+      -- 런칭 캠페인 기획 (김현정)
+      (t1::text || '|' || $j${"summary":"키비주얼은 FGI 반응을 근거로 B안(일상 장면·밝은 톤)으로 좁히는 중. FGI 2차와 임원 보고가 다음 고비.",
+ "lanes":[{"id":"L1","title":"키비주얼"},{"id":"L2","title":"고객 FGI"},{"id":"L3","title":"임원 보고"}],
+ "events":[{"id":"V1","lane":"L2","date":"@-30","title":"타깃 정의","kind":"decision","detail":"2030 직장인 · 첫 구매 고객으로 타깃 확정."},
+  {"id":"V2","lane":"L2","date":"@-10","title":"FGI 1차 4명","kind":"doc","detail":"4명 중 3명이 얼리버드 할인에 긍정적. 3040은 배송 속도를 더 중요하게 봄."},
+  {"id":"V3","lane":"L1","date":"@-3","title":"시안 A/B","kind":"doc","detail":"A안 제품 클로즈업·다크 톤, B안 일상 장면·밝은 톤."},
+  {"id":"V4","lane":"L1","date":"@-2","title":"B안 기울기","kind":"feedback","detail":"FGI에서 2030이 B안에 더 반응 — B안 기준으로 v2."},
+  {"id":"V5","lane":"L1","date":"@-1","title":"v2 · SNS 크롭","kind":"doc","detail":"B안 톤 보강, SNS 썸네일 크롭(1:1, 4:5) 추가."},
+  {"id":"V6","lane":"L2","date":"@6","title":"FGI 2차","kind":"plan","future":true},
+  {"id":"V7","lane":"L3","date":"@38","title":"임원 보고","kind":"plan","future":true}],
+ "links":[{"from":"V2","to":"V4","label":"FGI 반응 → B안"}],
+ "people":[{"id":"P1","name":"김현정","org":"브랜드 마케팅","scope":"team","role":"담당 · 키비주얼"},
+  {"id":"P2","name":"한수진","org":"마케팅 기획","scope":"team","role":"FGI 진행"},
+  {"id":"P3","name":"최다은","org":"콘텐츠 마케팅","scope":"team","role":"SNS 썸네일 활용"},
+  {"id":"P4","name":"디자인팀","org":"디자인","scope":"dept","role":"런칭 페이지 첫 화면 컷","check":true}],
+ "fixed":[{"id":"F1","text":"타깃: 2030 직장인 · 첫 구매 고객","since":"@-30"},{"id":"F2","text":"키비주얼은 B안 기준으로 발전","since":"@-2"}],
+ "open":[{"id":"O1","text":"런칭 페이지 첫 화면에 같은 컷 사용 여부 — 디자인팀 확인"},{"id":"O2","text":"FGI 2차 결과로 B안 확정"}],
+ "tried":[{"id":"T1","text":"다크 톤 프리미엄 A안 — 2030 반응 약함"}],
+ "gaps":[{"id":"G1","text":"임원 보고 형식·참석자 — 기록 없음 → 팀장님께 확인"}],
+ "progress":{"measure":"children","unit":"%","target":100,"points":[{"date":"@-30","value":20},{"date":"@-10","value":40},{"date":"@0","value":40}]},
+ "owner":{"id":null,"name":"김현정","previous":[]}}$j$),
+      -- 콘텐츠 제작 프로세스 개선 (최다은)
+      (t5::text || '|' || $j${"summary":"디자인팀 고정 슬롯 확보 후 리드타임 측정 시작. 평균 2.6주로 목표 2주까지 남은 구간.",
+ "lanes":[{"id":"L1","title":"프로세스"},{"id":"L2","title":"측정"}],
+ "events":[{"id":"V1","lane":"L1","date":"@-21","title":"고정 슬롯","kind":"decision","detail":"디자인팀 주간 고정 슬롯 확정 (화 오후 2시간)."},
+  {"id":"V2","lane":"L2","date":"@-14","title":"리드타임 측정","kind":"doc","detail":"측정 시작 — 평균 9일."},
+  {"id":"V3","lane":"L2","date":"@-5","title":"월 제작 건수","kind":"doc","detail":"지표 추가, 4건 시범 적용."},
+  {"id":"V4","lane":"L1","date":"@20","title":"마감 연장 요청","kind":"plan","future":true,"detail":"외주 제작사 교체로 2주 연장 요청."}],
+ "people":[{"id":"P1","name":"최다은","org":"콘텐츠 마케팅","scope":"team","role":"담당"},{"id":"P2","name":"디자인팀","org":"디자인","scope":"dept","role":"주간 고정 슬롯"},{"id":"P3","name":"외주 제작사","scope":"external","role":"교체 중","check":true}],
+ "fixed":[{"id":"F1","text":"디자인팀 주간 고정 슬롯 (화 오후 2시간)","since":"@-21"}],
+ "open":[{"id":"O1","text":"마감 2주 연장 · 영상 가이드 다음 분기 이관 여부"}],
+ "risks":[{"id":"K1","text":"외주 제작사 교체로 템플릿 정비 지연"}],
+ "gaps":[],
+ "progress":{"measure":"percent","unit":"%","target":100,"points":[{"date":"@-21","value":45},{"date":"@-14","value":55},{"date":"@-5","value":66}]},
+ "owner":{"id":null,"name":"최다은","previous":[]}}$j$)
+    ) v(x) loop
+      h_txt := split_part(h_tmpl, '|', 2);
+      for h_m in select m from (select distinct (regexp_matches(h_txt, '@(-?\d+)', 'g'))[1] m) z order by length(m) desc loop
+        h_txt := replace(h_txt, '@' || h_m, to_char(current_date + h_m::int, 'YYYY-MM-DD'));
+      end loop;
+      h_txt := replace(h_txt, '@t4', t4::text);
+      insert into task_histories (item_id, team_id, content, synced_at, record_count, new_count, updated_at)
+        values (split_part(h_tmpl, '|', 1)::uuid, T, h_txt::jsonb, now() - interval '2 days', 24, 3, now() - interval '2 days')
+        on conflict (item_id) do nothing;
+    end loop;
+    update task_histories set edits = '{"pinned":["F1"]}'::jsonb where item_id = t3;
+    -- 런칭 캠페인 기획 → 한수진 (FGI 진행을 함께 맡음)
+    insert into history_shares (team_id, item_id, from_id, to_id, note, snapshot, status, sent_at, created_at)
+      select T, t1, L, m_han, '수진 님, FGI 2차부터 같이 봐 주세요. 키비주얼은 B안으로 기울어 있으니 그 기준으로 질문지를 다듬으면 됩니다.', content, 'sent', now() - interval '1 day', now() - interval '1 day'
+        from task_histories where item_id = t1 returning id into h_sh;
+    insert into history_messages (share_id, team_id, author_id, body, created_at) values
+      (h_sh, T, m_han, 'FGI 2차도 4명으로 하나요? 3040 비중을 늘릴지 궁금합니다.', now() - interval '20 hours'),
+      (h_sh, T, L, '4명 유지하고 3040을 2명으로 맞춰 주세요. 배송 속도 질문은 꼭 넣어 주세요.', now() - interval '18 hours');
+    -- 김현정 님이 요청한 히스토리 (팀장 확인 대기)
+    insert into history_shares (team_id, item_id, to_id, note, status, created_at)
+      values (T, t3, m_kim, '제휴 채널과 런칭 일정이 겹쳐서 흐름을 알고 싶어요', 'requested', now() - interval '3 hours');
+  exception when others then null;
+  end;
   -- 성과 체크인 (22_checkin 이후에만 들어감): 최다은 '콘텐츠 제작 프로세스 개선' 승인 3건 + 승인 대기 1건
   declare ck uuid; r record;
   begin

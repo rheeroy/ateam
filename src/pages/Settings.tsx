@@ -15,7 +15,7 @@ const KIND_LABEL: Record<string, string> = {
   evaluation_draft: '평가 시뮬레이션', plan_draft: '목표 초안', forecast_note: '성과 해석', strategy_check: '전략 점검', scenario_note: '시나리오 해석', knowhow_ingest: '노하우 정리',
 };
 
-/** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · 크레딧뿐 */
+/** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · 플레이북 · 히스토리 관리 · 크레딧 */
 const INCLUDED: { title: string; sub: string; items: string[] }[] = [
   { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제 (팀원 계획 · 승인)', '업무플랫폼 (개인 · 그룹 스페이스)', '컨디션 공유 · 1on1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '노하우 라이브러리 · 내 메모'] },
   { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트 (매일 · 매주 · 매월)', 'ATEAM의 제안 (매주 월요일)', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM의 코칭', '임원 브리핑', 'ATEAM 플레이북 — 검증된 업무 방법론 78개 (Pro부터)'] },
@@ -166,7 +166,7 @@ function Billing() {
         <div className="flex items-end justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-lg font-bold tracking-tight">팀 크기에 맞게 고르세요</h2>
-            <p className="text-sm text-slate-500">기능은 같고 팀원 수가 다릅니다 (Starter는 평가 시뮬레이션 · ATEAM 플레이북 제외) · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
+            <p className="text-sm text-slate-500">기능은 같고 팀원 수가 다릅니다 (Starter는 평가 시뮬레이션 · ATEAM 플레이북 · 히스토리 관리 제외) · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
           </div>
           <div className="flex bg-slate-100 rounded-lg p-0.5 text-[13px]">
             <button onClick={() => setCycle('month')} className={cx('px-3 py-1 rounded-md', cycle === 'month' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>월간</button>
@@ -182,6 +182,7 @@ function Billing() {
             const monthly = cycle === 'year' ? Math.round(p.price_year_krw / 12) : p.price_month_krw;
             const evalOn = p.features.includes('evaluation');
             const conOn = p.features.includes('consulting_knowhow');
+            const histOn = p.features.includes('history');
             return (
               <Card key={p.id} className={cx('p-5 flex flex-col relative', best && 'ring-2 ring-indigo-500', current && 'ring-2 ring-slate-900', small && 'opacity-60')}>
                 {(best || current) && <span className={cx('absolute -top-2.5 left-5 text-[11px] font-bold rounded-full px-2 py-0.5 text-white', current ? 'bg-slate-900' : 'bg-indigo-600')}>{current ? '현재 요금제' : '우리 팀에 맞음'}</span>}
@@ -194,6 +195,7 @@ function Billing() {
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
                   <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{!evalOn && ' 없음'}</li>
                   <li className={cx('flex gap-2', !conOn && 'text-slate-400')}>{conOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}ATEAM 플레이북{conOn ? ' (방법론 78개)' : ' 없음'}</li>
+                  <li className={cx('flex gap-2', !histOn && 'text-slate-400')}>{histOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}히스토리 관리{histOn ? ' (과제별 맥락 전달)' : ' 없음'}</li>
                 </ul>
                 <div className="mt-5">
                   {current ? <Button variant="secondary" disabled className="w-full">현재 요금제</Button>

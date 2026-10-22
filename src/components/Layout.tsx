@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ClipboardCheck, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
+  ClipboardCheck, History as HistoryIcon, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
   ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -19,6 +19,7 @@ import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
 import { AiIcon, ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
+import { useHistoryTodo, useUnreadShares } from '../lib/history';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string };
 
@@ -56,12 +57,15 @@ function useLeaderTodo() {
 }
 function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
   const todo = useLeaderTodo();
+  const { hasFeature } = useSession();
+  const hTodo = useHistoryTodo(hasFeature('history'));
   return (
     <>
             <NavItem to="/" label="대시보드" icon={LayoutDashboard} />
             <Group label="팀 워크스페이스" />
             <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/work" label="업무플랫폼" icon={LaptopMinimal} badge={todo.work ? `${todo.work}` : undefined} />
+            <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} />
             <NavItem to="/people" label="팀원관리" icon={Users} />
             <NavItem to="/decide" label="의사결정" icon={Gavel} badge={todo.decide ? `${todo.decide}` : undefined} />
             <Group label="상향 관리" />
@@ -83,6 +87,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
 export default function Layout() {
   const { team, isLeader, profile, memberships, setTeamId, credits } = useSession();
   const mb = useMemberBadges(!isLeader);
+  const hUnread = useUnreadShares(!isLeader);
   const leaderTodo = (mb.data?.requests ?? 0) + (mb.data?.coaching ?? 0) + (mb.data?.promises ?? 0);   // 매니징 보드: 답할 것
   const { on, toggle } = useAiMark();
   const nav = useNavigate();
@@ -140,6 +145,7 @@ export default function Layout() {
             <NavItem to="/my/goals" label="팀목표" icon={Target} />
             <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks} tip={mb.data?.conditionDue ? '매니징 보드 · 이번 주 컨디션 미공유' : undefined}
               badge={leaderTodo ? `${leaderTodo}` : mb.data?.conditionDue ? '컨디션' : undefined} />
+            <NavItem to="/my/history" label="받은 히스토리" icon={HistoryIcon} badge={hUnread.data ? `${hUnread.data}` : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -208,7 +214,7 @@ export default function Layout() {
           {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
         </div>
       </main>
-      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!leaderTodo || !!mb.data?.conditionDue} />}
+      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!leaderTodo || !!mb.data?.conditionDue} history={hUnread.data ?? 0} />}
       {isLeader && <QuickNote />}
       <InstallPrompt />
       <ProvLegend />
@@ -217,13 +223,14 @@ export default function Layout() {
 }
 
 /** 팀원 모바일 하단 탭 */
-function MemberTabBar({ needsWork, withLeader }: { needsWork: number; withLeader: boolean }) {
+function MemberTabBar({ needsWork, withLeader, history }: { needsWork: number; withLeader: boolean; history: number }) {
   const tabs = [
     { to: '/my/submissions', label: '업무플랫폼', I: LaptopMinimal, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: Target },
     { to: '/my/one-on-ones', label: '매니징 보드', I: Blocks, dot: withLeader },
+    { to: '/my/history', label: '히스토리', I: HistoryIcon, dot: history > 0 },
   ];
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
       {tabs.map((t) => (
         <NavLink key={t.to} to={t.to} className={({ isActive }) => cx('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-indigo-700 font-semibold' : 'text-slate-500')}>
           <t.I size={20} />{t.label}
