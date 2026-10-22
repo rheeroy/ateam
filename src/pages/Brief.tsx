@@ -25,7 +25,7 @@ export default function Brief() {
   if (section === 'perf') return <Navigate to="/goals" replace />;
   if (section === 'decide') return <Navigate to="/decide" replace />;
   if (section === 'risk') return <Navigate to="/decide?f=risk" replace />;
-  if (section === 'people') return <Navigate to={`/people${period === 'daily' ? '' : `?p=${period}`}`} replace />;
+  if (section === 'people') return <Navigate to={`/people${period === 'monthly' ? `?p=${period}` : ''}`} replace />;
   if (!MAIN_SECTIONS.includes(section as MainSection)) return <Navigate to="/" replace />;
   const sec = section as MainSection;
   const meta = SECTION_META[sec];
@@ -39,7 +39,7 @@ export default function Brief() {
   return (
     <div className="space-y-5">
       <div>
-        <Link to={period === 'daily' ? '/' : `/?p=${period}`} className="text-sm text-slate-500 hover:text-indigo-700 inline-flex items-center gap-1"><ArrowLeft size={14} />홈</Link>
+        <Link to={period === 'monthly' ? `/?p=${period}` : '/'} className="text-sm text-slate-500 hover:text-indigo-700 inline-flex items-center gap-1"><ArrowLeft size={14} />홈</Link>
         <div className="mt-2 flex items-end justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <span className={cx('w-10 h-10 rounded-xl flex items-center justify-center', SECTION_TONE[sec].icon)}><meta.icon size={19} /></span>
