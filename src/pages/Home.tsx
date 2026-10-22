@@ -21,7 +21,7 @@ import { useLatestAi } from '../lib/hooks';
 import { LogoMark } from '../components/Brand';
 import { useNotes } from '../lib/notes';
 import {
-  MemoModal, PeriodTabs, QuickStart, STATUS_META,
+  MemoModal, PeriodTabs, QuickStart, periodRangeLabel, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
   type HomeModel, type MainSection,
 } from '../components/home/shared';
@@ -114,7 +114,7 @@ function DailyBriefing({ m }: { m: HomeModel }) {
       <div className="relative">
         <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-white/[0.06] border-b border-white/10">
           <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
-          <span className="text-xs font-bold tracking-wide text-violet-200">DAILY BRIEFING</span>
+          <span className="text-base font-extrabold tracking-wide text-violet-200">DAILY BRIEFING</span>
           <span className="text-base font-bold tracking-tight">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
         </div>
         {!m.loading && !!shown.length && (
@@ -530,7 +530,7 @@ export default function Home() {
     <div className="space-y-3">
       <Header />
       <DailyBriefing m={m} />
-      <div className="pt-2 flex items-center gap-2 flex-wrap"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs text-slate-400">영역별 핵심 지표 · 주요 팩트 · AI 진단</span>
+      <div className="pt-2 flex items-center gap-2 flex-wrap"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs font-semibold text-slate-500 num">{periodRangeLabel(period)}</span>
         <span className="ml-auto"><PeriodTabs period={period} setPeriod={setPeriod} /></span></div>
       <Tiles m={m} />
       <div className="pt-4"><QuickStart teamId={team.id} /></div>
