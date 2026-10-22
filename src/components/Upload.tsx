@@ -7,6 +7,7 @@ import { MAX_BYTES, extractText, safeName } from '../lib/extract';
 import type { RequestType, ShareKind, Submission, SubmissionVersion, WorkItem } from '../lib/types';
 import { cx } from '../lib/format';
 import { Button, ErrorBox, Field, Modal, inputCls, useToast } from './ui';
+import { aiText } from './Brand';
 
 export const FILE_ACCEPT = '.docx,.pdf,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,image/*,application/pdf';
 export const IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
@@ -146,7 +147,7 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
         {isNew && mode === 'link' && (
           <>
             <Field label="링크"><input type="url" className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" /></Field>
-            <Field label="무엇을 봐 주면 되는지" hint="AI와 팀장이 읽습니다"><textarea rows={3} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="예) 10월 캠페인 CTR 2.1%, B소재가 1.4배 높음. 11월 예산 배분 의견 부탁드려요" /></Field>
+            <Field label="무엇을 봐 주면 되는지" hint={aiText('AI와 팀장이 읽습니다')}><textarea rows={3} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="예) 10월 캠페인 CTR 2.1%, B소재가 1.4배 높음. 11월 예산 배분 의견 부탁드려요" /></Field>
           </>
         )}
         {isNew && mode === 'number' && (
@@ -176,7 +177,7 @@ export function UploadModal({ open, onClose, submission, onDone, presetItem }: {
 
         <ErrorBox error={up.error ? errorText(up.error) : null} />
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">{req === 'share' || mode === 'number' ? '팀장님께 알림만 갑니다. 승인 절차는 없습니다.' : (isLeader ? '올리면 AI가 먼저 읽고 1차 검토를 남깁니다.' : '올리면 팀장님께 알림이 갑니다.')}</p>
+          <p className="text-xs text-slate-500">{req === 'share' || mode === 'number' ? '팀장님께 알림만 갑니다. 승인 절차는 없습니다.' : aiText(isLeader ? '올리면 AI가 먼저 읽고 1차 검토를 남깁니다.' : '올리면 팀장님께 알림이 갑니다.')}</p>
           <Button type="submit" loading={up.isPending}>{req === 'share' || mode === 'number' ? '공유' : '올리기'}</Button>
         </div>
       </form>

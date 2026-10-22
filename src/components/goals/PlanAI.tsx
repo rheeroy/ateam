@@ -1,7 +1,7 @@
 // AI 계획: 자료 → 초안 / 말 → 변경안. 언제나 '제안'이고, 수락한 것만 반영한다.
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, FileUp, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, FileUp, Wand2 } from 'lucide-react';
 import { yearOf } from '../../lib/plan';
 import { useTeam } from '../../state/session';
 import { supabase, invoke, errorText } from '../../lib/supabase';
@@ -11,6 +11,7 @@ import { applyOps, ownerIdOf, useLevelNames, type Node, type PlanOp } from '../.
 import { cx, fmtShort } from '../../lib/format';
 import { Button, ErrorBox, Field, Modal, inputCls, useToast } from '../ui';
 import { ProvChip } from '../Prov';
+import { AiIcon, aiText } from '../Brand';
 
 interface PlanOut { summary: string; ops: PlanOp[] }
 
@@ -136,11 +137,11 @@ export function PlanDraftModal({ open, onClose, byId, parentId, year }: { open: 
   // 팀장: 팀 전체 목표·과제 / 팀원: 내가 담당한 것 + 요청받은 항목(parentId)
   const roots = [...byId.values()].filter((n) => n.status !== 'dropped' && n.depth <= 1 && inYear(n) && (isLeader || n.owner_id === uid || n.id === parentId));
   return (
-    <Modal open={open} onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-600" />AI로 계획 만들기</span>}>
+    <Modal open={open} onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><AiIcon size={16} className="text-violet-600" />계획 만들기</span>}>
       {out ? <OpsReview out={out} byId={byId} parentId={scope || null} year={year} onDone={onClose} /> : (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">{isLeader ? '사업계획서, 업무 분장표, 회의 메모를 그대로 넣으세요. AI가 단계별 계획 초안을 만들고, 반영할 것만 고르면 됩니다.'
-            : '올해 내가 맡은 일, 하고 싶은 것, 팀장님과 이야기한 내용을 편하게 적으세요. AI가 내 목표 › 과제 › 할 일 초안을 만들고, 고른 것만 팀장님께 검토 요청합니다.'}</p>
+          <p className="text-sm text-slate-600">{aiText(isLeader ? '사업계획서, 업무 분장표, 회의 메모를 그대로 넣으세요. AI가 단계별 계획 초안을 만들고, 반영할 것만 고르면 됩니다.'
+            : '올해 내가 맡은 일, 하고 싶은 것, 팀장님과 이야기한 내용을 편하게 적으세요. AI가 내 목표 › 과제 › 할 일 초안을 만들고, 고른 것만 팀장님께 검토 요청합니다.')}</p>
           <Field label="어디 아래에 만들까요?">
             <select className={inputCls} value={scope} onChange={(e) => setScope(e.target.value)}>
               <option value="">{isLeader ? `팀 전체 (새 목표부터${year ? ` · ${year}년` : ''})` : `내 목표 새로 만들기 (처음부터${year ? ` · ${year}년` : ''})`}</option>
@@ -183,13 +184,13 @@ export function PlanEditBar({ byId, scopeId }: { byId: Map<string, Node>; scopeI
   return (
     <>
       <form className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/50 px-3 py-2" onSubmit={(e) => { e.preventDefault(); run(); }}>
-        <Sparkles size={15} className="text-violet-600 shrink-0" />
+        <AiIcon size={15} className="text-violet-600 shrink-0" />
         <input className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-slate-400 min-w-0" value={text} onChange={(e) => setText(e.target.value)}
           placeholder={`AI에게 말로 고치기 · 예) ${examples[0]}`} aria-label="AI에게 말로 고치기" />
         <Button size="sm" type="submit" loading={busy} disabled={!text.trim()}>변경안 보기<ArrowRight size={12} /></Button>
       </form>
       {err && <div className="mt-2"><ErrorBox error={err} /></div>}
-      <Modal open={!!out} onClose={() => setOut(null)} wide title="AI 변경안">
+      <Modal open={!!out} onClose={() => setOut(null)} wide title={aiText('AI 변경안', 'mark')}>
         {out && <OpsReview out={out} byId={byId} parentId={scopeId ?? null} onDone={() => { setOut(null); setText(''); }} />}
       </Modal>
     </>

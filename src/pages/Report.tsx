@@ -6,6 +6,7 @@ import { useGenerate, useLatestAi, useUpdateAi } from '../lib/hooks';
 import { addDays, cx, fmtDate, mondayOf, weekRangeLabel } from '../lib/format';
 import { Button, Card, Empty, PageHeader, Spinner, inputCls, useToast } from '../components/ui';
 import { ProvBlock, ProvChip, useAiMark } from '../components/Prov';
+import { CoreAI } from '../components/Brand';
 
 interface Row { task: string; owner: string; status: string; note: string }
 interface WR { highlights: string[]; progress: Row[]; issues: string[]; next_week: string[]; missing?: string[]; counts?: Record<string, number> }
@@ -174,7 +175,7 @@ export default function Report() {
             </div>
           )}
           <Card className="p-5 text-xs text-slate-500 leading-relaxed">
-            보고서는 체크인과 과제 기록에서 나옵니다. 팀원이 체크인을 꾸준히 쓰면 초안 품질이 올라갑니다. <Link to="/insight" className="text-violet-700">AI 인사이트 레벨 보기</Link>
+            보고서는 체크인과 과제 기록에서 나옵니다. 팀원이 체크인을 꾸준히 쓰면 초안 품질이 올라갑니다. <Link to="/insight" className="text-violet-700"><CoreAI /> 인사이트 레벨 보기</Link>
           </Card>
         </div>
       </div>

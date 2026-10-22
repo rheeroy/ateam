@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, Lock, RefreshCw, Sparkles } from 'lucide-rea
 import { useTeam } from '../state/session';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import { cx, fmtDate } from '../lib/format';
-import { AiMark } from './Brand';
+import { AiMark, AiSup, aiText, CoreAI } from './Brand';
 import { TYPE_META } from '../lib/insights';
 import { AI_LINKS, INSIGHT_KIND, fresh, sectionsOf, type InsightItem, type InsightOut, type MainSection } from './home/shared';
 
@@ -49,7 +49,7 @@ export function AiBand({ title, right, children, className, cadence, start }: {
         <div className="flex md:flex-col items-center md:items-start gap-2">
           <span className="w-8 h-8 rounded-lg bg-white/15 ring-1 ring-white/25 flex items-center justify-center"><Sparkles size={15} /></span>
           <div className="leading-[1.05]">
-            <div className="text-[17px] font-extrabold tracking-tight">Core<AiMark size={8} weight={3.2} className="ml-0.5 align-super text-violet-200" /></div>
+            <div className="text-[17px] font-extrabold tracking-tight">Core<AiSup className="text-violet-200" /></div>
             <div className="text-[17px] font-extrabold tracking-tight">Insight</div>
           </div>
         </div>
@@ -115,7 +115,7 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
   return (
     <AiBand title={label} right={right} cadence={period} start={out?.period_start}>
       {!ai ? (
-        <div className="text-sm flex items-center gap-2 flex-wrap"><Lock size={14} />AI 해석은 Pro에서 열립니다.
+        <div className="text-sm flex items-center gap-2 flex-wrap"><Lock size={14} /><span><CoreAI /> 해석은 Pro에서 열립니다.</span>
           <Link to="/settings?tab=billing" className="text-xs font-semibold rounded-lg bg-indigo-600 text-white px-2.5 py-1">Pro 시작하기</Link></div>
       ) : s.loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !out ? (
         <p className="text-sm text-slate-600">{emptyHint ?? '아직 해석이 없습니다.'} '지금 만들기'를 누르면 30초 안에 팀 기록을 엮어 정리합니다.</p>
@@ -128,7 +128,7 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
               {shown.map((it, i) => <AiItemCard key={i} it={it} />)}
             </div>
           )}
-          {!shown.length && filter && <p className="text-sm text-slate-500">{emptyHint ?? '이 대상에 대한 AI 해석은 아직 없습니다.'}</p>}
+          {!shown.length && filter && <p className="text-sm text-slate-500">{emptyHint ?? aiText('이 대상에 대한 AI 해석은 아직 없습니다.')}</p>}
           {items.length > n && (
             <button onClick={() => setAll((v) => !v)} className="mt-2 text-[11px] text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5">
               {all ? '접기' : `${items.length - n}건 더 보기`}<ChevronDown size={12} className={all ? 'rotate-180' : ''} /></button>

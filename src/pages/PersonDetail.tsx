@@ -7,7 +7,7 @@ import { ArrowLeft, Award, CalendarPlus, ChevronRight, HeartHandshake, MessageSq
 import { NotesBox } from '../components/notes/Notes';
 import { useNotes } from '../lib/notes';
 import { CoachModal } from '../components/people/Coaching';
-import { AiSup, LogoMark } from '../components/Brand';
+import { AiSup, aiText, LogoMark } from '../components/Brand';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { useLatestAi } from '../lib/hooks';
@@ -180,7 +180,7 @@ function SignalGrid({ ix }: { ix?: MemberIndex }) {
           <div key={i.key} className="px-3 first:pl-0 lg:first:pl-0">
             <div className="flex items-center gap-1.5"><dt className="text-[11px] text-slate-400 truncate">{i.label}</dt><span className="ml-auto"><Lamps level={i.level} /></span></div>
             <dd className={cx('mt-1 text-lg font-bold num leading-tight', L ? L.text : 'text-slate-500')}>{i.value}</dd>
-            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-500 truncate">{i.sub}</dd>}
+            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-500 truncate">{aiText(i.sub, 'mark')}</dd>}
           </div>
         );
       })}
@@ -346,7 +346,7 @@ function Ledger({ teamId, uid }: { teamId: string; uid: string }) {
         {ev.isLoading ? <Spinner /> : (
           <ul className="mt-3 space-y-1.5">
             {[...by.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => (
-              <li key={k} className="flex items-center gap-2 text-xs"><span className="w-20 text-slate-600 shrink-0">{EVIDENCE_LABEL[k] ?? k}</span>
+              <li key={k} className="flex items-center gap-2 text-xs"><span className="w-20 text-slate-600 shrink-0">{aiText(EVIDENCE_LABEL[k] ?? k, 'mark')}</span>
                 <span className="flex-1 h-1.5 rounded-full bg-slate-100"><span className="block h-1.5 rounded-full bg-teal-500" style={{ width: `${(n / max) * 100}%` }} /></span>
                 <span className="w-6 text-right num font-semibold">{n}</span></li>
             ))}

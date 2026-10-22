@@ -12,6 +12,7 @@ import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
 import { MemoModal, Sparkline, STATUS_META, useHomeModel, type InsightItem } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
+import { aiText, CoreAI } from '../components/Brand';
 
 export const FLAG: Record<string, string> = { condition_down: '컨디션 하락', blocked_repeat: '막힘 반복', no_one_on_one: '1on1 공백', checkin_missing: '컨디션 공유 없음' };
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -47,7 +48,7 @@ export default function People() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">팀원관리
               {st && <span className={cx('text-xs font-semibold border rounded-full px-2 py-0.5', st.cls)}>{st.label}</span>}</h1>
-            <p className="text-sm text-slate-500">매주 AI가 누구에게 무엇을 할지 추천합니다 — 1on1 · 칭찬 · 관찰 · 육성 · 독려</p>
+            <p className="text-sm text-slate-500">매주 <CoreAI />가 누구에게 무엇을 할지 추천합니다 — 1on1 · 칭찬 · 관찰 · 육성 · 독려</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -111,7 +112,7 @@ export function IndexGrid({ ix, cols = 3 }: { ix?: MemberIndex; cols?: 3 | 6 | 7
             <dt className="text-[10px] text-slate-500">{i.label}</dt>
             <dd className={cx('text-sm font-bold num leading-tight', i.level === 'risk' && 'text-rose-600', i.level === 'watch' && 'text-amber-700')}>{i.value}</dd>
             {i.pct != null && <div className="mt-1 h-1 rounded-full bg-slate-200"><div className={cx('h-1 rounded-full', c.bar)} style={{ width: `${Math.max(4, i.pct)}%` }} /></div>}
-            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-400 truncate">{i.sub}</dd>}
+            {i.sub && <dd className="mt-0.5 text-[10px] text-slate-400 truncate">{aiText(i.sub, 'mark')}</dd>}
           </div>
         );
       })}
@@ -150,7 +151,7 @@ function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, 
             <th className="text-left font-semibold pl-4 py-2.5">팀원</th>
             <th className="text-left font-semibold px-2">업무</th>
             {cols.map((c) => <th key={c.key} className="font-semibold px-2 whitespace-nowrap">{c.label}</th>)}
-            <th className="text-left font-semibold px-3">AI 업무 판단</th>
+            <th className="text-left font-semibold px-3"><CoreAI /> 업무 판단</th>
             <th className="text-right font-semibold pr-4">이번 주</th>
           </tr>
         </thead>

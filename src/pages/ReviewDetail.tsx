@@ -17,6 +17,7 @@ import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/P
 import { FILE_ACCEPT, IMAGE } from '../components/Upload';
 import { STATUS } from './MySubmissions';
 import { PLAYBOOK } from '../lib/playbook';
+import { AiIcon, aiText, CoreAI } from '../components/Brand';
 
 export interface Review {
   depth_score: number; summary: string; decisions?: string[];
@@ -54,7 +55,7 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
   return (
     <ProvBlock rail className="bg-white rounded-2xl border border-slate-200 p-5">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 font-semibold">AI 검토 <span className="font-mono text-xs font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{version.version}</span>
+        <div className="flex items-center gap-2 font-semibold"><span><CoreAI /> 검토</span> <span className="font-mono text-xs font-semibold rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5">v{version.version}</span>
           {r && <ProvChip kind={kindFromStatus(r.status)} label="AI 생성" sources={r.sources} level={r.level} depth={r.depth}
             note="올릴 때마다 그 버전을 AI가 먼저 읽은 의견입니다. 판단은 팀장님 코멘트로 남습니다." />}
         </div>
@@ -70,7 +71,7 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
                 <button onClick={() => onPick(v.id)} className={cx('w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs', on ? 'bg-white ring-1 ring-indigo-200 shadow-sm' : 'hover:bg-white/70')}>
                   <span className={cx('font-mono font-semibold rounded px-1.5 py-0.5', on ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200')}>v{v.version}</span>
                   <span className={cx('w-1.5 h-1.5 rounded-full shrink-0', vr?.brief ? DOT[vr.brief.tone] : vr ? 'bg-indigo-300' : 'bg-slate-300')} />
-                  <span className={cx('truncate', vr ? 'text-slate-700' : 'text-slate-400')}>{vr ? shortOf(vr) : 'AI 검토 전'}</span>
+                  <span className={cx('truncate', vr ? 'text-slate-700' : 'text-slate-400')}>{vr ? shortOf(vr) : aiText('AI 검토 전', 'mark')}</span>
                   <span className="ml-auto shrink-0 text-[10px] text-slate-400">{fmtShort(v.created_at)}</span>
                 </button>
               </li>
@@ -148,7 +149,7 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
               </span></div>
           </div>
           {!!r.content.questions?.length && (
-            <Button variant="soft" className="mt-3 w-full" onClick={() => onToComments(r.content.questions)}>AI가 짚은 질문을 대화창에 남기기</Button>
+            <Button variant="soft" className="mt-3 w-full" onClick={() => onToComments(r.content.questions)}><CoreAI />가 짚은 질문을 대화창에 남기기</Button>
           )}
         </>
       )}
@@ -358,7 +359,7 @@ function VersionCard({ sub, v, latest, ai }: { sub: Submission; v: SubmissionVer
           <div className="text-xs text-slate-500">{fmtDate(v.created_at)}{latest ? <span className="ml-1.5 text-[10px] font-semibold text-white bg-indigo-600 rounded px-1.5 py-0.5">최신</span> : <span className="ml-1.5 text-[10px] text-slate-400">이전 버전</span>}</div>
         </div>
         {ai && <button onClick={ai.open} className={cx('ml-auto shrink-0 text-[11px] font-semibold rounded-full px-2.5 py-1 inline-flex items-center gap-1 ring-1',
-          ai.on ? 'bg-violet-600 text-white ring-violet-600' : ai.has ? 'bg-white text-violet-700 ring-violet-200 hover:bg-violet-50' : 'bg-white text-slate-400 ring-slate-200 hover:text-slate-600')}><Sparkles size={11} />{ai.has ? 'AI 검토' : 'AI 검토 전'}</button>}
+          ai.on ? 'bg-violet-600 text-white ring-violet-600' : ai.has ? 'bg-white text-violet-700 ring-violet-200 hover:bg-violet-50' : 'bg-white text-slate-400 ring-slate-200 hover:text-slate-600')}><AiIcon size={12} />{ai.has ? '검토' : '검토 전'}</button>}
       </div>
       <div className="px-4 pb-4">
         {v.note && <p className="mt-3 text-sm text-slate-700"><span className="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded px-1.5 py-0.5 mr-1.5">{v.version === 1 ? '메모' : '바뀐 점'}</span>{v.note}</p>}

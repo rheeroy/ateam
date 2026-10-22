@@ -12,6 +12,7 @@ import {
   GoalBars, IMPACT_LEVEL, Kpi, MAIN_SECTIONS, MemberStrip, MemoModal, OrgDetail, OrgNoteModal, PeriodTabs, SECTION_META, SECTION_TONE, STATUS_META,
   SectionAiCard, sectionHref, SignalList, dDay, useHomeModel, usePeriod, useSignalAct, type MainSection,
 } from '../components/home/shared';
+import { aiText, CoreAI } from '../components/Brand';
 
 export default function Brief() {
   const { section } = useParams();
@@ -92,7 +93,7 @@ export default function Brief() {
           </>}
           {sec === 'org' && <>
             <Kpi label="열린 소식" value={m.orgSt.feed.length} sub="전략·임원·요청·유관 부서" />
-            <Kpi label="영향 확인" value={`${m.orgSt.analyzed}/${m.orgSt.feed.length}`} tone={m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined} sub="AI가 우리 팀과 맞춰 본 것" />
+            <Kpi label="영향 확인" value={`${m.orgSt.analyzed}/${m.orgSt.feed.length}`} tone={m.orgSt.feed.length > m.orgSt.analyzed ? 'amber' : undefined} sub={aiText('AI가 우리 팀과 맞춰 본 것')} />
             <Kpi label="다가오는 기한" value={nearest ? (dDay(nearest.event_date!) === 0 ? '오늘' : `D-${dDay(nearest.event_date!)}`) : '—'} sub={nearest?.title ?? '없음'} />
             <Kpi label="위로 올릴 것" value={m.orgSt.up.length} sub="주간보고에 담을 것" />
           </>}
@@ -141,7 +142,7 @@ export default function Brief() {
       <Card>
         <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
           <span className="font-semibold text-sm">자동 감지 · {PERIOD_LABEL[period]}</span>
-          <span className="text-xs text-slate-400">규칙·모델 계산 (AI 미사용)</span>
+          <span className="text-xs text-slate-400">규칙·모델 계산 (<CoreAI /> 미사용)</span>
         </div>
         {m.loading ? <Spinner /> : <SignalList items={items} snooze={m.snooze} locked={m.locked} onAct={act} max={20}
           empty={`${PERIOD_LABEL[period]} ${meta.name}에서 자동 감지된 것이 없습니다. 다른 기간도 확인해 보세요.`} />}

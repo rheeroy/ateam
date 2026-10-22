@@ -19,6 +19,7 @@ import {
   PERIOD_LABEL, TYPE_META, sectionOf, useHomeInsights,
   type Domain, type DomainSummary, type HomeSection, type Period, type Raw, type Signal, type SignalType, type Status,
 } from '../../lib/insights';
+import { aiText, CoreAI } from '../Brand';
 
 // =====================================================================
 // 데이터 (대기열·조직 메모)
@@ -342,15 +343,15 @@ export function SectionAiCard({ teamId, period, section, out, loading }: { teamI
     <ProvBlock rail={!!out} className="rounded-xl bg-gradient-to-br from-violet-50 to-indigo-50/40 border border-violet-100 p-4">
       <div className="flex items-center gap-2 flex-wrap">
         <Sparkles size={15} className="text-violet-600" />
-        <span className="font-semibold text-sm">AI 해석 · {SECTION_META[section].name}</span>
+        <span className="font-semibold text-sm"><CoreAI /> 해석 · {SECTION_META[section].name}</span>
         {out && <ProvChip kind={kindFromStatus(out.status)} label="AI 해석" sources={out.sources} level={out.level} depth={out.depth} note="자동 감지 신호와 기간 기록을 AI가 엮어 해석했습니다. 숫자는 모델 계산값 그대로입니다." />}
         <span className="ml-auto text-[11px] text-slate-400">{out ? `${fmtDate(out.created_at)} · ` : ''}{period === 'daily' ? '평일 아침 자동' : period === 'weekly' ? '월요일 아침 자동' : '매월 1일 자동'}</span>
         {ai && <Button size="sm" variant="ghost" loading={gen.isPending} onClick={() => gen.mutate({ team_id: teamId, period })}><RefreshCw size={12} />{out ? '다시' : '지금 만들기'}</Button>}
       </div>
       {!ai ? (
         <div className="mt-3 text-sm">
-          <div className="font-semibold flex items-center gap-1.5"><Lock size={14} className="text-violet-600" />AI 해석은 요금제를 시작하면 열립니다</div>
-          <p className="mt-1 text-slate-600">{credits?.trial_expired ? '무료 체험이 끝났습니다. 기록은 그대로 보관돼 있고, ' : ''}AI가 신호를 엮어 원인과 순서, 할 일을 정리합니다.</p>
+          <div className="font-semibold flex items-center gap-1.5"><Lock size={14} className="text-violet-600" /><span><CoreAI /> 해석은 요금제를 시작하면 열립니다</span></div>
+          <p className="mt-1 text-slate-600">{credits?.trial_expired ? '무료 체험이 끝났습니다. 기록은 그대로 보관돼 있고, ' : ''}<CoreAI />가 신호를 엮어 원인과 순서, 할 일을 정리합니다.</p>
           <Link to="/settings?tab=billing"><Button size="sm" className="mt-2">요금제 고르기</Button></Link>
         </div>
       ) : loading ? <Spinner /> : !out ? (
@@ -738,7 +739,7 @@ export function OrgDetail({ teamId, data, loading, perfRisks, onAdd }: {
     <div className="px-5 py-6 text-sm text-slate-600">
       <p className="font-semibold text-slate-800">위에서 들은 것을 한 줄씩 남겨 두세요.</p>
       <p className="mt-1 leading-relaxed">전사 방침, 임원 회의에서 나온 말, 상위 요청과 기한, 유관 부서 변화, 평가 시즌 같은 전사 일정. 메신저에서 복사해 붙여 넣으면 됩니다.
-        AI가 우리 팀 목표·과제와 맞춰 무엇이 영향을 받는지, 위에 무엇을 보고하면 되는지 정리합니다.</p>
+        <CoreAI />가 우리 팀 목표·과제와 맞춰 무엇이 영향을 받는지, 위에 무엇을 보고하면 되는지 정리합니다.</p>
       <Button size="sm" className="mt-3" onClick={onAdd}><Plus size={14} />첫 소식 남기기</Button>
     </div>
   );
@@ -844,7 +845,7 @@ export function OrgNoteModal({ teamId, open, onClose, execId: presetExec }: { te
         {kind !== 'calendar' && (
           <label className={cx('flex items-start gap-2 text-sm', !ai && 'opacity-50')}>
             <input type="checkbox" className="mt-1 accent-indigo-600" checked={ai && analyze} disabled={!ai} onChange={(e) => setAnalyze(e.target.checked)} />
-            <span>저장하고 우리 팀 영향 보기<span className="block text-xs text-slate-500">AI가 목표·과제·최근 결정과 맞춰 봅니다. 구독에 포함, 크레딧 없음.{!ai && ' (Pro에서)'}</span></span>
+            <span>저장하고 우리 팀 영향 보기<span className="block text-xs text-slate-500"><CoreAI />가 목표·과제·최근 결정과 맞춰 봅니다. 구독에 포함, 크레딧 없음.{!ai && ' (Pro에서)'}</span></span>
           </label>
         )}
         <div className="flex justify-end gap-2">
@@ -877,12 +878,12 @@ export function AiStrip({ teamId }: { teamId: string }) {
     <div className="mt-8 grid sm:grid-cols-2 gap-3 text-sm">
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
         <Sparkles size={16} className="text-violet-600 shrink-0" />
-        <span className="flex-1">이번 달 AI가 먼저 해 둔 일 <b className="num">{saved.data?.n ?? 0}</b>건 · 아낀 시간 약 <b className="num">{hours}</b>시간</span>
+        <span className="flex-1">이번 달 <CoreAI />가 먼저 해 둔 일 <b className="num">{saved.data?.n ?? 0}</b>건 · 아낀 시간 약 <b className="num">{hours}</b>시간</span>
         <ProvChip kind="calc" label="추정" sources={['브리핑 20분 · 1on1 준비 15분 · 1차 검토 20분', '주간보고 40분 · 평가 초안 60분 · 영향 분석 15분']} note="AI 초안 1건마다 팀장이 직접 했을 때 걸렸을 시간을 더한 추정치입니다." />
       </div>
       <Link to="/insight" className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-3 hover:border-violet-300">
         <Layers size={16} className="text-violet-600 shrink-0" />
-        <span className="flex-1 min-w-0">AI가 볼 수 있는 깊이 {d && <b className="font-mono text-violet-700">L{d.level} {d.levels[d.level - 1].name}</b>}
+        <span className="flex-1 min-w-0"><CoreAI />가 볼 수 있는 깊이 {d && <b className="font-mono text-violet-700">L{d.level} {d.levels[d.level - 1].name}</b>}
           {next && <span className="block text-xs text-slate-500">다음 L{next.level} {next.name}까지 {d?.next_progress ?? 0}%</span>}</span>
         <ChevronRight size={14} className="text-slate-300" />
       </Link>
@@ -936,7 +937,7 @@ export function QuickStart({ teamId }: { teamId: string }) {
               : <span className="w-4 h-4 mt-0.5 rounded-full border-2 border-indigo-300 text-[9px] font-bold flex items-center justify-center text-indigo-600 shrink-0">{i + 1}</span>}
             <span className="min-w-0">
               <span className={cx('font-semibold block', x.done && 'line-through')}>{x.title}</span>
-              {!x.done && <span className="text-xs text-slate-500 block mt-0.5">{x.desc}</span>}
+              {!x.done && <span className="text-xs text-slate-500 block mt-0.5">{aiText(x.desc)}</span>}
             </span>
           </Link>
         ))}
@@ -994,3 +995,4 @@ export function MemoModal({ teamId, open, preset, onClose, onSaved, initialBody 
     </Modal>
   );
 }
+

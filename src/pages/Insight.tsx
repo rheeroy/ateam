@@ -7,6 +7,7 @@ import { supabase, q } from '../lib/supabase';
 import type { DepthRow, InsightLevel, LevelCondition } from '../lib/types';
 import { cx } from '../lib/format';
 import { Card, PageHeader, Spinner, Tabs } from '../components/ui';
+import { aiText, CoreAI } from '../components/Brand';
 
 const LEVEL_INFO: Record<number, { desc: string; ex: string }> = {
   1: { desc: '흩어진 컨디션 공유·면담·코멘트를 요약하고, 팀장님 노하우대로 초안을 씁니다.', ex: '주간보고 초안 · 1on1 준비 노트 · 1차 검토 · 내 노하우·플레이북 반영' },
@@ -58,7 +59,7 @@ export default function Insight() {
 
   return (
     <section>
-      <PageHeader title="AI 인사이트 레벨" sub={'기록이 쌓일수록 AI가 볼 수 있는 깊이가 달라집니다. 근거가 모자라면 추측하지 않고 "아직 판단할 수 없다"고 말합니다.'} />
+      <PageHeader title={<><CoreAI /> 인사이트 레벨</>} sub={aiText('기록이 쌓일수록 AI가 볼 수 있는 깊이가 달라집니다. 근거가 모자라면 추측하지 않고 "아직 판단할 수 없다"고 말합니다.')} />
       <div className="rounded-2xl bg-slate-900 text-white p-6">
         <div className="text-xs font-semibold tracking-wider text-violet-300">{team.name}</div>
         <div className="mt-3 flex items-end gap-4 flex-wrap">
@@ -80,7 +81,7 @@ export default function Insight() {
 
       <div className="mt-5 grid lg:grid-cols-5 gap-5 items-start">
         <Card className="lg:col-span-3 p-5 md:p-6">
-          <h2 className="font-semibold">레벨별로 AI가 할 수 있는 일</h2>
+          <h2 className="font-semibold">레벨별로 <CoreAI />가 할 수 있는 일</h2>
           <div className="mt-2 divide-y divide-slate-100">
             {d.levels.map((l) => {
               const open = l.level <= d.level;
@@ -115,7 +116,7 @@ export default function Insight() {
               <p className="mt-2 text-xs text-slate-500">결과까지 이어진 기록이 있어야 가능한 답입니다.</p></div>}
           </Card>
           <Card className="p-5 text-sm">
-            <div className="font-semibold">AI가 똑똑해지는 게 아니라, 볼 것이 많아지는 겁니다</div>
+            <div className="font-semibold"><CoreAI />가 똑똑해지는 게 아니라, 볼 것이 많아지는 겁니다</div>
             <ul className="mt-2 space-y-1.5 text-slate-600 leading-relaxed text-[13px]">
               <li>· 팀 기록으로 AI 모델을 학습시키지 않습니다. 요청할 때마다 쌓인 기록을 근거로 읽습니다.</li>
               <li>· 레벨은 팀 전체와 팀원 한 명 한 명에게 따로 적용됩니다.</li>
@@ -132,7 +133,7 @@ export default function Insight() {
           <div className="mt-3 overflow-x-auto">
             {!depth.data?.length ? <p className="text-sm text-slate-500 py-4">팀원이 없습니다.</p> : (
               <table className="w-full text-sm min-w-[520px]">
-                <thead><tr className="text-xs text-slate-500"><th className="text-left font-normal pb-1">팀원</th><th className="font-normal pb-1">컨디션 공유(주)</th><th className="font-normal pb-1">1on1(회)</th><th className="font-normal pb-1">결과물</th><th className="font-normal pb-1">관찰 메모</th><th className="text-left font-normal pb-1 pl-3">AI가 볼 수 있는 것</th></tr></thead>
+                <thead><tr className="text-xs text-slate-500"><th className="text-left font-normal pb-1">팀원</th><th className="font-normal pb-1">컨디션 공유(주)</th><th className="font-normal pb-1">1on1(회)</th><th className="font-normal pb-1">결과물</th><th className="font-normal pb-1">관찰 메모</th><th className="text-left font-normal pb-1 pl-3"><CoreAI />가 볼 수 있는 것</th></tr></thead>
                 <tbody>
                   {depth.data.map((m) => (
                     <tr key={m.user_id}>

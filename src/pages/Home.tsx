@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel,
-  Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X,
+  Inbox, ListTree, MessagesSquare, ScatterChart, StickyNote, Target, UserRound, Users, X,
 } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
@@ -18,7 +18,7 @@ import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities } from '../components/decide/priorities';
 import { useAdvisor } from '../lib/advisor';
 import { useLatestAi } from '../lib/hooks';
-import { LogoMark } from '../components/Brand';
+import { AiIcon, aiText, AteamAI, LogoMark } from '../components/Brand';
 import { useNotes } from '../lib/notes';
 import {
   MemoModal, PeriodTabs, QuickStart, periodRangeLabel, STATUS_META,
@@ -85,12 +85,12 @@ function useBriefing(m: HomeModel): BLine[] {
   if (m.lowGoals.length) out.push({ key: 'low', tone: 'rose', icon: ScatterChart, text: <>달성이 어려워 보이는 목표가 {n(m.lowGoals.length, '개')} 있어요.</>, go: '팀 성과를', to: '/perf' });
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
-  if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Gavel, text: <>에이전트가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
-  if (adv.out?.content.advice.length) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <>에이전트가 이번 주 운영 제안 {n(adv.out.content.advice.length, '개')}를 만들었어요.</>, go: 'ATEAM의 제안을', to: '/advisor' });
-  if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <>에이전트가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
-  if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <>에이전트가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
+  if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Gavel, text: <><AteamAI />가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
+  if (adv.out?.content.advice.length) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <><AteamAI />가 이번 주 운영 제안 {n(adv.out.content.advice.length, '개')}를 만들었어요.</>, go: 'ATEAM의 제안을', to: '/advisor' });
+  if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <><AteamAI />가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
+  if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <><AteamAI />가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
   else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });
-  if (briefFresh) out.push({ key: 'brief', tone: 'agent', icon: UserRound, text: <>에이전트가 이번 주 임원 브리핑을 업데이트했어요{nearest != null && nearest <= 7 ? <> · 가장 가까운 기한 {n(nearest, '')}일 남음</> : null}.</>, go: '임원 브리핑을', to: '/upward' });
+  if (briefFresh) out.push({ key: 'brief', tone: 'agent', icon: UserRound, text: <><AteamAI />가 이번 주 임원 브리핑을 업데이트했어요{nearest != null && nearest <= 7 ? <> · 가장 가까운 기한 {n(nearest, '')}일 남음</> : null}.</>, go: '임원 브리핑을', to: '/upward' });
   else if (m.orgSt.feed.length) out.push({ key: 'org', tone: nearest != null && nearest <= 3 ? 'amber' : 'slate', icon: UserRound, text: <>위에서 내려온 소식 {n(m.orgSt.feed.length, '건')}이 열려 있어요.</>, go: '임원 브리핑을', to: '/upward' });
   if (ooGap) out.push({ key: 'oo', tone: 'amber', icon: Users, text: <>2주 넘게 1on1을 못 한 팀원이 {n(ooGap, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
   if (k.decisionsDue) out.push({ key: 'due', tone: 'slate', icon: Gavel, text: <>결과를 기록할 결정이 {n(k.decisionsDue, '건')} 있어요.</>, go: '의사결정을', to: '/decide' });
@@ -111,9 +111,9 @@ function DailyBriefing({ m }: { m: HomeModel }) {
   return (
     <section aria-label="Daily Briefing" className="overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm">
       <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-slate-900 text-white">
-        <span className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center shrink-0"><Sparkles size={14} /></span>
+        <span className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center shrink-0"><AiIcon size={18} /></span>
         <span className="text-sm font-extrabold tracking-wider text-violet-300">DAILY BRIEFING</span>
-        <span className="text-base font-bold tracking-tight">{m.loading ? '에이전트가 팀 기록을 살펴보는 중…' : shown.length ? '에이전트가 팀 기록을 살펴보고 정리했어요' : '오늘 따로 챙길 신호가 없어요. 에이전트가 계속 지켜보고 있어요'}</span>
+        <span className="text-base font-bold tracking-tight">{m.loading ? <><AteamAI supCls="text-violet-300" />가 팀 기록을 살펴보는 중…</> : shown.length ? <><AteamAI supCls="text-violet-300" />가 팀 기록을 살펴보고 정리했어요</> : <>오늘 따로 챙길 신호가 없어요. <AteamAI supCls="text-violet-300" />가 계속 지켜보고 있어요</>}</span>
         {!m.loading && !!shown.length && <span className="ml-auto text-xs text-slate-400 num">{shown.length}건</span>}
       </div>
       {!m.loading && !!shown.length && (
@@ -271,12 +271,12 @@ function Tile({ icon: Icon, title, status, to, kpis, facts, empty = '아직 기�
       <dl className="px-4 mt-2.5 grid grid-cols-3 gap-2">
         {kpis.map((k) => (
           <div key={k.label} className="min-w-0">
-            <dt className="text-[10px] text-slate-500 truncate">{k.label}</dt>
+            <dt className="text-[10px] text-slate-500 truncate">{aiText(k.label, 'mark')}</dt>
             <dd className="h-7 flex items-center gap-2 min-w-0">
               {k.value !== '' && <span className={cx('text-xl font-bold num leading-none shrink-0', k.tone === 'rose' && 'text-rose-600', k.tone === 'amber' && 'text-amber-600')}>{k.value}</span>}
               {k.viz}
             </dd>
-            {k.under ? <dd>{k.under}</dd> : <dd className={cx('text-[10px] truncate', k.subTone === 'amber' ? 'text-amber-700 font-semibold' : k.subTone === 'rose' ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{k.sub || '\u00a0'}</dd>}
+            {k.under ? <dd>{k.under}</dd> : <dd className={cx('text-[10px] truncate', k.subTone === 'amber' ? 'text-amber-700 font-semibold' : k.subTone === 'rose' ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{k.sub ? aiText(k.sub, 'mark') : '\u00a0'}</dd>}
           </div>
         ))}
       </dl>
@@ -284,9 +284,9 @@ function Tile({ icon: Icon, title, status, to, kpis, facts, empty = '아직 기�
       <div className="mt-auto px-3 pb-3 pt-2.5">
         {ai ? (
           <div className="h-[78px] overflow-hidden rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-2.5 py-2"><p title={strip(ai)} className="text-xs leading-relaxed text-slate-700 line-clamp-3">
-            <Sparkles size={11} className="inline align-[-1px] text-violet-700 mr-0.5" /><span className="font-semibold text-violet-700 mr-1">{aiLabel}</span>{strip(ai)}</p></div>
+            <AiIcon size={11} className="text-violet-700 mr-1 align-[0px]" />{aiLabel !== 'AI' && <span className="font-semibold text-violet-700 mr-1">{aiLabel.replace(/^AI\s*/, '')}</span>}{aiText(strip(ai))}</p></div>
         ) : (
-          <div className="h-[78px] overflow-hidden rounded-lg bg-slate-50 px-2.5 py-2"><p className="text-xs leading-relaxed text-slate-500 line-clamp-3">{fallback ?? '특별히 짚을 신호가 없습니다.'}</p></div>
+          <div className="h-[78px] overflow-hidden rounded-lg bg-slate-50 px-2.5 py-2"><p className="text-xs leading-relaxed text-slate-500 line-clamp-3">{fallback != null ? aiText(fallback) : '특별히 짚을 신호가 없습니다.'}</p></div>
         )}
       </div>
     </Link>
@@ -456,7 +456,7 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
           <Link key={c.k} to={c.to} onClick={(e) => { if (c.to === '#') e.preventDefault(); }} className="px-2 py-3.5 text-center hover:bg-slate-50">
             <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1"><c.icon size={12} />{c.k}</div>
             <div className="text-2xl font-bold num mt-0.5">{c.n}</div>
-            <div className={cx('text-[11px]', c.alert ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{c.sub}</div>
+            <div className={cx('text-[11px]', c.alert ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{aiText(c.sub, 'mark')}</div>
           </Link>
         ))}
       </div>

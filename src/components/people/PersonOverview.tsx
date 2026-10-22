@@ -16,6 +16,7 @@ import { cx } from '../../lib/format';
 import { todayYmd } from '../home/shared';
 import { AiChip } from '../AiBar';
 import { Spinner } from '../ui';
+import { CoreAI } from '../Brand';
 
 const WORK: Record<string, { label: string; cls: string }> = {
   good: { label: '순항', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
@@ -73,7 +74,7 @@ export function PersonOverview({ uid }: { uid: string; name?: string }) {
         <Link to={`/work/u/${uid}`} className="ml-auto text-xs font-semibold text-indigo-700 inline-flex items-center">과제별 진행은 업무플랫폼에서<ChevronRight size={13} /></Link>
       </div>
       {view ? <p className="mt-2 text-sm leading-relaxed text-slate-800"><AiChip label="AI 종합 판단" tone="solid" className="mr-1.5" />{strip(view.work_view)}</p>
-        : <p className="mt-2 text-xs text-slate-500"><AiChip label="AI" className="mr-1" />팀원관리에서 '이번 주 추천'을 만들면 맡은 일 전반에 대한 AI 종합 판단이 여기에 붙습니다.</p>}
+        : <p className="mt-2 text-xs text-slate-500"><AiChip label="AI" className="mr-1" />팀원관리에서 '이번 주 추천'을 만들면 맡은 일 전반에 대한 <CoreAI /> 종합 판단이 여기에 붙습니다.</p>}
       {items.isLoading ? <Spinner /> : (
         <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
           <Row k="맡은 일 전체">

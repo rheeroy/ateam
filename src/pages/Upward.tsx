@@ -12,6 +12,7 @@ import { STYLE_PRESETS, useExecBrief, useExecutives, type ExecBriefOut, type Exe
 import { Button, Card, Field, Modal, Spinner, inputCls, useToast } from '../components/ui';
 import { periodRange } from '../components/AiBar';
 import { ORG_KIND, OrgNoteModal, OrgNoteRow, dDay, orgStats, useOrgNotes } from '../components/home/shared';
+import { AiIcon } from '../components/Brand';
 
 const strip = (t?: string) => (t ?? '').replace(/\s*\[E\d+\]/g, '');
 
@@ -40,8 +41,8 @@ export default function Upward() {
 
       <div className="grid lg:grid-cols-3 gap-5 lg:gap-0 items-start">
         <div className="lg:col-span-2 space-y-4 lg:pr-6">
-          <div className="flex items-end gap-2"><span className="text-sm font-bold text-slate-900">AI 브리핑</span><span className="text-xs text-slate-400">입력한 데이터와 팀 기록으로 이번 주 위를 미리 봅니다</span></div>
-          {!ai ? <Card className="p-6 text-sm text-slate-600 flex items-center gap-2"><Lock size={15} />AI 브리핑은 Pro에서 쓸 수 있습니다. <Link to="/settings?tab=billing" className="text-indigo-700 font-semibold">요금제 보기 →</Link></Card>
+          <div className="flex items-end gap-2"><span className="text-sm font-bold text-slate-900 inline-flex items-center gap-1"><AiIcon size={15} className="text-violet-600" />브리핑</span><span className="text-xs text-slate-400">입력한 데이터와 팀 기록으로 이번 주 위를 미리 봅니다</span></div>
+          {!ai ? <Card className="p-6 text-sm text-slate-600 flex items-center gap-2"><Lock size={15} /><span className="inline-flex items-center gap-1"><AiIcon size={13} className="text-violet-600" />브리핑은 Pro에서 쓸 수 있습니다.</span> <Link to="/settings?tab=billing" className="text-indigo-700 font-semibold">요금제 보기 →</Link></Card>
             : brief.loading ? <Spinner /> : !brief.out ? <EmptyBrief hasExec={!!ex.list.length} /> : <Brief c={brief.out.content} at={brief.out.created_at} start={brief.out.period_start} stale={!brief.fresh} execs={ex.list} />}
         </div>
         <div className="space-y-4 lg:pl-6 lg:border-l lg:border-slate-200 lg:min-h-[480px] border-t lg:border-t-0 pt-5 lg:pt-0">

@@ -8,7 +8,7 @@ import { supabase, invoke, errorText } from '../../lib/supabase';
 import type { AiOutput } from '../../lib/types';
 import { cx, fmtDate } from '../../lib/format';
 import { Button, Modal, Spinner, inputCls, useToast } from '../ui';
-import { AiSup, LogoMark } from '../Brand';
+import { AiSup, AteamAI, LogoMark } from '../Brand';
 import { methodTitle } from '../../lib/playbook';
 
 export interface CoachingNote { id: string; team_id: string; member_id: string; title: string; body: string; seen_at: string | null; acked_at: string | null; helpful: boolean | null; created_at: string }
@@ -27,7 +27,7 @@ export function CoachCard({ title, body, date, footer, highlight }: { title: str
       </div>
       <div className="p-5">
         <div className="text-[17px] font-bold leading-snug">{title || '제목'}</div>
-        <p className="mt-1 text-sm text-slate-500">ATEAM AI가 최근 업무 기록을 보고, 다음 리뷰 전에 미리 챙기면 좋을 것을 정리했어요.</p>
+        <p className="mt-1 text-sm text-slate-500"><AteamAI />가 최근 업무 기록을 보고, 다음 리뷰 전에 미리 챙기면 좋을 것을 정리했어요.</p>
         {blocks.map((ls, i) => {
           const [head, ...rest] = ls;
           const isHead = rest.length > 0 && !head.startsWith('·') && head.length <= 14;
@@ -97,7 +97,7 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
         직접 말하기 껄끄러운 개선점을 <b>ATEAM<AiSup className="opacity-80" /> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<AiSup className="opacity-80" />의 코칭'</b>으로 도착합니다. 자유롭게 수정해보세요.
       </p>
       {gen.isPending ? (
-        <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2">ATEAM AI가 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>
+        <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2"><AteamAI />가 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>
       ) : gen.isError && !f.body ? (
         <div className="mt-4 rounded-lg bg-slate-50 px-4 py-6 text-sm text-slate-600 text-center">{errorText(gen.error)}
           <div className="mt-3"><Button size="sm" variant="secondary" onClick={() => gen.mutate()}><RefreshCw size={13} />다시 만들기</Button></div></div>

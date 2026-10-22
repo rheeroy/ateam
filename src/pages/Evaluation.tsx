@@ -11,6 +11,7 @@ import { cx, fmtShort } from '../lib/format';
 import { Button, Card, Empty, PageHeader, Pill, Spinner } from '../components/ui';
 import { ProvBlock, ProvChip, TaggedText, kindFromStatus } from '../components/Prov';
 import { Upsell } from './Perf';
+import { aiText, CoreAI } from '../components/Brand';
 
 interface Item { title: string; detail: string; evidence: string[] }
 type G = 'S' | 'A' | 'B' | 'C' | 'D';
@@ -85,7 +86,7 @@ function GradeCard({ g, final, sources, onFinal, locked }: { g: Grade; final?: G
           <button key={x.g} disabled={locked} onClick={() => onFinal(final === x.g ? null : x.g)}
             className={cx('w-9 h-8 rounded-lg text-sm font-black', final === x.g ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200', locked && 'opacity-60 cursor-default')}>{x.g}</button>
         ))}</div>
-        <span className="text-[11px] text-slate-400">{final ? (final === g.expected ? 'AI 예상과 같음' : `AI 예상 ${g.expected} → 팀장 ${final}`) : '고르면 이 초안에 함께 저장됩니다 (팀장만 봄)'}</span>
+        <span className="text-[11px] text-slate-400">{final ? aiText(final === g.expected ? 'AI 예상과 같음' : `AI 예상 ${g.expected} → 팀장 ${final}`) : '고르면 이 초안에 함께 저장됩니다 (팀장만 봄)'}</span>
       </div>
     </div>
   );
@@ -157,11 +158,11 @@ export default function Evaluation() {
               {draft.isLoading ? <Spinner /> : !d ? (
                 <Empty icon={<Sparkles size={18} />} title={`${period.label} 초안이 없습니다`}
                   action={<Button loading={gen.isPending} onClick={run}>{member.eligible ? '예상 등급 · 초안 만들기 · 5 크레딧' : '근거 확인하기 (크레딧 차감 없음)'}</Button>}>
-                  {member.eligible ? '이 기간의 결과물·관찰 메모·리뷰 코멘트·1on1 기록을 근거로 초안을 씁니다.' : `판단 근거가 ${member.judgment_evidence}건이라 기준에 못 미칩니다. 요청해도 AI는 판단을 보류합니다.`}
+                  {member.eligible ? '이 기간의 결과물·관찰 메모·리뷰 코멘트·1on1 기록을 근거로 초안을 씁니다.' : aiText(`판단 근거가 ${member.judgment_evidence}건이라 기준에 못 미칩니다. 요청해도 AI는 판단을 보류합니다.`)}
                 </Empty>
               ) : d.status === 'withheld' ? (
                 <div className="mt-5 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-5 text-sm">
-                  <div className="font-semibold text-amber-900 inline-flex items-center gap-1.5"><CircleDashed size={15} />AI가 판단을 보류했습니다</div>
+                  <div className="font-semibold text-amber-900 inline-flex items-center gap-1.5"><CircleDashed size={15} /><span><CoreAI supCls="text-amber-600" />가 판단을 보류했습니다</span></div>
                   <p className="mt-2 text-amber-900/90">{view?.reason}</p>
                   {view?.needed && <p className="mt-1 text-amber-900/80">{view.needed.suggestion} (현재 {view.needed.current}건 / 기준 {view.needed.required}건)</p>}
                   <Button className="mt-4" size="sm" variant="secondary" loading={gen.isPending} onClick={run}>다시 확인</Button>
@@ -211,7 +212,7 @@ export default function Evaluation() {
               {!!ev.data?.length && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {Object.entries(ev.data.reduce<Record<string, number>>((a, e) => ({ ...a, [e.source]: (a[e.source] ?? 0) + 1 }), {})).sort((a, b) => b[1] - a[1]).map(([k, n]) => (
-                    <span key={k} className="text-[11px] rounded-full bg-teal-50 text-teal-800 ring-1 ring-teal-100 px-2 py-0.5">{EVIDENCE_LABEL[k] ?? k} <b className="num">{n}</b></span>
+                    <span key={k} className="text-[11px] rounded-full bg-teal-50 text-teal-800 ring-1 ring-teal-100 px-2 py-0.5">{aiText(EVIDENCE_LABEL[k] ?? k, 'mark')} <b className="num">{n}</b></span>
                   ))}
                 </div>
               )}

@@ -12,6 +12,7 @@ import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
 import { ForecastChart, PerfMap, PortfolioChart, Sparkline } from '../components/charts';
 import { MetricDataModal, NewMetricModal } from '../components/MetricEditor';
 import { BoxTitle, GoalMapSection, type ForecastScope } from '../components/perf/GoalMap';
+import { AiIcon } from '../components/Brand';
 
 export function Upsell({ feature }: { feature: string }) {
   return (
@@ -142,7 +143,7 @@ function ForecastSection({ teamId, scope }: { teamId: string; scope: ForecastSco
                   <p className="mt-2">{note.data.content.text}</p>
                   <button className="mt-1 text-violet-700" onClick={() => gen.mutate({ kind: 'forecast_note', team_id: teamId, metric_id: metricId })}>{gen.isPending ? '해석 중…' : '최신 숫자로 다시 해석'}</button></>
               ) : (
-                <button className="text-violet-700 font-semibold" onClick={() => gen.mutate({ kind: 'forecast_note', team_id: teamId, metric_id: metricId })}>{gen.isPending ? '해석 중…' : 'AI 해석 받기 · 1 크레딧'}</button>
+                <button className="text-violet-700 font-semibold" onClick={() => gen.mutate({ kind: 'forecast_note', team_id: teamId, metric_id: metricId })}>{gen.isPending ? '해석 중…' : <span className="inline-flex items-center gap-1"><AiIcon size={13} />해석 받기 · 1 크레딧</span>}</button>
               )}
             </ProvBlock>
             <button className="w-full text-xs font-semibold text-indigo-700 inline-flex items-center justify-center gap-1 py-1"

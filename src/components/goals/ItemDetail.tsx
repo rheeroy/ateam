@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, GitPullRequestArrow, History, Lock, MessageSquare, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, GitPullRequestArrow, History, Lock, MessageSquare, Plus, Send, Trash2, X } from 'lucide-react';
 import { NotesBox } from '../notes/Notes';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
@@ -14,6 +14,7 @@ import { cx, fmtDate, fmtShort } from '../../lib/format';
 import { Avatar, Bar, Button, Field, Modal, Pill, inputCls, useToast } from '../ui';
 import { RequestModal } from '../RequestModal';
 import { useLeaderId } from '../member/Member';
+import { AiIcon } from '../Brand';
 
 const EVENT_LABEL: Record<string, string> = {
   created: '만듦', replan: '일정 변경', target: '목표값 변경', status: '상태 변경', owner: '담당 변경', approved: '승인', changes_requested: '수정 요청',
@@ -389,7 +390,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
         </section>
       </div>
       <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-2 flex-wrap">
-        {canEdit && onAiPlan && <Button size="sm" variant="soft" onClick={() => onAiPlan(item.id)}><Sparkles size={13} />AI로 하위 계획</Button>}
+        {canEdit && onAiPlan && <Button size="sm" variant="soft" onClick={() => onAiPlan(item.id)}><AiIcon size={13} />하위 계획</Button>}
         {isLeader && item.owner_id && item.owner_id !== uid && <Button size="sm" variant="secondary" onClick={() => setReqOpen(true)}><Send size={13} />요청 보내기</Button>}
         {locked && item.depth < 2 && !PENDING.includes(item.status) && <Button size="sm" variant="secondary" onClick={() => setChangeOpen(true)}><GitPullRequestArrow size={13} />변경 요청</Button>}
         {rules.canDelete(item) && (

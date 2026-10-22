@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Sparkles, Table2 } from 'lucide-react';
+import { CalendarRange, ClipboardPaste, Crosshair, ListTree, Lock, LockOpen, Send, Settings2, Table2 } from 'lucide-react';
 import { CheckinModal, PERF_TIP, PerfGuide } from '../components/checkin/Checkin';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
@@ -17,6 +17,7 @@ import { TableView, PasteModal } from '../components/goals/TableView';
 import { Timeline } from '../components/goals/Timeline';
 import { ItemDetail } from '../components/goals/ItemDetail';
 import { PlanDraftModal } from '../components/goals/PlanAI';
+import { AiIcon, aiText } from '../components/Brand';
 
 type View = 'outline' | 'table' | 'timeline';
 type Filter = 'all' | 'mine' | 'proposed' | 'blocked' | 'overdue' | 'replan' | 'stale' | 'changes';
@@ -228,7 +229,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
       {mode === 'leader' && isLeader && (
         <div className="-mt-2 mb-6 flex gap-2 flex-wrap">
           <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={15} />팀원에게 계획 요청</Button>
-          <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={15} />AI로 계획 만들기</Button>
+          <Button variant="soft" onClick={() => setDraft({ open: true, parent: null })}><AiIcon size={16} />계획 만들기</Button>
           <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={15} />붙여 넣기</Button>
           <Button variant="ghost" onClick={() => setSettings(true)} aria-label="설정"><Settings2 size={15} /></Button>
         </div>
@@ -317,12 +318,12 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
         {items.isLoading ? <Spinner /> : !all.length && !addRoot ? (
           <Empty title={mode === 'member' ? '아직 내 목표·과제가 없습니다' : `${year}년 목표를 세워 보세요`}
             action={<div className="flex gap-2 justify-center flex-wrap">
-              {isLeader && <Button onClick={() => setDraft({ open: true, parent: null })}><Sparkles size={14} />계획서로 AI 초안</Button>}
+              {isLeader && <Button onClick={() => setDraft({ open: true, parent: null })}><AiIcon size={15} />계획서로 초안 만들기</Button>}
               {canAddUnder(null) && <Button variant={isLeader ? 'secondary' : 'primary'} onClick={() => { setParam('view', null); setAddRoot((x) => x + 1); }}>직접 쓰기</Button>}
               {isLeader && mode === 'leader' && <Button variant="secondary" onClick={() => setAskPlan(true)}><Send size={14} />팀원에게 계획 요청</Button>}
               {(isLeader || rules.open) && <Button variant="secondary" onClick={() => setPaste(true)}><ClipboardPaste size={14} />붙여 넣기</Button>}
             </div>}>
-            {mode === 'member' ? (rules.open ? `${year}년 내 목표·과제가 아직 없습니다. 직접 쓰거나 정리해 둔 내용을 붙여 넣어 시작하세요.` : `${year}년 목표·과제가 아직 없습니다. 팀장님이 팀원 수정을 켜거나 계획을 요청하면 직접 세울 수 있어요.`) : '계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다. 한 줄씩 직접 써도 됩니다.'}
+            {mode === 'member' ? (rules.open ? `${year}년 내 목표·과제가 아직 없습니다. 직접 쓰거나 정리해 둔 내용을 붙여 넣어 시작하세요.` : `${year}년 목표·과제가 아직 없습니다. 팀장님이 팀원 수정을 켜거나 계획을 요청하면 직접 세울 수 있어요.`) : aiText('계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다. 한 줄씩 직접 써도 됩니다.')}
           </Empty>
         ) : view === 'table' ? <TableView rows={flatten(roots, new Set(), (n) => rows.some((r) => r.id === n.id))} onOpen={(id) => setParam('item', id)} canEditItem={canEditItem} canProgress={canProgress} />
           : view === 'timeline' ? <Timeline rows={rows} collapsed={collapsed} toggle={toggle} onOpen={(id) => setParam('item', id)} canEditItem={canEditItem} />

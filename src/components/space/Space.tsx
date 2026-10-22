@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCircle2, CircleDot, Crosshair, Download, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, Plus, RotateCcw, Send, Sparkles, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
+import { Check, CheckCircle2, CircleDot, Crosshair, Download, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, Plus, RotateCcw, Send, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import { buildTree, useItems, type Node } from '../../lib/items';
@@ -22,6 +22,7 @@ import { REQUEST_KIND } from '../RequestModal';
 import { PlanBar } from '../goals/PlanBar';
 import { AiReview, Bubble, Composer, VersionBody, type Review } from '../../pages/ReviewDetail';
 import { STATUS } from '../../pages/MySubmissions';
+import { AiIcon } from '../Brand';
 
 type Filter = 'all' | 'wait' | 'fix' | 'unread' | 'none' | `i:${string}`;
 type Sel = { t: 'sub' | 'msg' | 'req'; id: string; /** 업무 카드: AI 분석 탭으로 열기 (그 버전) */ aiVer?: string } | null;
@@ -379,7 +380,7 @@ function AiMark({ m, onClick }: { m: AiMarkT; onClick: () => void }) {
   return (
     <button onClick={onClick} title={m.text ? `${AI_WORD[m.tone]} — ${m.text}` : AI_WORD[m.tone]}
       className="ml-auto pr-1 inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 hover:text-violet-700">
-      AI 분석<span className={cx('w-1.5 h-1.5 rounded-full', AI_DOT[m.tone])} /><span className="sr-only">{AI_WORD[m.tone]}</span>
+      <AiIcon size={11} />분석<span className={cx('w-1.5 h-1.5 rounded-full', AI_DOT[m.tone])} /><span className="sr-only">{AI_WORD[m.tone]}</span>
     </button>
   );
 }
@@ -518,7 +519,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
               {UPLOAD_TYPES.map((t) => (
                 <button key={t.r} onClick={() => chooseType(t.r)} className={cx('text-left rounded-lg ring-1 px-3 py-2.5 hover:ring-indigo-400 hover:bg-indigo-50/40', req === t.r ? 'ring-indigo-300' : 'ring-slate-200')}>
                   <span className="flex items-center gap-1.5"><b className={cx('text-sm', t.tone)}>{REQ_TAG[t.r].label}</b>
-                    {t.ai && <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-semibold text-violet-700 bg-violet-50 rounded px-1.5 py-0.5"><Sparkles size={10} />AI 검토</span>}</span>
+                    {t.ai && <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-semibold text-violet-700 bg-violet-50 rounded px-1.5 py-0.5"><AiIcon size={11} />검토</span>}</span>
                   <span className="block mt-0.5 text-[11px] text-slate-500 leading-snug">{t.sub}</span>
                 </button>
               ))}
@@ -684,7 +685,7 @@ function SubPanel({ id, openAi, onClose, leaderView, canUploadFor, byId }: { id:
       actions={canCk ? <Button size="sm" variant="soft" title={PERF_TIP} onClick={() => setCk(true)}><Crosshair size={12} />이 업무로 성과입력</Button> : leaderView && !isLeaderPost && !isCheckin ? <>
         {sub.request_type !== 'share' && <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs">
           <button onClick={() => setTab('talk')} className={cx('px-2.5 py-1 rounded-md', tab === 'talk' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>대화</button>
-          <button onClick={() => setTab('ai')} className={cx('px-2.5 py-1 rounded-md inline-flex items-center gap-1', tab === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><Sparkles size={11} className="text-violet-600" />AI 검토</button>
+          <button onClick={() => setTab('ai')} className={cx('px-2.5 py-1 rounded-md inline-flex items-center gap-1', tab === 'ai' ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><AiIcon size={13} className="text-violet-600" />검토</button>
         </div>}
         <span className="ml-auto flex gap-1">
           {sub.request_type !== 'share' && <>

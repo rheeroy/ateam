@@ -11,7 +11,7 @@ import {
   type Advice, type AdviceStatus, type AdvisorOut, type Perspective,
 } from '../lib/advisor';
 import { Button, Card, Spinner, useToast } from '../components/ui';
-import { ATeam, ATeamAdvice, LogoBlock } from '../components/Brand';
+import { ATeam, ATeamAdvice, CoreAI, LogoBlock } from '../components/Brand';
 import { periodRange } from '../components/AiBar';
 import { useBoard } from '../components/decide/priorities';
 import { RequestModal } from '../components/RequestModal';
@@ -96,7 +96,7 @@ function EmptyState({ broken }: { broken?: boolean }) {
     <Card className="p-6">
       {broken && <p className="mb-3 text-xs rounded-lg bg-amber-50 text-amber-800 px-3 py-2">이번 AI 응답이 중간에 끊겨 제안을 읽지 못했습니다. '다시 받기'를 한 번 더 눌러 주세요.</p>}
       <p className="text-sm text-slate-600 leading-relaxed">이번 주 제안이 아직 없습니다. 매주 월요일 아침 자동으로 만들어지고, 위의 '이번 주 제안 받기'로 지금 받을 수도 있습니다.<br />
-        팀 신호 · AI 인사이트 · 팀원관리 액션 · 미결 결정 · 위에서 온 것 · 팀장 시간 배분을 함께 보고, 아래 6개 레버마다 상태와 처방을 냅니다.</p>
+        팀 신호 · <CoreAI /> 인사이트 · 팀원관리 액션 · 미결 결정 · 위에서 온 것 · 팀장 시간 배분을 함께 보고, 아래 6개 레버마다 상태와 처방을 냅니다.</p>
       <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {LEVERS.map((l) => <div key={l.key} className="rounded-xl bg-slate-50 px-3 py-2.5 flex items-center gap-2"><l.icon size={15} className="text-slate-500" /><span className="text-sm font-semibold">{l.label}</span><span className="text-[11px] text-slate-400 truncate">{l.hint}</span></div>)}
       </div>

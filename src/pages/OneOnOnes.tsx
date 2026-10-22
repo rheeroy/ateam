@@ -10,6 +10,7 @@ import type { OneOnOne } from '../lib/types';
 import { daysAgo, fmtDate, fmtTime, relDay } from '../lib/format';
 import { AiChip } from '../components/AiBar';
 import { Button, Card, CardHead, Empty, ErrorBox, Field, Modal, PageHeader, Pill, Spinner, inputCls } from '../components/ui';
+import { CoreAI } from '../components/Brand';
 
 export function ScheduleModal({ open, onClose, memberId }: { open: boolean; onClose: () => void; memberId?: string | null }) {
   const { team, uid } = useTeam();
@@ -79,7 +80,7 @@ export default function OneOnOnes({ embedded }: { embedded?: boolean } = {}) {
     <section>
       {embedded ? (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
-          <p className="text-sm text-slate-500 flex-1">면담 전 <b className="text-violet-700 font-semibold">AI 준비 노트</b>, 함께 보는 노트, 액션아이템이 한곳에 쌓이고 평가 근거가 됩니다.</p>
+          <p className="text-sm text-slate-500 flex-1">면담 전 <b className="text-violet-700 font-semibold"><CoreAI /> 준비 노트</b>, 함께 보는 노트, 액션아이템이 한곳에 쌓이고 평가 근거가 됩니다.</p>
           <Button onClick={() => setOpen(true)}><CalendarPlus size={15} />1on1 잡기</Button>
         </div>
       ) : <PageHeader title="1on1 면담" sub="면담 전 준비 노트, 함께 보는 노트, 액션아이템이 한곳에 쌓입니다"

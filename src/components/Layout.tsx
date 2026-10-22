@@ -17,7 +17,7 @@ import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { QuickNote } from './notes/Notes';
 import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
-import { ATeam, ATeamAdvice, LogoBlock, LogoMark } from './Brand';
+import { AiIcon, ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string };
@@ -74,7 +74,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/notes" label="내 메모 모아보기" icon={StickyNote} />
             <NavItem to="/knowhow" label="노하우 라이브러리" icon={Library} />
-            <NavItem to="/insight" label="AI 인사이트" icon={Layers} badge={lvl} />
+            <NavItem to="/insight" label={<><CoreAI /> 인사이트</>} tip="Core AI 인사이트" icon={Layers} badge={lvl} />
             <NavItem to="/settings" label="설정" icon={Settings} />
     </>
   );
@@ -172,7 +172,7 @@ export default function Layout() {
                 <span className={cx('relative w-7 h-4 rounded-full transition-colors', on ? 'bg-violet-600' : 'bg-slate-300')}>
                   <span className={cx('absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all', on ? 'left-3.5' : 'left-0.5')} />
                 </span>
-                AI 표시
+                <AiIcon size={14} className="text-violet-600" />표시
                 <span className="font-mono text-[11px] font-semibold text-violet-700 bg-violet-100/60 rounded px-1.5">{chipCount}</span>
               </button>
             )}

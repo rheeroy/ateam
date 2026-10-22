@@ -1,7 +1,7 @@
 // 내 메모 — 빠른 메모 창(어디서든) · 대상별 메모 칸(팀원 · 목표 · 임원 · 결정 · 1on1) · 메모 한 줄
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRightLeft, Check, CheckSquare, Lock, Pin, PinOff, Plus, Sparkles, StickyNote, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Check, CheckSquare, Lock, Pin, PinOff, Plus, StickyNote, Trash2 } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { useItems } from '../../lib/items';
 import { useExecutives } from '../../lib/upward';
@@ -9,6 +9,7 @@ import { ANCHOR_LABEL, OPEN_NOTE, getAiDefault, openQuickNote, useNoteMutations,
 import { cx, fmtShort } from '../../lib/format';
 import { Button, Modal, Spinner, inputCls } from '../ui';
 import { MemoModal } from '../home/shared';
+import { AiIcon, CoreAI } from '../Brand';
 
 /** 붙인 대상의 이름과 링크 (지금 이름 → 없으면 붙일 때 저장한 이름) */
 export function useAnchorInfo() {
@@ -102,7 +103,7 @@ export function QuickNote() {
           <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} />맨 위에 고정</label>
           <label className="flex items-center gap-2 cursor-pointer" title="켜면 1on1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 이 메모를 참고합니다. 평가 초안에는 쓰지 않습니다.">
             <input type="checkbox" className="accent-violet-600" checked={f.ai_allowed} onChange={(e) => setF({ ...f, ai_allowed: e.target.checked })} />
-            <span className="inline-flex items-center gap-1"><Sparkles size={13} className="text-violet-600" />AI가 참고해도 돼요</span></label>
+            <span className="inline-flex items-center gap-1"><CoreAI />가 참고해도 돼요</span></label>
         </div>
         <div className="flex items-center gap-2 pt-1">
           <span className="text-[11px] text-slate-400 inline-flex items-center gap-1"><Lock size={11} />나만 보는 메모 · 팀원에게 보이지 않고 평가에 쓰이지 않습니다</span>
@@ -129,14 +130,14 @@ export function NoteRow({ n, showAnchor = true }: { n: LeaderNote; showAnchor?: 
         <button onClick={() => openQuickNote({ note: n })} className={cx('text-left text-sm leading-relaxed whitespace-pre-wrap break-words hover:text-indigo-700', n.kind === 'todo' && n.done && 'line-through')}>{n.body}</button>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
           <span>{fmtShort(n.updated_at)}</span>
-          {n.ai_allowed && <span className="inline-flex items-center gap-0.5 text-violet-600"><Sparkles size={10} />AI 참고</span>}
+          {n.ai_allowed && <span className="inline-flex items-center gap-1 text-violet-600"><AiIcon size={11} />참고</span>}
           {a && (a.to ? <Link to={a.to} className="rounded-full bg-slate-100 text-slate-600 px-1.5 py-px hover:bg-slate-200">{ANCHOR_LABEL[n.anchor_type]} · {a.label}</Link>
             : <span className="rounded-full bg-slate-100 text-slate-600 px-1.5 py-px">{ANCHOR_LABEL[n.anchor_type]} · {a.label}</span>)}
         </div>
       </div>
       <div className="flex items-start gap-0.5 opacity-60 group-hover:opacity-100">
         {n.anchor_type === 'member' && n.anchor_id && <button onClick={() => setObs(true)} title="관찰 메모로 옮기기 — 평가 근거가 됩니다" className="p-1 rounded text-slate-400 hover:text-indigo-700 hover:bg-slate-100"><ArrowRightLeft size={13} /></button>}
-        <button onClick={() => patch.mutate({ id: n.id, ai_allowed: !n.ai_allowed })} title={n.ai_allowed ? 'AI 참고 끄기' : 'AI가 참고해도 돼요'} className={cx('p-1 rounded hover:bg-slate-100', n.ai_allowed ? 'text-violet-600' : 'text-slate-400')}><Sparkles size={13} /></button>
+        <button onClick={() => patch.mutate({ id: n.id, ai_allowed: !n.ai_allowed })} title={n.ai_allowed ? 'AI 참고 끄기' : 'AI가 참고해도 돼요'} className={cx('p-1 rounded hover:bg-slate-100', n.ai_allowed ? 'text-violet-600' : 'text-slate-400')}><AiIcon size={15} /></button>
         <button onClick={() => patch.mutate({ id: n.id, pinned: !n.pinned })} title={n.pinned ? '고정 풀기' : '맨 위에 고정'} className={cx('p-1 rounded hover:bg-slate-100', n.pinned ? 'text-amber-500' : 'text-slate-400')}>{n.pinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
         <button onClick={() => { if (confirm('이 메모를 지울까요?')) remove.mutate(n.id); }} title="지우기" className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100"><Trash2 size={13} /></button>
       </div>

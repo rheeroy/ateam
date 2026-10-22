@@ -10,6 +10,7 @@ import { KH_FEATURE } from '../../lib/knowhow';
 import type { KnowhowFeature } from '../../lib/types';
 import { cx, fmtDate } from '../../lib/format';
 import { Button, inputCls, useToast } from '../ui';
+import { AiIcon, aiText, CoreAI } from '../Brand';
 
 type Filter = 'all' | 'core' | 'on' | 'off';
 
@@ -88,7 +89,7 @@ function Row({ c, locked, onOpen }: { c: PlaybookCard; locked: boolean; onOpen: 
             <p className="mt-1.5 text-[13px] text-slate-600 leading-relaxed line-clamp-2">{c.body}</p>
             <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-slate-400">
               {c.tpl?.origin && <span className="inline-flex items-center gap-1 min-w-0">{c.tpl.origin_type === 'field' ? <Library size={11} /> : <Globe2 size={11} />}<span className="truncate max-w-[260px]">{c.tpl.origin}</span></span>}
-              {c.use_count > 0 && <span className="text-slate-500">AI 적용 <b className="num font-semibold">{c.use_count}</b>회</span>}
+              {c.use_count > 0 && <span className="text-slate-500 inline-flex items-center gap-1"><AiIcon size={11} className="text-violet-600" />적용 <b className="num font-semibold">{c.use_count}</b>회</span>}
               {c.pinned && <span className="inline-flex items-center gap-0.5 text-indigo-600"><Pin size={10} />항상 먼저</span>}
               {c.shared && <span className="inline-flex items-center gap-0.5 text-emerald-700"><Users size={10} />팀원 공개</span>}
               {isEdited(c) && <span className="text-slate-600">우리 팀 수정</span>}
@@ -153,7 +154,7 @@ function Detail({ c, locked, onClose }: { c: PlaybookCard; locked: boolean; onCl
               </section>
               {c.rules.length > 0 && (
                 <section>
-                  <h4 className="text-[13px] font-bold text-slate-900">AI는 이렇게 적용합니다</h4>
+                  <h4 className="text-[13px] font-bold text-slate-900"><CoreAI />는 이렇게 적용합니다</h4>
                   <ul className="mt-2 space-y-1.5">
                     {c.rules.map((r, i) => <li key={i} className="flex gap-2 text-slate-700"><Check size={14} className="mt-[3px] shrink-0 text-indigo-500" />{r}</li>)}
                   </ul>
@@ -192,11 +193,11 @@ function Detail({ c, locked, onClose }: { c: PlaybookCard; locked: boolean; onCl
           <section className="border-t border-slate-100 pt-5 space-y-4">
             {locked && (
               <div className="rounded-lg bg-[#FAF1E1] text-[#6B4A12] px-3.5 py-2.5 text-xs leading-relaxed flex gap-2">
-                <Lock size={13} className="mt-0.5 shrink-0" /><span>지금 요금제에서는 읽기만 할 수 있습니다. Pro부터 AI가 플레이북을 함께 씁니다. <Link to="/settings?tab=billing" className="font-semibold underline">요금제 보기</Link></span>
+                <Lock size={13} className="mt-0.5 shrink-0" /><span>지금 요금제에서는 읽기만 할 수 있습니다. Pro부터 <CoreAI />가 플레이북을 함께 씁니다. <Link to="/settings?tab=billing" className="font-semibold underline">요금제 보기</Link></span>
               </div>
             )}
             <div className="flex items-center justify-between gap-3">
-              <div><div className="font-semibold">AI가 사용</div><div className="text-xs text-slate-500">끄면 어떤 AI 기능도 이 카드를 읽지 않습니다</div></div>
+              <div><div className="font-semibold"><CoreAI />가 사용</div><div className="text-xs text-slate-500">끄면 어떤 <CoreAI /> 기능도 이 카드를 읽지 않습니다</div></div>
               <Switch on={on} disabled={locked} label="AI가 사용" onChange={(v) => save({ active: v })} />
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -226,7 +227,7 @@ function Detail({ c, locked, onClose }: { c: PlaybookCard; locked: boolean; onCl
         </div>
 
         <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-2 text-xs">
-          <span className="text-slate-400">{c.use_count > 0 ? `AI 결과에 ${c.use_count}번 적용 · 최근 ${fmtDate(c.last_used_at)}` : '아직 적용 전'}</span>
+          <span className="text-slate-400">{c.use_count > 0 ? aiText(`AI 결과에 ${c.use_count}번 적용 · 최근 ${fmtDate(c.last_used_at)}`) : '아직 적용 전'}</span>
           <span className="ml-auto flex gap-1.5">
             {isEdited(c) && t && !edit && (
               <Button size="sm" variant="ghost" onClick={() => save({ title: t.title, body: t.body, rules: t.rules }, '원래 문안으로 되돌렸습니다')}><RotateCcw size={13} />원래대로</Button>
@@ -280,15 +281,15 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
         <div className="grid lg:grid-cols-[minmax(0,1fr)_auto] gap-x-10 gap-y-6 p-6 sm:p-8">
           <div className="max-w-[34rem] self-center">
             <div className="flex items-center gap-2 text-[13px] font-semibold text-[#D9B970]"><Library size={15} />{PLAYBOOK}</div>
-            <h2 className="mt-3 text-[26px] sm:text-[30px] font-extrabold leading-[1.28] tracking-[-0.025em]">일 잘하는 방법 {cards.length || 78}가지를<br />AI가 상황에 맞게 꺼내 씁니다</h2>
+            <h2 className="mt-3 text-[26px] sm:text-[30px] font-extrabold leading-[1.28] tracking-[-0.025em]">일 잘하는 방법 {cards.length || 78}가지를<br /><CoreAI supCls="text-violet-300" />가 상황에 맞게 꺼내 씁니다</h2>
             <p className="mt-3 text-[14px] leading-[1.75] text-slate-300">
               글로벌 컨설팅펌·연구기관이 검증한 방법론과 국내 성과관리 현장 컨설팅의 기준을 실무 카드로 정리했습니다.
-              결과물 검토, 1on1 준비, 보고 초안을 쓸 때 AI가 지금 상황에 맞는 카드를 골라 근거 표시와 함께 적용합니다.
+              결과물 검토, 1on1 준비, 보고 초안을 쓸 때 <CoreAI supCls="text-violet-300" />가 지금 상황에 맞는 카드를 골라 근거 표시와 함께 적용합니다.
             </p>
             <dl className="mt-6 grid grid-cols-3 gap-4 max-w-md">
-              <div><dt className="text-[11px] text-slate-400">AI가 쓰는 카드</dt><dd className="mt-0.5 text-lg font-bold num">{nOn}<span className="text-sm font-medium text-slate-400"> / {cards.length}</span></dd></div>
+              <div><dt className="text-[11px] text-slate-400"><CoreAI supCls="text-violet-300" />가 쓰는 카드</dt><dd className="mt-0.5 text-lg font-bold num">{nOn}<span className="text-sm font-medium text-slate-400"> / {cards.length}</span></dd></div>
               <div><dt className="text-[11px] text-slate-400">글로벌 · 현장</dt><dd className="mt-0.5 text-lg font-bold num">{nGlobal}<span className="text-sm font-medium text-slate-400"> · {cards.length - nGlobal}</span></dd></div>
-              <div><dt className="text-[11px] text-slate-400">AI 적용 횟수</dt><dd className="mt-0.5 text-lg font-bold num">{used}<span className="text-sm font-medium text-slate-400">회</span></dd></div>
+              <div><dt className="text-[11px] text-slate-400"><CoreAI supCls="text-violet-300" /> 적용 횟수</dt><dd className="mt-0.5 text-lg font-bold num">{used}<span className="text-sm font-medium text-slate-400">회</span></dd></div>
             </dl>
           </div>
           <div className="lg:w-[440px] min-w-0">
@@ -301,7 +302,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
       {/* AI가 기준을 고르는 순서 + 근거 */}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
         <section className="rounded-2xl bg-white border border-slate-200 p-5">
-          <h3 className="font-semibold">AI가 판단할 때 기준을 쓰는 순서</h3>
+          <h3 className="font-semibold"><CoreAI />가 판단할 때 기준을 쓰는 순서</h3>
           <ol className="mt-3 space-y-2.5 text-sm">
             <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 num">1</span>
               <span><b>팀장님의 노하우</b> <span className="text-slate-500">— 늘 가장 먼저. 플레이북과 어긋나면 팀장님 기준을 따릅니다</span></span></li>
@@ -310,7 +311,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
             <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center shrink-0 num">3</span>
               <span className="text-slate-500">일반적인 상식</span></li>
           </ol>
-          <p className="mt-3 text-xs text-slate-500 leading-relaxed">적용한 카드는 AI 결과의 출처 표시(✦)에 '적용한 기준'으로 남습니다. 평가 초안과 팀원 액션에는 쓰지 않습니다.</p>
+          <p className="mt-3 text-xs text-slate-500 leading-relaxed">적용한 카드는 <CoreAI /> 결과의 출처 표시에 '적용한 기준'으로 남습니다. 평가 초안과 팀원 액션에는 쓰지 않습니다.</p>
           <button onClick={onAddMine} className="mt-3 text-xs font-semibold text-indigo-700 hover:underline">팀장님 노하우 더하기</button>
         </section>
         <section className="rounded-2xl bg-white border border-slate-200 p-5">
@@ -330,7 +331,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
       {locked && (
         <div className="rounded-xl bg-[#FAF1E1] border border-[#EBD9B3] px-4 py-3 text-sm text-[#6B4A12] flex items-start gap-2.5">
           <Lock size={15} className="mt-0.5 shrink-0" />
-          <span className="flex-1">지금 요금제에서는 플레이북을 읽어 볼 수만 있습니다. <b>Pro부터 AI가 {cards.length}개 방법론을 결과물 검토·1on1·보고에 함께 씁니다.</b> 팀장님 노하우는 지금 요금제에서도 그대로 반영됩니다.</span>
+          <span className="flex-1">지금 요금제에서는 플레이북을 읽어 볼 수만 있습니다. <b>Pro부터 <CoreAI />가 {cards.length}개 방법론을 결과물 검토·1on1·보고에 함께 씁니다.</b> 팀장님 노하우는 지금 요금제에서도 그대로 반영됩니다.</span>
           <Link to="/settings?tab=billing" className="shrink-0 font-semibold underline whitespace-nowrap">요금제 보기</Link>
         </div>
       )}
@@ -344,7 +345,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
         <div className="flex gap-1 text-xs" role="group" aria-label="보기">
           {([['all', '전체'], ['core', '대표 방법론'], ['on', 'AI 사용 중'], ['off', '꺼 둔 카드']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setFilter(k)} aria-pressed={filter === k}
-              className={cx('rounded-lg px-3 py-1.5 border', filter === k ? 'border-slate-800 bg-slate-800 text-white font-semibold' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300')}>{l}</button>
+              className={cx('rounded-lg px-3 py-1.5 border', filter === k ? 'border-slate-800 bg-slate-800 text-white font-semibold' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300')}>{aiText(l, 'mark')}</button>
           ))}
         </div>
         {domain !== 'all' && <button onClick={() => setDomain('all')} className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-1"><X size={12} />{DOMAINS[domain].label} 필터 해제</button>}

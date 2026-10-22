@@ -13,6 +13,7 @@ import { cx, fmtDate } from '../lib/format';
 import { Button, Card, CardHead, Empty, ErrorBox, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 import { ProvChip } from '../components/Prov';
 import { PlaybookTab } from '../components/knowhow/Playbook';
+import { AiIcon, aiText, CoreAI } from '../components/Brand';
 
 export const KIND = KH_KIND;
 export const FEATURE = KH_FEATURE;
@@ -93,10 +94,10 @@ function CardItem({ c }: { c: KnowhowCard }) {
       </div>
       <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap text-xs text-slate-500">
         <div className="flex items-center gap-4">
-          <label className="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={c.active} onChange={(e) => upd.mutate({ active: e.target.checked })} />AI가 사용</label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={c.active} onChange={(e) => upd.mutate({ active: e.target.checked })} /><span><CoreAI />가 사용</span></label>
           <label className="inline-flex items-center gap-1.5 cursor-pointer" title="팀원 화면의 '팀장 가이드'에 보입니다"><input type="checkbox" className="accent-indigo-600" checked={c.shared} onChange={(e) => upd.mutate({ shared: e.target.checked })} />팀원에게 공개</label>
         </div>
-        <span>{c.use_count > 0 ? `AI 결과에 ${c.use_count}번 반영 · 최근 ${fmtDate(c.last_used_at)}` : '아직 반영 전'}</span>
+        <span>{c.use_count > 0 ? aiText(`AI 결과에 ${c.use_count}번 반영 · 최근 ${fmtDate(c.last_used_at)}`) : '아직 반영 전'}</span>
       </div>
     </div>
   );
@@ -141,7 +142,7 @@ function Dump({ onDone }: { onDone: () => void }) {
   return (
     <Card className="p-5">
       <div className="font-semibold flex items-center gap-2"><Sparkles size={16} className="text-violet-600" />던져 넣기</div>
-      <p className="text-xs text-slate-500 mt-1 leading-relaxed">정리 안 된 메모, 예전 보고서, 평가 기준표, 강의 자료, PPT 프레임워크 — 무엇이든 그대로 넣으세요. 나누고 정리하는 건 AI가 합니다.</p>
+      <p className="text-xs text-slate-500 mt-1 leading-relaxed">정리 안 된 메모, 예전 보고서, 평가 기준표, 강의 자료, PPT 프레임워크 — 무엇이든 그대로 넣으세요. 나누고 정리하는 건 <CoreAI />가 합니다.</p>
       <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
         {EXAMPLES.map((e) => <button key={e.label} onClick={() => { setText(e.text); setTitle(e.label); }} className="border border-slate-200 rounded-full px-2.5 py-1 hover:border-indigo-300">예시 · {e.label}</button>)}
       </div>
@@ -155,7 +156,7 @@ function Dump({ onDone }: { onDone: () => void }) {
       </label>
       <ErrorBox error={run.error ? errorText(run.error) : null} />
       <Button className="mt-3 w-full" loading={run.isPending} onClick={() => run.mutate()}>
-        {run.isPending ? 'AI가 읽고 정리하는 중…' : <>AI에게 정리 맡기기 · 2 크레딧<ArrowRight size={14} /></>}
+        {run.isPending ? '읽고 정리하는 중…' : <><AiIcon size={15} />정리 맡기기 · 2 크레딧<ArrowRight size={14} /></>}
       </Button>
       {credits && <p className="mt-2 text-[11px] text-slate-400 text-center">남은 크레딧 {credits.monthly_remaining + credits.topup_remaining}</p>}
     </Card>
@@ -236,7 +237,7 @@ export default function Knowhow() {
 
   return (
     <section>
-      <PageHeader title="노하우 라이브러리" sub="AI가 일할 때 따르는 기준입니다 — 팀장님이 넣은 노하우가 먼저, 그다음 ATEAM 플레이북" />
+      <PageHeader title="노하우 라이브러리" sub={aiText('AI가 일할 때 따르는 기준입니다 — 팀장님이 넣은 노하우가 먼저, 그다음 ATEAM 플레이북')} />
       <div className="mb-6">
         <Tabs value={tab} onChange={setTab} items={[
           { id: 'playbook', label: <><Library size={15} />{PLAYBOOK} <span className="num text-xs text-slate-400">{playbook.length}</span></> },
@@ -256,7 +257,7 @@ export default function Knowhow() {
             {[['1', '던져 넣기', '메모·문서·PPT를 그대로'], ['2', 'AI가 카드로 정리', '원칙·기준·양식·맥락으로 나눠서'], ['3', '내 방식대로 일하는 AI', '리뷰·1on1·보고·평가에 가장 먼저 반영']].map(([n, t, d]) => (
               <div key={n} className="rounded-xl bg-white border border-slate-200 px-4 py-3 flex gap-3 items-start">
                 <span className="w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{n}</span>
-                <div><div className="font-semibold">{t}</div><div className="text-xs text-slate-500">{d}</div></div>
+                <div><div className="font-semibold">{aiText(t)}</div><div className="text-xs text-slate-500">{d}</div></div>
               </div>
             ))}
           </div>
@@ -290,9 +291,9 @@ export default function Knowhow() {
             </div>
 
             <div className="lg:col-span-3 space-y-4">
-              <div className="text-sm text-slate-600">카드 <b className="font-mono">{mine.length}</b> · AI가 사용 <b className="font-mono">{active}</b> · 지금까지 AI 결과에 <b className="font-mono">{used}</b>번 반영</div>
+              <div className="text-sm text-slate-600">카드 <b className="font-mono">{mine.length}</b> · <CoreAI />가 사용 <b className="font-mono">{active}</b> · 지금까지 <CoreAI /> 결과에 <b className="font-mono">{used}</b>번 반영</div>
               <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
-                팀장님 카드는 모든 AI 기능에서 <b>가장 먼저</b> 읽힙니다. {PLAYBOOK}과 어긋나면 팀장님 카드를 따릅니다.
+                팀장님 카드는 모든 <CoreAI /> 기능에서 <b>가장 먼저</b> 읽힙니다. {PLAYBOOK}과 어긋나면 팀장님 카드를 따릅니다.
               </div>
               <div className="flex gap-1.5 flex-wrap text-xs">
                 <button onClick={() => setKind('all')} className={cx('rounded-full border px-3 py-1', kind === 'all' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 bg-white')}>전체 {mine.length}</button>
@@ -304,7 +305,7 @@ export default function Knowhow() {
               {cards.isLoading ? <Spinner /> : !list.length ? (
                 <Card><Empty icon={<BookOpen size={18} />} title="아직 내 노하우가 없습니다">
                   왼쪽에 평소 쓰는 원칙이나 자료를 넣어 보세요. 예를 들어 "숫자 없는 보고는 받지 않는다"를 넣어 두면,
-                  팀원이 결과물을 올렸을 때 AI 1차 검토가 그 기준에 맞는지부터 짚어 드립니다.
+                  팀원이 결과물을 올렸을 때 <CoreAI /> 1차 검토가 그 기준에 맞는지부터 짚어 드립니다.
                 </Empty></Card>
               ) : list.map((c) => <CardItem key={c.id} c={c} />)}
             </div>

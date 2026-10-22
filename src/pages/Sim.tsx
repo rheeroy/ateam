@@ -11,6 +11,7 @@ import { Button, Card, Empty, PageHeader, Spinner, inputCls, useToast } from '..
 import { ProvBlock, ProvChip, kindFromStatus } from '../components/Prov';
 import { CompareBars, Tornado } from '../components/charts';
 import { Upsell } from './Perf';
+import { CoreAI } from '../components/Brand';
 
 function useSimBase(teamId: string) {
   const { members } = useTeam();
@@ -198,14 +199,14 @@ export default function Sim() {
                 <p className="mt-2 font-semibold">{note.content.headline}</p>
                 <p className="mt-1">{note.content.text}</p>
               </>
-            ) : <p className="text-slate-600">시나리오를 저장하면 AI가 결과를 해석하고, 상향 보고·충원 요청에 쓸 문장을 만들어 줍니다.</p>}
+            ) : <p className="text-slate-600">시나리오를 저장하면 <CoreAI />가 결과를 해석하고, 상향 보고·충원 요청에 쓸 문장을 만들어 줍니다.</p>}
             <div className="mt-4 flex flex-wrap gap-2">
               {!savedId ? <Button loading={save.isPending} onClick={() => save.mutate()}><Save size={14} />시나리오 저장 · 해석 받기</Button>
                 : <Button loading={decide.isPending} onClick={() => decide.mutate()}><Scale size={14} />의사결정 로그에 저장</Button>}
               {m && <Button variant="secondary" onClick={() => { navigator.clipboard.writeText(requestText); toast('요청서 근거를 복사했습니다'); }}><Copy size={14} />충원·자원 요청 근거 복사</Button>}
             </div>
           </ProvBlock>
-          <p className="text-[11px] text-slate-400">계산은 용량 모델(사람별 가용 시간 × 과제 공수)과 실적 예측 모델이 하고, AI는 해석만 합니다. 공수와 배분이 실제와 다르면 결과도 달라집니다 — <Link to="/strategy" className="underline">과제 공수 고치기</Link></p>
+          <p className="text-[11px] text-slate-400">계산은 용량 모델(사람별 가용 시간 × 과제 공수)과 실적 예측 모델이 하고, <CoreAI />는 해석만 합니다. 공수와 배분이 실제와 다르면 결과도 달라집니다 — <Link to="/strategy" className="underline">과제 공수 고치기</Link></p>
         </div>
       </div>
     </section>

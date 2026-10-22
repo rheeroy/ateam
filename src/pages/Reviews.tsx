@@ -1,7 +1,7 @@
 // 업무플랫폼 — 팀원이 올린 결과물을 목표(없으면 루틴)와 연결해 보고, AI 1차 검토를 미리 보며 피드백
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Briefcase, Check, Crosshair, ChevronDown, ChevronRight, Sparkles, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, UsersRound } from 'lucide-react';
+import { Briefcase, Check, Crosshair, ChevronDown, ChevronRight, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, UsersRound } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { buildTree, useItems, type Node } from '../lib/items';
@@ -13,6 +13,7 @@ import { Avatar, Card, Empty, Pill, Spinner } from '../components/ui';
 import { AiBand, AiChip } from '../components/AiBar';
 import { PlanBar } from '../components/goals/PlanBar';
 import { STATUS } from './MySubmissions';
+import { AiIcon, aiText, CoreAI } from '../components/Brand';
 
 type F = 'in_review' | 'needs_work' | 'approved' | 'shared' | 'all';
 type V = 'people' | 'list' | 'goal';
@@ -74,7 +75,7 @@ export default function Reviews() {
           </div>
         </div>
       ) : list.isLoading ? <Card><Spinner /></Card> : !rows.length ? (
-        <Card><Empty icon={<FileText size={18} />} title="아직 없습니다">팀원이 '업무플랫폼'에 올린 결과물·링크·캡처가 여기에 모입니다. 올리면 AI가 먼저 검토합니다.</Empty></Card>
+        <Card><Empty icon={<FileText size={18} />} title="아직 없습니다">팀원이 '업무플랫폼'에 올린 결과물·링크·캡처가 여기에 모입니다. 올리면 <CoreAI />가 먼저 검토합니다.</Empty></Card>
       ) : view === 'list' ? (
         <Card className="overflow-hidden"><ListHead />{rows.map((s, i) => <Row key={s.id} s={s} byId={byId} no={i + 1} />)}</Card>
       ) : <ByGoal rows={rows} byId={byId} />}
@@ -219,10 +220,10 @@ function AiDigest({ rows, loading }: { rows: SubRow[]; loading: boolean }) {
   const shown = more ? lines : lines.slice(0, 3);
   return (
     <AiBand cadence="live"
-      title={<span className="text-[15px] font-semibold">{!waiting.length ? '리뷰를 기다리는 결과물이 없습니다' : reviewed.length ? `AI가 ${reviewed.length}건을 먼저 읽었습니다. 위에서부터 보면 빠릅니다.` : 'AI 검토가 아직 없는 결과물입니다'}</span>}
-      right={!!waiting.length && <span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 · AI 검토 {reviewed.length}건</span>}>
+      title={<span className="text-[15px] font-semibold">{!waiting.length ? '리뷰를 기다리는 결과물이 없습니다' : reviewed.length ? aiText(`AI가 ${reviewed.length}건을 먼저 읽었습니다. 위에서부터 보면 빠릅니다.`) : aiText('AI 검토가 아직 없는 결과물입니다')}</span>}
+      right={!!waiting.length && <span className="text-[11px] text-slate-500">리뷰 대기 {waiting.length}건 · <AiIcon size={11} className="text-violet-600 inline mr-0.5" />검토 {reviewed.length}건</span>}>
       {loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !waiting.length ? (
-        <p className="text-sm text-slate-600">팀원이 올리면 AI가 먼저 읽고 완성도·고민의 깊이·논리·전달력을 짚어 둡니다.</p>
+        <p className="text-sm text-slate-600">팀원이 올리면 <CoreAI />가 먼저 읽고 완성도·고민의 깊이·논리·전달력을 짚어 둡니다.</p>
       ) : !lines.length ? (
         <p className="text-sm text-slate-600">결과물을 열면 1차 검토를 만들 수 있습니다.</p>
       ) : (
@@ -269,7 +270,7 @@ const GRID = 'md:grid md:grid-cols-[44px_minmax(0,2.6fr)_84px_minmax(0,1.8fr)_78
 export function ListHead() {
   return (
     <div className={cx('hidden px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500', GRID)}>
-      <span className="text-center">No.</span><span>결과물</span><span>작성자</span><span>연결 목표</span><span>대기</span><span>AI 1차 검토</span><span className="text-right pr-1">상태</span>
+      <span className="text-center">No.</span><span>결과물</span><span>작성자</span><span>연결 목표</span><span>대기</span><span><CoreAI /> 1차 검토</span><span className="text-right pr-1">상태</span>
     </div>
   );
 }
@@ -302,12 +303,12 @@ export function Row({ s, byId, no, closable }: { s: SubRow; byId: Map<string, No
           {r ? (
             <button onClick={() => setOpen((v) => !v)} aria-expanded={open}
               className={cx('w-full text-left rounded-lg px-2 py-1 ring-1 transition-colors', open ? 'bg-violet-600 ring-violet-600 text-white' : 'bg-white ring-violet-200 hover:bg-violet-50')}>
-              <span className="flex items-center gap-1 text-[11px] font-semibold"><Sparkles size={11} />AI {r.depth_score}/4
+              <span className="flex items-center gap-1 text-[11px] font-semibold"><AiIcon size={12} />{r.depth_score}/4
                 {!!crit.length && <span className={cx('font-normal', open ? 'text-violet-100' : 'text-slate-500')}>· 기준 {crit.filter((c) => c.met).length}/{crit.length}</span>}
                 <ChevronDown size={12} className={cx('ml-auto transition-transform', open && 'rotate-180')} /></span>
               <span className={cx('mt-0.5 block h-1 rounded-full', open ? 'bg-white/30' : 'bg-violet-100')}><span className={cx('block h-1 rounded-full', open ? 'bg-white' : 'bg-violet-600')} style={{ width: `${(r.depth_score / 4) * 100}%` }} /></span>
             </button>
-          ) : <span className="text-[11px] text-slate-400">{pending ? 'AI 검토 전' : '—'}</span>}
+          ) : <span className="text-[11px] text-slate-400">{pending ? aiText('AI 검토 전', 'mark') : '—'}</span>}
         </span>
         <span className="md:text-right flex md:flex-col md:items-end gap-1">
           {s.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Pill>}

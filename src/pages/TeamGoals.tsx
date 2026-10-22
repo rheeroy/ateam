@@ -2,7 +2,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, FileText, History, Pencil, Repeat, Sparkles, Target } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, History, Pencil, Repeat, Target } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { buildTree, STATUS_META, useItems, useLevelNames, type Node } from '../lib/items';
@@ -16,6 +16,7 @@ import { PlanBar } from '../components/goals/PlanBar';
 import { ItemDetail } from '../components/goals/ItemDetail';
 import { PlanDraftModal } from '../components/goals/PlanAI';
 import { STATUS as SUB_STATUS } from './MySubmissions';
+import { AiIcon, aiText } from '../components/Brand';
 
 const DAY = 86400000;
 const T = (d: string) => Date.parse(d.slice(0, 10) + 'T00:00:00Z');
@@ -76,7 +77,7 @@ export default function TeamGoals() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><Sparkles size={15} />AI로 계획 만들기</button>}
+          {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><AiIcon size={16} />계획 만들기</button>}
           <Link to={`/goals/edit?${new URLSearchParams({ ...(proposed && !past ? { filter: 'proposed' } : {}), ...(cur.y !== nowYear ? { year: String(cur.y) } : {}) }).toString()}`} className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정{proposed > 0 && !past && <span className="ml-1 text-[10px] font-bold rounded-full bg-violet-500 px-1.5 py-0.5" title="팀원이 올린 계획 검토 대기">검토 {proposed}</span>}</Link>
         </div>
       </div>
@@ -106,9 +107,9 @@ export default function TeamGoals() {
         </div>
         {items.isLoading ? <Spinner /> : !cur.roots.length ? (
           <Empty title={past ? `${cur.y}년 목표가 없습니다` : '올해 목표를 세워 보세요'}
-            action={!past ? <div className="flex gap-2 justify-center"><button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-indigo-600 text-white inline-flex items-center gap-1.5"><Sparkles size={14} />계획서로 AI 초안</button>
+            action={!past ? <div className="flex gap-2 justify-center"><button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-indigo-600 text-white inline-flex items-center gap-1.5"><AiIcon size={15} />계획서로 초안 만들기</button>
               <Link to="/goals/edit" className="text-sm rounded-xl px-3 py-2 ring-1 ring-slate-200">직접 쓰기</Link></div> : undefined}>
-            {past ? '연도는 목표의 시작일(없으면 마감일) 기준입니다.' : '계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다.'}
+            {past ? '연도는 목표의 시작일(없으면 마감일) 기준입니다.' : aiText('계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다.')}
           </Empty>
         ) : <Board year={cur.y} roots={cur.roots} subs={subs.data ?? []} prob={prob} nameOf={nameOf} onOpen={(id) => setParam('item', id)} />}
       </Card>
@@ -217,7 +218,7 @@ function SubLine({ s, depth, direct, nameOf }: { s: SubRow; depth: number; direc
       {s.latest && <span className="font-mono text-[10px] text-indigo-600 bg-white rounded px-1">v{s.latest.version}</span>}
       <span className="text-slate-500 shrink-0">{nameOf(s.author_id)}</span>
       {!direct && <span className="text-slate-400 shrink-0">· 하위 항목</span>}
-      {s.review ? <span className="truncate text-slate-600 flex-1 min-w-0"><AiChip label={`AI ${s.review.depth_score}/4`} className="mr-1.5" />{s.review.summary}</span> : <span className="flex-1 text-slate-400">AI 검토 전</span>}
+      {s.review ? <span className="truncate text-slate-600 flex-1 min-w-0"><AiChip label={`AI ${s.review.depth_score}/4`} className="mr-1.5" />{s.review.summary}</span> : <span className="flex-1 text-slate-400">{aiText('AI 검토 전', 'mark')}</span>}
       <Pill tone={st.tone}>{st.label}</Pill>
       <span className="text-violet-700 font-semibold shrink-0 inline-flex items-center">업무플랫폼<ChevronRight size={12} /></span>
     </Link>

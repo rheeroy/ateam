@@ -5,6 +5,7 @@ import { BadgeCheck, BookOpen, CircleDashed, Library, PenLine, Sigma, Sparkles }
 import type { AiStatus, SourceRef } from '../lib/types';
 import { cx } from '../lib/format';
 import { PLAYBOOK, methodTitle } from '../lib/playbook';
+import { AiMark, aiText } from './Brand';
 
 /** 근거 중 '기준'(내 노하우 · ATEAM 플레이북)은 기록과 나눠 '적용한 기준'으로 보여 준다 */
 const isMethod = (s: SourceRef | string) => typeof s !== 'string' && (s.type === 'knowhow' || s.type === 'consulting');
@@ -109,19 +110,19 @@ export function ProvChip({ kind, label, sources = [], level, depth, note, classN
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((x) => !x); }}
         className={cx('inline-flex items-center gap-1 text-[11px] font-semibold leading-none border rounded-full px-2 py-[5px] whitespace-nowrap align-middle', m.cls, className)}
         title="출처 보기">
-        <Icon size={12} className={m.iconCls} />
-        {label ?? m.t}
+        {kind === 'ai' && /^AI(\s|$)/.test(label ?? m.t) ? <AiMark size={8} weight={3.2} className={m.iconCls} /> : <Icon size={12} className={m.iconCls} />}
+        {kind === 'ai' ? (label ?? m.t).replace(/^AI\s*/, '') || null : aiText(label ?? m.t, 'mark')}
         {d > 0 && <DepthBars depth={d} dark={dark} />}
       </button>
       {open && (
         <div ref={pop} role="dialog" aria-label="이 내용의 출처" style={{ left: pos.left, top: pos.top }}
           className="fixed z-50 w-72 bg-white rounded-xl border border-slate-200 shadow-xl p-4 text-sm text-left font-normal">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-slate-900">{m.t}</span>
+            <span className="font-semibold text-slate-900">{aiText(m.t, 'mark')}</span>
             {level && <span className="font-mono text-[11px] font-bold text-violet-700 bg-violet-50 rounded px-1.5 py-0.5">{level}</span>}
           </div>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{m.d}</p>
-          {note && <p className="text-[13px] text-slate-700 mt-2 leading-relaxed">{note}</p>}
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{aiText(m.d)}</p>
+          {note && <p className="text-[13px] text-slate-700 mt-2 leading-relaxed">{aiText(note)}</p>}
           {(() => {
             const methods = sources.filter(isMethod) as SourceRef[];
             const records = sources.filter((s) => !isMethod(s));
@@ -180,7 +181,7 @@ export function ProvLegend() {
       <span className="font-semibold text-violet-700">출처 표시</span>
       {(Object.keys(META) as ProvKind[]).map((k) => {
         const m = META[k]; const Icon = m.icon;
-        return <span key={k} className={cx('inline-flex items-center gap-1 text-[11px] font-semibold border rounded-full px-2 py-1', m.cls)}><Icon size={12} className={m.iconCls} />{k === 'edited' ? '팀장 수정' : k === 'hold' ? '판단 보류' : m.t}</span>;
+        return <span key={k} className={cx('inline-flex items-center gap-1 text-[11px] font-semibold border rounded-full px-2 py-1', m.cls)}>{k === 'ai' ? <AiMark size={8} weight={3.2} className={m.iconCls} /> : <Icon size={12} className={m.iconCls} />}{k === 'edited' ? '팀장 수정' : k === 'hold' ? '판단 보류' : k === 'ai' ? '생성' : m.t}</span>;
       })}
     </div>
   );

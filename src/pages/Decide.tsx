@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, RotateCcw, Sparkles, X } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, RotateCcw, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { Decision } from '../lib/types';
@@ -13,7 +13,7 @@ import { Button, Card, Field, Modal, Spinner, inputCls, useToast } from '../comp
 import { AiBar } from '../components/AiBar';
 import { EvidenceChips, riskCards, useBoard, usePriorities, type Prio } from '../components/decide/priorities';
 import { NotesToggle } from '../components/notes/Notes';
-import { AiMark } from '../components/Brand';
+import { AiMark, aiText, CoreAI } from '../components/Brand';
 import { MemoModal, PeriodTabs, STATUS_META, todayYmd, useHomeModel, usePeriod, useSignalAct } from '../components/home/shared';
 
 type Sel = { kind: 'prio'; p: Prio; no: number } | { kind: 'risk'; key: string; s: Signal; no: number } | null;
@@ -126,7 +126,7 @@ export default function Decide() {
           <Card className="p-4">
             <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full bg-slate-900 text-white text-[9px] flex items-center justify-center font-bold">1</span>결정할 것</span>
-              <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full ring-2 ring-violet-400 bg-slate-900" />AI가 찾은 결정</span>
+              <span className="inline-flex items-center gap-1"><span className="w-4 h-4 rounded-full ring-2 ring-violet-400 bg-slate-900" /><span><CoreAI />가 찾은 결정</span></span>
               <span className="inline-flex items-center gap-1"><span className="w-3.5 h-3.5 rounded-full bg-rose-100 ring-2 ring-rose-400" />지켜볼 리스크</span>
             </div>
             {m.loading ? <Spinner /> : <Matrix active={active} risks={risks} noOf={noOf} sel={cur} onSel={setSel} reviewingKeys={new Set(reviewing.map((p) => p.key))} />}
@@ -205,7 +205,7 @@ function PrioDetail({ p, no, stage, onAct, onReview, onBack, onWatch, onDismiss,
       <div className="flex items-center gap-2 text-[11px]">
         <span className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center">{no || '·'}</span>
         <span className="font-semibold text-slate-600">{p.kind}</span>
-        {p.ai && <span className="text-violet-700 font-semibold inline-flex items-center gap-0.5"><Sparkles size={11} />AI가 엮은 판단</span>}
+        {p.ai && <span className="text-violet-700 font-semibold inline-flex items-center gap-0.5"><span><CoreAI />가 엮은 판단</span></span>}
         {stage === 'reviewing' && <span className="ml-auto rounded-full bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5">검토 중</span>}
         {stage === 'watching' && <span className="ml-auto rounded-full bg-slate-100 text-slate-600 font-semibold px-2 py-0.5">지켜보기</span>}
       </div>
@@ -253,7 +253,7 @@ function BoxTitle({ title, hint, className }: { title: string; hint?: string; cl
   return (
     <div className={cx('flex items-end gap-2 min-w-0', className)}>
       <span className="text-sm font-bold text-slate-900 whitespace-nowrap">{title}</span>
-      {hint && <span className="text-xs text-slate-400 truncate">{hint}</span>}
+      {hint && <span className="text-xs text-slate-400 truncate">{aiText(hint)}</span>}
     </div>
   );
 }
