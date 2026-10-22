@@ -75,7 +75,8 @@ export function FromLeader({ focus }: { focus?: string | null }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [reply, setReply] = useState<Record<string, string>>({});
   const [openId, setOpenId] = useState<string | null>(focus ?? null);
-  const [limit, setLimit] = useState(8);
+  const FOLD = 3;   // 접어 두는 기준 — 1on1이 스크롤 없이 보이게
+  const [limit, setLimit] = useState(FOLD);
   const focusRef = useRef<HTMLLIElement>(null);
   useEffect(() => { if (focus) { setOpenId(focus); setTimeout(() => focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300); } }, [focus]);
 
@@ -101,6 +102,8 @@ export function FromLeader({ focus }: { focus?: string | null }) {
   };
   const shown = filter === 'all' ? [...todo, ...items.filter((i) => !i.open)]
     : filter === 'praise' || filter === 'coach' ? items.filter((i) => i.t === filter) : items.filter((i) => i.t === 'req' && reqType(i.r) === filter);
+  const fIdx = focus ? shown.findIndex((i) => i.id === focus) : -1;
+  const lim = Math.max(limit, fIdx + 1);   // 알림으로 들어온 항목은 접혀 있지 않게
   const today = new Date().toISOString().slice(0, 10);
   const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인', progress: '공유하기' };
   const PH: Partial<Record<TeamRequest['kind'], string>> = { grow: '해 보고 싶은 일 · 생각 (선택)', progress: '지금까지 한 것 · 남은 것 · 막힌 점', cheer: '한 줄 답 (선택)' };
@@ -112,7 +115,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
       <div className="px-4 py-3 border-b border-slate-100">
         <div className="flex flex-wrap gap-1">
           {TABS.map(([k, l]) => (
-            <button key={k} onClick={() => { setFilter(k); setLimit(8); }}
+            <button key={k} onClick={() => { setFilter(k); setLimit(FOLD); }}
               className={cx('shrink-0 text-xs rounded-md px-2.5 py-1 inline-flex items-center gap-1', filter === k ? 'bg-slate-800 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100')}>
               {l}<span className={cx('num', filter === k ? 'text-slate-300' : 'text-slate-400')}>{count[k]}</span>
             </button>
@@ -124,7 +127,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
         <div className="px-5 py-8 text-center text-sm text-slate-400">아직 받은 칭찬 · 육성 · 업무 독려 · 지원·격려 · ATEAM 업무 피드백이 없습니다.</div>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {shown.slice(0, limit).map((it) => {
+          {shown.slice(0, lim).map((it) => {
             const focused = it.id === focus;
             const expanded = openId === it.id;
             if (it.t === 'req') {
@@ -175,8 +178,10 @@ export function FromLeader({ focus }: { focus?: string | null }) {
           })}
         </ul>
       )}
-      {shown.length > limit && (
-        <button onClick={() => setLimit((n) => n + 10)} className="w-full border-t border-slate-100 py-2.5 text-xs text-slate-500 hover:bg-slate-50">이전 것 더 보기 ({shown.length - limit})</button>
+      {shown.length > FOLD && (
+        <button onClick={() => setLimit(shown.length > lim ? shown.length : FOLD)} className="w-full border-t border-slate-100 py-2.5 text-xs text-slate-500 hover:bg-slate-50 inline-flex items-center justify-center gap-1">
+          {shown.length > lim ? <>펼쳐 보기 · {shown.length - lim}개 더</> : '접기'}<ChevronDown size={13} className={cx(shown.length <= lim && 'rotate-180')} />
+        </button>
       )}
     </BoardSection>
   );
