@@ -24,7 +24,6 @@ function MemberRow({ m, isMe }: { m: TeamMember; isMe: boolean }) {
       <td className="px-3 py-3"><input aria-label="직무" className={`${inputCls} w-36`} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title !== m.job_title && upd.mutate({ job_title: title })} /></td>
       <td className="px-3 py-3"><input aria-label="주당 가용 시간" type="number" min={0} max={60} className={`${inputCls} w-20`} value={hours} onChange={(e) => setHours(e.target.value)} onBlur={() => Number(hours) !== m.weekly_hours && upd.mutate({ weekly_hours: Number(hours) })} /></td>
       <td className="px-3 py-3"><Pill tone={m.role === 'leader' ? 'indigo' : 'slate'}>{m.role === 'leader' ? '팀장' : '팀원'}</Pill></td>
-      <td className="px-3 py-3 text-xs text-slate-500">{fmtDate(m.joined_at)}</td>
       <td className="px-3 py-3 text-right whitespace-nowrap">
         {!isMe && m.role === 'member' && (
           <button className="text-slate-400 hover:text-rose-600" title="팀에서 내보내기" onClick={() => { if (confirm(`${m.profiles?.full_name} 님을 팀에서 내보낼까요? 기록은 남습니다.`)) upd.mutate({ status: 'left' }); }}><Trash2 size={15} /></button>
@@ -80,8 +79,8 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
       <div className="grid lg:grid-cols-3 gap-5 items-start">
         <Card className="lg:col-span-2 overflow-x-auto">
           <CardHead title="구성원" right={u && <span>팀원 <b className="font-mono">{u.members}</b> / {u.max_members}명 ({credits?.plan_name})</span>} />
-          <table className="w-full text-sm min-w-[640px]">
-            <thead className="text-xs text-slate-500"><tr><th className="text-left font-normal px-5 py-2">이름</th><th className="text-left font-normal px-3">직무</th><th className="text-left font-normal px-3">주당 가용 시간</th><th className="text-left font-normal px-3">역할</th><th className="text-left font-normal px-3">합류</th><th /></tr></thead>
+          <table className="w-full text-sm min-w-[560px]">
+            <thead className="text-xs text-slate-500"><tr><th className="text-left font-normal px-5 py-2">이름</th><th className="text-left font-normal px-3">직무</th><th className="text-left font-normal px-3">주당 가용 시간</th><th className="text-left font-normal px-3">역할</th><th /></tr></thead>
             <tbody>{members.map((m) => <MemberRow key={m.user_id} m={m} isMe={m.user_id === uid} />)}</tbody>
           </table>
           <p className="px-5 py-3 text-xs text-slate-500 border-t border-slate-100">주당 가용 시간은 팀원관리의 '업무 부하'(진행 중 과제의 주당 예상 시간 ÷ 가용 시간) 계산에 쓰입니다. 겸직·단축근무라면 줄여 주세요.</p>
