@@ -6,12 +6,12 @@
 //   ATEAM 코칭은 보낸 사람을 표시하지 않는다 (코칭 설계 그대로).
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Award, CheckCircle2, ChevronDown, HeartHandshake, Send, Sprout } from 'lucide-react';
+import { Award, CheckCircle2, ChevronDown, CircleHelp, HeartHandshake, Send, Sprout } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { TeamRequest } from '../../lib/types';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
-import { LogoMark } from '../Brand';
+import { AteamAI, LogoMark } from '../Brand';
 import type { CoachingNote } from '../people/Coaching';
 import { Button, useToast } from '../ui';
 import { BoardSection } from './BoardSection';
@@ -21,7 +21,7 @@ type Item =
   | { t: 'req'; id: string; at: string; open: boolean; r: TeamRequest }
   | { t: 'coach'; id: string; at: string; open: boolean; c: CoachingNote }
   | { t: 'praise'; id: string; at: string; open: false; p: Praise };
-type Filter = 'all' | 'todo' | 'praise' | 'grow' | 'push' | 'cheer' | 'coach';
+type Filter = 'all' | 'praise' | 'grow' | 'push' | 'cheer' | 'coach';
 
 const DAY = 86400000;
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '').replace(/^\[칭찬 배지\]\s*/, '');
@@ -93,19 +93,19 @@ export function FromLeader({ focus }: { focus?: string | null }) {
 
   const todo = items.filter((i) => i.open);
   const count: Record<Filter, number> = {
-    all: items.length, todo: todo.length,
+    all: items.length,
     praise: items.filter((i) => i.t === 'praise').length, coach: items.filter((i) => i.t === 'coach').length,
     grow: items.filter((i) => i.t === 'req' && reqType(i.r) === 'grow').length,
     push: items.filter((i) => i.t === 'req' && reqType(i.r) === 'push').length,
     cheer: items.filter((i) => i.t === 'req' && reqType(i.r) === 'cheer').length,
   };
-  const shown = filter === 'all' ? [...todo, ...items.filter((i) => !i.open)] : filter === 'todo' ? todo
+  const shown = filter === 'all' ? [...todo, ...items.filter((i) => !i.open)]
     : filter === 'praise' || filter === 'coach' ? items.filter((i) => i.t === filter) : items.filter((i) => i.t === 'req' && reqType(i.r) === filter);
   const today = new Date().toISOString().slice(0, 10);
   const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인', progress: '공유하기' };
   const PH: Partial<Record<TeamRequest['kind'], string>> = { grow: '해 보고 싶은 일 · 생각 (선택)', progress: '지금까지 한 것 · 남은 것 · 막힌 점', cheer: '한 줄 답 (선택)' };
-  const TABS = ([['all', '전체'], ['todo', '답할 것'], ['praise', '칭찬'], ['grow', '육성'], ['push', '업무 독려'], ['cheer', '지원·격려'], ['coach', '코칭']] as [Filter, string][])
-    .filter(([k]) => k === 'all' || k === 'todo' || count[k] > 0);
+  const TABS = ([['all', '전체'], ['praise', '칭찬'], ['grow', '육성'], ['push', '업무 독려'], ['cheer', '지원·격려'], ['coach', <><AteamAI /> 업무 피드백<CoachHelp /></>]] as [Filter, ReactNode][])
+    .filter(([k]) => k === 'all' || count[k] > 0);
 
   return (
     <BoardSection sub icon={<HeartHandshake size={15} className="text-slate-400" />} title="Feedback">
@@ -121,7 +121,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
       </div>
 
       {loading ? <div className="p-6 text-sm text-slate-400">불러오는 중</div> : !shown.length ? (
-        <div className="px-5 py-8 text-center text-sm text-slate-400">{filter === 'todo' ? '지금 답할 것이 없습니다.' : '아직 받은 칭찬 · 육성 · 업무 독려 · 지원·격려 · 코칭이 없습니다.'}</div>
+        <div className="px-5 py-8 text-center text-sm text-slate-400">아직 받은 칭찬 · 육성 · 업무 독려 · 지원·격려 · ATEAM 업무 피드백이 없습니다.</div>
       ) : (
         <ul className="divide-y divide-slate-100">
           {shown.slice(0, limit).map((it) => {
@@ -152,12 +152,11 @@ export function FromLeader({ focus }: { focus?: string | null }) {
               const c = it.c; const body = strip(c.body);
               return (
                 <li key={it.id} ref={focused ? focusRef : undefined} className={cx('px-5 py-3.5', focused && 'bg-violet-50/40')}>
-                  <Row icon={null} cls="bg-violet-50 text-violet-600" type="ATEAM 코칭" at={c.created_at} title={c.title} muted={!it.open}
+                  <Row icon={null} cls="bg-violet-50 text-violet-600" type={<><AteamAI /> 업무 피드백<CoachHelp /></>} at={c.created_at} title={c.title} muted={!it.open}
                     right={!it.open ? <span className="text-[11px] text-slate-400">확인함</span> : null}>
                     <div className={cx('text-sm text-slate-600 mt-0.5 whitespace-pre-line', !expanded && 'line-clamp-2')}>{body}</div>
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <button onClick={() => setOpenId(expanded ? null : it.id)} className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-0.5">{expanded ? '접기' : '전체 보기'}<ChevronDown size={12} className={cx(expanded && 'rotate-180')} /></button>
-                      <span className="text-[11px] text-slate-400">평가와 무관한 코칭입니다</span>
                       <span className="ml-auto flex gap-1.5">
                         <Button size="sm" variant="ghost" disabled={c.helpful === true} onClick={() => mark.mutate({ id: c.id, helpful: true })}>{c.helpful ? '도움됨' : '도움됐어요'}</Button>
                         {it.open && <Button size="sm" variant="secondary" onClick={() => mark.mutate({ id: c.id, ack: true })}><CheckCircle2 size={13} />확인</Button>}
@@ -183,12 +182,38 @@ export function FromLeader({ focus }: { focus?: string | null }) {
   );
 }
 
+/** ATEAM 업무 피드백(코칭) 설명 — 위첨자 ? (PC: 올리면 · 모바일: 누르면). 보낸 사람은 밝히지 않되, 사실과 다른 말도 하지 않는다 */
+function CoachHelp() {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+  const show = () => { const r = ref.current?.getBoundingClientRect(); if (r) setPos({ x: Math.max(12, Math.min(r.left - 12, window.innerWidth - 292)), y: r.bottom + 6 }); };
+  useEffect(() => {
+    if (!pos) return;
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setPos(null); };
+    document.addEventListener('pointerdown', close); window.addEventListener('scroll', close, true);
+    return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('scroll', close, true); };
+  }, [pos]);
+  return (
+    <span ref={ref} role="button" tabIndex={0} aria-label="ATEAM 업무 피드백이란?" className="relative inline-flex align-super ml-0.5 text-slate-400 hover:text-violet-600 cursor-help"
+      onMouseEnter={show} onMouseLeave={() => setPos(null)} onFocus={show} onBlur={() => setPos(null)}
+      onClick={(e) => { e.stopPropagation(); if (pos) setPos(null); else show(); }}>
+      <CircleHelp size={11} />
+      {pos && (
+        <span role="tooltip" style={{ left: pos.x, top: pos.y }} className="fixed z-50 w-[280px] rounded-xl bg-slate-900 text-white px-3.5 py-3 text-left font-normal shadow-xl cursor-default" onClick={(e) => e.stopPropagation()}>
+          <span className="block text-[12px] font-semibold mb-1"><AteamAI supCls="text-violet-300" /> 업무 피드백이란?</span>
+          <span className="block text-[12px] leading-relaxed text-slate-200">나의 업무 기록을 바탕으로 <AteamAI supCls="text-violet-300" />가 정리해드리는 업무 피드백입니다. 피드백은 ATEAM의 컨설팅 DB와 팀장님의 업무 원칙에 근거합니다.</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 function Row({ icon: I, cls, type, from, at, title, right, muted, children }: {
-  icon: typeof Send | null; cls: string; type: string; from?: string; at: string; title: string; right?: ReactNode; muted?: boolean; children?: ReactNode;
+  icon: typeof Send | null; cls: string; type: ReactNode; from?: string; at: string; title: string; right?: ReactNode; muted?: boolean; children?: ReactNode;
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className={cx('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', cls, muted && 'opacity-60')}>{I ? <I size={15} /> : <LogoMark size={14} />}</span>
+      <span className={cx('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', cls, muted && 'opacity-60')}>{I ? <I size={15} /> : <LogoMark size={15} weight={4} />}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-[11px] text-slate-400">
           <span className="font-semibold text-slate-500">{type}</span>{from && <span>· {from} 팀장님</span>}<span>· {fmtDate(at)}</span>
@@ -206,4 +231,3 @@ export function useFromLeaderOpenCount() {
   const { items } = useFromLeader();
   return items.filter((i) => i.open).length;
 }
-
