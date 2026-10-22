@@ -121,8 +121,7 @@ export default function Evaluation() {
   const d = draft.data;
   const view: Draft | null = d ? { ...d.content, ...(d.edited_content ?? {}) } : null;
 
-  if (!hasFeature('evaluation')) return <section><PageHeader title="평가 시뮬레이션" /><Upsell feature="평가 시뮬레이션" desc="일하면서 쌓인 기록을 근거로 팀원별 예상 등급(5등급)과 평가 의견 초안을 만들어 주는 기능입니다. 평가 시즌에 기록을 다시 뒤지지 않아도 됩니다."
-    points={['1on1 · 리뷰 피드백 · 결과물 · 관찰 메모 · 업무 완료가 팀원별 근거 타임라인으로 자동으로 모입니다', '문장마다 근거를 달아 초안을 쓰고, 근거가 기준에 못 미치면 판단을 보류합니다', '예상 등급은 시뮬레이션입니다. 최종 등급은 팀장이 직접 정합니다']} /></section>;
+  if (!hasFeature('evaluation')) return <section><Upsell feature="평가 시뮬레이션" desc="일하면서 쌓인 기록을 근거로 팀원별 예상 등급(5등급)과 평가 의견 초안을 만들어 주는 기능입니다." /></section>;
   const run = () => sel && gen.mutate({ team_id: team.id, member_id: sel, period_start: period.start, period_end: period.end });
 
   return (
