@@ -11,6 +11,7 @@ import { cx } from '../../lib/format';
 import type { Metric } from '../../lib/types';
 import { X } from 'lucide-react';
 import { Card, Spinner } from '../ui';
+import { AiMark } from '../Brand';
 import { sectionsOf, type InsightOut } from '../home/shared';
 
 interface GoalRow { id: string; title: string; progress: number; start_date: string | null; due_date: string | null; owner_id: string | null; status: string }
@@ -191,7 +192,7 @@ export function Detail({ g, linked }: { g: G; linked?: boolean }) {
           ))}
         </ul>
       ) : <p className="mt-1.5 text-sm text-slate-500">막히거나 뒤처진 하위 항목이 없습니다.</p>}
-      {g.ai && <div className="mt-4 rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-3 py-2 text-xs text-slate-700 leading-relaxed line-clamp-4"><b className="text-violet-700 mr-1">AI</b>{g.ai}</div>}
+      {g.ai && <div className="mt-4 rounded-lg bg-violet-50/80 ring-1 ring-violet-100 px-3 py-2 text-xs text-slate-700 leading-relaxed line-clamp-4"><AiMark size={8} weight={3.2} className="text-violet-700 mr-1.5 align-[1px]" />{g.ai}</div>}
       <div className="mt-auto pt-4 flex gap-4 text-xs font-semibold text-indigo-700">
         <Link to="/decide">의사결정으로 →</Link><Link to="/goals">목표 열기 →</Link>
       </div>

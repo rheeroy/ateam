@@ -8,7 +8,7 @@ import { supabase, invoke, errorText } from '../../lib/supabase';
 import type { AiOutput } from '../../lib/types';
 import { cx, fmtDate } from '../../lib/format';
 import { Button, Modal, Spinner, inputCls, useToast } from '../ui';
-import { LogoMark } from '../Brand';
+import { AiSup, LogoMark } from '../Brand';
 import { methodTitle } from '../../lib/playbook';
 
 export interface CoachingNote { id: string; team_id: string; member_id: string; title: string; body: string; seen_at: string | null; acked_at: string | null; helpful: boolean | null; created_at: string }
@@ -22,7 +22,7 @@ export function CoachCard({ title, body, date, footer, highlight }: { title: str
     <div className={cx('rounded-2xl bg-white ring-1 overflow-hidden', highlight ? 'ring-2 ring-indigo-400 shadow-lg' : 'ring-slate-200 shadow-sm')}>
       <div className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center gap-2">
         <span className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center"><LogoMark size={14} /></span>
-        <span className="font-bold"><span className="font-extrabold">ATEAM</span><sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup>의 코칭</span>
+        <span className="font-bold"><span className="font-extrabold">ATEAM</span><AiSup className="opacity-80" />의 코칭</span>
         {date && <span className="ml-auto text-xs text-indigo-100">{fmtDate(date)}</span>}
       </div>
       <div className="p-5">
@@ -92,9 +92,9 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
   useEffect(() => { gen.mutate(); }, []);
   const last = sent.data?.[0];
   return (
-    <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코칭하기 · {name}</span></span>}>
+    <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><AiSup className="opacity-80" /> 코칭하기 · {name}</span></span>}>
       <p className="text-sm text-slate-600 leading-relaxed rounded-lg bg-indigo-50/70 px-3 py-2">
-        직접 말하기 껄끄러운 개선점을 <b>ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<sup className="ml-0.5 text-[9px] font-bold opacity-80">AI</sup>의 코칭'</b>으로 도착합니다. 자유롭게 수정해보세요.
+        직접 말하기 껄끄러운 개선점을 <b>ATEAM<AiSup className="opacity-80" /> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<AiSup className="opacity-80" />의 코칭'</b>으로 도착합니다. 자유롭게 수정해보세요.
       </p>
       {gen.isPending ? (
         <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2">ATEAM AI가 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>

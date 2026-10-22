@@ -29,3 +29,19 @@ export function ATeam({ className }: { className?: string; supCls?: string }) {
 export function ATeamAdvice({ className }: { className?: string; supCls?: string }) {
   return <span className={cx('inline-flex items-baseline', className)}><span className="font-extrabold">ATEAM</span>의 제안</span>;
 }
+
+/** AI 마크 — 꼭짓점만 남은 A + 머리가 떠 있는 T. 'AI' 글자 대신 쓴다 (선 색 = currentColor) */
+export function AiMark({ className, size = 12, weight = 2.8, title = 'AI' }: { className?: string; size?: number; weight?: number; title?: string }) {
+  return (
+    <svg viewBox="0 0 30 20" width={size * 1.5} height={size} className={cx('inline-block shrink-0', className)} fill="none" stroke="currentColor" strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={title}>
+      <path d="M2 18 L9 2.5 L16 18" />
+      <path d="M19.5 2.5 H28" />
+      <path d="M23.75 7 V18" />
+    </svg>
+  );
+}
+
+/** 위첨자 자리 (ATEAM·Core 뒤에 붙는 AI) */
+export function AiSup({ className }: { className?: string }) {
+  return <AiMark size={7} weight={3.2} className={cx('ml-0.5 align-super', className)} />;
+}

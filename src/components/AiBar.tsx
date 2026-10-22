@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Lock, RefreshCw, Sparkles } from 'lucide-rea
 import { useTeam } from '../state/session';
 import { useGenerate, useLatestAi } from '../lib/hooks';
 import { cx, fmtDate } from '../lib/format';
+import { AiMark } from './Brand';
 import { TYPE_META } from '../lib/insights';
 import { AI_LINKS, INSIGHT_KIND, fresh, sectionsOf, type InsightItem, type InsightOut, type MainSection } from './home/shared';
 
@@ -18,7 +19,9 @@ export function AiChip({ label = 'AI', tone = 'soft', className, title }: { labe
   return (
     <span title={title} className={cx('inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-1.5 py-0.5 whitespace-nowrap',
       tone === 'solid' ? 'bg-violet-600 text-white' : tone === 'dark' ? 'bg-white/15 text-violet-100' : 'bg-violet-50 text-violet-700 ring-1 ring-violet-200', className)}>
-      <Sparkles size={10} />{label}
+      {typeof label === 'string' && /^AI(\s|$)/.test(label)
+        ? <><AiMark size={7} weight={3.4} />{label.slice(2).trim() || null}</>
+        : <><Sparkles size={10} />{label}</>}
     </span>
   );
 }
@@ -46,7 +49,7 @@ export function AiBand({ title, right, children, className, cadence, start }: {
         <div className="flex md:flex-col items-center md:items-start gap-2">
           <span className="w-8 h-8 rounded-lg bg-white/15 ring-1 ring-white/25 flex items-center justify-center"><Sparkles size={15} /></span>
           <div className="leading-[1.05]">
-            <div className="text-[17px] font-extrabold tracking-tight">Core<sup className="ml-0.5 text-[10px] font-bold text-violet-200 align-super">AI</sup></div>
+            <div className="text-[17px] font-extrabold tracking-tight">Core<AiMark size={8} weight={3.2} className="ml-0.5 align-super text-violet-200" /></div>
             <div className="text-[17px] font-extrabold tracking-tight">Insight</div>
           </div>
         </div>

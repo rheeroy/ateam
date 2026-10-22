@@ -13,6 +13,7 @@ import { Button, Card, Field, Modal, Spinner, inputCls, useToast } from '../comp
 import { AiBar } from '../components/AiBar';
 import { EvidenceChips, riskCards, useBoard, usePriorities, type Prio } from '../components/decide/priorities';
 import { NotesToggle } from '../components/notes/Notes';
+import { AiMark } from '../components/Brand';
 import { MemoModal, PeriodTabs, STATUS_META, todayYmd, useHomeModel, usePeriod, useSignalAct } from '../components/home/shared';
 
 type Sel = { kind: 'prio'; p: Prio; no: number } | { kind: 'risk'; key: string; s: Signal; no: number } | null;
@@ -272,7 +273,7 @@ function MiniCard({ badge, kind, title, ai, on, onClick }: { badge: ReactNode; k
   return (
     <button onClick={onClick} className={cx('w-full text-left rounded-xl bg-white p-2 ring-1 transition-shadow', on ? 'ring-2 ring-violet-500 shadow-md' : 'ring-slate-200 hover:ring-slate-300')}>
       <div className="flex items-center gap-1.5 text-[10px] text-slate-500"><span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] text-slate-800">{badge}</span>{kind}
-        {ai && <span className="ml-auto text-violet-700 font-semibold inline-flex items-center gap-0.5"><Sparkles size={10} />AI</span>}</div>
+        {ai && <span className="ml-auto text-violet-700 font-semibold inline-flex items-center"><AiMark size={8} weight={3.2} /></span>}</div>
       <div className="mt-1 text-[13px] font-medium leading-snug line-clamp-4" title={title}>{title}</div>
     </button>
   );
