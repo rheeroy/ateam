@@ -6,20 +6,13 @@ import { CheckCircle2, ChevronDown, Hash, History as HistoryIcon, Inbox, Lock, M
 import { useTeam } from '../state/session';
 import { useItems } from '../lib/items';
 import type { WorkItem } from '../lib/types';
-import { applyEdits, useHistories, useHistoryActions, useHistoryMessages, useShares, type HistoryShare, type TaskHistory } from '../lib/history';
+import { applyEdits, historyItems, useHistories, useHistoryActions, useHistoryMessages, useShares, type HistoryShare, type TaskHistory } from '../lib/history';
 import { HistoryView } from '../components/history/HistoryView';
 import { Avatar, Button, Card, Empty, Modal, PageHeader, Spinner, inputCls } from '../components/ui';
 import { Upsell } from './Perf';
 import { cx, fmtDate, fmtShort } from '../lib/format';
 
 const WEEK = 7 * 86400000;
-
-/** 히스토리 대상 과제 — 목표·지표·할 일·오래전에 끝난 것 제외 (ai-task-history 와 같은 기준) */
-export function historyItems(items: WorkItem[]) {
-  const cut = Date.now() - 60 * 86400000;
-  return items.filter((i) => i.parent_id && i.measure !== 'check' && i.role !== 'goal' && i.role !== 'metric'
-    && ['active', 'blocked', 'done'].includes(i.status) && !(i.status === 'done' && i.done_at && Date.parse(i.done_at) < cut));
-}
 
 function StatusPill({ s }: { s: HistoryShare['status'] }) {
   const m = { requested: ['요청', 'bg-violet-50 text-violet-700'], sent: ['확인 전', 'bg-amber-50 text-amber-700'], read: ['확인함', 'bg-emerald-50 text-emerald-700'], declined: ['보류', 'bg-slate-100 text-slate-500'] }[s];

@@ -32,7 +32,6 @@ const WorkSpace = lazy(() => import('./pages/WorkSpace'));
 const GroupSpace = lazy(() => import('./pages/GroupSpace'));
 const Notes = lazy(() => import('./pages/Notes'));
 const HistoryPage = lazy(() => import('./pages/History'));
-const MyHistory = lazy(() => import('./pages/MyHistory'));
 
 function NotConfigured() {
   return (
@@ -87,6 +86,13 @@ function MemberIndex() {
   return <Navigate to={coach ? `/my/one-on-ones?coach=${coach}` : '/my/submissions'} replace />;
 }
 
+/** 예전 '받은 히스토리' 링크(알림) → 매니징 보드 안의 받은 히스토리 */
+function HistoryLink() {
+  const [params] = useSearchParams();
+  const id = params.get('id');
+  return <Navigate to={`/my/one-on-ones${id ? `?history=${id}` : ''}`} replace />;
+}
+
 function LeaderOnly({ children }: { children: ReactNode }) {
   const { isLeader } = useSession();
   return isLeader ? <>{children}</> : <Navigate to="/" replace />;
@@ -137,7 +143,7 @@ export default function App() {
         <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
-        <Route path="my/history" element={<MyHistory />} />
+        <Route path="my/history" element={<HistoryLink />} />
         <Route path="my/record" element={<Navigate to="/my/one-on-ones" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

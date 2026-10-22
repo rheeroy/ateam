@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, q, invoke, errorText } from './supabase';
 import { useTeam } from '../state/session';
 import { useToast } from '../components/ui';
+import type { WorkItem } from './types';
 
 export type HRef = { type: string; id: string | null; label: string };
 export type HLine = { id: string; text: string; detail?: string; since?: string; src?: HRef[] };
@@ -176,4 +177,11 @@ export function useHistoryTodo(enabled: boolean) {
       return req + [...last.values()].filter((a) => a !== uid).length;
     },
   });
+}
+
+/** 히스토리 대상 과제 — 목표·지표·할 일·오래전에 끝난 것 제외 (ai-task-history 와 같은 기준) */
+export function historyItems(items: WorkItem[]) {
+  const cut = Date.now() - 60 * 86400000;
+  return items.filter((i) => i.parent_id && i.measure !== 'check' && i.role !== 'goal' && i.role !== 'metric'
+    && ['active', 'blocked', 'done'].includes(i.status) && !(i.status === 'done' && i.done_at && Date.parse(i.done_at) < cut));
 }

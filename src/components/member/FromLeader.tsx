@@ -1,4 +1,5 @@
-// 팀원: 팀장님에게서 — 팀장이 나에게 보낸 것을 한 줄기로 (요청 · 성장 제안 · 격려 · 칭찬 · ATEAM 코칭)
+// 팀원: 피드백 · 코칭 — 팀장이 나에게 한 '사람·성장' 관련 행동만 (성장 제안 · 격려 · 칭찬 · ATEAM 코칭)
+//   업무 요청(기타 · 자료 공유 · 계획 · 성과입력)은 업무플랫폼·팀목표에서, 1on1 요청은 1on1 칸에서 본다.
 //   위에는 '답할 것'(열린 요청 · 확인 안 한 코칭), 아래는 지난 것. 종류별로 걸러 볼 수 있다.
 //   업무 결과물의 보완 요청·리뷰 코멘트는 업무플랫폼에, 목표 승인은 팀목표에 — 여기에 다시 쌓지 않는다.
 //   ATEAM 코칭은 보낸 사람을 표시하지 않는다 (코칭 설계 그대로).
@@ -30,8 +31,8 @@ export function useFromLeader() {
   const { team, uid } = useTeam();
   const since = new Date(Date.now() - 120 * DAY).toISOString();
   const reqs = useQuery({
-    queryKey: ['requests', team.id, 'to', uid, 'inbox'],
-    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).neq('status', 'canceled')
+    queryKey: ['requests', team.id, 'to', uid, 'care'],
+    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).in('kind', ['grow', 'cheer']).neq('status', 'canceled')
       .or(`status.eq.open,created_at.gte.${since}`).order('created_at', { ascending: false }).limit(60)),
   });
   const coach = useQuery({
@@ -97,13 +98,13 @@ export function FromLeader({ focus }: { focus?: string | null }) {
     share: { label: '업무플랫폼에 올리기', to: () => '/my/submissions' },
   };
   const DONE: Partial<Record<TeamRequest['kind'], string>> = { grow: '답 보내기', cheer: '확인' };
-  const TABS: [Filter, string][] = [['all', '전체'], ['todo', '답할 것'], ['req', '요청'], ['praise', '칭찬'], ['coach', '코칭']];
+  const TABS: [Filter, string][] = [['all', '전체'], ['todo', '답할 것'], ['req', '성장 제안·격려'], ['praise', '칭찬'], ['coach', '코칭']];
 
   return (
     <Card>
       <div className="px-5 pt-4 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <Inbox size={16} className="text-slate-500" /><span className="font-semibold">팀장님에게서</span>
+          <Inbox size={16} className="text-slate-500" /><span className="font-semibold">피드백 · 코칭</span>
           {!!todo.length && <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 rounded-full px-2 py-0.5">답할 것 {todo.length}</span>}
         </div>
         <div className="mt-3 flex gap-1 overflow-x-auto -mx-1 px-1">
@@ -117,7 +118,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
       </div>
 
       {loading ? <div className="p-6 text-sm text-slate-400">불러오는 중</div> : !shown.length ? (
-        <div className="px-5 py-8 text-center text-sm text-slate-400">{filter === 'todo' ? '지금 답할 것이 없습니다.' : '아직 받은 것이 없습니다.'}</div>
+        <div className="px-5 py-8 text-center text-sm text-slate-400">{filter === 'todo' ? '지금 답할 것이 없습니다.' : '아직 받은 성장 제안 · 칭찬 · 코칭이 없습니다.'}</div>
       ) : (
         <ul className="divide-y divide-slate-100">
           {shown.slice(0, limit).map((it) => {

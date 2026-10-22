@@ -144,8 +144,7 @@ export default function Layout() {
             <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
             <NavItem to="/my/goals" label="팀목표" icon={Target} />
             <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks} tip={mb.data?.conditionDue ? '매니징 보드 · 이번 주 컨디션 미공유' : undefined}
-              badge={leaderTodo ? `${leaderTodo}` : mb.data?.conditionDue ? '컨디션' : undefined} />
-            <NavItem to="/my/history" label="받은 히스토리" icon={HistoryIcon} badge={hUnread.data ? `${hUnread.data}` : undefined} />
+              badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : mb.data?.conditionDue ? '컨디션' : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/settings" label="설정" icon={Settings} />
           </nav>
@@ -226,11 +225,10 @@ export default function Layout() {
 function MemberTabBar({ needsWork, withLeader, history }: { needsWork: number; withLeader: boolean; history: number }) {
   const tabs = [
     { to: '/my/submissions', label: '업무플랫폼', I: LaptopMinimal, dot: needsWork > 0 }, { to: '/my/goals', label: '팀목표', I: Target },
-    { to: '/my/one-on-ones', label: '매니징 보드', I: Blocks, dot: withLeader },
-    { to: '/my/history', label: '히스토리', I: HistoryIcon, dot: history > 0 },
+    { to: '/my/one-on-ones', label: '매니징 보드', I: Blocks, dot: withLeader || history > 0 },
   ];
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
       {tabs.map((t) => (
         <NavLink key={t.to} to={t.to} className={({ isActive }) => cx('relative flex flex-col items-center gap-0.5 py-2 text-[11px]', isActive ? 'text-indigo-700 font-semibold' : 'text-slate-500')}>
           <t.I size={20} />{t.label}

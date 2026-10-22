@@ -51,7 +51,7 @@ export function useSpace(ref: SpaceRef) {
   });
   const reqs = useQuery({
     queryKey: ['requests', team.id, 'space', key, days], enabled: ref.kind === 'user', refetchInterval: 60_000,
-    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', ref.id).not('kind', 'in', '(meeting,change)')
+    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', ref.id).not('kind', 'in', '(meeting,change,grow,cheer)')
       .or(`created_at.gte.${since0},status.eq.open`).order('created_at').limit(100)),
   });
 

@@ -127,7 +127,7 @@ export function useMemberBadges(enabled: boolean) {
       const [nw, ai, rq, cs, co] = await Promise.all([
         supabase.from('submissions').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('author_id', uid).eq('status', 'needs_work').is('closed_at', null),
         supabase.from('action_items').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('owner_id', uid).is('done_at', null),
-        supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open'),
+        supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').in('kind', ['grow', 'cheer', 'meeting']),
         supabase.from('checkins').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('user_id', uid).eq('week_start', mondayOf()),
         supabase.from('coaching_notes').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('member_id', uid).is('acked_at', null),
       ]);
