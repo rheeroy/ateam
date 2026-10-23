@@ -1,0 +1,29 @@
+# Supabase Edge Function 한 번에 배포
+#   main 에 supabase/functions 가 바뀐 커밋이 올라가면 함수 18개를 모두 배포한다.
+#   Actions 탭 → Deploy Edge Functions → Run workflow 로 손으로 돌릴 수도 있다.
+#   필요한 GitHub Secrets (Settings → Secrets and variables → Actions):
+#     SUPABASE_ACCESS_TOKEN  — supabase.com → Account → Access Tokens 에서 만든 토큰
+#     SUPABASE_PROJECT_ID    — 프로젝트 ref (대시보드 주소 /project/<여기>)
+#   JWT 검증은 supabase/config.toml 설정을 따른다 (모두 기본값 true — 대시보드 배포와 같음)
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase functions deploy --project-ref "$PROJECT_ID"
