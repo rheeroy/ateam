@@ -10,7 +10,7 @@ import type { OrgNote } from '../lib/types';
 import { cx, daysAgo, fmtDate, fmtTime, mondayOf } from '../lib/format';
 import type { Raw } from '../lib/insights';
 import { isOpenSub, latestAt, useSubmissionsAi, type AiReview } from '../lib/work';
-import { usePeopleActions } from '../lib/peopleActions';
+import { usePeopleActions, type MemberIndex } from '../lib/peopleActions';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities } from '../components/decide/priorities';
 import { useAdvisor } from '../lib/advisor';
@@ -52,6 +52,21 @@ interface BLine { key: string; tone: BTone; text: ReactNode; go: string; to: str
 const B_ORDER: Record<BTone, number> = { rose: 0, agent: 1, amber: 2, slate: 3 };
 const AdvisorIcon = ((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Target;
 
+/** 1on1 요청이 중요한 이유 (팀원관리 지표 그대로 — 추가 AI 없음). 빈 배열이면 브리핑에 띄우지 않는다 (이유는 화면에 쓰지 않음) */
+function ooWhy(r: { created_at: string }, ix: MemberIndex | undefined, flags: string[], joined?: string | null): string[] {
+  const why: string[] = [];
+  if (ix && (ix.flight.level === 'risk' || ix.flight.level === 'watch')) why.push(`이탈 가능성 ${ix.flight.label}`);
+  const cond = ix?.indices.find((i) => i.key === 'cond');
+  const prev = Number(cond?.sub?.match(/3주 전 (\d)/)?.[1] ?? NaN);
+  if (ix?.condition != null && (ix.condition <= 2 || (!Number.isNaN(prev) && ix.condition < prev))) why.push('컨디션 하락');
+  const oo = ix?.indices.find((i) => i.key === 'oo');
+  if (oo?.level === 'risk') why.push(oo.value === '없음' ? '1on1 기록 없음' : `마지막 1on1 ${oo.value}`);
+  if (flags.includes('blocked_repeat')) why.push('막힘 반복');
+  if (joined && daysAgo(joined) <= 60) why.push('합류 60일 이내');
+  if (daysAgo(r.created_at) >= 2) why.push(`요청 ${daysAgo(r.created_at)}일째 대기`);
+  return why;
+}
+
 function useBriefing(m: HomeModel): BLine[] {
   const { team } = useTeam();
   const k = m.k;
@@ -65,9 +80,9 @@ function useBriefing(m: HomeModel): BLine[] {
   const { uid: me } = useTeam();
   const ooReq = useQuery({
     queryKey: ['requests', team.id, 'oo-to-me'],
-    queryFn: () => q<{ id: string; from_id: string }[]>(supabase.from('team_requests').select('id, from_id').eq('team_id', team.id).eq('to_id', me).eq('kind', 'meeting').eq('status', 'open')),
+    queryFn: () => q<{ id: string; from_id: string; created_at: string }[]>(supabase.from('team_requests').select('id, from_id, created_at').eq('team_id', team.id).eq('to_id', me).eq('kind', 'meeting').eq('status', 'open')),
   });
-  const { nameOf } = useTeam();
+  const { nameOf, members } = useTeam();
   const idx = [...pi.idx.values()];
   const high = idx.filter((x) => x.flight.level === 'risk').length, mid = idx.filter((x) => x.flight.level === 'watch').length;
   const ooGap = idx.filter((x) => ['watch', 'risk'].includes(x.indices.find((i) => i.key === 'oo')?.level ?? '')).length;
@@ -77,8 +92,12 @@ function useBriefing(m: HomeModel): BLine[] {
   const nearest = m.orgSt.nearest ? dDay(m.orgSt.nearest.event_date!) : null;
   const n = (v: number, unit: string) => <b className="text-slate-900 num">{v}{unit}</b>;
   const out: BLine[] = [];
-  const ooR = ooReq.data ?? [];
-  if (ooR.length) out.push({ key: 'ooreq', tone: 'rose', icon: Users, text: <>{ooR.length === 1 ? <>{nameOf(ooR[0].from_id)} 님이</> : <>팀원 {n(ooR.length, '명')}이</>} 1on1을 요청했어요.</>, go: ooR.length === 1 ? '일정 잡기를' : '팀원관리를', to: ooR.length === 1 ? `/people/${ooR[0].from_id}?oo=1` : '/people' });
+  // 팀원의 1on1 요청 — 맥락상 중요한 것만 (나머지는 팀원관리 · 팀원 상세에서). 2일 넘게 방치되면 중요로 올린다
+  const ooR = (ooReq.data ?? []).map((r) => ({ ...r, why: ooWhy(r, pi.idx.get(r.from_id), m.raw?.care?.find((c) => c.user_id === r.from_id)?.signals.map((x) => x.type) ?? [],
+    members.find((x) => x.user_id === r.from_id)?.joined_at) })).filter((r) => r.why.length);
+  if (ooR.length) out.push({ key: 'ooreq', tone: 'rose', icon: Users,
+    text: <>{ooR.length === 1 ? <>{nameOf(ooR[0].from_id)} 님이</> : <>팀원 {n(ooR.length, '명')}이</>} 1on1을 요청했어요.</>,
+    go: ooR.length === 1 ? '일정 잡기를' : '팀원관리를', to: ooR.length === 1 ? `/people/${ooR[0].from_id}?oo=1` : '/people' });
   if (m.lowGoals.length) out.push({ key: 'low', tone: 'rose', icon: ScatterChart, text: <>달성이 어려워 보이는 목표가 {n(m.lowGoals.length, '개')} 있어요.</>, go: '팀 성과를', to: '/perf' });
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
