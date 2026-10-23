@@ -32,9 +32,13 @@ export function useFromLeader() {
   const since = new Date(Date.now() - 120 * DAY).toISOString();
   const reqs = useQuery({
     queryKey: ['requests', team.id, 'to', uid, 'care'],
-    queryFn: () => q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).in('kind', ['grow', 'cheer', 'progress']).neq('status', 'canceled')
-      .or(`status.eq.open,created_at.gte.${since}`).order('created_at', { ascending: false }).limit(60))
-      .then((rs) => rs.filter(isLeaderAction)),
+    // 서버에서 팀장 액션만 고른다 (과제에 붙은 성과입력 요청이 많아도 목록이 밀리지 않게) — 열린 것 + 최근 120일
+    queryFn: () => {
+      const recent = `or(status.eq.open,created_at.gte.${since})`;
+      return q<TeamRequest[]>(supabase.from('team_requests').select('*').eq('team_id', team.id).eq('to_id', uid).neq('status', 'canceled')
+        .or(`and(kind.in.(grow,cheer),${recent}),and(kind.eq.progress,item_id.is.null,${recent})`).order('created_at', { ascending: false }).limit(60))
+        .then((rs) => rs.filter(isLeaderAction));
+    },
   });
   const coach = useQuery({
     queryKey: ['my-coaching', team.id, uid],
@@ -236,3 +240,4 @@ export function useFromLeaderOpenCount() {
   const { items } = useFromLeader();
   return items.filter((i) => i.open).length;
 }
+

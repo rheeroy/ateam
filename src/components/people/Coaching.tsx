@@ -1,4 +1,4 @@
-// ATEAM의 코칭 — 팀장이 누르면 AI가 초안을 쓰고, 팀장이 고쳐서 보낸다. 팀원에게는 'ATEAM의 코칭'으로만 보인다(보낸 사람 표시 없음). 평가 근거로 남지 않는다.
+// ATEAM 코칭 — 팀장이 누르면 AI가 초안을 쓰고, 팀장이 고쳐서 보낸다. 팀원에게는 'ATEAM 업무 피드백'으로만 보인다(보낸 사람 표시 없음). 평가 근거로 남지 않는다.
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,36 +15,26 @@ export interface CoachingNote { id: string; team_id: string; member_id: string; 
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
 const missing = (e: unknown) => /coaching_notes|coaching_mark/.test(errorText(e));
 
-/** 팀원에게 보이는 카드 — 미리보기와 팀원 홈에서 같은 모양 */
-export function CoachCard({ title, body, date, footer, highlight }: { title: string; body: string; date?: string; footer?: React.ReactNode; highlight?: boolean }) {
-  const blocks = strip(body).split(/\n\s*\n/).map((b) => b.split('\n').filter((l) => l.trim()));
+/** 미리보기 — 팀원 매니징 보드 › Feedback 의 'ATEAM 업무 피드백' 줄과 같은 모양 (FromLeader.tsx) */
+export function CoachCard({ title, body, date }: { title: string; body: string; date?: string }) {
   return (
-    <div className={cx('rounded-2xl bg-white ring-1 overflow-hidden', highlight ? 'ring-2 ring-indigo-400 shadow-lg' : 'ring-slate-200 shadow-sm')}>
-      <div className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center gap-2">
-        <span className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center"><LogoMark size={14} /></span>
-        <span className="font-bold"><span className="font-extrabold">ATEAM</span><AiSup className="opacity-80" />의 코칭</span>
-        {date && <span className="ml-auto text-xs text-indigo-100">{fmtDate(date)}</span>}
+    <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-lg overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-slate-100 text-sm font-semibold text-slate-700">Feedback</div>
+      <div className="px-5 py-3.5 flex items-start gap-3">
+        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-violet-50 text-violet-600"><LogoMark size={15} weight={4} /></span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-[11px] text-slate-400">
+            <span className="font-semibold text-slate-500"><AteamAI /> 업무 피드백</span>{date && <span>· {fmtDate(date)}</span>}
+          </div>
+          <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">{title || '제목'}</div>
+          <div className="text-sm text-slate-600 mt-0.5 whitespace-pre-line">{strip(body)}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="ml-auto text-xs font-medium text-slate-600 px-2 py-1">도움됐어요</span>
+            <span className="text-xs font-medium rounded-lg ring-1 ring-slate-200 px-2.5 py-1 text-slate-700">확인</span>
+          </div>
+        </div>
       </div>
-      <div className="p-5">
-        <div className="text-[17px] font-bold leading-snug">{title || '제목'}</div>
-        <p className="mt-1 text-sm text-slate-500"><AteamAI />가 최근 업무 기록을 보고, 다음 리뷰 전에 미리 챙기면 좋을 것을 정리했어요.</p>
-        {blocks.map((ls, i) => {
-          const [head, ...rest] = ls;
-          const isHead = rest.length > 0 && !head.startsWith('·') && head.length <= 14;
-          const lines = isHead ? rest : ls;
-          return (
-            <div key={i} className="mt-4">
-              {isHead && <div className="text-[11px] font-bold text-slate-400">{head}</div>}
-              <div className="mt-1 space-y-1.5">
-                {lines.map((l, j) => l.trim().startsWith('·')
-                  ? <div key={j} className="flex gap-2 text-[13px] text-slate-700 leading-relaxed"><span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" /><span>{l.trim().replace(/^·\s*/, '')}</span></div>
-                  : <p key={j} className="text-[13px] text-slate-700 leading-relaxed">{l}</p>)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {footer && <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center gap-2">{footer}</div>}
+      <div className="px-5 py-2 border-t border-slate-100 bg-slate-50/60 text-[11px] text-slate-400">목록에서는 본문 두 줄만 보이고, 팀원이 '전체 보기'로 펼칩니다. 보낸 사람은 표시되지 않습니다.</div>
     </div>
   );
 }
@@ -71,10 +61,12 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
   const [f, setF] = useState({ title: '', body: '' });
   const [methods, setMethods] = useState<string[]>([]);
   const [preview, setPreview] = useState(false);
+  const [empty, setEmpty] = useState(false);   // 초안 본문이 비어서 온 경우 (응답이 잘림)
   const gen = useMutation({
     mutationFn: () => invoke<AiOutput<{ title: string; body: string }>>('ai-coach', { team_id: team.id, member_id: memberId }),
     onSuccess: (o) => {
       setF({ title: strip(o.content?.title ?? ''), body: strip(o.content?.body ?? '') });
+      setEmpty(!(o.content?.body ?? '').trim());
       // 초안에 실제로 녹인 플레이북 방법론 (본문에 제목이 들어간 것만)
       const body = `${o.content?.title ?? ''} ${o.content?.body ?? ''}`;
       setMethods((o.sources ?? []).filter((s) => s.type === 'consulting').map((s) => methodTitle(s.label)).filter((t) => body.includes(t.split(' (')[0])));
@@ -85,7 +77,7 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
       const { error } = await supabase.from('coaching_notes').insert({ team_id: team.id, member_id: memberId, title: f.title.trim(), body: f.body.trim() });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['coaching', team.id] }); toast(`${name} 님에게 'ATEAM AI의 코칭'을 보냈습니다.`); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['coaching', team.id] }); toast(`${name} 님에게 코칭을 보냈습니다. ${name} 님에게는 'ATEAM 업무 피드백'으로 보입니다.`); onClose(); },
     onError: (e) => toast(missing(e) ? '코칭 테이블이 아직 없습니다. 13_coaching.sql 을 실행해 주세요.' : /COACHING_LIMIT/.test(errorText(e)) ? '한 팀원에게는 7일 동안 2건까지 보낼 수 있습니다.' : errorText(e)),
   });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,12 +86,12 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
   return (
     <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><AiSup className="opacity-80" /> 코칭하기 · {name}</span></span>}>
       <p className="text-sm text-slate-600 leading-relaxed rounded-lg bg-indigo-50/70 px-3 py-2">
-        직접 말하기 껄끄러운 개선점을 <b>ATEAM<AiSup className="opacity-80" /> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 홈에 <b>'ATEAM<AiSup className="opacity-80" />의 코칭'</b>으로 도착합니다. 자유롭게 수정해보세요.
+        직접 말하기 껄끄러운 개선점을 <b>ATEAM<AiSup className="opacity-80" /> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 매니징 보드 › Feedback에 <b>'ATEAM<AiSup className="opacity-80" /> 업무 피드백'</b>으로 도착합니다. 자유롭게 수정해보세요.
       </p>
       {gen.isPending ? (
         <div className="py-12 text-center text-sm text-slate-500"><Spinner /><div className="mt-2"><AteamAI />가 {name} 님의 최근 업무 기록을 보고 초안을 쓰는 중…</div></div>
-      ) : gen.isError && !f.body ? (
-        <div className="mt-4 rounded-lg bg-slate-50 px-4 py-6 text-sm text-slate-600 text-center">{errorText(gen.error)}
+      ) : (gen.isError || empty) && !f.body ? (
+        <div className="mt-4 rounded-lg bg-slate-50 px-4 py-6 text-sm text-slate-600 text-center">{gen.isError ? errorText(gen.error) : '초안 본문이 비어 있습니다. 다시 만들기를 눌러 주세요.'}
           <div className="mt-3"><Button size="sm" variant="secondary" onClick={() => gen.mutate()}><RefreshCw size={13} />다시 만들기</Button></div></div>
       ) : (
         <div className="mt-4 space-y-2">
@@ -120,8 +112,8 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
       {preview && createPortal(
         <div className="fixed inset-0 z-[100] bg-slate-900/50 flex items-center justify-center p-4" onClick={() => setPreview(false)}>
           <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 text-center text-xs text-white/80">{name} 님 홈에 이렇게 도착합니다 · 아무 곳이나 누르면 닫힙니다</div>
-            <CoachCard title={f.title} body={f.body} date={new Date().toISOString()} footer={<><span className="text-[11px] text-slate-400">평가와 무관한 코칭이에요</span><span className="ml-auto text-sm rounded-lg ring-1 ring-slate-200 bg-white px-3 py-1.5">도움이 됐어요</span><span className="text-sm rounded-lg bg-teal-600 text-white font-semibold px-3 py-1.5">확인했어요</span></>} />
+            <div className="mb-2 text-center text-xs text-white/80">{name} 님 매니징 보드 › Feedback에 이렇게 보입니다 · 아무 곳이나 누르면 닫힙니다</div>
+            <CoachCard title={f.title} body={f.body} date={new Date().toISOString()} />
           </div>
         </div>, document.body)}
     </Modal>

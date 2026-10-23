@@ -137,7 +137,8 @@ begin
   begin
     insert into team_requests (team_id, from_id, to_id, kind, title, body, due_date, created_at) values
       (T, L, m_kim, 'other', '목요일 30분, 런칭 FGI 결과 같이 봐요', '정리 안 된 상태로 가져와도 됩니다', current_date + 2, now() - interval '6 hours'),
-      (T, L, m_kim, 'grow', '하반기 신규 브랜드 론칭을 리드해 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', null, now() - interval '3 days');
+      (T, L, m_kim, 'grow', '하반기 신규 브랜드 론칭을 리드해 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', null, now() - interval '3 days'),
+      (T, L, m_kim, 'progress', '진행 상황과 막힌 점 공유 부탁해요', '지금까지 한 것과 남은 것만 짧게요', current_date + 3, now() - interval '1 day');   -- 업무 독려 (과제 없이 → 매니징 보드 Feedback)
     insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, status, response, responded_at, created_at) values
       (T, L, m_kim, 'share', t1, '런칭 기획서 v2 올려 주세요', '임원 보고 전에 한 번 보고 싶어요', 'done', '업무플랫폼에 v2 올렸습니다', now() - interval '19 days', now() - interval '20 days'),
       (T, L, m_kim, 'cheer', null, '임원 보고 준비하느라 고생 많았어요. 이번 주는 조금 쉬어 가요', '', 'done', '감사합니다. 금요일 오후 반차 쓰겠습니다', now() - interval '9 days', now() - interval '10 days');

@@ -874,6 +874,7 @@ function ReqPanel({ space, r, replies, onClose }: { space: SpaceRef; r?: TeamReq
 
 /** 과제로 모아볼 때 — 과제 요약 */
 function TaskPanel({ n, entries, onPerf }: { n: Node; entries: Entry[]; onPerf?: () => void }) {
+  const { isLeader } = useTeam();
   const posts = entries.filter((e) => e.t === 'post');
   const wait = posts.filter((e) => e.t === 'post' && e.s.status === 'in_review' && e.s.request_type !== 'share').length;
   const last = entries.reduce((m, e) => (e.at > m ? e.at : m), '');
@@ -889,7 +890,7 @@ function TaskPanel({ n, entries, onPerf }: { n: Node; entries: Entry[]; onPerf?:
           <div className="flex justify-between"><span>대화·요청 포함 전체</span><b className="text-slate-800">{entries.filter((e) => e.t !== 'ver').length}건</b></div>
           <div className="flex justify-between"><span>마지막 활동</span><b className="text-slate-800">{last ? fmtDate(last) : '—'}</b></div>
         </div>
-        <Link to={`/goals?item=${n.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700">팀목표에서 보기<ExternalLink size={12} /></Link>
+        <Link to={`${isLeader ? '/goals' : '/my/goals'}?item=${n.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700">팀목표에서 보기<ExternalLink size={12} /></Link>
         <p className="text-xs text-slate-400">말풍선이나 업무 카드를 누르면 이 자리에 스레드가 열립니다.</p>
       </div>
     </PanelShell>

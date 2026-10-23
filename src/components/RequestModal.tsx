@@ -14,11 +14,12 @@ export const REQUEST_KIND: Record<TeamRequest['kind'], { label: string; example:
   share: { label: '자료 올리기', example: '회의 자료를 ATEAM에 올려 주세요' },
   meeting: { label: '1on1·미팅', example: '이번 주에 30분 이야기 나눠요' },
   other: { label: '기타', example: '' },
-  grow: { label: '성장 제안', example: '다음에 맡아 볼 성장 과제를 같이 정해 봐요' },
-  cheer: { label: '팀장님 격려', example: '요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요' },
+  grow: { label: '육성', example: '다음에 맡아 볼 성장 과제를 같이 정해 봐요' },
+  cheer: { label: '지원·격려', example: '요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요' },
   change: { label: '목표 변경 요청', example: '' },
 };
-/** 일반 '요청 보내기' 창의 탭 — 성장 제안·격려는 팀원 상세의 육성·지원·격려 버튼 전용 */
+/** 일반 '요청 보내기' 창의 탭 — 육성 · 지원·격려 · 업무 독려는 팀원 상세의 액션 버튼 전용
+ *  성과입력 요청은 과제를 정해 보낼 때만 (과제 없는 진척 요청은 '업무 독려'로 팀원 매니징 보드에 간다) */
 const GENERAL_KINDS: TeamRequest['kind'][] = ['plan', 'progress', 'share', 'meeting', 'other'];
 
 export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other', defaultTitle = '', onSent }: {
@@ -27,8 +28,10 @@ export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other
   const { team, members, uid } = useTeam();
   const toast = useToast();
   const qc = useQueryClient();
-  const [f, setF] = useState({ to: toId ?? '', kind: defaultKind, title: defaultTitle, body: '', due: '' });
-  useEffect(() => { if (open) setF({ to: toId ?? '', kind: defaultKind, title: defaultTitle, body: '', due: '' }); }, [open, toId, defaultKind, defaultTitle]);
+  const kinds = GENERAL_KINDS.filter((k) => k !== 'progress' || !!itemId);
+  const k0 = kinds.includes(defaultKind) ? defaultKind : 'other';
+  const [f, setF] = useState({ to: toId ?? '', kind: k0, title: defaultTitle, body: '', due: '' });
+  useEffect(() => { if (open) setF({ to: toId ?? '', kind: k0, title: defaultTitle, body: '', due: '' }); }, [open, toId, k0, defaultTitle]);
   const send = useMutation({
     mutationFn: () => q(supabase.from('team_requests').insert({
       team_id: team.id, to_id: f.to, kind: f.kind, item_id: itemId ?? null,
@@ -47,7 +50,7 @@ export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other
           </select>
         </Field>
         <div className="flex flex-wrap gap-1.5">
-          {GENERAL_KINDS.map((k) => (
+          {kinds.map((k) => (
             <button type="button" key={k} onClick={() => setF({ ...f, kind: k, title: f.title || '' })}
               className={cx('text-xs border rounded-full px-2.5 py-1', f.kind === k ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200')}>{REQUEST_KIND[k].label}</button>
           ))}
@@ -63,25 +66,25 @@ export function RequestModal({ open, onClose, toId, itemId, defaultKind = 'other
 
 // ---------------------------------------------------------------------
 // 팀원 상세 · Core Insight 의 액션 버튼 전용 — 탭 없이 버튼 목적 그대로
-//   업무 독려 → 진척 공유(progress) · 육성 → 성장 제안(grow) · 지원·격려 → 팀장님 격려(cheer, 평가 근거로 안 남음)
+//   업무 독려(과제 없는 progress) · 육성(grow) · 지원·격려(cheer, 평가 근거로 안 남음) — 팀원 매니징 보드 › Feedback 에 같은 이름으로 뜬다
 // ---------------------------------------------------------------------
 export type ActionReqType = 'push' | 'develop' | 'support';
 const ACTION_REQ: Record<ActionReqType, { kind: TeamRequest['kind']; title: string; icon: LucideIcon; tone: string; purpose: (n: string) => string; phrases: string[]; dueDays?: number; sent: (n: string) => string }> = {
   push: {
     kind: 'progress', title: '업무 독려', icon: Send, tone: 'bg-violet-600',
-    purpose: (n) => `맡은 일 전반의 진척과 막힌 점을 공유해 달라고 부탁합니다. ${n} 님 홈에 '진척 공유' 할 일로 뜨고, 남기면 팀장님께 알림이 갑니다.`,
+    purpose: (n) => `맡은 일 전반의 진척과 막힌 점을 공유해 달라고 부탁합니다. ${n} 님 매니징 보드 › Feedback에 '업무 독려'로 뜨고, 답하면 팀장님께 알림이 갑니다.`,
     phrases: ['진행 상황과 막힌 점 공유 부탁해요', '지금까지 한 것과 남은 것을 짧게 정리해 줘요', '막힌 게 있으면 같이 풀어요 — 편하게 올려 줘요'],
-    dueDays: 3, sent: (n) => `${n} 님에게 진척 공유를 부탁했습니다.`,
+    dueDays: 3, sent: (n) => `${n} 님에게 업무 독려를 보냈습니다.`,
   },
   develop: {
     kind: 'grow', title: '육성', icon: Sprout, tone: 'bg-emerald-600',
-    purpose: (n) => `다음에 맡아 볼 역할이나 성장 과제를 같이 정하자고 제안합니다. ${n} 님 홈에 '성장 제안'으로 뜨고, ${n} 님이 답을 남길 수 있습니다.`,
+    purpose: (n) => `다음에 맡아 볼 역할이나 성장 과제를 같이 정하자고 제안합니다. ${n} 님 매니징 보드 › Feedback에 '육성'으로 뜨고, ${n} 님이 답을 남길 수 있습니다.`,
     phrases: ['다음에 맡아 볼 성장 과제를 같이 정해 봐요', '요즘 해 보고 싶은 일이 있으면 알려 줘요', '이번 분기에 한 단계 더 큰 역할을 맡아 보면 어때요?'],
-    sent: (n) => `${n} 님에게 성장 제안을 보냈습니다.`,
+    sent: (n) => `${n} 님에게 육성 제안을 보냈습니다.`,
   },
   support: {
     kind: 'cheer', title: '지원·격려', icon: HeartHandshake, tone: 'bg-rose-500',
-    purpose: (n) => `평가와 상관없는 격려의 말입니다. ${n} 님 홈에 '팀장님 격려'로 뜨고, 평가 근거로는 남지 않습니다.`,
+    purpose: (n) => `평가와 상관없는 격려의 말입니다. ${n} 님 매니징 보드 › Feedback에 '지원·격려'로 뜨고, 평가 근거로는 남지 않습니다.`,
     phrases: ['요즘 어떤지 편하게 이야기 나눠요 — 도울 일이 있으면 말해 주세요', '혼자 풀기 어려운 게 있으면 편하게 말해 줘요. 같이 볼게요.', '요즘 애쓰는 거 보고 있어요. 무리하지 말아요.'],
     sent: (n) => `${n} 님에게 격려를 보냈습니다.`,
   },

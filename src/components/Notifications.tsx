@@ -30,8 +30,10 @@ export function Notifications() {
   const go = async (n: AppNotification) => {
     setOpen(false);
     if (!n.read_at) { await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id); qc.invalidateQueries({ queryKey: ['notifications'] }); }
-    // 팀원에게 온 팀장 요청 알림은 예전 링크가 '/'(업무플랫폼) — 받은 곳(매니징 보드)으로
-    const link = !isLeader && n.link === '/' && /^(request|praise|coaching)/.test(n.kind) ? '/my/one-on-ones' : n.link;
+    // 예전 알림의 링크 '/' — 받은 곳으로: 칭찬·코칭·팀장 액션(육성 · 지원·격려 · 업무 독려)은 매니징 보드, 나머지 요청은 업무플랫폼
+    //   (새 알림은 32_review_fixes 이후 종류별 링크가 직접 들어 있다)
+    const toBoard = /^(praise|coaching)/.test(n.kind) || (n.kind === 'request' && /^(성장 제안|팀장님 격려|육성|지원·격려|업무 독려)/.test(n.title ?? ''));
+    const link = !isLeader && n.link === '/' ? (toBoard ? '/my/one-on-ones' : n.kind.startsWith('request') ? '/my/submissions' : n.link) : n.link;
     if (link) nav(link);
   };
   const readAll = async () => {

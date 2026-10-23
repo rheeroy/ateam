@@ -15,7 +15,7 @@ function MemberRow({ m, isMe }: { m: TeamMember; isMe: boolean }) {
   const [hours, setHours] = useState(String(m.weekly_hours));
   const upd = useMutation({
     mutationFn: (patch: Partial<TeamMember>) => q(supabase.from('team_members').update(patch).eq('team_id', m.team_id).eq('user_id', m.user_id)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['members'] }); qc.invalidateQueries({ queryKey: ['seats'] }); },
     onError: (e) => toast(errorText(e)),
   });
   return (

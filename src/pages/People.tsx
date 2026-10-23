@@ -1,4 +1,4 @@
-// 팀원관리 — 이번 주 AI 액션 추천(가로) + 팀원 보드(표준 지표)
+// 팀원관리 — 이번 주 AI 액션 추천(가로) + 팀원 보드(표준 지표) + 보낸 액션(상태 · 답 · 취소)
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, Award, CalendarPlus, StickyNote, Users } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useTeamMembersOnly } from '../lib/hooks';
 import { cx } from '../lib/format';
 import { LEVEL_CLS, attnSkew, ruleActions, type Level, type MemberIndex, type MemberView, type PeopleAction } from '../lib/peopleActions';
 import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
+import { SentActions } from '../components/people/SentActions';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
@@ -78,6 +79,7 @@ export default function People() {
         ? <Card className="p-6 text-sm text-slate-500">팀원을 초대하면 팀원별 카드가 생깁니다. <Link to="/settings?tab=members" className="text-indigo-700 font-semibold">초대하기 →</Link></Card>
         : <MemberTable rows={members.map((mb) => ({ uid: mb.user_id, name: mb.profiles?.full_name ?? '팀원', job: mb.job_title, ix: pi.idx.get(mb.user_id), view: pi.views.get(mb.user_id),
             actions: (pi.actions.out?.content.actions ?? fallback).filter((a) => a.user_id === mb.user_id).length }))} onPraise={(uid, name) => setPraise({ uid, name })} />)}
+      {!!members.length && <SentActions />}
       {praise && <PraiseModal a={{ user_id: praise.uid, type: 'praise' } as PeopleAction} name={praise.name} onClose={() => setPraise(null)} onSent={() => {}} />}
 
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />

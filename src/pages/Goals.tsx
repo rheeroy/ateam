@@ -277,7 +277,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
                 <div className="flex-1 min-w-0"><div className="font-semibold text-sm">팀장 요청 · {r.title}</div>
                   <div className="text-xs text-slate-600">{it ? `'${it.title}' 아래에 계획을 세워 주세요` : '처음부터 내 목표·과제를 세워 주세요'}{r.body && ` · ${r.body}`}{r.due_date && ` · ${fmtShort(r.due_date)}까지`}</div></div>
                 <Button size="sm" onClick={() => { if (it) setParam('item', it.id); else { setParam('view', null); setAddRoot((x) => x + 1); } }}>직접 쓰기</Button>
-                <Button size="sm" variant="ghost" onClick={async () => { await supabase.from('team_requests').update({ status: 'done', response: '계획을 올렸습니다' }).eq('id', r.id); requests.refetch(); }}>완료</Button>
+                <Button size="sm" variant="ghost" onClick={async () => { const { error } = await supabase.from('team_requests').update({ status: 'done', response: '계획을 올렸습니다' }).eq('id', r.id); if (error) { toast(errorText(error)); return; } ['requests', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); }}>완료</Button>
               </div>
             );
           })}
@@ -294,7 +294,7 @@ export default function Goals({ mode = 'leader' }: { mode?: 'leader' | 'member' 
         </div>
         <div className="flex gap-1.5 overflow-x-auto">
           {FILTERS.filter((x) => x.id === 'all' || x.id === 'mine' || count(x.id) > 0).map((x) => (
-            <button key={x.id} onClick={() => setParam('filter', x.id === (mode === 'member' ? 'mine' : 'all') ? null : x.id)}
+            <button key={x.id} onClick={() => setParam('filter', x.id === 'all' ? null : x.id)}
               className={cx('text-xs rounded-full px-2.5 py-1 border whitespace-nowrap', filter === x.id ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 bg-white',
                 x.id === 'proposed' && filter !== x.id && 'border-violet-300 text-violet-700')}>
               {x.label}{x.id !== 'all' && ` ${count(x.id)}`}

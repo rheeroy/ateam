@@ -29,6 +29,14 @@ export interface TaskHistory { item_id: string; team_id: string; content: Histor
 export interface HistoryShare { id: string; team_id: string; item_id: string; from_id: string | null; to_id: string; note: string; snapshot: HistoryContent; status: 'requested' | 'sent' | 'read' | 'declined'; sent_at: string | null; read_at: string | null; created_at: string; updated_at: string }
 export interface HistoryMessage { id: string; share_id: string; author_id: string; body: string; created_at: string }
 
+const HIST_ERR: Record<string, string> = {
+  AI_COST_CAP: '이번 달 AI 사용 한도에 걸려 히스토리를 만들지 못했습니다.',
+  AI_RATE_HOUR: '잠시 AI 호출이 많았습니다. 조금 뒤 다시 눌러 주세요.',
+  AI_RATE_DAY: '오늘 AI 호출 한도에 걸렸습니다. 내일 다시 눌러 주세요.',
+  CORE_LIMIT: '이번 달 기본 AI 사용량을 모두 썼습니다.',
+  AI_REPEAT: '오늘 같은 과제를 여러 번 만들었습니다. 기록이 더 쌓인 뒤 내일 다시 눌러 주세요.',
+};
+
 export const LISTS = [
   { k: 'fixed', label: '확정 사항', tone: 'emerald' },
   { k: 'open', label: '미결 사항', tone: 'violet' },
@@ -74,7 +82,7 @@ export function useShares(opts: { mine?: boolean } = {}) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'history_shares', filter: `team_id=eq.${team.id}` }, () => {
         qc.invalidateQueries({ queryKey: ['history-shares', team.id] }); qc.invalidateQueries({ queryKey: ['member-badges'] });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'history_messages', filter: `team_id=eq.${team.id}` }, () => qc.invalidateQueries({ queryKey: ['history-msgs'] }))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'history_messages', filter: `team_id=eq.${team.id}` }, () => { qc.invalidateQueries({ queryKey: ['history-msgs'] }); qc.invalidateQueries({ queryKey: ['history-shares', team.id, 'todo'] }); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [team.id, uid, opts.mine]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -106,24 +114,36 @@ export function useHistoryActions() {
   return {
     /** 만들기·업데이트 (AI) — 처음은 여러 과제를 나눠서 */
     update: useMutation({
-      mutationFn: (p: { itemIds: string[]; force?: boolean }) => invoke<{ results?: { item_id: string; updated?: boolean; skipped?: string; error?: string }[] }>('ai-task-history',
+      mutationFn: (p: { itemIds: string[]; force?: boolean }) => invoke<{ results?: { item_id: string; updated?: boolean; skipped?: string; error?: string; message?: string }[] }>('ai-task-history',
         p.itemIds.length === 1 ? { team_id: team.id, item_id: p.itemIds[0], force: p.force } : { team_id: team.id, item_ids: p.itemIds }),
-      onSuccess: () => inval(), onError: fail,
+      // 서버는 과제별 실패를 results[].error 로 돌려준다 (HTTP 200) — 여기서 알린다
+      onSuccess: (r, p) => {
+        inval();
+        const rs = r.results ?? [];
+        const err = rs.find((x) => x.error);
+        if (err) toast(HIST_ERR[err.error!] ?? `히스토리를 만들지 못했습니다${err.message ? ` — ${err.message}` : ''}`);
+        else if (!rs.length) toast('히스토리 대상이 아닌 과제입니다 (승인 전 · 목표/지표 · 끝난 지 60일 지난 과제는 만들지 않습니다).');
+        else if (p.itemIds.length === 1 && rs[0]?.skipped === 'no_new_records') toast('지난 업데이트 이후 새 기록이 없습니다.');
+      },
+      onError: fail,
     }),
     edit: useMutation({
       mutationFn: (p: { itemId: string; edits: HistoryEdits }) => q(supabase.from('task_histories').update({ edits: p.edits }).eq('item_id', p.itemId)),
       onSuccess: () => qc.invalidateQueries({ queryKey: ['histories'] }), onError: fail,
     }),
     send: useMutation({
-      mutationFn: async (p: { itemId: string; toIds: string[]; note: string; snapshot: HistoryContent; requestId?: string | null; newOwner?: string | null }) => {
+      mutationFn: async (p: { itemId: string; toIds: string[]; note: string; snapshot: HistoryContent; requestId?: string | null; requestTo?: string | null; newOwner?: string | null }) => {
         const now = new Date().toISOString();
+        // 요청에 답하는 전달이면 요청 행은 요청한 사람 몫으로만 쓴다. 요청한 사람을 빼고 보냈으면 요청은 보류로 닫는다
+        const reqTo = p.requestId ? p.requestTo ?? null : null;
         for (const to of p.toIds) {
-          if (p.requestId && to === p.toIds[0]) {
+          if (p.requestId && to === reqTo) {
             await q(supabase.from('history_shares').update({ status: 'sent', from_id: uid, note: p.note, snapshot: p.snapshot, sent_at: now, updated_at: now }).eq('id', p.requestId));
           } else {
             await q(supabase.from('history_shares').insert({ team_id: team.id, item_id: p.itemId, from_id: uid, to_id: to, note: p.note, snapshot: p.snapshot, status: 'sent', sent_at: now }));
           }
         }
+        if (p.requestId && reqTo && !p.toIds.includes(reqTo)) await q(supabase.from('history_shares').update({ status: 'declined', updated_at: now }).eq('id', p.requestId));
         if (p.newOwner) await q(supabase.from('work_items').update({ owner_id: p.newOwner }).eq('id', p.itemId));
       },
       onSuccess: (_d, p) => { inval(); if (p.newOwner) qc.invalidateQueries({ queryKey: ['items'] }); toast('전달했습니다. 확인하면 알려 드립니다.'); },
@@ -143,7 +163,7 @@ export function useHistoryActions() {
     }),
     ask: useMutation({
       mutationFn: (p: { shareId: string; body: string }) => q(supabase.from('history_messages').insert({ share_id: p.shareId, team_id: team.id, author_id: uid, body: p.body })),
-      onSuccess: () => qc.invalidateQueries({ queryKey: ['history-msgs'] }), onError: fail,
+      onSuccess: () => { qc.invalidateQueries({ queryKey: ['history-msgs'] }); qc.invalidateQueries({ queryKey: ['history-shares', team.id, 'todo'] }); }, onError: fail,
     }),
   };
 }
@@ -164,7 +184,7 @@ export function useUnreadShares(enabled: boolean) {
 export function useHistoryTodo(enabled: boolean) {
   const { team, uid } = useTeam();
   return useQuery({
-    queryKey: ['history-shares', team?.id, 'todo'], enabled: enabled && !!team, staleTime: 60_000,
+    queryKey: ['history-shares', team?.id, 'todo'], enabled: enabled && !!team, staleTime: 60_000, refetchInterval: 60_000,
     queryFn: async () => {
       const { data: sh, error } = await supabase.from('history_shares').select('id, status').eq('team_id', team.id).neq('status', 'declined').limit(300);
       if (error) return 0;

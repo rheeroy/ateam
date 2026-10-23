@@ -122,16 +122,18 @@ export function useMyOORequest() {
 export function useMemberBadges(enabled: boolean) {
   const { team, uid } = useTeam();
   return useQuery({
-    queryKey: ['member-badges', team?.id, uid], enabled: enabled && !!team, staleTime: 60_000,
+    queryKey: ['member-badges', team?.id, uid], enabled: enabled && !!team, staleTime: 60_000, refetchInterval: 60_000,
     queryFn: async () => {
-      const [nw, ai, rq, cs, co] = await Promise.all([
+      const [nw, ai, rq, cs, co, wr] = await Promise.all([
         supabase.from('submissions').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('author_id', uid).eq('status', 'needs_work').is('closed_at', null),
         supabase.from('action_items').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('owner_id', uid).is('done_at', null),
         supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').or('kind.in.(grow,cheer,meeting),and(kind.eq.progress,item_id.is.null)'),
         supabase.from('checkins').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('user_id', uid).eq('week_start', mondayOf()),
         supabase.from('coaching_notes').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('member_id', uid).is('acked_at', null),
+        // 업무플랫폼에서 답할 요청 (계획 · 자료 올리기 · 기타 · 과제에 붙은 성과입력)
+        supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').or('kind.in.(plan,share,other),and(kind.eq.progress,item_id.not.is.null)'),
       ]);
-      return { needsWork: nw.count ?? 0, promises: ai.count ?? 0, requests: rq.count ?? 0, coaching: co.error ? 0 : co.count ?? 0, conditionDue: !cs.error && (cs.count ?? 0) === 0 };
+      return { needsWork: nw.count ?? 0, workRequests: wr.count ?? 0, promises: ai.count ?? 0, requests: rq.count ?? 0, coaching: co.error ? 0 : co.count ?? 0, conditionDue: !cs.error && (cs.count ?? 0) === 0 };
     },
   });
 }

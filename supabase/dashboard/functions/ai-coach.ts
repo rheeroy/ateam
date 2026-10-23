@@ -142,8 +142,12 @@ function parseJson(text) {
       return JSON.parse(src.slice(start, end + 1));
     } catch {
     }
+    try {
+      return JSON.parse(escapeControls(src.slice(start, end + 1)));
+    } catch {
+    }
   }
-  const fixed = closeTruncated(src.slice(start));
+  const fixed = closeTruncated(escapeControls(src.slice(start)));
   if (fixed) {
     try {
       return JSON.parse(fixed);
@@ -151,6 +155,33 @@ function parseJson(text) {
     }
   }
   throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+}
+function escapeControls(s) {
+  let out = "", inStr = false, esc = false;
+  for (const c of s) {
+    if (inStr) {
+      if (esc) {
+        esc = false;
+        out += c;
+        continue;
+      }
+      if (c === "\\") {
+        esc = true;
+        out += c;
+        continue;
+      }
+      if (c === '"') {
+        inStr = false;
+        out += c;
+        continue;
+      }
+      out += c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "	" ? "\\t" : c;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    out += c;
+  }
+  return out;
 }
 function closeTruncated(s) {
   const stack = [];
@@ -599,5 +630,7 @@ ${prevText}` : "",
     subjectUserId: member_id,
     maxTokens: 1500
   });
+  const c = output.content;
+  if (!c?.body?.trim()) throw new HttpError(502, "AI_BAD_OUTPUT", "\uCD08\uC548 \uBCF8\uBB38\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uB9CC\uB4E4\uAE30\uB97C \uB20C\uB7EC \uC8FC\uC138\uC694.");
   return json(output);
 });

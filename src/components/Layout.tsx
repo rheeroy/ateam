@@ -143,7 +143,7 @@ export default function Layout() {
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/my/goals" label="팀목표" icon={Target} />
-            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : undefined} />
+            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={[mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : '', mb.data?.workRequests ? `요청 ${mb.data.workRequests}` : ''].filter(Boolean).join(' · ') || undefined} />
             <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks}
               badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
@@ -214,7 +214,7 @@ export default function Layout() {
           {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
         </div>
       </main>
-      {!isLeader && <MemberTabBar needsWork={mb.data?.needsWork ?? 0} withLeader={!!leaderTodo} history={hUnread.data ?? 0} />}
+      {!isLeader && <MemberTabBar needsWork={(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0)} withLeader={!!leaderTodo} history={hUnread.data ?? 0} />}
       {isLeader && <QuickNote />}
       <InstallPrompt />
       <ProvLegend />

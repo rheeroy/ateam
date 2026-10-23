@@ -2671,7 +2671,8 @@ begin
   begin
     insert into team_requests (team_id, from_id, to_id, kind, title, body, due_date, created_at) values
       (T, L, m_kim, 'other', '목요일 30분, 런칭 FGI 결과 같이 봐요', '정리 안 된 상태로 가져와도 됩니다', current_date + 2, now() - interval '6 hours'),
-      (T, L, m_kim, 'grow', '하반기 신규 브랜드 론칭을 리드해 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', null, now() - interval '3 days');
+      (T, L, m_kim, 'grow', '하반기 신규 브랜드 론칭을 리드해 보면 어때요? 해 보고 싶은 범위를 알려 줘요', '', null, now() - interval '3 days'),
+      (T, L, m_kim, 'progress', '진행 상황과 막힌 점 공유 부탁해요', '지금까지 한 것과 남은 것만 짧게요', current_date + 3, now() - interval '1 day');   -- 업무 독려 (과제 없이 → 매니징 보드 Feedback)
     insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, status, response, responded_at, created_at) values
       (T, L, m_kim, 'share', t1, '런칭 기획서 v2 올려 주세요', '임원 보고 전에 한 번 보고 싶어요', 'done', '업무플랫폼에 v2 올렸습니다', now() - interval '19 days', now() - interval '20 days'),
       (T, L, m_kim, 'cheer', null, '임원 보고 준비하느라 고생 많았어요. 이번 주는 조금 쉬어 가요', '', 'done', '감사합니다. 금요일 오후 반차 쓰겠습니다', now() - interval '9 days', now() - interval '10 days');
@@ -3863,7 +3864,7 @@ create or replace function public._coaching_notify() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   insert into notifications (user_id, team_id, kind, title, body, link)
-  values (new.member_id, new.team_id, 'coaching', 'ATEAM의 코칭이 도착했어요', new.title, '/?coach=' || new.id);
+  values (new.member_id, new.team_id, 'coaching', 'ATEAM 업무 피드백이 도착했어요', new.title, '/my/one-on-ones?coach=' || new.id);
   return new;
 end $$;
 drop trigger if exists t_coaching_notify on public.coaching_notes;
@@ -4759,10 +4760,10 @@ update public.plans set name = 'Starter', price_month_krw = 19000, price_year_kr
   features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar'] where id = 'starter';
 update public.plans set name = 'Pro', price_month_krw = 29000, price_year_krw = 290000, max_members = 10, max_teams = 1,
   monthly_credits = 100, core_monthly_cap = 4000, ai_hourly_cap = 30, ai_daily_cap = 80, ai_cost_cap_usd = 10, sort = 2, active = true,
-  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow'] where id = 'pro';
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow','history'] where id = 'pro';
 update public.plans set name = 'Pro+', price_month_krw = 49000, price_year_krw = 490000, max_members = 20, max_teams = 1,
   monthly_credits = 200, core_monthly_cap = 6000, ai_hourly_cap = 45, ai_daily_cap = 120, ai_cost_cap_usd = 18, sort = 3, active = true,
-  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow'] where id = 'pro_plus';
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow','history'] where id = 'pro_plus';
 -- 'free' 행은 '체험 종료' 상태로만 쓴다 (요금제 목록에 안 보임 · 모든 기능 잠금 · 초대 불가)
 update public.plans set name = '체험 종료', price_month_krw = 0, price_year_krw = 0, max_members = 0, max_teams = 1,
   monthly_credits = 0, core_monthly_cap = 0, ai_hourly_cap = 0, ai_daily_cap = 0, ai_cost_cap_usd = 0, sort = 9, active = false,

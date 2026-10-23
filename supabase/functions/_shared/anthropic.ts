@@ -103,16 +103,37 @@ export function parseJson<T>(text: string): T {
   if (end > start) {
     try {
       return JSON.parse(src.slice(start, end + 1)) as T;
+    } catch { /* 아래에서 다시 시도 */ }
+    // 문자열 안에 줄바꿈·탭을 그대로 넣어 보낸 경우 (본문이 긴 글에서 잦다) — 이스케이프해서 다시
+    try {
+      return JSON.parse(escapeControls(src.slice(start, end + 1))) as T;
     } catch { /* 아래에서 잘린 JSON 복구 시도 */ }
   }
   // 출력이 중간에 잘렸으면 마지막 온전한 항목까지 살려서 닫는다
-  const fixed = closeTruncated(src.slice(start));
+  const fixed = closeTruncated(escapeControls(src.slice(start)));
   if (fixed) {
     try {
       return JSON.parse(fixed) as T;
     } catch { /* 복구 실패 */ }
   }
   throw new HttpError(502, 'AI_BAD_OUTPUT', text.slice(0, 300));
+}
+
+/** JSON 문자열 값 안의 날 줄바꿈 · 탭 · CR 을 이스케이프한다 (문자열 밖은 그대로) */
+function escapeControls(s: string): string {
+  let out = '', inStr = false, esc = false;
+  for (const c of s) {
+    if (inStr) {
+      if (esc) { esc = false; out += c; continue; }
+      if (c === '\\') { esc = true; out += c; continue; }
+      if (c === '"') { inStr = false; out += c; continue; }
+      out += c === '\n' ? '\\n' : c === '\r' ? '\\r' : c === '\t' ? '\\t' : c;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    out += c;
+  }
+  return out;
 }
 
 /** 잘린 JSON: 마지막으로 끝난 값까지 자르고 열린 괄호를 닫는다 */

@@ -16,10 +16,10 @@ update public.plans set name = 'Starter', price_month_krw = 19000, price_year_kr
   features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar'] where id = 'starter';
 update public.plans set name = 'Pro', price_month_krw = 29000, price_year_krw = 290000, max_members = 10, max_teams = 1,
   monthly_credits = 100, core_monthly_cap = 4000, ai_hourly_cap = 30, ai_daily_cap = 80, ai_cost_cap_usd = 10, sort = 2, active = true,
-  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow'] where id = 'pro';
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow','history'] where id = 'pro';
 update public.plans set name = 'Pro+', price_month_krw = 49000, price_year_krw = 490000, max_members = 20, max_teams = 1,
   monthly_credits = 200, core_monthly_cap = 6000, ai_hourly_cap = 45, ai_daily_cap = 120, ai_cost_cap_usd = 18, sort = 3, active = true,
-  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow'] where id = 'pro_plus';
+  features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow','history'] where id = 'pro_plus';
 -- 'free' 행은 '체험 종료' 상태로만 쓴다 (요금제 목록에 안 보임 · 모든 기능 잠금 · 초대 불가)
 update public.plans set name = '체험 종료', price_month_krw = 0, price_year_krw = 0, max_members = 0, max_teams = 1,
   monthly_credits = 0, core_monthly_cap = 0, ai_hourly_cap = 0, ai_daily_cap = 0, ai_cost_cap_usd = 0, sort = 9, active = false,

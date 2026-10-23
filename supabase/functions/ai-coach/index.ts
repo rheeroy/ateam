@@ -71,5 +71,8 @@ serve(async (req) => {
     teamId: team_id, kind: 'coaching', model: MODEL_SMART, system: COACH, content: [{ type: 'text', text }], book,
     depth: depthOf(book.size, [2, 4, 7]), level: 'L2', createdBy: caller.userId, subjectUserId: member_id, maxTokens: 1500,
   });
+  // 본문이 비면(응답이 잘렸거나 형식이 깨짐) 빈 초안을 돌려주지 않는다
+  const c = (output as { content?: { title?: string; body?: string } }).content;
+  if (!c?.body?.trim()) throw new HttpError(502, 'AI_BAD_OUTPUT', '초안 본문이 비어 있습니다. 다시 만들기를 눌러 주세요.');
   return json(output);
 });

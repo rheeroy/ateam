@@ -55,7 +55,7 @@ create or replace function public._coaching_notify() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   insert into notifications (user_id, team_id, kind, title, body, link)
-  values (new.member_id, new.team_id, 'coaching', 'ATEAM의 코칭이 도착했어요', new.title, '/?coach=' || new.id);
+  values (new.member_id, new.team_id, 'coaching', 'ATEAM 업무 피드백이 도착했어요', new.title, '/my/one-on-ones?coach=' || new.id);
   return new;
 end $$;
 drop trigger if exists t_coaching_notify on public.coaching_notes;

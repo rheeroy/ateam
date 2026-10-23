@@ -92,18 +92,21 @@ function Drawer({ s, title, onClose }: { s: HistoryShare; title: string; onClose
 }
 
 export function ReceivedHistories() {
-  const { team, nameOf } = useTeam();
+  const { team, nameOf, hasFeature } = useTeam();
   const [params, setParams] = useSearchParams();
   const items = useItems(team.id);
   const shares = useShares({ mine: true });
+  const canRequest = hasFeature('history');   // 히스토리 기능이 없는 요금제에서는 요청해도 팀장이 답할 수 없다
   const [reqOpen, setReqOpen] = useState(false);
   const titleOf = (id: string) => (items.data ?? []).find((i) => i.id === id)?.title ?? '과제';
   const got = (shares.data ?? []).filter((s) => s.status === 'sent' || s.status === 'read')
     .sort((a, b) => (a.status === b.status ? (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at) : a.status === 'sent' ? -1 : 1));
   const waiting = (shares.data ?? []).filter((s) => s.status === 'requested');
+  // 팀장이 보류한 요청 — 2주 동안 보여 준다
+  const declined = (shares.data ?? []).filter((s) => s.status === 'declined' && Date.now() - Date.parse(s.updated_at) < 14 * 86400000);
   const open = got.find((s) => s.id === params.get('history')) ?? null;
   const setOpen = (id: string | null) => { const p = new URLSearchParams(params); if (id) p.set('history', id); else p.delete('history'); setParams(p, { replace: !id }); };
-  // 소통 및 피드백(회색 묶음 · 흰 카드)과 구분되게 — 박스 없이, 보라 계열의 '기록 타임라인'
+  // 소통 및 피드백(회색 묶음 · 흰 카드)과 구분되게 — 박스 없이, 보라 계열 카드
   return (
     <section className="min-w-0">
       <div className="flex items-start gap-3 px-1 mb-5">
@@ -155,7 +158,13 @@ export function ReceivedHistories() {
               <p className="text-xs text-slate-400 mt-0.5">팀장님이 정리 중입니다</p>
             </div>
           ))}
-          <button onClick={() => setReqOpen(true)} className="w-full rounded-xl border border-dashed border-violet-300 text-violet-700 text-xs font-semibold px-4 py-2.5 inline-flex items-center justify-center gap-1.5 hover:bg-violet-50"><Inbox size={13} />히스토리 요청하기</button>
+          {declined.map((s) => (
+            <div key={s.id} className="rounded-xl border border-dashed border-slate-200 px-4 py-3">
+              <div className="flex items-center gap-2"><b className="text-sm font-semibold text-slate-500 truncate">{titleOf(s.item_id)}</b><span className="ml-auto shrink-0 text-[11px] text-slate-400">요청 보류</span></div>
+              <p className="text-xs text-slate-400 mt-0.5">팀장님이 이번에는 보류했어요. 필요하면 1on1이나 업무플랫폼에서 직접 물어봐 주세요.</p>
+            </div>
+          ))}
+          {canRequest && <button onClick={() => setReqOpen(true)} className="w-full rounded-xl border border-dashed border-violet-300 text-violet-700 text-xs font-semibold px-4 py-2.5 inline-flex items-center justify-center gap-1.5 hover:bg-violet-50"><Inbox size={13} />히스토리 요청하기</button>}
         </div>
       )}
       {open && <Drawer s={open} title={titleOf(open.item_id)} onClose={() => setOpen(null)} />}

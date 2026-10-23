@@ -76,7 +76,7 @@ export function ActionsPanel({ fallback, only }: { fallback: PeopleAction[]; onl
 function Card({ no, a, ai, name, onDo, onDone, onSkip }: { no: number; a: PeopleAction; ai: boolean; name: string; onDo: (k: 'oo' | 'memo' | 'req' | 'praise') => void; onDone: () => void; onSkip: () => void }) {
   const meta = ACTION_META[a.type] ?? ACTION_META.push;
   const primary = a.type === 'one_on_one' ? { k: 'oo' as const, label: '1on1 잡기', I: CalendarPlus } : a.type === 'praise' ? { k: 'praise' as const, label: '칭찬 배지', I: Award }
-    : a.type === 'observe' ? { k: 'memo' as const, label: '관찰 기록', I: StickyNote } : { k: 'req' as const, ...(a.type === 'support' ? { label: '격려 보내기', I: HeartHandshake } : a.type === 'develop' ? { label: '성장 제안', I: Sprout } : { label: '독려 보내기', I: Send }) };
+    : a.type === 'observe' ? { k: 'memo' as const, label: '관찰 기록', I: StickyNote } : { k: 'req' as const, ...(a.type === 'support' ? { label: '지원·격려 보내기', I: HeartHandshake } : a.type === 'develop' ? { label: '육성 제안', I: Sprout } : { label: '업무 독려 보내기', I: Send }) };
   const extra = a.opener ? { cls: 'text-teal-800', I: MessageCircleQuestion, t: `“${a.opener}”` }
     : a.message ? { cls: 'text-amber-800', I: Award, t: `“${a.message}”` }
     : a.request && a.type !== 'praise' ? { cls: 'text-slate-600', I: Send, t: `보낼 말: ${strip(a.request)}` } : null;

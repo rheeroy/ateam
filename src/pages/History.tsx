@@ -35,7 +35,7 @@ function SendModal({ open, onClose, item, hist, request }: { open: boolean; onCl
   const tagOf = (id: string) => (id === item.owner_id ? '현 담당' : prev.includes(nameOf(id)) ? '전 담당' : names.has(nameOf(id)) ? '관계자' : '');
   const one = to.length === 1 ? to[0] : null;
   const canOwner = !!one && one !== item.owner_id;
-  const go = () => a.send.mutate({ itemId: item.id, toIds: to, note: note.trim(), snapshot: applyEdits(hist.content, hist.edits), requestId: request?.id ?? null, newOwner: canOwner && owner ? one : null },
+  const go = () => a.send.mutate({ itemId: item.id, toIds: to, note: note.trim(), snapshot: applyEdits(hist.content, hist.edits), requestId: request?.id ?? null, requestTo: request?.to_id ?? null, newOwner: canOwner && owner ? one : null },
     { onSuccess: onClose });
   return (
     <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Send size={16} className="text-violet-600" />팀원에게 전달</span>}>
@@ -140,7 +140,8 @@ export default function HistoryPage() {
   const createAll = async (ids: string[]) => {
     setBatch({ done: 0, total: ids.length });
     for (let i = 0; i < ids.length; i += 4) {
-      try { await a.update.mutateAsync({ itemIds: ids.slice(i, i + 4) }); } catch { break; }
+      // 한 묶음이라도 실패(원가 상한 등)하면 멈춘다 — 실패 안내는 update 가 띄운다
+      try { const r = await a.update.mutateAsync({ itemIds: ids.slice(i, i + 4) }); if ((r.results ?? []).some((x) => x.error)) break; } catch { break; }
       setBatch({ done: Math.min(ids.length, i + 4), total: ids.length });
     }
     setBatch(null);
@@ -156,7 +157,7 @@ export default function HistoryPage() {
   return (
     <section>
       <PageHeader title="히스토리 관리" sub="과제별 히스토리를 쌓아 두고, 맥락 전달이 필요할 때 팀원에게 한 번에 보냅니다." />
-      {!hists.data?.length ? (
+      {!hists.data?.length && !requests.length && !sel ? (
         <Card><Empty icon={<HistoryIcon size={18} />} title="과제 히스토리를 만들어 볼까요?"
           action={<Button loading={!!batch} disabled={!targets.length} onClick={() => createAll(targets.map((i) => i.id))}><Sparkles size={14} />{batch ? `만드는 중 ${batch.done}/${batch.total}` : `히스토리 만들기 · 과제 ${targets.length}개`}</Button>}>
           지금까지 쌓인 결과물 · 피드백 · 대화 · 요청 · 변경 이력으로 과제마다 히스토리를 한 장씩 만듭니다. 처음 한 번만 전체를 읽고, 그다음부터는 매주 월요일 아침 새 기록만 합쳐 업데이트합니다.

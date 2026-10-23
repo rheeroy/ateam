@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../state/session';
 import { Button, Spinner, useToast } from '../components/ui';
 import { PasswordForm } from '../components/PasswordForm';
@@ -8,6 +8,10 @@ export default function ResetPassword() {
   const { session, loading } = useSession();
   const nav = useNavigate();
   const toast = useToast();
+  // 초대 링크에서 비밀번호를 찾으러 왔으면 저장 뒤 초대로 돌아간다 (다른 곳은 대시보드)
+  const [params] = useSearchParams();
+  const nextRaw = params.get('next') ?? '';
+  const next = /^\/invite\/[\w-]+$/.test(nextRaw) ? nextRaw : '/';
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
@@ -16,7 +20,7 @@ export default function ResetPassword() {
           <>
             <p className="text-sm text-slate-500 mt-1">{session.user.email}</p>
             <div className="mt-8">
-              <PasswordForm submitLabel="저장하고 시작하기" onDone={() => { toast('비밀번호를 저장했습니다'); nav('/', { replace: true }); }} />
+              <PasswordForm submitLabel="저장하고 시작하기" onDone={() => { toast('비밀번호를 저장했습니다'); nav(next, { replace: true }); }} />
             </div>
           </>
         ) : (

@@ -43,12 +43,14 @@ serve(async (req) => {
     if (caller.userId !== sub.author_id && !isLeader) throw new HttpError(403, 'forbidden');
   }
   const force = !!body.force && isLeader;
+  // 검토 결과(팀장 전용 · visibility leader)는 팀장에게만 돌려준다 — 작성자의 자동 검토 호출에는 완료 여부만
+  const reply = (row: { id?: string } | null | undefined) => json(isLeader ? row : { ok: true, id: row?.id ?? null });
 
   // 버전당 한 번만 (팀장이 '다시 검토'를 누르면 새로)
   if (!force) {
     const { data: existing } = await admin.from('ai_outputs').select('*')
       .eq('kind', 'review').eq('ref_table', 'submission_versions').eq('ref_id', ver.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (existing) return json(existing);
+    if (existing) return reply(existing);
   }
 
   const book = new SourceBook();
@@ -82,7 +84,7 @@ serve(async (req) => {
         content: { ...content0, carried_from: pv!.id, change_from_previous: `v${pv!.version}과 본문이 거의 같습니다(바뀐 분량 약 ${pct}%) — 이전 검토를 이어 씁니다. 크게 고쳤다면 '다시 검토'를 눌러 주세요.` },
         sources: prevAi.sources ?? [], model: 'carried', input_tokens: 0, output_tokens: 0, created_by: caller.userId,
       }).select().single();
-      if (!ce) return json(row);
+      if (!ce) return reply(row);
     }
   }
 
@@ -166,5 +168,5 @@ serve(async (req) => {
       summary: `${sub.title} v${ver.version} — ${name} ${sig > 0 ? '강함' : '약함'} 신호 (AI 1차 검토)`,
     });
   }
-  return json(output);
+  return reply(output);
 });

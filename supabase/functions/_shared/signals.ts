@@ -247,7 +247,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
       id: `goal-risk-${g.goal_id}`, domain: 'goal', type: 'risk', severity: g.probability < 35 ? 3 : 2, periods: WM,
       title: `'${g.title}' 달성 가능성 ${g.probability}%`,
       detail: `일정 대비 진척 ${g.progress}%${g.blocked ? ` · 막힌 하위 항목 ${g.blocked}건` : ''}로 본 전망입니다.`,
-      rule: '하위 항목의 일정 대비 진척(스케줄 지수)', action: { label: '무엇을 바꾸면 되는지 시뮬레이션', to: '/sim' },
+      rule: '하위 항목의 일정 대비 진척(스케줄 지수)', action: { label: '일정 다시 보기', to: '/goals' },
     });
   }
   for (const f of raw.forecasts) {
@@ -265,7 +265,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
           : `${goal ? `'${goal.title}' · ` : ''}${f.name} 기말 전망 ${fmtN(f.base)}${f.unit} (목표 ${fmtN(f.target)}${f.unit})`,
         detail: `${gap >= 0 ? '목표보다 ' + fmtN(gap) + f.unit + ' 많을' : '목표에 ' + fmtN(-gap) + f.unit + ' 못 미칠'} 것으로 보입니다. 80% 범위 ${fmtN(f.low ?? 0)}~${fmtN(f.high ?? 0)}${f.unit}${p != null ? ` · 달성 확률 ${p}%` : ''}.`,
         rule: '최근 3개월 런레이트 + 진행 중 딜 가중합, 변동성으로 범위 계산',
-        action: p != null && p < 50 ? { label: '무엇을 바꾸면 되는지 시뮬레이션', to: '/sim' } : { label: '전망 자세히', to: '/perf' },
+        action: { label: '전망 자세히', to: '/perf' },
       });
     }
   }
@@ -356,7 +356,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const top = [...byOwner.entries()].sort((a, b) => b[1] - a[1])[0];
   if (top && leaves.length >= 6 && nMem >= 3 && top[1] / leaves.length >= 0.4) S.push({ id: `exec-conc-${top[0]}`, domain: 'exec', type: 'pattern', severity: 2, periods: M,
     title: `일이 ${nameOf(top[0])}님에게 몰려 있습니다 (${top[1]}건, 진행 항목의 ${Math.round((top[1] / leaves.length) * 100)}%)`,
-    detail: '한 사람이 막히면 팀 전체 일정이 밀립니다. 재배분을 검토해 보세요.', rule: '한 명이 진행 중인 말단 항목의 40% 이상 담당', action: { label: '시뮬레이션', to: '/sim' } });
+    detail: '한 사람이 막히면 팀 전체 일정이 밀립니다. 재배분을 검토해 보세요.', rule: '한 명이 진행 중인 말단 항목의 40% 이상 담당', action: { label: '팀원관리에서 보기', to: '/people' } });
   const noOwner = work.filter((t) => !t.owner_id);
   if (noOwner.length) S.push({ id: `exec-noowner-${noOwner.length}`, domain: 'exec', type: 'data', severity: 1, periods: M,
     title: `담당자가 없는 항목 ${noOwner.length}건`, detail: noOwner.slice(0, 3).map((t) => t.title).join(' · '), rule: '진행 중인데 담당자 미지정', action: { label: '항목 보기', to: '/goals' } });
@@ -502,7 +502,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const decDue = (raw.decisionsDue ?? []).filter((d) => (d.review_on ? d.review_on <= today : daysSince(d.decided_at) >= 30));
   if (decDue.length) S.push({ id: `decide-review-${decDue.length}`, domain: 'goal', type: 'missed', severity: 1, periods: WM,
     title: `결과를 돌아볼 시점이 지난 결정 ${decDue.length}건`, detail: decDue.slice(0, 3).map((d) => d.title).join(' · '),
-    rule: '회고일이 지났거나 결정 후 30일이 지났는데 결과 기록 없음', action: { label: '결과 기록하기', to: '/strategy' } });
+    rule: '회고일이 지났거나 결정 후 30일이 지났는데 결과 기록 없음', action: { label: '결과 기록하기', to: '/decide' } });
 
   // ---------------- AI 인사이트 수준 ----------------
   const lv = raw.level;

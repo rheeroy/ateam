@@ -95,6 +95,9 @@ const LIMIT = 1000;   // PostgREST 한 번 최대 — 최근 것부터 받아서
 
 /** 과제들의 기록을 출처별로 한 번에 모은다 (since 이후, 최근 것 우선) */
 async function collect(teamId: string, items: Item[], since: string, nameOf: (id: string | null | undefined) => string, initial: boolean): Promise<Rec[]> {
+  // 팀장 메모는 팀장이 쓴 것만 (팀원이 '팀장 메모'로 끼어들지 못하게)
+  const { data: lead } = await admin.from('team_members').select('user_id').eq('team_id', teamId).eq('role', 'leader').eq('status', 'active');
+  const leaderIds = (lead ?? []).map((l) => l.user_id as string);
   const ids = items.map((i) => i.id);
   const recs: Rec[] = [];
   const push = (r: Rec) => recs.push(r);
@@ -106,7 +109,7 @@ async function collect(teamId: string, items: Item[], since: string, nameOf: (id
     byChunks(ids, (x) => admin.from('work_item_comments').select('id, item_id, kind, body, author_id, created_at').in('item_id', x).gt('created_at', since).order('created_at', { ascending: false }).limit(LIMIT), '과제 코멘트'),
     byChunks(ids, (x) => admin.from('submissions').select('id, item_id, title, request_type, kind, status, author_id, created_at').eq('team_id', teamId).in('item_id', x).limit(LIMIT), '결과물'),
     byChunks(ids, (x) => admin.from('team_requests').select('id, item_id, kind, title, body, status, response, from_id, to_id, created_at, responded_at').eq('team_id', teamId).in('item_id', x).or(`created_at.gt.${since},responded_at.gt.${since}`).limit(LIMIT), '요청'),
-    byChunks(ids, (x) => admin.from('leader_notes').select('id, anchor_id, body, created_at').eq('team_id', teamId).eq('anchor_type', 'item').eq('ai_allowed', true).in('anchor_id', x).gt('created_at', since).limit(LIMIT), '팀장 메모'),
+    byChunks(ids, (x) => admin.from('leader_notes').select('id, anchor_id, body, created_at').eq('team_id', teamId).eq('anchor_type', 'item').eq('ai_allowed', true).in('owner_id', leaderIds.length ? leaderIds : ['00000000-0000-0000-0000-000000000000']).in('anchor_id', x).gt('created_at', since).limit(LIMIT), '팀장 메모'),
     byChunks(ids, (x) => admin.from('history_shares').select('id, item_id, note, from_id, to_id, sent_at, created_at, status').eq('team_id', teamId).in('item_id', x).limit(LIMIT), '전달'),
   ]);
 
@@ -295,22 +298,27 @@ async function runTeam(teamId: string, opts: { createdBy: string | null; itemIds
   const fresh = targets.filter((t) => !syncedOf.get(t.id));
   const old = targets.filter((t) => syncedOf.get(t.id));
   const recs: Rec[] = [];
-  if (fresh.length) recs.push(...await collect(teamId, fresh, '1970-01-01T00:00:00Z', nameOf, true));
+  const byItem = new Map<string, Rec[]>();
+  const group = (rs: Rec[]) => { for (const r of rs) { if (!byItem.has(r.item)) byItem.set(r.item, []); byItem.get(r.item)!.push(r); } };
+  const count = (id: string) => byItem.get(id)?.length ?? 0;
   if (old.length) {
-    // 가장 오래 안 바뀐 과제가 창을 너무 넓히지 않게 — 최대 60일
-    const minSince = [old.map((t) => syncedOf.get(t.id)!).sort()[0], new Date(Date.now() - 60 * DAY).toISOString()].sort()[1];
+    // 마지막 반영 이후 기록 — 오래 안 바뀐 과제도 빠짐없이 (과제별로 synced_at 이후만 남긴다)
+    const minSince = old.map((t) => syncedOf.get(t.id)!).sort()[0];
     const got = await collect(teamId, old, minSince, nameOf, false);
     recs.push(...got.filter((r) => r.at > (syncedOf.get(r.item) ?? '')));
   }
-  const byItem = new Map<string, Rec[]>();
-  for (const r of recs) { if (!byItem.has(r.item)) byItem.set(r.item, []); byItem.get(r.item)!.push(r); }
-  // 처음 만들 때 출처가 너무 많으면 최근 것 위주로
-  for (const [k, v] of byItem) if (!syncedOf.get(k) && v.length > 120) byItem.set(k, v.sort((a, b) => a.at.localeCompare(b.at)).slice(-120));
-
-  if (opts.weekly) {
-    targets = targets.filter((t) => (byItem.get(t.id)?.length ?? 0) > 0)   // 새 기록이 있는 과제만 (아직 없던 과제도 기록이 있으면 새로 만든다)
-      .sort((a, b) => (byItem.get(b.id)?.length ?? 0) - (byItem.get(a.id)?.length ?? 0)).slice(0, WEEKLY_MAX);
+  group(recs);
+  // 매주: 이미 만든 히스토리 업데이트가 먼저, 남는 자리에만 새 과제
+  const oldTargets = opts.weekly ? old.filter((t) => count(t.id) > 0).sort((a, b) => count(b.id) - count(a.id)).slice(0, WEEKLY_MAX) : old;
+  const slots = opts.weekly ? WEEKLY_MAX - oldTargets.length : fresh.length;
+  let freshTargets: typeof fresh = [];
+  if (fresh.length && slots > 0) {
+    group(await collect(teamId, fresh, '1970-01-01T00:00:00Z', nameOf, true));
+    // 처음 만들 때 출처가 너무 많으면 최근 것 위주로
+    for (const t of fresh) { const v = byItem.get(t.id); if (v && v.length > 120) byItem.set(t.id, v.sort((a, b) => a.at.localeCompare(b.at)).slice(-120)); }
+    freshTargets = opts.weekly ? fresh.filter((t) => count(t.id) > 0).sort((a, b) => count(b.id) - count(a.id)).slice(0, slots) : fresh;
   }
+  targets = opts.weekly ? [...oldTargets, ...freshTargets] : targets.filter((t) => syncedOf.get(t.id) || freshTargets.includes(t));
   const ctx = { teamId, createdBy: opts.createdBy, nameOf, members, others: all, startedAt, force: opts.force };
   const results: unknown[] = [];
   for (let i = 0; i < targets.length; i += PARALLEL) {

@@ -58,7 +58,7 @@ export default function Login() {
         if (data.user && !data.user.identities?.length) throw new Error('ALREADY_REGISTERED');
         if (!data.session) setSent(`${email}로 가입 확인 메일을 보냈습니다. 메일의 링크를 누르면 가입이 끝납니다.`);
       } else if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password${next.startsWith('/invite/') ? `?next=${encodeURIComponent(next)}` : ''}` });
         if (error) throw error;
         setSent(`${email}로 비밀번호 재설정 링크를 보냈습니다.`);
       } else {

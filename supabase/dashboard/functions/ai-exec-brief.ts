@@ -137,8 +137,12 @@ function parseJson(text) {
       return JSON.parse(src.slice(start, end + 1));
     } catch {
     }
+    try {
+      return JSON.parse(escapeControls(src.slice(start, end + 1)));
+    } catch {
+    }
   }
-  const fixed = closeTruncated(src.slice(start));
+  const fixed = closeTruncated(escapeControls(src.slice(start)));
   if (fixed) {
     try {
       return JSON.parse(fixed);
@@ -146,6 +150,33 @@ function parseJson(text) {
     }
   }
   throw new HttpError(502, "AI_BAD_OUTPUT", text.slice(0, 300));
+}
+function escapeControls(s) {
+  let out = "", inStr = false, esc = false;
+  for (const c of s) {
+    if (inStr) {
+      if (esc) {
+        esc = false;
+        out += c;
+        continue;
+      }
+      if (c === "\\") {
+        esc = true;
+        out += c;
+        continue;
+      }
+      if (c === '"') {
+        inStr = false;
+        out += c;
+        continue;
+      }
+      out += c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "	" ? "\\t" : c;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    out += c;
+  }
+  return out;
 }
 function closeTruncated(s) {
   const stack = [];
@@ -191,7 +222,8 @@ var CORE = [
   "exec_brief",
   "coaching",
   "checkin_draft",
-  "work_brief"
+  "work_brief",
+  "task_history"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -210,6 +242,7 @@ var CREDITS = {
   coaching: 0,
   checkin_draft: 0,
   work_brief: 0,
+  task_history: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -238,14 +271,18 @@ var SourceBook = class {
 ${ls.join("\n")}` : `## ${title}
 (\uAE30\uB85D \uC5C6\uC74C)`;
   }
-  /** 팀장의 기준 섹션 + 컨설팅 기준 섹션 (없으면 빈 문자열) */
+  /** 지금까지 실은 기록 본문 (노하우 제외) — 플레이북 카드를 상황에 맞게 고를 때 쓴다 */
+  evidenceText() {
+    return this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line).join("\n");
+  }
+  /** 팀장의 기준 섹션 + ATEAM 플레이북 섹션 (없으면 빈 문자열) */
   knowhowText() {
     const own = this.lines.filter((l) => l.type === "knowhow").map((l) => l.line);
     const con = this.lines.filter((l) => l.type === "consulting").map((l) => l.line);
     return [
       own.length ? `## \uD300\uC7A5\uC758 \uAE30\uC900 (\uD300\uC7A5\uC774 \uC9C1\uC811 \uB123\uC740 \uB178\uD558\uC6B0 \u2014 \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120)
 ${own.join("\n")}` : "",
-      con.length ? `## \uCEE8\uC124\uD305 \uAE30\uC900 (\uAE30\uBCF8 \uC81C\uACF5 \u2014 \uD300\uC7A5\uC758 \uAE30\uC900\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB984)
+      con.length ? `## ATEAM \uD50C\uB808\uC774\uBD81 (\uAC80\uC99D\uB41C \uC5C5\uBB34 \uBC29\uBC95\uB860 \uC911 \uC774 \uC0C1\uD669\uC5D0 \uB9DE\uB294 \uAC83 \u2014 \uD300\uC7A5\uC758 \uAE30\uC900\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB984)
 ${con.join("\n")}` : ""
     ].filter(Boolean).join("\n\n");
   }
@@ -263,23 +300,68 @@ ${con.join("\n")}` : ""
   }
 };
 var KH_TYPES = ["knowhow", "consulting"];
-async function addKnowhow(book, teamId, feature, limitChars = 2600, onlyShared = false, consulting = true) {
-  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at, source").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
+var FEATURE_DOMAINS = {
+  review: ["logic", "writing", "creative", "decision"],
+  report: ["writing", "comm"],
+  prep: ["coach"],
+  briefing: ["team", "decision", "coach"],
+  strategy: ["goal", "decision", "creative"],
+  scenario: ["team", "decision"],
+  plan: ["goal", "creative", "logic"],
+  evaluation: []
+};
+var MAX_PLAYBOOK = 8;
+var tplCache = null;
+async function templateMeta() {
+  if (tplCache && Date.now() - tplCache.at < 10 * 6e4) return tplCache.map;
+  const { data, error } = await admin.from("knowhow_templates").select("key, tier, domain, sort");
+  const map = /* @__PURE__ */ new Map();
+  if (!error) for (const t of data ?? []) map.set(t.key, { tier: t.tier ?? 2, domain: t.domain ?? "", sort: t.sort ?? 0 });
+  tplCache = { at: Date.now(), map };
+  return map;
+}
+var norm = (s) => s.toLowerCase().replace(/[\s·・\-_/()'"‘’“”]/g, "");
+function playbookScore(c, meta, feature, ctx) {
+  const m = meta.get(c.template_key ?? "");
+  let s = c.pinned ? 100 : 0;
+  if (m?.tier === 1) s += 3;
+  if (m && FEATURE_DOMAINS[feature]?.includes(m.domain)) s += 2;
+  if (ctx) {
+    let hits = 0;
+    for (const k of c.keywords ?? []) {
+      const nk = norm(k);
+      if (nk.length >= 2 && ctx.includes(nk)) hits++;
+    }
+    s += Math.min(hits, 4) * 3;
+  }
+  return s;
+}
+async function addKnowhow(book, teamId, feature, limitChars = 3200, onlyShared = false, consulting = true, context = "", own = true) {
+  let qb = admin.from("knowhow_cards").select("id, kind, title, body, rules, pinned, updated_at, source, template_key, keywords").eq("team_id", teamId).eq("active", true).contains("applies_to", [feature]);
   if (onlyShared) qb = qb.eq("shared", true);
-  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(40);
+  const { data } = await qb.order("pinned", { ascending: false }).order("updated_at", { ascending: false }).limit(160);
   const rows = data ?? [];
   const isCon = (c) => c.source === "consulting";
-  const ordered = [...rows.filter((c) => !isCon(c)), ...consulting ? rows.filter(isCon) : []];
-  let used = 0, n = 0;
+  let con = consulting ? rows.filter(isCon) : [];
+  if (con.length > 1) {
+    const meta = await templateMeta();
+    const ctx = norm((context || book.evidenceText()).slice(0, 2e4));
+    con = con.map((c) => ({ c, s: playbookScore(c, meta, feature, ctx), o: meta.get(c.template_key ?? "")?.sort ?? 9999 })).sort((a, b) => b.s - a.s || a.o - b.o).map((x) => x.c);
+  }
+  const ordered = [...own ? rows.filter((c) => !isCon(c)) : [], ...con];
+  let used = 0, n = 0, nCon = 0;
   for (const c of ordered) {
     const rules = Array.isArray(c.rules) ? c.rules.filter(Boolean) : [];
     const text = `${c.body}${rules.length ? ` / \uADDC\uCE59: ${rules.join(" \xB7 ")}` : ""}`;
+    if (isCon(c) && nCon >= MAX_PLAYBOOK) break;
     if (used + text.length > limitChars && n > 0) {
       if (isCon(c)) break;
       continue;
     }
-    if (isCon(c)) book.add("consulting", c.id, `\uCEE8\uC124\uD305 \uAE30\uC900 \xB7 ${c.title}`, text);
-    else book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
+    if (isCon(c)) {
+      book.add("consulting", c.id, `ATEAM \uD50C\uB808\uC774\uBD81 \xB7 ${c.title}`, text);
+      nCon++;
+    } else book.add("knowhow", c.id, `\uB0B4 \uB178\uD558\uC6B0 \xB7 ${c.title}`, text);
     used += text.length;
     n++;
   }
@@ -300,7 +382,7 @@ var BASE_RULES = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uAE30\uC5C5 \uD300\uC7A5\uC75
 5. \uBB38\uCCB4: \uD55C\uAD6D \uAE30\uC5C5 \uC2E4\uBB34 \uBCF4\uACE0\uC11C\uCC98\uB7FC \uC9E7\uACE0 \uB2F4\uBC31\uD558\uAC8C, '~\uD569\uB2C8\uB2E4'\uCCB4. \uACFC\uC7A5, \uAC10\uD0C4, \uC601\uC5B4 \uC9C1\uC5ED\uD22C, \uC774\uBAA8\uC9C0\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 6. \uCD9C\uB825\uC740 \uC694\uCCAD\uD55C JSON \uAC1D\uCCB4 \uD558\uB098\uB9CC. \uC55E\uB4A4 \uC124\uBA85\uC774\uB098 \uCF54\uB4DC \uD39C\uC2A4\uB97C \uBD99\uC774\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 7. '\uD300\uC7A5\uC758 \uAE30\uC900' \uC139\uC158\uC774 \uC788\uC73C\uBA74 \uADF8 \uAE30\uC900\uC744 \uC77C\uBC18\uC801\uC778 \uC0C1\uC2DD\uBCF4\uB2E4 \uC6B0\uC120\uD574 \uC801\uC6A9\uD558\uACE0, \uAE30\uC900\uC744 \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uAE30\uC900\uACFC \uAE30\uB85D\uC774 \uC5B4\uAE0B\uB098\uBA74 \uADF8 \uC810\uC744 \uC9DA\uC2B5\uB2C8\uB2E4.
-8. '\uCEE8\uC124\uD305 \uAE30\uC900' \uC139\uC158\uC740 \uAE30\uBCF8 \uC81C\uACF5 \uAE30\uC900\uC785\uB2C8\uB2E4. \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4\uB294 \uC6B0\uC120\uD558\uB418 '\uD300\uC7A5\uC758 \uAE30\uC900'\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB974\uACE0, \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4.`;
+8. 'ATEAM \uD50C\uB808\uC774\uBD81' \uC139\uC158\uC740 \uC774 \uC0C1\uD669\uC5D0 \uB9DE\uCDB0 \uACE0\uB978 \uAC80\uC99D\uB41C \uC5C5\uBB34 \uBC29\uBC95\uB860\uC785\uB2C8\uB2E4. \uC77C\uBC18 \uC0C1\uC2DD\uBCF4\uB2E4\uB294 \uC6B0\uC120\uD558\uB418 '\uD300\uC7A5\uC758 \uAE30\uC900'\uACFC \uC5B4\uAE0B\uB098\uBA74 \uD300\uC7A5\uC758 \uAE30\uC900\uC744 \uB530\uB985\uB2C8\uB2E4. \uC2E4\uC81C\uB85C \uC774 \uAE30\uB85D\uC5D0 \uB4E4\uC5B4\uB9DE\uB294 \uBC29\uBC95\uB860\uB9CC \uC4F0\uACE0, \uC801\uC6A9\uD55C \uBB38\uC7A5\uC5D0\uB294 \uD574\uB2F9 \uADFC\uAC70 \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uBC29\uBC95\uB860 \uC774\uB984\uC744 \uB298\uC5B4\uB193\uAC70\uB098 \uC774\uB860\uC744 \uC124\uBA85\uD558\uC9C0 \uB9D0\uACE0, \uAE30\uB85D\uC5D0 \uBE44\uCD98 \uAD6C\uCCB4\uC801\uC778 \uD310\uB2E8\uACFC \uD589\uB3D9\uC73C\uB85C \uC501\uB2C8\uB2E4.`;
 async function assertCredits(teamId, need) {
   const { data, error } = await admin.rpc("credit_status", { p_team: teamId });
   if (error) throw error;
@@ -682,7 +764,7 @@ function analyze(raw, members) {
       title: `'${g.title}' \uB2EC\uC131 \uAC00\uB2A5\uC131 ${g.probability}%`,
       detail: `\uC77C\uC815 \uB300\uBE44 \uC9C4\uCC99 ${g.progress}%${g.blocked ? ` \xB7 \uB9C9\uD78C \uD558\uC704 \uD56D\uBAA9 ${g.blocked}\uAC74` : ""}\uB85C \uBCF8 \uC804\uB9DD\uC785\uB2C8\uB2E4.`,
       rule: "\uD558\uC704 \uD56D\uBAA9\uC758 \uC77C\uC815 \uB300\uBE44 \uC9C4\uCC99(\uC2A4\uCF00\uC904 \uC9C0\uC218)",
-      action: { label: "\uBB34\uC5C7\uC744 \uBC14\uAFB8\uBA74 \uB418\uB294\uC9C0 \uC2DC\uBBAC\uB808\uC774\uC158", to: "/sim" }
+      action: { label: "\uC77C\uC815 \uB2E4\uC2DC \uBCF4\uAE30", to: "/goals" }
     });
   }
   for (const f of raw.forecasts) {
@@ -711,7 +793,7 @@ function analyze(raw, members) {
         title: p != null && p < 50 && goal ? `'${goal.title}' \uB2EC\uC131 \uAC00\uB2A5\uC131 ${p}% \u2014 ${f.name} \uAE30\uB9D0 \uC804\uB9DD ${fmtN(f.base)}${f.unit} (\uBAA9\uD45C ${fmtN(f.target)}${f.unit})` : `${goal ? `'${goal.title}' \xB7 ` : ""}${f.name} \uAE30\uB9D0 \uC804\uB9DD ${fmtN(f.base)}${f.unit} (\uBAA9\uD45C ${fmtN(f.target)}${f.unit})`,
         detail: `${gap >= 0 ? "\uBAA9\uD45C\uBCF4\uB2E4 " + fmtN(gap) + f.unit + " \uB9CE\uC744" : "\uBAA9\uD45C\uC5D0 " + fmtN(-gap) + f.unit + " \uBABB \uBBF8\uCE60"} \uAC83\uC73C\uB85C \uBCF4\uC785\uB2C8\uB2E4. 80% \uBC94\uC704 ${fmtN(f.low ?? 0)}~${fmtN(f.high ?? 0)}${f.unit}${p != null ? ` \xB7 \uB2EC\uC131 \uD655\uB960 ${p}%` : ""}.`,
         rule: "\uCD5C\uADFC 3\uAC1C\uC6D4 \uB7F0\uB808\uC774\uD2B8 + \uC9C4\uD589 \uC911 \uB51C \uAC00\uC911\uD569, \uBCC0\uB3D9\uC131\uC73C\uB85C \uBC94\uC704 \uACC4\uC0B0",
-        action: p != null && p < 50 ? { label: "\uBB34\uC5C7\uC744 \uBC14\uAFB8\uBA74 \uB418\uB294\uC9C0 \uC2DC\uBBAC\uB808\uC774\uC158", to: "/sim" } : { label: "\uC804\uB9DD \uC790\uC138\uD788", to: "/perf" }
+        action: { label: "\uC804\uB9DD \uC790\uC138\uD788", to: "/perf" }
       });
     }
   }
@@ -922,7 +1004,7 @@ function analyze(raw, members) {
     title: `\uC77C\uC774 ${nameOf(top[0])}\uB2D8\uC5D0\uAC8C \uBAB0\uB824 \uC788\uC2B5\uB2C8\uB2E4 (${top[1]}\uAC74, \uC9C4\uD589 \uD56D\uBAA9\uC758 ${Math.round(top[1] / leaves.length * 100)}%)`,
     detail: "\uD55C \uC0AC\uB78C\uC774 \uB9C9\uD788\uBA74 \uD300 \uC804\uCCB4 \uC77C\uC815\uC774 \uBC00\uB9BD\uB2C8\uB2E4. \uC7AC\uBC30\uBD84\uC744 \uAC80\uD1A0\uD574 \uBCF4\uC138\uC694.",
     rule: "\uD55C \uBA85\uC774 \uC9C4\uD589 \uC911\uC778 \uB9D0\uB2E8 \uD56D\uBAA9\uC758 40% \uC774\uC0C1 \uB2F4\uB2F9",
-    action: { label: "\uC2DC\uBBAC\uB808\uC774\uC158", to: "/sim" }
+    action: { label: "\uD300\uC6D0\uAD00\uB9AC\uC5D0\uC11C \uBCF4\uAE30", to: "/people" }
   });
   const noOwner = work.filter((t) => !t.owner_id);
   if (noOwner.length) S.push({
@@ -1289,7 +1371,7 @@ function analyze(raw, members) {
     title: `\uACB0\uACFC\uB97C \uB3CC\uC544\uBCFC \uC2DC\uC810\uC774 \uC9C0\uB09C \uACB0\uC815 ${decDue.length}\uAC74`,
     detail: decDue.slice(0, 3).map((d) => d.title).join(" \xB7 "),
     rule: "\uD68C\uACE0\uC77C\uC774 \uC9C0\uB0AC\uAC70\uB098 \uACB0\uC815 \uD6C4 30\uC77C\uC774 \uC9C0\uB0AC\uB294\uB370 \uACB0\uACFC \uAE30\uB85D \uC5C6\uC74C",
-    action: { label: "\uACB0\uACFC \uAE30\uB85D\uD558\uAE30", to: "/strategy" }
+    action: { label: "\uACB0\uACFC \uAE30\uB85D\uD558\uAE30", to: "/decide" }
   });
   const lv = raw.level;
   if (lv && lv.level < 5) {
