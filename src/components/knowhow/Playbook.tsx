@@ -253,8 +253,6 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
   const counts = useMemo(() => cards.reduce((a, c) => ((a[domainOf(c)] = (a[domainOf(c)] ?? 0) + 1), a), {} as Record<PlaybookDomain, number>), [cards]);
   const isOn = (c: PlaybookCard) => (locked ? !!c.locked_active : c.active);
   const nOn = locked ? 0 : cards.filter(isOn).length;
-  const used = cards.reduce((a, c) => a + c.use_count, 0);
-  const nGlobal = cards.filter((c) => c.tpl?.origin_type === 'global').length;
 
   const list = useMemo(() => {
     const qq = query.trim().toLowerCase();
@@ -283,13 +281,14 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
             <div className="flex items-center gap-2 text-[13px] font-semibold text-[#D9B970]"><Library size={15} />{PLAYBOOK}</div>
             <h2 className="mt-3 text-[26px] sm:text-[30px] font-extrabold leading-[1.28] tracking-[-0.025em]">일 잘하는 방법 {cards.length || 78}가지를<br /><CoreAI supCls="text-violet-300" />가 상황에 맞게 꺼내 씁니다</h2>
             <p className="mt-3 text-[14px] leading-[1.75] text-slate-300">
-              글로벌 컨설팅펌·연구기관이 검증한 방법론과 국내 성과관리 현장 컨설팅의 기준을 실무 카드로 정리했습니다.
-              결과물 검토, 1on1 준비, 보고 초안을 쓸 때 <CoreAI supCls="text-violet-300" />가 지금 상황에 맞는 카드를 골라 근거 표시와 함께 적용합니다.
+              글로벌 컨설팅펌·연구기관이 20년 이상 현장에서 업무 노하우를 집대성했습니다.
+              보고서 작성, 업무 수행, 조직 관리, 1on1 등 지금 상황에 맞게 <CoreAI supCls="text-violet-300" />가 적용합니다.
             </p>
-            <dl className="mt-6 grid grid-cols-3 gap-4 max-w-md">
+            <dl className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-xl">
+              <div><dt className="text-[11px] text-slate-400">Framework</dt><dd className="mt-0.5 text-lg font-bold num">{DOMAIN_ORDER.length}<span className="text-sm font-medium text-slate-400">대 영역</span></dd></div>
+              <div><dt className="text-[11px] text-slate-400">Period</dt><dd className="mt-0.5 text-lg font-bold num">20<span className="text-sm font-medium text-slate-400"> year+</span></dd></div>
+              <div><dt className="text-[11px] text-slate-400">Practice</dt><dd className="mt-0.5 text-lg font-bold num">2,000<span className="text-sm font-medium text-slate-400">+</span></dd></div>
               <div><dt className="text-[11px] text-slate-400"><CoreAI supCls="text-violet-300" />가 쓰는 카드</dt><dd className="mt-0.5 text-lg font-bold num">{nOn}<span className="text-sm font-medium text-slate-400"> / {cards.length}</span></dd></div>
-              <div><dt className="text-[11px] text-slate-400">글로벌 · 현장</dt><dd className="mt-0.5 text-lg font-bold num">{nGlobal}<span className="text-sm font-medium text-slate-400"> · {cards.length - nGlobal}</span></dd></div>
-              <div><dt className="text-[11px] text-slate-400"><CoreAI supCls="text-violet-300" /> 적용 횟수</dt><dd className="mt-0.5 text-lg font-bold num">{used}<span className="text-sm font-medium text-slate-400">회</span></dd></div>
             </dl>
           </div>
           <div className="lg:w-[440px] min-w-0">
