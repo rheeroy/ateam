@@ -1,4 +1,4 @@
-// 노하우 카드 공통 이름 — 노하우 라이브러리(내 노하우 · ATEAM 플레이북)에서 같이 쓴다
+// 노하우 카드 공통 이름 — 노하우 라이브러리(내 노하우 · ATEAM Method™)에서 같이 쓴다
 import type { KnowhowFeature, KnowhowKind } from './types';
 
 export const KH_KIND: Record<KnowhowKind, { label: string; desc: string; tone: 'indigo' | 'emerald' | 'amber' | 'violet' | 'slate' | 'rose' }> = {

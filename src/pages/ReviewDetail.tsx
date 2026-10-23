@@ -104,7 +104,7 @@ export function AiReview({ teamId, version, versions, reviewOf, onPick, onToComm
                       {c.met ? <CheckCircle2 size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <XCircle size={15} className="text-rose-500 mt-0.5 shrink-0" />}
                       <span className="text-slate-700">
                         <b className="font-semibold">{c.criterion}</b>
-                        {src?.type === 'consulting' && <span className="ml-1 align-[1px] inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold text-[#7D5414] bg-[#FAF1E1]"><Library size={10} />플레이북</span>}
+                        {src?.type === 'consulting' && <span className="ml-1 align-[1px] inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold text-[#7D5414] bg-[#FAF1E1]"><Library size={10} />ATEAM Method™</span>}
                         {src?.type === 'knowhow' && <span className="ml-1 align-[1px] rounded px-1 py-px text-[10px] font-semibold text-indigo-700 bg-indigo-100/70">내 기준</span>}
                         {' '}— {c.note}{c.tag && <TaggedText text={` [${c.tag}]`} sources={r.sources} />}
                       </span>

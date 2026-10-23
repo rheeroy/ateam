@@ -1,4 +1,4 @@
-// 노하우 라이브러리 › ATEAM 플레이북 — 기본 제공 방법론 카드를 영역(책등)별로 보고, 켜고 끄고, 우리 팀에 맞게 고친다
+// 노하우 라이브러리 › ATEAM Method™ — 기본 제공 방법론 카드를 영역(책등)별로 보고, 켜고 끄고, 우리 팀에 맞게 고친다
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -45,7 +45,7 @@ function Shelf({ counts, value, onPick }: { counts: Record<PlaybookDomain, numbe
   const heights = [178, 196, 168, 188, 174, 198, 182, 170];
   return (
     <div className="relative">
-      <div className="flex items-end gap-[5px] h-[212px] overflow-x-auto overflow-y-hidden pt-4 px-1 -mx-1" role="tablist" aria-label="플레이북 영역">
+      <div className="flex items-end gap-[5px] h-[212px] overflow-x-auto overflow-y-hidden pt-4 px-1 -mx-1" role="tablist" aria-label="ATEAM Method 영역">
         {DOMAIN_ORDER.map((d, i) => {
           const m = DOMAINS[d];
           const on = value === d;
@@ -193,7 +193,7 @@ function Detail({ c, locked, onClose }: { c: PlaybookCard; locked: boolean; onCl
           <section className="border-t border-slate-100 pt-5 space-y-4">
             {locked && (
               <div className="rounded-lg bg-[#FAF1E1] text-[#6B4A12] px-3.5 py-2.5 text-xs leading-relaxed flex gap-2">
-                <Lock size={13} className="mt-0.5 shrink-0" /><span>지금 요금제에서는 읽기만 할 수 있습니다. Pro부터 <CoreAI />가 플레이북을 함께 씁니다. <Link to="/settings?tab=billing" className="font-semibold underline">요금제 보기</Link></span>
+                <Lock size={13} className="mt-0.5 shrink-0" /><span>지금 요금제에서는 읽기만 할 수 있습니다. Pro부터 <CoreAI />가 ATEAM Method™를 함께 씁니다. <Link to="/settings?tab=billing" className="font-semibold underline">요금제 보기</Link></span>
               </div>
             )}
             <div className="flex items-center justify-between gap-3">
@@ -221,7 +221,7 @@ function Detail({ c, locked, onClose }: { c: PlaybookCard; locked: boolean; onCl
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-[11px] text-slate-400">평가 초안과 팀원 액션에는 플레이북을 쓰지 않습니다.</p>
+              <p className="mt-1.5 text-[11px] text-slate-400">평가 초안과 팀원 액션에는 ATEAM Method™를 쓰지 않습니다.</p>
             </div>
           </section>
         </div>
@@ -269,7 +269,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
 
   const restore = useMutation({
     mutationFn: (teamId: string) => q<number>(supabase.rpc('restore_consulting_cards', { p_team: teamId })),
-    onSuccess: (n) => { toast(n ? `지웠던 플레이북 카드 ${n}장을 다시 넣었습니다` : '빠진 플레이북 카드가 없습니다'); qc.invalidateQueries({ queryKey: ['knowhow-cards'] }); },
+    onSuccess: (n) => { toast(n ? `지웠던 Method 카드 ${n}장을 다시 넣었습니다` : '빠진 Method 카드가 없습니다'); qc.invalidateQueries({ queryKey: ['knowhow-cards'] }); },
     onError: (e) => toast(errorText(e)),
   });
   const teamId = cards[0]?.team_id;
@@ -305,7 +305,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
           <h3 className="font-semibold"><CoreAI />가 판단할 때 기준을 쓰는 순서</h3>
           <ol className="mt-3 space-y-2.5 text-sm">
             <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 num">1</span>
-              <span><b>팀장님의 노하우</b> <span className="text-slate-500">— 늘 가장 먼저. 플레이북과 어긋나면 팀장님 기준을 따릅니다</span></span></li>
+              <span><b>팀장님의 노하우</b> <span className="text-slate-500">— 늘 가장 먼저. ATEAM Method™와 어긋나면 팀장님 기준을 따릅니다</span></span></li>
             <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-[#101A33] text-[#D9B970] text-[11px] font-bold flex items-center justify-center shrink-0 num">2</span>
               <span><b>{PLAYBOOK}</b> <span className="text-slate-500">— 결과물 본문과 기록을 읽고 맞는 카드를 최대 8장 골라 씁니다</span></span></li>
             <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center shrink-0 num">3</span>
@@ -331,7 +331,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
       {locked && (
         <div className="rounded-xl bg-[#FAF1E1] border border-[#EBD9B3] px-4 py-3 text-sm text-[#6B4A12] flex items-start gap-2.5">
           <Lock size={15} className="mt-0.5 shrink-0" />
-          <span className="flex-1">지금 요금제에서는 플레이북을 읽어 볼 수만 있습니다. <b>Pro부터 <CoreAI />가 {cards.length}개 방법론을 결과물 검토·1on1·보고에 함께 씁니다.</b> 팀장님 노하우는 지금 요금제에서도 그대로 반영됩니다.</span>
+          <span className="flex-1">지금 요금제에서는 ATEAM Method™를 읽어 볼 수만 있습니다. <b>Pro부터 <CoreAI />가 {cards.length}개 방법론을 결과물 검토·1on1·보고에 함께 씁니다.</b> 팀장님 노하우는 지금 요금제에서도 그대로 반영됩니다.</span>
           <Link to="/settings?tab=billing" className="shrink-0 font-semibold underline whitespace-nowrap">요금제 보기</Link>
         </div>
       )}
@@ -378,7 +378,7 @@ export function PlaybookTab({ cards, locked, onAddMine, ready }: { cards: Playbo
       {!locked && teamId && (
         <div className="pt-2 text-center">
           <button className="text-xs text-slate-400 hover:text-slate-700 inline-flex items-center gap-1" disabled={restore.isPending} onClick={() => restore.mutate(teamId)}>
-            <RotateCcw size={12} />지웠던 플레이북 카드 다시 받기
+            <RotateCcw size={12} />지웠던 Method 카드 다시 받기
           </button>
         </div>
       )}

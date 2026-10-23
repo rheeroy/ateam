@@ -58,7 +58,7 @@ serve(async (req) => {
   if (book.size === 0) throw new HttpError(422, 'NO_DATA', `${member.full_name} 님의 최근 업무 기록이 아직 적어 코칭할 점을 찾지 못했습니다.`);
   // 팀장님 업무 원칙: 팀원에게 공개한 '팀장 가이드'만 (공개 안 한 개인 노하우는 싣지 않음 — 팀원에게 그대로 보이는 글)
   await addKnowhow(book, team_id, 'review', 1200, true, false, '', true);
-  // ATEAM 플레이북(컨설팅 DB): 이 팀원의 약한 면에 맞는 방법론 몇 장
+  // ATEAM Method™(컨설팅 DB): 이 팀원의 약한 면에 맞는 방법론 몇 장
   await addKnowhow(book, team_id, 'review', 1600, false, true, '', false);
   const playbook = book.knowhowText();
   const text = [

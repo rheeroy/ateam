@@ -1,4 +1,4 @@
-// 노하우 라이브러리 — AI가 일할 때 따르는 기준: ① 팀장님의 노하우(직접 넣은 카드) ② ATEAM 플레이북(기본 제공 방법론)
+// 노하우 라이브러리 — AI가 일할 때 따르는 기준: ① 팀장님의 노하우(직접 넣은 카드) ② ATEAM Method™(기본 제공 방법론)
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -237,7 +237,7 @@ export default function Knowhow() {
 
   return (
     <section>
-      <PageHeader title="노하우 라이브러리" sub={aiText('AI가 일할 때 따르는 기준입니다 — 팀장님이 넣은 노하우가 먼저, 그다음 ATEAM 플레이북')} />
+      <PageHeader title="노하우 라이브러리" sub={aiText('AI가 일할 때 따르는 기준입니다 — 팀장님이 넣은 노하우가 먼저, 그다음 ATEAM Method™')} />
       <div className="mb-6">
         <Tabs value={tab} onChange={setTab} items={[
           { id: 'playbook', label: <><Library size={15} />{PLAYBOOK} <span className="num text-xs text-slate-400">{playbook.length}</span></> },
@@ -247,7 +247,7 @@ export default function Knowhow() {
 
       {tab === 'playbook' ? (
         cards.isLoading ? <Spinner /> : !playbook.length ? (
-          <Card><Empty icon={<Library size={18} />} title="플레이북 카드가 아직 없습니다">
+          <Card><Empty icon={<Library size={18} />} title="Method 카드가 아직 없습니다">
             관리자가 29_playbook.sql 을 실행하면 이 팀에 기본 방법론 카드가 들어옵니다.
           </Empty></Card>
         ) : <PlaybookTab cards={playbook} locked={locked} ready={!tpls.isLoading} onAddMine={() => setTab('mine')} />
@@ -293,7 +293,7 @@ export default function Knowhow() {
             <div className="lg:col-span-3 space-y-4">
               <div className="text-sm text-slate-600">카드 <b className="font-mono">{mine.length}</b> · <CoreAI />가 사용 <b className="font-mono">{active}</b> · 지금까지 <CoreAI /> 결과에 <b className="font-mono">{used}</b>번 반영</div>
               <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-xs text-slate-600 leading-relaxed">
-                팀장님 카드는 모든 <CoreAI /> 기능에서 <b>가장 먼저</b> 읽힙니다. {PLAYBOOK}과 어긋나면 팀장님 카드를 따릅니다.
+                팀장님 카드는 모든 <CoreAI /> 기능에서 <b>가장 먼저</b> 읽힙니다. {PLAYBOOK}와 어긋나면 팀장님 카드를 따릅니다.
               </div>
               <div className="flex gap-1.5 flex-wrap text-xs">
                 <button onClick={() => setKind('all')} className={cx('rounded-full border px-3 py-1', kind === 'all' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-semibold' : 'border-slate-200 bg-white')}>전체 {mine.length}</button>

@@ -7,7 +7,7 @@ import { cx } from '../lib/format';
 import { PLAYBOOK, methodTitle } from '../lib/playbook';
 import { AiMark, aiText } from './Brand';
 
-/** 근거 중 '기준'(내 노하우 · ATEAM 플레이북)은 기록과 나눠 '적용한 기준'으로 보여 준다 */
+/** 근거 중 '기준'(내 노하우 · ATEAM Method™)은 기록과 나눠 '적용한 기준'으로 보여 준다 */
 const isMethod = (s: SourceRef | string) => typeof s !== 'string' && (s.type === 'knowhow' || s.type === 'consulting');
 
 export type ProvKind = 'ai' | 'calc' | 'edited' | 'final' | 'hold';
@@ -147,7 +147,7 @@ export function ProvChip({ kind, label, sources = [], level, depth, note, classN
                           {s.type === 'consulting'
                             ? <Library size={13} className="mt-[3px] shrink-0 text-[#9A6A1F]" aria-label={PLAYBOOK} />
                             : <BookOpen size={13} className="mt-[3px] shrink-0 text-indigo-500" aria-label="내 노하우" />}
-                          <span className="text-slate-700">{methodTitle(s.label)}<span className="ml-1 text-[11px] text-slate-400">{s.type === 'consulting' ? '플레이북' : '내 노하우'}</span></span>
+                          <span className="text-slate-700">{methodTitle(s.label)}<span className="ml-1 text-[11px] text-slate-400">{s.type === 'consulting' ? 'ATEAM Method™' : '내 노하우'}</span></span>
                         </li>
                       ))}
                     </ul>

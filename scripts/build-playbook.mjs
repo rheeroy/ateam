@@ -153,8 +153,8 @@ begin
         jsonb_build_object('tag', 'E1', 'type', 'knowhow', 'id', k_concl, 'label', '내 노하우 · 결론부터, 한 장으로'),
         jsonb_build_object('tag', 'E2', 'type', 'knowhow', 'id', k_plan, 'label', '내 노하우 · 좋은 기획서의 조건'),
         jsonb_build_object('tag', 'E3', 'type', 'knowhow', 'id', k_num, 'label', '내 노하우 · 숫자에는 출처와 비교 기준'),
-        jsonb_build_object('tag', 'E4', 'type', 'consulting', 'id', p_hyp, 'label', 'ATEAM 플레이북 · 가설부터 세우고 검증한다'),
-        jsonb_build_object('tag', 'E5', 'type', 'consulting', 'id', p_pre, 'label', 'ATEAM 플레이북 · 시작 전에 실패를 상상한다 (사전 부검)'),
+        jsonb_build_object('tag', 'E4', 'type', 'consulting', 'id', p_hyp, 'label', 'ATEAM Method™ · 가설부터 세우고 검증한다'),
+        jsonb_build_object('tag', 'E5', 'type', 'consulting', 'id', p_pre, 'label', 'ATEAM Method™ · 시작 전에 실패를 상상한다 (사전 부검)'),
         jsonb_build_object('tag', 'E6', 'type', 'submission', 'id', null, 'label', '이전 버전 v2')),
       content = content || jsonb_build_object('criteria_check', jsonb_build_array(
         jsonb_build_object('criterion', '결론부터, 한 장으로', 'met', false, 'note', '§1 시장 분석으로 시작해 결론(얼리버드 할인)이 §2에 묻혀 있습니다.', 'tag', 'E1'),
@@ -169,9 +169,9 @@ begin
       sources = jsonb_build_array(
         jsonb_build_object('tag', 'E1', 'type', 'knowhow', 'id', k_concl, 'label', '내 노하우 · 결론부터, 한 장으로'),
         jsonb_build_object('tag', 'E2', 'type', 'knowhow', 'id', k_plan, 'label', '내 노하우 · 좋은 기획서의 조건'),
-        jsonb_build_object('tag', 'E3', 'type', 'consulting', 'id', p_base, 'label', 'ATEAM 플레이북 · 목표치엔 기준선과 산정 근거'),
-        jsonb_build_object('tag', 'E4', 'type', 'consulting', 'id', p_root, 'label', 'ATEAM 플레이북 · 원인은 다섯 번 묻는다'),
-        jsonb_build_object('tag', 'E5', 'type', 'consulting', 'id', p_crit, 'label', 'ATEAM 플레이북 · 기준을 먼저 정하고 대안을 본다')),
+        jsonb_build_object('tag', 'E3', 'type', 'consulting', 'id', p_base, 'label', 'ATEAM Method™ · 목표치엔 기준선과 산정 근거'),
+        jsonb_build_object('tag', 'E4', 'type', 'consulting', 'id', p_root, 'label', 'ATEAM Method™ · 원인은 다섯 번 묻는다'),
+        jsonb_build_object('tag', 'E5', 'type', 'consulting', 'id', p_crit, 'label', 'ATEAM Method™ · 기준을 먼저 정하고 대안을 본다')),
       content = content || jsonb_build_object('criteria_check', jsonb_build_array(
         jsonb_build_object('criterion', '결론부터, 한 장으로', 'met', true, 'note', '첫 줄에 개선안 세 가지를 먼저 밝혔습니다.', 'tag', 'E1'),
         jsonb_build_object('criterion', '좋은 기획서의 조건', 'met', false, 'note', '다른 개선 방법과 비교하거나 버린 이유가 없습니다.', 'tag', 'E2'),
@@ -192,7 +192,7 @@ begin
     cross join lateral (select id from ai_outputs where team_id = p_team and kind::text = x.k order by created_at desc limit 1) o
   loop
     update ai_outputs a set sources = (case when jsonb_typeof(a.sources) = 'array' then a.sources else '[]'::jsonb end) || (
-        select coalesce(jsonb_agg(jsonb_build_object('tag', 'E' || (90 + e.ord), 'type', 'consulting', 'id', kc.id, 'label', 'ATEAM 플레이북 · ' || (e.v ->> 1)) order by e.ord), '[]'::jsonb)
+        select coalesce(jsonb_agg(jsonb_build_object('tag', 'E' || (90 + e.ord), 'type', 'consulting', 'id', kc.id, 'label', 'ATEAM Method™ · ' || (e.v ->> 1)) order by e.ord), '[]'::jsonb)
         from jsonb_array_elements(con::jsonb) with ordinality as e(v, ord)
         left join knowhow_cards kc on kc.team_id = p_team and kc.template_key = e.v ->> 0)
     where a.id = pick and not (coalesce(a.sources, '[]'::jsonb) @> '[{"type": "consulting"}]'::jsonb);

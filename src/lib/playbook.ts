@@ -1,4 +1,4 @@
-// ATEAM 플레이북 — 기본 제공 방법론 카드(knowhow_cards.source = 'consulting')의 화면용 정보
+// ATEAM Method™ — 기본 제공 방법론 카드(knowhow_cards.source = 'consulting')의 화면용 정보
 //   카드 원본(knowhow_templates)에 영역·대표 여부·언제 쓰나·왜·예시·출처가 있다 (29_playbook.sql)
 //   영역 이름은 supabase/playbook/playbook.json 과 맞춘다
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +6,7 @@ import { FileText, HeartHandshake, Lightbulb, MessagesSquare, Network, Scale, Ta
 import { supabase } from './supabase';
 import type { KnowhowCard } from './types';
 
-export const PLAYBOOK = 'ATEAM 플레이북';
+export const PLAYBOOK = 'ATEAM Method™';
 
 export type PlaybookDomain = 'logic' | 'writing' | 'comm' | 'creative' | 'decision' | 'goal' | 'coach' | 'team';
 /** 영역별 색 — 책등·카드 왼쪽 띠·칩에 같이 쓴다 (spine: 짙은 배경 위, chip: 흰 배경 위) */
@@ -42,7 +42,7 @@ export function usePlaybookTemplates(enabled = true) {
 }
 
 /** 출처 표시에서 쓰는 이름 — 예전 결과의 '컨설팅 기준 · ' 머리말도 같은 이름으로 */
-export const methodTitle = (label: string) => label.replace(/^(컨설팅 기준|ATEAM 플레이북|내 노하우)\s*·\s*/, '');
+export const methodTitle = (label: string) => label.replace(/^(컨설팅 기준|ATEAM 플레이북|ATEAM Method™|내 노하우)\s*·\s*/, '');
 
 /** '왜 방법론인가' — 화면 근거 (각 수치는 원문 확인, docs/PLAYBOOK.md) */
 export const EVIDENCE: { stat: string; text: string; src: string }[] = [

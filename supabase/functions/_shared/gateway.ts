@@ -51,13 +51,13 @@ export class SourceBook {
   evidenceText() {
     return this.lines.filter((l) => !KH_TYPES.includes(l.type)).map((l) => l.line).join('\n');
   }
-  /** 팀장의 기준 섹션 + ATEAM 플레이북 섹션 (없으면 빈 문자열) */
+  /** 팀장의 기준 섹션 + ATEAM Method™ 섹션 (없으면 빈 문자열) */
   knowhowText() {
     const own = this.lines.filter((l) => l.type === 'knowhow').map((l) => l.line);
     const con = this.lines.filter((l) => l.type === 'consulting').map((l) => l.line);
     return [
       own.length ? `## 팀장의 기준 (팀장이 직접 넣은 노하우 — 일반 상식보다 우선)\n${own.join('\n')}` : '',
-      con.length ? `## ATEAM 플레이북 (검증된 업무 방법론 중 이 상황에 맞는 것 — 팀장의 기준과 어긋나면 팀장의 기준을 따름)\n${con.join('\n')}` : '',
+      con.length ? `## ATEAM Method™ (검증된 업무 방법론 중 이 상황에 맞는 것 — 팀장의 기준과 어긋나면 팀장의 기준을 따름)\n${con.join('\n')}` : '',
     ].filter(Boolean).join('\n\n');
   }
   /** AI가 실제로 인용한 근거만 남긴다 */
@@ -74,12 +74,12 @@ export class SourceBook {
   }
 }
 
-/** 노하우 근거 종류: 팀장 카드(knowhow) · ATEAM 플레이북 카드(consulting) — 기록(근거) 수에는 세지 않는다 */
+/** 노하우 근거 종류: 팀장 카드(knowhow) · ATEAM Method™ 카드(consulting) — 기록(근거) 수에는 세지 않는다 */
 const KH_TYPES = ['knowhow', 'consulting'];
 
 export type KnowhowFeature = 'review' | 'prep' | 'report' | 'evaluation' | 'briefing' | 'strategy' | 'scenario' | 'plan';
 
-// ---------- ATEAM 플레이북: 상황에 맞는 방법론 고르기 ----------
+// ---------- ATEAM Method™: 상황에 맞는 방법론 고르기 ----------
 /** 기능마다 먼저 볼 플레이북 영역 (supabase/playbook/playbook.json 의 domain) */
 const FEATURE_DOMAINS: Record<KnowhowFeature, string[]> = {
   review: ['logic', 'writing', 'creative', 'decision'],
@@ -121,7 +121,7 @@ function playbookScore(c: KbRow, meta: Map<string, TplMeta>, feature: KnowhowFea
 type KbRow = { id: string; title: string; body: string; rules: unknown; pinned?: boolean; source?: string | null; template_key?: string | null; keywords?: string[] | null };
 
 /** 팀장이 켜 둔 노하우 카드 중 이 기능에 해당하는 것을 근거책에 싣는다
- *  순서: 팀장 카드(고정 → 최근) 먼저, 남는 글자 수 안에서 ATEAM 플레이북 카드(source='consulting').
+ *  순서: 팀장 카드(고정 → 최근) 먼저, 남는 글자 수 안에서 ATEAM Method™ 카드(source='consulting').
  *  플레이북은 지금 상황(context — 비우면 근거책에 이미 실린 기록)에 맞는 순서로 골라 최대 MAX_PLAYBOOK 장.
  *  consulting=false 면 플레이북 카드는 싣지 않는다 (예: 팀원 액션) · own=false 면 팀장 카드는 싣지 않는다 (예: 팀원에게 그대로 보이는 코칭) */
 export async function addKnowhow(book: SourceBook, teamId: string, feature: KnowhowFeature, limitChars = 3200, onlyShared = false, consulting = true, context = '', own = true): Promise<number> {
@@ -146,7 +146,7 @@ export async function addKnowhow(book: SourceBook, teamId: string, feature: Know
     const text = `${c.body}${rules.length ? ` / 규칙: ${rules.join(' · ')}` : ''}`;
     if (isCon(c) && nCon >= MAX_PLAYBOOK) break;
     if (used + text.length > limitChars && n > 0) { if (isCon(c)) break; continue; }
-    if (isCon(c)) { book.add('consulting', c.id, `ATEAM 플레이북 · ${c.title}`, text); nCon++; }
+    if (isCon(c)) { book.add('consulting', c.id, `ATEAM Method™ · ${c.title}`, text); nCon++; }
     else book.add('knowhow', c.id, `내 노하우 · ${c.title}`, text);
     used += text.length; n++;
   }
@@ -170,7 +170,7 @@ export const BASE_RULES = `당신은 한국 기업 팀장의 성과관리를 돕
 5. 문체: 한국 기업 실무 보고서처럼 짧고 담백하게, '~합니다'체. 과장, 감탄, 영어 직역투, 이모지는 쓰지 않습니다.
 6. 출력은 요청한 JSON 객체 하나만. 앞뒤 설명이나 코드 펜스를 붙이지 않습니다.
 7. '팀장의 기준' 섹션이 있으면 그 기준을 일반적인 상식보다 우선해 적용하고, 기준을 적용한 문장에는 해당 근거 태그를 붙입니다. 기준과 기록이 어긋나면 그 점을 짚습니다.
-8. 'ATEAM 플레이북' 섹션은 이 상황에 맞춰 고른 검증된 업무 방법론입니다. 일반 상식보다는 우선하되 '팀장의 기준'과 어긋나면 팀장의 기준을 따릅니다. 실제로 이 기록에 들어맞는 방법론만 쓰고, 적용한 문장에는 해당 근거 태그를 붙입니다. 방법론 이름을 늘어놓거나 이론을 설명하지 말고, 기록에 비춘 구체적인 판단과 행동으로 씁니다.`;
+8. 'ATEAM Method™' 섹션은 이 상황에 맞춰 고른 검증된 업무 방법론입니다. 일반 상식보다는 우선하되 '팀장의 기준'과 어긋나면 팀장의 기준을 따릅니다. 실제로 이 기록에 들어맞는 방법론만 쓰고, 적용한 문장에는 해당 근거 태그를 붙입니다. 방법론 이름을 늘어놓거나 이론을 설명하지 말고, 기록에 비춘 구체적인 판단과 행동으로 씁니다.`;
 
 export interface AiJob {
   teamId: string;

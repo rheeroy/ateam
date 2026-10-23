@@ -210,7 +210,7 @@ function CoachHelp() {
       {pos && (
         <span role="tooltip" style={{ left: pos.x, top: pos.y }} className="fixed z-50 w-[280px] rounded-xl bg-slate-900 text-white px-3.5 py-3 text-left font-normal shadow-xl cursor-default" onClick={(e) => e.stopPropagation()}>
           <span className="block text-[12px] font-semibold mb-1"><AteamAI supCls="text-violet-300" /> 업무 피드백이란?</span>
-          <span className="block text-[12px] leading-relaxed text-slate-200">나의 업무 기록을 바탕으로 <AteamAI supCls="text-violet-300" />가 정리해드리는 업무 피드백입니다. 피드백은 ATEAM의 컨설팅 DB와 팀장님의 업무 원칙에 근거합니다.</span>
+          <span className="block text-[12px] leading-relaxed text-slate-200">나의 업무 기록을 바탕으로 <AteamAI supCls="text-violet-300" />가 정리해드리는 업무 피드백입니다. 피드백은 ATEAM Method™와 팀장님의 업무 원칙에 근거합니다.</span>
         </span>
       )}
     </span>

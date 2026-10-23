@@ -10,7 +10,7 @@ import { Card, PageHeader, Spinner, Tabs } from '../components/ui';
 import { aiText, CoreAI } from '../components/Brand';
 
 const LEVEL_INFO: Record<number, { desc: string; ex: string }> = {
-  1: { desc: '흩어진 컨디션 공유·면담·코멘트를 요약하고, 팀장님 노하우대로 초안을 씁니다.', ex: '주간보고 초안 · 1on1 준비 노트 · 1차 검토 · 내 노하우·플레이북 반영' },
+  1: { desc: '흩어진 컨디션 공유·면담·코멘트를 요약하고, 팀장님 노하우대로 초안을 씁니다.', ex: '주간보고 초안 · 1on1 준비 노트 · 1차 검토 · 내 노하우·ATEAM Method™ 반영' },
   2: { desc: '반복되는 막힘, 컨디션 추세, 같은 피드백의 반복을 잡아냅니다.', ex: '케어 레이더 · 월요일 브리핑' },
   3: { desc: '팀원별 위치와 이동 방향, 판단 깊이 추세, 근거 달린 평가 초안을 만듭니다.', ex: '팀 성과 지도 · 지난 결과물 비교 · 평가 초안' },
   4: { desc: '실적 범위와 목표 달성 확률을 계산하고 What-if를 돌립니다.', ex: '실적 전망 · 시뮬레이션 · 분기 전략 점검' },
