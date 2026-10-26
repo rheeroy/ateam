@@ -1,7 +1,7 @@
 // 시작하기(온보딩) 상태 — teams.settings.onboarding = { status: 'pending' | 'done', step, plan_applied }
 import { supabase, q } from './supabase';
 
-export interface OnboardingState { status?: 'pending' | 'done'; step?: 1 | 2 | 3; plan_applied?: string }
+export interface OnboardingState { status?: 'pending' | 'done'; step?: 1 | 2 | 3; plan_applied?: string; job?: { id?: string; status?: string; at?: string; error?: string; output_id?: string } }
 
 export const onboardingOf = (settings: Record<string, unknown> | undefined): OnboardingState =>
   (settings?.onboarding ?? {}) as OnboardingState;
