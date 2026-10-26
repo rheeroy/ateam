@@ -68,7 +68,7 @@ export function SentActions() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div ref={box} className="space-y-2 scroll-mt-20">
+    <div ref={box} className="space-y-2.5 scroll-mt-20">
       <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">보낸 액션</span>
         <span className="text-xs text-slate-400">최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · 코칭과 답</span></div>
       <Card>
