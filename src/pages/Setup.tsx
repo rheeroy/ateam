@@ -5,7 +5,7 @@
 // 상태는 teams.settings.onboarding 에 둔다. 시작하기 안의 AI는 크레딧을 쓰지 않는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, FileText, Image as ImageIcon, Link2, Plus, Presentation, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, Image as ImageIcon, Link2, Plus, Presentation, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_ONBOARD, IMAGE_EXT, MAX_BYTES, extractText, safeName, shrinkImage } from '../lib/extract';
@@ -117,10 +117,66 @@ export default function Setup() {
 // ---------------------------------------------------------------------
 // 공통 조각
 // ---------------------------------------------------------------------
-function StepHead({ title, children }: { title: string; children: ReactNode }) {
+/** 단계마다 '하고 나면 무엇이 생기는지' — 데모 팀의 실제 화면 */
+const PREVIEW: Record<1 | 2 | 3, { title: string; imgs: { src: string; cap: string }[] }> = {
+  1: { title: '자료를 올리면 이렇게 채워집니다', imgs: [
+    { src: '/onboarding/1a_goals.jpg', cap: '팀목표 — 목표 › 지표·과제 › 할 일이 타임라인으로' },
+    { src: '/onboarding/1b_org.jpg', cap: '임원 브리핑 — 상위 전략·방침·요청·일정' }] },
+  2: { title: '올린 기준은 이렇게 쓰입니다', imgs: [
+    { src: '/onboarding/2a_knowhow.jpg', cap: '노하우 카드로 정리 — 어디에 반영할지 고를 수 있어요' },
+    { src: '/onboarding/2b_review.jpg', cap: '팀원 결과물 1차 검토에 "내 기준"으로 점검' }] },
+  3: { title: '팀원이 합류하면 이렇게 돌아갑니다', imgs: [
+    { src: '/onboarding/3a_people.jpg', cap: '팀원관리 — 매주 누구에게 무엇을 할지 추천' },
+    { src: '/onboarding/3b_member.jpg', cap: '팀원 화면 — 컨디션 공유 · 피드백 · 1on1' }] },
+};
+
+/** '예시 보기' — 마우스를 올리거나 누르면 단계 결과 화면이 겹쳐 뜬다 */
+function Preview({ step }: { step: 1 | 2 | 3 }) {
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const pv = PREVIEW[step];
+  // 팝업 스크롤 영역에 잘리지 않도록 화면 기준(fixed)으로, 칩 바로 아래에 띄운다
+  const show = () => {
+    const r = btn.current?.getBoundingClientRect(); if (!r) return;
+    const width = Math.min(900, window.innerWidth - 32);
+    setPos({ top: r.bottom, left: Math.max(16, Math.min(r.left, window.innerWidth - width - 16)), width });
+  };
+  return (
+    <span className="inline-block" onMouseEnter={show} onMouseLeave={() => setPos(null)}>
+      <button ref={btn} type="button" onClick={() => (pos ? setPos(null) : show())} aria-expanded={!!pos}
+        className={cx('ml-2 align-middle inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 transition-colors',
+          pos ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-indigo-50 text-indigo-700 ring-indigo-200 hover:bg-indigo-100')}>
+        <Eye size={13} />예시 보기
+      </button>
+      {pos && (
+        <div className="fixed z-[60] pt-2 font-normal tracking-normal" style={{ top: pos.top, left: pos.left, width: pos.width }}>
+          <div className="rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-bold text-slate-900">{pv.title}</span>
+              <span className="hidden sm:inline text-[11px] text-slate-400">데모 팀의 실제 화면</span>
+              <button type="button" onClick={() => setPos(null)} className="ml-auto p-1 rounded text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={14} /></button>
+            </div>
+            <div className="grid sm:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-3 items-start">
+              {pv.imgs.map((im) => (
+                <figure key={im.src} className="min-w-0">
+                  <div className="rounded-xl ring-1 ring-slate-200 overflow-hidden bg-slate-50 max-h-[min(56vh,520px)] overflow-y-auto">
+                    <img src={im.src} alt={im.cap} className="w-full h-auto block" loading="lazy" />
+                  </div>
+                  <figcaption className="mt-1.5 text-xs text-slate-600">{im.cap}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+function StepHead({ title, preview, children }: { title: string; preview?: 1 | 2 | 3; children: ReactNode }) {
   return (
     <div className="mb-5">
-      <h1 className="text-xl sm:text-[26px] font-bold tracking-tight">{title}</h1>
+      <h1 className="text-xl sm:text-[26px] font-bold tracking-tight">{title}{preview && <Preview step={preview} />}</h1>
       <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">{children}</p>
     </div>
   );
@@ -383,7 +439,7 @@ function StepPlan({ onNext }: { onNext: () => void }) {
   const blocked = runs >= FREE_RUNS;
   return (
     <section className="flex-1 flex flex-col">
-      <StepHead title="가지고 있는 자료로 팀목표 초안을 만듭니다">
+      <StepHead title="가지고 있는 자료로 팀목표 초안을 만듭니다" preview={1}>
         사업계획서, 업무 분장표, 회의록, 임원 보고 자료처럼 이미 있는 자료를 그대로 올려 주세요. 정리되지 않아도 괜찮고, 내년 계획 자료여도 올해 팀목표로 정리합니다.
         {' '}<CoreAI />가 목표 › 과제 › 할 일 초안을 만들고, 위에서 내려온 방침·요청·일정은 임원 브리핑에 쓸 '상위 전략·방침'으로 따로 골라 둡니다.
       </StepHead>
@@ -646,7 +702,7 @@ function StepKnowhow({ onBack, onNext }: { onBack: () => void; onNext: () => voi
 
   return (
     <section className="flex-1 flex flex-col">
-      <StepHead title="팀장님이 일하는 기준을 알려 주세요">
+      <StepHead title="팀장님이 일하는 기준을 알려 주세요" preview={2}>
         평가 기준표, 보고서 양식, 일하는 원칙, 자주 하는 피드백을 올려 주세요. <CoreAI />가 카드로 정리해 결과물 검토 · 1on1 준비 · 보고 초안을 쓸 때 {PLAYBOOK}보다 먼저 적용합니다.
       </StepHead>
       <div className="rounded-2xl bg-slate-50/70 ring-1 ring-slate-200/70 p-5 sm:p-6 space-y-4">
@@ -734,7 +790,7 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
 
   return (
     <section className="flex-1 flex flex-col">
-      <StepHead title="팀원을 초대하세요">
+      <StepHead title="팀원을 초대하세요" preview={3}>
         초대 링크를 만들어 메신저나 메일로 보내 주세요. 팀원이 초대한 메일 주소로 로그인하면 바로 합류합니다. 팀원은 무료이고, 링크는 14일 동안 유효합니다.
       </StepHead>
 
