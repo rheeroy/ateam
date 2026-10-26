@@ -2,7 +2,7 @@
 import { HttpError } from './http.ts';
 
 export const MODEL_SMART = Deno.env.get('AI_MODEL_SMART') ?? 'claude-sonnet-5-5';
-export const MODEL_FAST = Deno.env.get('AI_MODEL_FAST') ?? 'claude-haiku-4-5';
+export const MODEL_FAST = Deno.env.get('AI_MODEL_FAST') ?? 'claude-sonnet-5-5';
 
 // USD / 100만 토큰 (2026-10 기준 공개 단가). 원가 기록용이며 과금은 크레딧으로 한다.
 const PRICE: Record<string, { in: number; out: number; cacheRead: number; cacheWrite: number }> = {

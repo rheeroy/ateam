@@ -50,3 +50,4 @@ node ../scripts/build-playbook.mjs
 { echo "-- ATEAM 히스토리 관리 (과제별 히스토리 · 팀원에게 전달 · 질문/답 · 매주 월요일 06:00 자동 업데이트 · Pro부터) — 29_playbook 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261108000035_history.sql; } > dashboard/30_history.sql
 { echo "-- ATEAM 초대 메일 확인 (초대받은 메일로만 합류 · 로그인 전 초대 미리보기) — 30_history 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261109000036_invite_email.sql; } > dashboard/31_invite_email.sql
 { echo "-- ATEAM 검토 수정 (요청 알림 링크·이름 · 히스토리/요청/코칭 팀 확인 · 내 메모는 팀장만 · 초대 보완 · 요금제 history 확인) — 31_invite_email 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261110000037_review_fixes.sql; } > dashboard/32_review_fixes.sql
+{ echo "-- ATEAM 요금제 가격 조정 (Starter 29,000 · Pro 49,000 · Pro+ 79,000 · AI 원가 상한 8/14/28달러) — 32_review_fixes 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261111000038_plans_price.sql; } > dashboard/33_plans_price.sql

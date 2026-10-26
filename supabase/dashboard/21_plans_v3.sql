@@ -2,7 +2,7 @@
 
 -- =====================================================================
 -- 요금제 v3 — 팀원 수로 나눈 세 단계, 모두 팀 1개 (여러 팀은 계정을 따로 결제)
---   Starter 팀원 4명까지 ₩19,000 · Pro 10명까지 ₩29,000 · Pro+ 20명까지 ₩49,000 (월, VAT 별도 / 연간은 10개월 값)
+--   Starter 팀원 4명까지 ₩29,000 · Pro 10명까지 ₩49,000 · Pro+ 20명까지 ₩79,000 (월, VAT 별도 / 연간은 10개월 값)
 --   · Free 없음 — 체험(14일, Pro+ 전체 · 원가 상한 $5 · 크레딧 30)이 끝나고 결제하지 않으면 '체험 종료'(잠금, 기록은 보관)
 --   · Starter 는 평가 시뮬레이션 · 컨설팅 기준 DB(내 노하우의 기본 카드) 제외
 --   · 원가 상한은 팀원을 한도까지 채운 팀도 한 달 내내 자동 1차 검토가 돌도록 (자동 검토는 상한의 75%까지)
@@ -11,16 +11,16 @@
 -- 다시 Run 해도 안전합니다.
 -- =====================================================================
 insert into public.plans (id, name, price_month_krw, price_year_krw, max_members, max_teams, monthly_credits, features, sort, active)
-values ('starter', 'Starter', 19000, 190000, 4, 1, 30, array[]::text[], 1, true) on conflict (id) do nothing;
+values ('starter', 'Starter', 29000, 290000, 4, 1, 30, array[]::text[], 1, true) on conflict (id) do nothing;
 
-update public.plans set name = 'Starter', price_month_krw = 19000, price_year_krw = 190000, max_members = 4, max_teams = 1,
-  monthly_credits = 30, core_monthly_cap = 3000, ai_hourly_cap = 20, ai_daily_cap = 60, ai_cost_cap_usd = 6, sort = 1, active = true,
+update public.plans set name = 'Starter', price_month_krw = 29000, price_year_krw = 290000, max_members = 4, max_teams = 1,
+  monthly_credits = 30, core_monthly_cap = 3000, ai_hourly_cap = 20, ai_daily_cap = 60, ai_cost_cap_usd = 8, sort = 1, active = true,
   features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar'] where id = 'starter';
-update public.plans set name = 'Pro', price_month_krw = 29000, price_year_krw = 290000, max_members = 10, max_teams = 1,
-  monthly_credits = 100, core_monthly_cap = 4000, ai_hourly_cap = 30, ai_daily_cap = 80, ai_cost_cap_usd = 10, sort = 2, active = true,
+update public.plans set name = 'Pro', price_month_krw = 49000, price_year_krw = 490000, max_members = 10, max_teams = 1,
+  monthly_credits = 100, core_monthly_cap = 4000, ai_hourly_cap = 30, ai_daily_cap = 80, ai_cost_cap_usd = 14, sort = 2, active = true,
   features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow','history'] where id = 'pro';
-update public.plans set name = 'Pro+', price_month_krw = 49000, price_year_krw = 490000, max_members = 20, max_teams = 1,
-  monthly_credits = 200, core_monthly_cap = 6000, ai_hourly_cap = 45, ai_daily_cap = 120, ai_cost_cap_usd = 18, sort = 3, active = true,
+update public.plans set name = 'Pro+', price_month_krw = 79000, price_year_krw = 790000, max_members = 20, max_teams = 1,
+  monthly_credits = 200, core_monthly_cap = 6000, ai_hourly_cap = 45, ai_daily_cap = 120, ai_cost_cap_usd = 28, sort = 3, active = true,
   features = array['checkin','one_on_one','review_room','goals','requests','knowhow','signals_basic','signals','ai_core','ai_premium','perf_map','forecast','strategy','simulation','insight','care_radar','evaluation','consulting_knowhow','history'] where id = 'pro_plus';
 -- 'free' 행은 '체험 종료' 상태로만 쓴다 (요금제 목록에 안 보임 · 모든 기능 잠금 · 초대 불가)
 update public.plans set name = '체험 종료', price_month_krw = 0, price_year_krw = 0, max_members = 0, max_teams = 1,
