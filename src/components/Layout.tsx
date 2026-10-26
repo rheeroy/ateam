@@ -143,7 +143,7 @@ export default function Layout() {
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <NavItem to="/my/goals" label="팀목표" icon={Target} />
-            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={[mb.data?.needsWork ? `보완 ${mb.data.needsWork}` : '', mb.data?.workRequests ? `요청 ${mb.data.workRequests}` : ''].filter(Boolean).join(' · ') || undefined} />
+            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0) ? `${(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0)}` : undefined} />
             <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks}
               badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : undefined} />
             <div className="hidden md:block h-px bg-slate-100 my-3" />
@@ -255,4 +255,3 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
     </div>
   );
 }
-
