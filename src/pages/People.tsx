@@ -153,7 +153,7 @@ function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, 
       <table className="w-full min-w-[980px]">
         <thead>
           <tr className="text-[11px] text-slate-400 bg-slate-50/80">
-            <th className="w-10 text-center font-semibold pl-3 py-2.5">#</th>
+            <th className="w-12 text-center font-semibold pl-3 py-2.5">#</th>
             <th className="text-left font-semibold pl-1 py-2.5">팀원</th>
             <th className="text-left font-semibold px-2">업무</th>
             {cols.map((c) => <th key={c.key} className="font-semibold px-2 whitespace-nowrap">{c.label}</th>)}
@@ -167,7 +167,7 @@ function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, 
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600"><span className={cx('w-2 h-2 rounded-full', GROUP[g].dot)} />{GROUP[g].label}<span className="font-normal text-slate-400">{list.length}명</span></span></td></tr>,
             ...list.map((r, i) => (
               <tr key={r.uid} onClick={() => nav(`/people/${r.uid}`)} className="border-t border-slate-100 hover:bg-slate-50/70 cursor-pointer">
-                <td className="pl-3 py-3 text-center"><span className="text-xs font-bold text-slate-400 num">{from + i + 1}</span></td>
+                <td className="pl-3 py-3"><span className="mx-auto w-7 h-7 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold num flex items-center justify-center">{from + i + 1}</span></td>
                 <td className="pl-1 pr-2 py-3">
                   <Link to={`/people/${r.uid}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2.5 min-w-0">
                     <span className={cx('rounded-full ring-2 ring-offset-2 shrink-0', GROUP[g].ring)}><Avatar name={r.name} size={9} /></span>
