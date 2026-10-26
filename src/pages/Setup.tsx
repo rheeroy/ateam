@@ -21,6 +21,7 @@ import { ORG_KIND } from '../components/home/shared';
 
 interface OrgCand { kind: string; title: string; body?: string; source?: string; event_date?: string | null; exec?: string }
 interface ExecCand { name: string; title?: string; interests?: string }
+interface OnboardJob { id?: string; status?: 'running' | 'done' | 'failed'; at?: string; error?: string; output_id?: string }
 interface OnboardOut { summary: string; ops: PlanOp[]; org?: OrgCand[]; execs?: ExecCand[]; onboarding?: boolean }
 
 const MAX_FILES = 10;
@@ -306,13 +307,45 @@ function StepPlan({ onNext }: { onNext: () => void }) {
       const raws: { path: string; mime: string; name: string }[] = [];
       for (const p of prepared) if (p.blob) raws.push({ ...(await uploadBlob(team.id, p, 'onboard')), name: p.file.name });
       setMsg(1);
-      const r = await invoke<AiOutput<OnboardOut>>('ai-onboard', { team_id: team.id, text: [text.trim(), ...texts].filter(Boolean).join('\n\n'), files: raws });
-      setOut(r); setRedo(false);
-      void prev.refetch();
+      // 서버는 바로 '시작함'을 돌려주고 뒤에서 만든다 — 끝날 때까지 상태를 확인한다
+      const job = await invoke<{ job: string }>('ai-onboard', { team_id: team.id, text: [text.trim(), ...texts].filter(Boolean).join('\n\n'), files: raws });
+      await waitJob(job.job);
     } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   };
 
-  if (shown) return <PlanReview out={shown} canRedo={runs < FREE_RUNS} onRedo={() => { setOut(null); setRedo(true); }} onNext={onNext} />;
+  /** 뒤에서 만드는 초안이 끝날 때까지 4초마다 확인 (최대 8분) */
+  const waitJob = async (jobId: string) => {
+    const until = Date.now() + 8 * 60000;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const { data } = await supabase.from('teams').select('settings').eq('id', team.id).single();
+      const job = (onboardingOf(data?.settings as Record<string, unknown>).job ?? {}) as OnboardJob;
+      if (job.id !== jobId) continue;
+      if (job.status === 'failed') throw new Error(job.error ? `초안을 만들지 못했습니다: ${job.error}` : '초안을 만들지 못했습니다. 다시 시도해 주세요');
+      if (job.status === 'done' && job.output_id) {
+        const r = await q<AiOutput<OnboardOut>>(supabase.from('ai_outputs').select('*').eq('id', job.output_id).single());
+        setOut(r); setRedo(false);
+        void prev.refetch();
+        return;
+      }
+    }
+    throw new Error('예상보다 오래 걸리고 있습니다. 잠시 뒤 시작하기를 다시 열면 결과를 이어서 확인할 수 있습니다');
+  };
+
+  // 창을 닫았다 다시 열었을 때, 만들던 초안이 있으면 이어서 기다린다
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current) return;
+    resumed.current = true;
+    const job = (onboardingOf(team.settings).job ?? {}) as OnboardJob;
+    if (job.status === 'running' && job.id && job.at && Date.now() - Date.parse(job.at) < 8 * 60000) {
+      setBusy(true); setMsg(2);
+      waitJob(job.id).catch((e) => setErr(errorText(e))).finally(() => setBusy(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (shown && !busy) return <PlanReview out={shown} canRedo={runs < FREE_RUNS} onRedo={() => { setOut(null); setRedo(true); }} onNext={onNext} />;
 
   // 초안 만드는 중 — 입력 화면 대신 진행 화면으로 넘어간다
   if (busy) return (
