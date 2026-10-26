@@ -1,5 +1,7 @@
 // 이번 주 팀원관리 액션 — AI가 추천하고, 팀장은 카드에서 바로 실행(1on1 잡기 · 칭찬 배지 · 관찰 기록 · 요청)
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../../lib/supabase';
 import { Award, CalendarPlus, Check, ChevronDown, HeartHandshake, MessageCircleQuestion, RefreshCw, Send, SkipForward, Sprout, StickyNote, Undo2 } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { useGenerate } from '../../lib/hooks';
@@ -105,17 +107,54 @@ function Card({ no, a, ai, name, onDo, onDone, onSkip }: { no: number; a: People
   );
 }
 
+/** 칭찬 기본 문구 — 최근 마친 일이 있으면 그 일을 짚고, 없으면 일반 문구 */
+const PRAISE_TPL: { label: string; text: (n: string, t?: string) => string }[] = [
+  { label: '마무리', text: (n, t) => t ? `${n} 님, '${t}' 끝까지 잘 마무리해 주셔서 고맙습니다. 꼼꼼하게 챙겨 준 덕분에 팀 일정이 한결 수월해졌어요.` : `${n} 님, 맡은 일을 끝까지 책임지고 마무리해 주셔서 고맙습니다. 덕분에 팀 일정이 한결 수월해졌어요.` },
+  { label: '주도성', text: (n, t) => `${n} 님, ${t ? `'${t}'에서 ` : ''}먼저 문제를 찾고 해결 방법까지 제안해 준 점이 정말 좋았습니다. 이런 주도적인 모습이 팀에 큰 힘이 됩니다.` },
+  { label: '품질', text: (n, t) => `${n} 님, ${t ? `'${t}' ` : ''}결과물의 완성도가 높아서 따로 손볼 곳이 거의 없었습니다. 근거와 정리가 탄탄해서 믿고 맡길 수 있겠다는 생각이 들었어요.` },
+  { label: '협업', text: (n) => `${n} 님, 바쁜 와중에도 동료들을 먼저 챙기고 도와준 모습 고맙습니다. 덕분에 팀 분위기와 속도가 함께 좋아졌어요.` },
+];
+
+function useRecentDone(teamId: string, userId: string) {
+  return useQuery({
+    queryKey: ['praise-recent', teamId, userId],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 864e5).toISOString();
+      const { data } = await supabase.from('work_items').select('title, done_at').eq('team_id', teamId).eq('owner_id', userId)
+        .gte('done_at', since).order('done_at', { ascending: false }).limit(1);
+      return (data?.[0]?.title as string | undefined) ?? null;
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function PraiseModal({ a, name, onClose, onSent }: { a: PeopleAction; name: string; onClose: () => void; onSent: () => void }) {
   const { team } = useTeam();
   const send = useSendPraise(team.id);
-  const [body, setBody] = useState(strip(a.message ?? '') || `${name} 님, `);
+  const aiMsg = strip(a.message ?? '');
+  const recent = useRecentDone(team.id, a.user_id);
+  const [tpl, setTpl] = useState(0);
+  const [body, setBody] = useState(aiMsg || PRAISE_TPL[0].text(name));
+  const [touched, setTouched] = useState(false);
+  const short = (t?: string | null) => t ? (t.length > 24 ? `${t.slice(0, 24)}…` : t) : undefined;
+  // 최근 마친 일을 불러오면, 아직 손대지 않은 기본 문구만 그 일에 맞춰 바꾼다
+  useEffect(() => { if (!aiMsg && !touched && recent.data !== undefined) setBody(PRAISE_TPL[tpl].text(name, short(recent.data))); }, [recent.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pick = (i: number) => { setTpl(i); setTouched(false); setBody(PRAISE_TPL[i].text(name, short(recent.data))); };
   return (
     <Modal open onClose={onClose} title={`칭찬 배지 · ${name}`}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); send.mutate({ to: a.user_id, body }, { onSuccess: () => { onSent(); onClose(); } }); }}>
         <div className="rounded-xl bg-amber-50 ring-1 ring-amber-200 p-4 text-center"><Award size={28} className="mx-auto text-amber-500" /><div className="mt-1 text-sm font-semibold text-amber-900">칭찬 배지</div></div>
-        <Field label="보낼 말" hint="무엇을 잘했는지 구체적으로"><textarea rows={3} className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} /></Field>
+        <Field label="보낼 말" hint="무엇을 잘했는지 구체적으로 · 고쳐서 보내도 됩니다">
+          <div className="mb-1.5 flex flex-wrap gap-1.5">
+            {PRAISE_TPL.map((t, i) => (
+              <button key={t.label} type="button" onClick={() => pick(i)}
+                className={cx('text-[11px] rounded-full px-2.5 py-1 ring-1', !aiMsg && i === tpl && !touched ? 'bg-amber-100 text-amber-900 ring-amber-300' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50')}>{t.label}</button>
+            ))}
+          </div>
+          <textarea rows={4} className={inputCls} value={body} onChange={(e) => { setTouched(true); setBody(e.target.value); }} />
+        </Field>
         <p className="text-xs text-slate-500">팀원에게 알림으로 가고, 팀장 관찰 기록(칭찬)으로도 남아 평가 근거가 됩니다.</p>
-        <Button type="submit" className="w-full" loading={send.isPending}><Award size={14} />보내기</Button>
+        <Button type="submit" className="w-full" loading={send.isPending} disabled={!body.trim()}><Award size={14} />보내기</Button>
       </form>
     </Modal>
   );
