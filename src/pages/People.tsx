@@ -145,13 +145,16 @@ const CELL: Record<Level, string> = { risk: 'text-rose-600', watch: 'text-amber-
 function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, name: string) => void }) {
   const nav = useNavigate();
   const cols = rows.find((r) => r.ix)?.ix?.indices.map((i) => ({ key: i.key, label: i.label === '이탈 가능성' ? '이탈' : i.label === '업무 부하' ? '부하' : i.label === '평가 근거' ? '근거' : i.label })) ?? [];
-  const groups = (['care', 'watch', 'ok'] as Group[]).map((g) => ({ g, list: rows.filter((r) => groupOf(r) === g).sort((a, b) => sev(b) - sev(a)) })).filter((x) => x.list.length);
+  const groups0 = (['care', 'watch', 'ok'] as Group[]).map((g) => ({ g, list: rows.filter((r) => groupOf(r) === g).sort((a, b) => sev(b) - sev(a)) })).filter((x) => x.list.length);
+  // 번호는 그룹을 넘어 이어서 (챙길 순서)
+  const groups = groups0.map((x, gi) => ({ ...x, from: groups0.slice(0, gi).reduce((n, y) => n + y.list.length, 0) }));
   return (
     <Card className="overflow-x-auto">
       <table className="w-full min-w-[980px]">
         <thead>
           <tr className="text-[11px] text-slate-400 bg-slate-50/80">
-            <th className="text-left font-semibold pl-4 py-2.5">팀원</th>
+            <th className="w-10 text-center font-semibold pl-3 py-2.5">#</th>
+            <th className="text-left font-semibold pl-1 py-2.5">팀원</th>
             <th className="text-left font-semibold px-2">업무</th>
             {cols.map((c) => <th key={c.key} className="font-semibold px-2 whitespace-nowrap">{c.label}</th>)}
             <th className="text-left font-semibold px-3"><CoreAI /> 업무 판단</th>
@@ -159,12 +162,13 @@ function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, 
           </tr>
         </thead>
         <tbody>
-          {groups.map(({ g, list }) => [
-            <tr key={`g-${g}`}><td colSpan={cols.length + 4} className="px-4 pt-4 pb-1.5">
+          {groups.map(({ g, list, from }) => [
+            <tr key={`g-${g}`}><td colSpan={cols.length + 5} className="px-4 pt-4 pb-1.5">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600"><span className={cx('w-2 h-2 rounded-full', GROUP[g].dot)} />{GROUP[g].label}<span className="font-normal text-slate-400">{list.length}명</span></span></td></tr>,
-            ...list.map((r) => (
+            ...list.map((r, i) => (
               <tr key={r.uid} onClick={() => nav(`/people/${r.uid}`)} className="border-t border-slate-100 hover:bg-slate-50/70 cursor-pointer">
-                <td className="pl-4 pr-2 py-3">
+                <td className="pl-3 py-3 text-center"><span className="text-xs font-bold text-slate-400 num">{from + i + 1}</span></td>
+                <td className="pl-1 pr-2 py-3">
                   <Link to={`/people/${r.uid}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2.5 min-w-0">
                     <span className={cx('rounded-full ring-2 ring-offset-2 shrink-0', GROUP[g].ring)}><Avatar name={r.name} size={9} /></span>
                     <span className="min-w-0"><span className="block font-semibold text-[14px] truncate hover:text-teal-700">{r.name}</span><span className="block text-[11px] text-slate-500 truncate">{r.job || '직무 미입력'}</span></span>
