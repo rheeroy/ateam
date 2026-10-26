@@ -42,7 +42,7 @@ export default function People() {
   const fallback = useMemo(() => ruleActions(members, pi.idx, m.raw), [members, pi.idx, m.raw]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-7">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-sm"><Users size={20} /></span>
@@ -73,12 +73,13 @@ export default function People() {
         </div>
       </Card>
 
+      <section className="space-y-2.5">
       <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">팀원 보드</span><span className="text-xs text-slate-400">챙길 사람부터 · 색은 주의(주황)·위험(빨강)일 때만 · 줄을 누르면 상세</span></div>
-
       {(m.loading ? <Spinner /> : !members.length
         ? <Card className="p-6 text-sm text-slate-500">팀원을 초대하면 팀원별 카드가 생깁니다. <Link to="/settings?tab=members" className="text-indigo-700 font-semibold">초대하기 →</Link></Card>
         : <MemberTable rows={members.map((mb) => ({ uid: mb.user_id, name: mb.profiles?.full_name ?? '팀원', job: mb.job_title, ix: pi.idx.get(mb.user_id), view: pi.views.get(mb.user_id),
             actions: (pi.actions.out?.content.actions ?? fallback).filter((a) => a.user_id === mb.user_id).length }))} onPraise={(uid, name) => setPraise({ uid, name })} />)}
+      </section>
       {!!members.length && <SentActions />}
       {praise && <PraiseModal a={{ user_id: praise.uid, type: 'praise' } as PeopleAction} name={praise.name} onClose={() => setPraise(null)} onSent={() => {}} />}
 
@@ -201,4 +202,3 @@ export function Delta({ d }: { d: number }) {
   if (Math.abs(r) < 0.1) return <span className="text-slate-400">변화 없음</span>;
   return r > 0 ? <span className="text-emerald-700 inline-flex items-center"><ArrowUpRight size={10} />{r}</span> : <span className="text-rose-600 inline-flex items-center"><ArrowDownRight size={10} />{Math.abs(r)}</span>;
 }
-
