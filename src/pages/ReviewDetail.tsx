@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Check, Library, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
+import { BookOpen, Check, Download, Library, CheckCircle2, ChevronDown, ExternalLink, FileUp, Lock, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Undo2, Unlock, Users, X, XCircle } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import { useGenerate, useLatestAi } from '../lib/hooks';
@@ -164,6 +164,22 @@ export function useSignedUrl(path: string | null) {
   return url;
 }
 
+/** 파일 받기 — 저장 이름을 원래 파일명으로 */
+export async function downloadFile(path: string, name?: string | null) {
+  const { data, error } = await supabase.storage.from('submissions').createSignedUrl(path, 120, { download: name || true });
+  if (error || !data?.signedUrl) throw new Error('download');
+  window.location.href = data.signedUrl;
+}
+
+function DownloadBtn({ path, name, className }: { path: string; name?: string | null; className?: string }) {
+  const toast = useToast();
+  return (
+    <button type="button" title={`받기 · ${name ?? ''}`} aria-label="파일 받기"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(path, name).catch(() => toast('파일을 받지 못했습니다. 잠시 후 다시 시도해 주세요.')); }}
+      className={cx('text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 shrink-0 rounded-lg px-1.5 py-1 hover:bg-indigo-50', className)}>받기<Download size={12} /></button>
+  );
+}
+
 /** 올린 것 한 건(버전)의 본문 — 길면 접어 둔다 */
 export function VersionBody({ sub, v, older, preview = true }: { sub: Submission; v: SubmissionVersion; older?: boolean; /** 파일 미리보기(PDF·이미지) — 좁은 스레드에선 끈다 */ preview?: boolean }) {
   const url = useSignedUrl(v.file_path);
@@ -172,17 +188,19 @@ export function VersionBody({ sub, v, older, preview = true }: { sub: Submission
   return (
     <div className="mt-3">
       {v.file_name && (
-        <a href={url ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl ring-1 ring-slate-200 bg-white px-3 py-2.5 hover:ring-indigo-300 hover:bg-indigo-50/30 max-w-md">
+        <div className="flex items-center gap-3 rounded-xl ring-1 ring-slate-200 bg-white px-3 py-2.5 hover:ring-indigo-300 hover:bg-indigo-50/30 max-w-md">
           <span className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><Paperclip size={16} /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-slate-800 truncate">{v.file_name}</span><span className="block text-[11px] text-slate-400 uppercase">{(v.file_name.split('.').pop() ?? '').slice(0, 5)} 파일</span></span>
-          <span className="text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 shrink-0">열기<ExternalLink size={12} /></span>
-        </a>
+          <a href={url ?? undefined} target="_blank" rel="noreferrer" className="min-w-0 flex-1"><span className="block text-sm font-medium text-slate-800 truncate">{v.file_name}</span><span className="block text-[11px] text-slate-400 uppercase">{(v.file_name.split('.').pop() ?? '').slice(0, 5)} 파일</span></a>
+          <a href={url ?? undefined} target="_blank" rel="noreferrer" className="text-xs font-semibold text-indigo-700 inline-flex items-center gap-0.5 shrink-0 rounded-lg px-1.5 py-1 hover:bg-indigo-50">열기<ExternalLink size={12} /></a>
+          {v.file_path && <DownloadBtn path={v.file_path} name={v.file_name} />}
+        </div>
       )}
       {preview && v.mime_type === 'application/pdf' && url && <iframe title="PDF" src={url} className="mt-3 w-full h-[520px] rounded-lg border border-slate-200" />}
       {preview && url && v.mime_type && IMAGE.test(v.mime_type) && <img src={url} alt={sub.title} className="mt-3 max-h-[480px] rounded-lg border border-slate-200" />}
       {v.version === 1 && sub.link_url && <a href={sub.link_url} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-indigo-700 font-semibold break-all hover:underline">{sub.link_url} ↗</a>}
       {v.value != null && <div className="mt-2 text-3xl font-bold num">{v.value}</div>}
-      {!!v.extracted_text && (
+      {/* 좁은 스레드에선 파일에서 뽑은 본문을 늘어놓지 않는다 — 파일 카드로 열기·받기 (글로만 올린 건 그대로 보인다) */}
+      {!!v.extracted_text && (preview || !v.file_name) && (
         <div className="relative mt-2">
           <div className={cx('text-[15px] leading-7 text-slate-800 whitespace-pre-wrap', !open && long && (older ? 'max-h-20 overflow-hidden' : 'max-h-60 overflow-hidden'))}>{v.extracted_text}</div>
           {long && !open && <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />}
@@ -376,7 +394,8 @@ function Attachment({ c, mine }: { c: ReviewComment; mine?: boolean }) {
   return (
     <a href={url ?? undefined} target="_blank" rel="noreferrer" className={cx('mt-1 inline-flex flex-col rounded-xl ring-1 bg-white text-sm overflow-hidden max-w-full', mine ? 'ring-indigo-200' : 'ring-slate-200')}>
       {img && url && <img src={url} alt={c.file_name ?? ''} className="max-h-56 object-contain bg-slate-50" />}
-      <span className="inline-flex items-center gap-2 px-3 py-2"><Paperclip size={14} className="text-indigo-600 shrink-0" /><span className="truncate">{c.file_name}</span><ExternalLink size={12} className="text-slate-400 shrink-0" /></span>
+      <span className="inline-flex items-center gap-2 px-3 py-2"><Paperclip size={14} className="text-indigo-600 shrink-0" /><span className="truncate">{c.file_name}</span><ExternalLink size={12} className="text-slate-400 shrink-0" />
+        <DownloadBtn path={c.file_path} name={c.file_name} className="-my-1 -mr-1.5" /></span>
     </a>
   );
 }
