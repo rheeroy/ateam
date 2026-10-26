@@ -118,16 +118,16 @@ export default function Setup() {
 // 공통 조각
 // ---------------------------------------------------------------------
 /** 단계마다 '하고 나면 무엇이 생기는지' — 데모 팀의 실제 화면 */
-const PREVIEW: Record<1 | 2 | 3, { title: string; imgs: { src: string; cap: string }[] }> = {
+const PREVIEW: Record<1 | 2 | 3, { title: string; stack?: boolean; imgs: { src: string; cap: string; narrow?: boolean }[] }> = {
   1: { title: '자료를 올리면 이렇게 채워집니다', imgs: [
     { src: '/onboarding/1a_goals.jpg', cap: '팀목표 — 목표 › 지표·과제 › 할 일이 타임라인으로' },
     { src: '/onboarding/1b_org.jpg', cap: '임원 브리핑 — 상위 전략·방침·요청·일정' }] },
   2: { title: '올린 기준은 이렇게 쓰입니다', imgs: [
     { src: '/onboarding/2a_knowhow.jpg', cap: '노하우 카드로 정리 — 어디에 반영할지 고를 수 있어요' },
     { src: '/onboarding/2b_review.jpg', cap: '팀원 결과물 1차 검토에 "내 기준"으로 점검' }] },
-  3: { title: '팀원이 합류하면 이렇게 돌아갑니다', imgs: [
+  3: { title: '팀원이 합류하면 이렇게 돌아갑니다', stack: true, imgs: [
     { src: '/onboarding/3a_people.jpg', cap: '팀원관리 — 매주 누구에게 무엇을 할지 추천' },
-    { src: '/onboarding/3b_member.jpg', cap: '팀원 화면 — 컨디션 공유 · 피드백 · 1on1' }] },
+    { src: '/onboarding/3b_member.jpg', cap: '팀원 화면 — 컨디션 공유 · 피드백 · 1on1', narrow: true }] },
 };
 
 /** '예시 보기' — 마우스를 올리거나 누르면 단계 결과 화면이 겹쳐 뜬다 */
@@ -150,16 +150,16 @@ function Preview({ step }: { step: 1 | 2 | 3 }) {
       </button>
       {pos && (
         <div className="fixed z-[60] pt-2 font-normal tracking-normal" style={{ top: pos.top, left: pos.left, width: pos.width }}>
-          <div className="rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 p-4">
+          <div className="rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 p-4 max-h-[calc(100vh-var(--pv-top)-24px)] overflow-y-auto" style={{ ['--pv-top' as string]: `${pos.top}px` }}>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-sm font-bold text-slate-900">{pv.title}</span>
               <span className="hidden sm:inline text-[11px] text-slate-400">데모 팀의 실제 화면</span>
               <button type="button" onClick={() => setPos(null)} className="ml-auto p-1 rounded text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={14} /></button>
             </div>
-            <div className="grid sm:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-3 items-start">
+            <div className={cx('grid gap-3 items-start', pv.stack ? 'grid-cols-1' : 'sm:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]')}>
               {pv.imgs.map((im) => (
-                <figure key={im.src} className="min-w-0">
-                  <div className="rounded-xl ring-1 ring-slate-200 overflow-hidden bg-slate-50 max-h-[min(56vh,520px)] overflow-y-auto">
+                <figure key={im.src} className={cx('min-w-0', im.narrow && 'sm:w-[64%]')}>
+                  <div className={cx('rounded-xl ring-1 ring-slate-200 overflow-hidden bg-slate-50', !pv.stack && 'max-h-[min(56vh,520px)] overflow-y-auto')}>
                     <img src={im.src} alt={im.cap} className="w-full h-auto block" loading="lazy" />
                   </div>
                   <figcaption className="mt-1.5 text-xs text-slate-600">{im.cap}</figcaption>
