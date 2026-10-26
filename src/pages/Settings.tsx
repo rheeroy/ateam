@@ -11,15 +11,17 @@ import { InstallButton } from '../components/InstallPrompt';
 import TeamPage from './Team';
 import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
+const REASON_LABEL: Record<string, string> = { monthly_grant: '월 제공', topup: '추가 구매', refund: '환불', adjust: '조정' };
+const PAY_LABEL: Record<string, string> = { done: '완료', failed: '실패', pending: '진행 중', canceled: '취소' };
 const KIND_LABEL: Record<string, string> = {
-  evaluation_draft: '평가 시뮬레이션', plan_draft: '목표 초안', forecast_note: '성과 해석', strategy_check: '전략 점검', scenario_note: '시나리오 해석', knowhow_ingest: '노하우 정리',
+  evaluation_draft: '평가 시뮬레이션', plan_draft: 'AI 목표 초안', forecast_note: '성과 해석', strategy_check: '전략 점검', scenario_note: '시나리오 해석', knowhow_ingest: '노하우 자료 정리',
 };
 
-/** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · 플레이북 · 히스토리 관리 · 크레딧 */
+/** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리 · 크레딧 (요금제 카드에 표시) */
 const INCLUDED: { title: string; sub: string; items: string[] }[] = [
   { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제 (팀원 계획 · 승인)', '업무플랫폼 (개인 · 그룹 스페이스)', '컨디션 공유 · 1on1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '노하우 라이브러리 · 내 메모'] },
-  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트 (매일 · 매주 · 매월)', 'ATEAM의 제안 (매주 월요일)', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM의 코칭', '임원 브리핑', 'ATEAM Method™ — 검증된 업무 방법론 78개 (Pro부터)'] },
-  { title: '프리미엄', sub: '월 크레딧으로', items: ['평가 시뮬레이션 5 (Pro부터)', '목표 초안 2', '노하우 정리 2', '성과 해석 1'] },
+  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트 (매일 · 매주 · 매월)', 'ATEAM의 제안 (매주 월요일)', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM의 코칭', '임원 브리핑'] },
+  { title: '프리미엄', sub: '월 크레딧으로 · 1회 차감', items: ['AI 목표 초안 2', '노하우 자료 정리 2', '성과 해석 1'] },
 ];
 
 // 토스페이먼츠 v2 SDK (자동결제 카드 등록)
@@ -51,7 +53,7 @@ function Billing() {
   const { team } = useTeam();
   const seats = useQuery({ queryKey: ['seats', team.id], queryFn: () => q<{ members: number; pending: number; max_members: number }>(supabase.rpc('team_seat_usage', { p_team: team.id })) });
   const payments = useQuery({ queryKey: ['payments'], queryFn: () => q<{ id: string; order_name: string; amount_krw: number; status: string; paid_at: string | null; created_at: string; receipt_url: string | null }[]>(supabase.from('payments').select('*').order('created_at', { ascending: false }).limit(12)) });
-  const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').neq('reason', 'core_usage').order('created_at', { ascending: false }).limit(15)) });
+  const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').not('reason', 'in', '(core_usage,ai_error)').order('created_at', { ascending: false }).limit(15)) });
 
   const done = () => { refresh(); qc.invalidateQueries({ queryKey: ['subscription'] }); qc.invalidateQueries({ queryKey: ['payments'] }); qc.invalidateQueries({ queryKey: ['ledger'] }); };
   const subscribe = useMutation({
@@ -73,6 +75,13 @@ function Billing() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function start(plan: Plan) {
+    // 이미 카드가 등록돼 구독 중이면 결제창 없이 그 카드로 바로 바꾼다
+    if (active && s?.card_last4) {
+      const price = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
+      if (!confirm(`${plan.name} ${cycle === 'year' ? '연간' : '월간'}으로 바꿉니다.\n등록된 카드(${s.card_company ?? '카드'} ****${s.card_last4})로 ${won(Math.round(price * 1.1))}(VAT 포함)이 결제되고, 오늘부터 새 주기가 시작됩니다.`)) return;
+      subscribe.mutate({ action: 'change', plan_id: plan.id, cycle });
+      return;
+    }
     const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY as string | undefined;
     if (!clientKey) { toast('결제 키(VITE_TOSS_CLIENT_KEY)가 설정되지 않았습니다'); return; }
     try {
@@ -166,7 +175,7 @@ function Billing() {
         <div className="flex items-end justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-lg font-bold tracking-tight">팀 크기에 맞게 고르세요</h2>
-            <p className="text-sm text-slate-500">기능은 같고 팀원 수가 다릅니다 (Starter는 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리 제외) · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
+            <p className="text-sm text-slate-500">팀원 수와 일부 기능이 다릅니다 (평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리는 Pro부터) · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
           </div>
           <div className="flex bg-slate-100 rounded-lg p-0.5 text-[13px]">
             <button onClick={() => setCycle('month')} className={cx('px-3 py-1 rounded-md', cycle === 'month' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>월간</button>
@@ -193,7 +202,7 @@ function Billing() {
                 <ul className="mt-4 space-y-2 text-sm flex-1">
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />기록·협업 · AI 참모 전체</li>
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
-                  <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{!evalOn && ' 없음'}</li>
+                  <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{evalOn ? ' (1회 5 크레딧)' : ' 없음'}</li>
                   <li className={cx('flex gap-2', !conOn && 'text-slate-400')}>{conOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}ATEAM Method™{conOn ? ' (방법론 78개)' : ' 없음'}</li>
                   <li className={cx('flex gap-2', !histOn && 'text-slate-400')}>{histOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}히스토리 관리{histOn ? ' (과제별 맥락 전달)' : ' 없음'}</li>
                 </ul>
@@ -226,7 +235,7 @@ function Billing() {
           <ul className="divide-y divide-slate-100 text-sm">
             {(ledger.data ?? []).map((l) => (
               <li key={l.id} className="px-5 py-2.5 flex justify-between gap-3">
-                <span>{l.reason === 'usage' ? KIND_LABEL[l.ai_kind ?? ''] ?? l.ai_kind : l.reason === 'monthly_grant' ? '월 제공' : l.reason === 'topup' ? '추가 구매' : l.reason}<span className="text-xs text-slate-400 ml-2">{fmtDate(l.created_at)}</span></span>
+                <span>{l.reason === 'usage' ? KIND_LABEL[l.ai_kind ?? ''] ?? l.ai_kind : REASON_LABEL[l.reason] ?? l.reason}<span className="text-xs text-slate-400 ml-2">{fmtDate(l.created_at)}</span></span>
                 <span className={cx('font-mono num', l.delta < 0 ? 'text-slate-700' : 'text-emerald-700')}>{l.delta > 0 ? '+' : ''}{l.delta}</span>
               </li>
             ))}
@@ -240,7 +249,7 @@ function Billing() {
                 <li key={p.id} className="px-5 py-2.5 flex justify-between gap-3">
                   <span>{p.order_name}<span className="text-xs text-slate-400 ml-2">{fmtDate(p.paid_at ?? p.created_at)}</span></span>
                   <span className="flex items-center gap-2"><span className="font-mono">{won(p.amount_krw)}</span>
-                    {p.receipt_url ? <a href={p.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600">영수증</a> : <Pill tone={p.status === 'done' ? 'emerald' : p.status === 'failed' ? 'rose' : 'slate'}>{p.status}</Pill>}</span>
+                    {p.receipt_url ? <a href={p.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600">영수증</a> : <Pill tone={p.status === 'done' ? 'emerald' : p.status === 'failed' ? 'rose' : 'slate'}>{PAY_LABEL[p.status] ?? p.status}</Pill>}</span>
                 </li>
               ))}
             </ul>

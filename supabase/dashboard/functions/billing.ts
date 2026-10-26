@@ -92,7 +92,7 @@ var addPeriod = (from, cycle) => {
   return d.toISOString();
 };
 async function charge(sub, billingKey, kind, amount, orderName) {
-  const orderId = `fs-${kind}-${crypto.randomUUID()}`;
+  const orderId = `ateam-${kind}-${crypto.randomUUID()}`;
   const { data: pay } = await admin.from("payments").insert({
     subscription_id: sub.id,
     owner_id: sub.owner_id,
@@ -166,8 +166,8 @@ serve(async (req) => {
   if (caller.isService || !caller.userId) throw new HttpError(403, "forbidden");
   const sub = await getSub(caller.userId);
   if (b.action === "customer_key") return json({ customerKey: sub.customer_key });
-  if (b.action === "subscribe") {
-    if (!b.authKey || !b.plan_id) throw new HttpError(400, "MISSING_PARAMS");
+  if (b.action === "subscribe" || b.action === "change") {
+    if (!b.plan_id || b.action === "subscribe" && !b.authKey) throw new HttpError(400, "MISSING_PARAMS");
     const { data: plan } = await admin.from("plans").select("*").eq("id", b.plan_id).eq("active", true).maybeSingle();
     if (!plan || plan.id === "free") throw new HttpError(400, "BAD_PLAN");
     const { data: owned } = await admin.from("teams").select("id").eq("owner_id", caller.userId).eq("is_demo", false);
@@ -177,13 +177,22 @@ serve(async (req) => {
       if ((count ?? 0) > plan.max_members) throw new HttpError(400, "PLAN_TOO_SMALL", `\uC9C0\uAE08 \uD300\uC6D0\uC774 ${count}\uBA85\uC774\uB77C \uD300\uC6D0 ${plan.max_members}\uBA85\uAE4C\uC9C0\uC778 ${plan.name}\uC740(\uB294) \uACE0\uB97C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4`);
     }
     const cycle = b.cycle === "year" ? "year" : "month";
-    const issued = await toss("/billing/authorizations/issue", { authKey: b.authKey, customerKey: sub.customer_key });
-    const billingKey = issued.billingKey;
-    await admin.from("billing_secrets").upsert({ subscription_id: sub.id, billing_key: billingKey, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
+    let billingKey;
+    let card = null;
+    if (b.action === "subscribe") {
+      const issued = await toss("/billing/authorizations/issue", { authKey: b.authKey, customerKey: sub.customer_key });
+      billingKey = issued.billingKey;
+      await admin.from("billing_secrets").upsert({ subscription_id: sub.id, billing_key: billingKey, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
+      const cardNo = issued.cardNumber ?? issued.card?.number ?? "";
+      card = { company: issued.cardCompany ?? issued.card?.issuerCode ?? null, last4: cardNo.replace(/\D/g, "").slice(-4) || null };
+    } else {
+      const { data: sec } = await admin.from("billing_secrets").select("billing_key").eq("subscription_id", sub.id).maybeSingle();
+      if (!sec) throw new HttpError(400, "NO_CARD", "\uB4F1\uB85D\uB41C \uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uCE74\uB4DC\uB97C \uBA3C\uC800 \uB4F1\uB85D\uD574 \uC8FC\uC138\uC694.");
+      billingKey = sec.billing_key;
+    }
     const price = cycle === "year" ? plan.price_year_krw : plan.price_month_krw;
     await charge(sub, billingKey, "subscription", withVat(price), `ATEAM ${plan.name} ${cycle === "year" ? "\uC5F0\uAC04" : "\uC6D4\uAC04"}`);
     const now = /* @__PURE__ */ new Date();
-    const cardNo = issued.cardNumber ?? issued.card?.number ?? "";
     const { data: updated } = await admin.from("subscriptions").update({
       plan_id: plan.id,
       status: "active",
@@ -192,10 +201,9 @@ serve(async (req) => {
       cancel_at_period_end: false,
       current_period_start: now.toISOString(),
       current_period_end: addPeriod(now, cycle),
-      card_company: issued.cardCompany ?? issued.card?.issuerCode ?? null,
-      card_last4: cardNo.replace(/\D/g, "").slice(-4) || null
+      ...card ? { card_company: card.company, card_last4: card.last4 } : {}
     }).eq("id", sub.id).select().single();
-    await admin.from("credit_balances").delete().eq("owner_id", caller.userId);
+    await admin.from("credit_balances").update({ period_start: "1970-01-01T00:00:00Z", updated_at: now.toISOString() }).eq("owner_id", caller.userId);
     return json(updated);
   }
   if (b.action === "topup") {
