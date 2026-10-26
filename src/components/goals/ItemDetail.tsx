@@ -234,7 +234,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
           </div>
         )}
         {metricOpen && <MetricModal open onClose={() => setMetricOpen(false)} goal={item} />}
-        {item.depth < 2 && !PENDING.includes(item.status) && !(item.depth === 0 && item.measure === 'children') && <CheckinHistory item={item} canCheckin={canCheckin} onCheckin={() => setCk(true)} />}
+        {item.depth < 2 && !PENDING.includes(item.status) && !(item.depth === 0 && item.measure === 'children') && <CheckinHistory item={item} canCheckin={canCheckin} metric={isMetric} onCheckin={() => setCk(true)} />}
         {ck && <CheckinModal open onClose={() => setCk(false)} itemId={item.id} spaceId={uid} />}
 
         {/* 측정 방식 */}
