@@ -1,7 +1,7 @@
 // 업무플랫폼 — 팀원이 올린 결과물을 목표(없으면 루틴)와 연결해 보고, AI 1차 검토를 미리 보며 피드백
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Briefcase, Check, Crosshair, ChevronDown, ChevronRight, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, UsersRound } from 'lucide-react';
+import { Briefcase, Check, Crosshair, ChevronDown, ChevronRight, Users, FileText, Hash, Image as ImageIcon, LayoutList, Link2, MessageSquare, MessageSquareText, Plus, Repeat, Settings2, Target, Layers, Boxes } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useTeamMembersOnly } from '../lib/hooks';
 import { buildTree, useItems, type Node } from '../lib/items';
@@ -70,7 +70,7 @@ export default function Reviews() {
             <PeopleBoxes rows={all} loading={list.isLoading} byId={byId} />
           </div>
           <div className="space-y-3">
-            <div className="text-xs font-semibold text-slate-500 inline-flex items-center gap-1.5"><UsersRound size={13} />그룹별</div>
+            <div className="text-xs font-semibold text-slate-500 inline-flex items-center gap-1.5"><Boxes size={13} />그룹별</div>
             <GroupBoxes rows={all} loading={list.isLoading} byId={byId} onEdit={(g) => setGroupModal({ group: g })} onNew={() => setGroupModal({})} />
           </div>
         </div>
@@ -141,7 +141,7 @@ function OpenLine({ s, showAuthor }: { s: SubRow; showAuthor?: boolean }) {
         {s.status === 'needs_work' && <span className="shrink-0 text-[10px] font-semibold rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">보완 중</span>}
         <span className="truncate text-sm">{s.title}</span>
         {s.latest && s.latest.version > 1 && <span className="shrink-0 font-mono text-[10px] text-indigo-600">v{s.latest.version}</span>}
-        {g && <span className="shrink-0 text-[10px] rounded px-1.5 py-0.5 bg-sky-50 text-sky-700 inline-flex items-center gap-0.5"><UsersRound size={10} />{g.name}</span>}
+        {g && <span className="shrink-0 text-[10px] rounded px-1.5 py-0.5 bg-sky-50 text-sky-700 inline-flex items-center gap-0.5"><Boxes size={10} />{g.name}</span>}
         {freshReply(s, uid) && <span className="shrink-0 text-[10px] font-bold text-white bg-rose-500 rounded-full px-1.5">새 답글</span>}
       </Link>
       {n > 0 && <span className="shrink-0 text-[11px] text-slate-400 inline-flex items-center gap-0.5"><MessageSquare size={11} />{n}</span>}
@@ -167,7 +167,7 @@ function GroupBoxes({ rows, loading, byId, onEdit, onNew }: { rows: SubRow[]; lo
           <section key={g.id} className="rounded-2xl bg-white ring-1 ring-slate-900/[0.07] shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden">
             <div className="px-5 py-3.5 flex items-center gap-3 border-b border-sky-100/70 bg-gradient-to-r from-sky-50/80 via-indigo-50/40 to-white">
               <Link to={`/work/g/${g.id}`} className="contents">
-              <span className="w-9 h-9 rounded-full bg-white ring-1 ring-sky-200 text-sky-600 inline-flex items-center justify-center shrink-0"><UsersRound size={17} /></span>
+              <span className="w-9 h-9 rounded-full bg-white ring-1 ring-sky-200 text-sky-600 inline-flex items-center justify-center shrink-0"><Boxes size={17} /></span>
               <span className="min-w-0"><span className="block font-semibold truncate">{g.name}</span><span className="block text-xs text-slate-500 truncate">{goal ? `목표 · ${goal.title}` : '연결 목표 없음'}</span></span>
               </Link>
               <span className="ml-auto flex -space-x-2 shrink-0">{g.work_group_members.slice(0, 5).map((m) => <span key={m.user_id} className="ring-2 ring-white rounded-full" title={nameOf(m.user_id)}><Avatar name={nameOf(m.user_id)} size={7} /></span>)}</span>
