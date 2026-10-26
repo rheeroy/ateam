@@ -142,35 +142,83 @@ const kindIcon = (name: string) => {
 const sizeLabel = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
 
 /** 여러 파일 고르기 — 끌어 놓기 · 클릭 */
+const SUPPORTED = /\.(pdf|docx|pptx|xlsx|csv|txt|md|png|jpe?g|gif|webp)$/i;
+
+/** 끌어 놓은 것에서 파일을 모은다 — 폴더면 안쪽(하위 폴더 포함)까지 */
+async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
+  // entry 는 drop 이벤트 안에서 바로 꺼내 둬야 한다 (await 뒤에는 비워진다)
+  const entries = Array.from(dt.items ?? []).map((i) => (i.kind === 'file' ? i.webkitGetAsEntry?.() : null)).filter((e): e is FileSystemEntry => !!e);
+  if (!entries.length) return Array.from(dt.files);
+  const out: File[] = [];
+  const walk = async (e: FileSystemEntry, depth: number): Promise<void> => {
+    if (e.isFile) {
+      out.push(await new Promise<File>((ok, fail) => (e as FileSystemFileEntry).file(ok, fail)));
+    } else if (e.isDirectory && depth < 6 && out.length < 500) {
+      const reader = (e as FileSystemDirectoryEntry).createReader();
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((ok, fail) => reader.readEntries(ok, fail));
+        if (!batch.length) break;
+        for (const c of batch) await walk(c, depth + 1);
+      }
+    }
+  };
+  for (const e of entries) await walk(e, 0);
+  return out;
+}
+
+/** 여러 파일 고르기 — 끌어 놓기(폴더도) · 클릭 · 폴더째 고르기 */
 function FileDrop({ files, onChange, disabled }: { files: File[]; onChange: (f: File[]) => void; disabled?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
+  const folder = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const add = (list: FileList | null) => {
-    if (!list) return;
-    setErr(null);
+  const [note, setNote] = useState<string | null>(null);
+  const add = (list: File[]) => {
+    setErr(null); setNote(null);
     const next = [...files];
-    for (const f of Array.from(list)) {
-      if (f.size > MAX_BYTES) { setErr(`${f.name}: 20MB 이하 파일만 올릴 수 있습니다`); continue; }
+    const skipped: string[] = [];
+    let big = 0, overflow = 0;
+    for (const f of list) {
+      if (f.name.startsWith('.') || f.name.startsWith('~$')) continue;   // 숨김·오피스 임시 파일
+      if (!SUPPORTED.test(f.name)) { skipped.push(f.name); continue; }
+      if (f.size > MAX_BYTES) { big++; continue; }
       if (next.some((x) => x.name === f.name && x.size === f.size)) continue;
+      if (next.length >= MAX_FILES) { overflow++; continue; }
       next.push(f);
     }
-    if (next.length > MAX_FILES) setErr(`한 번에 ${MAX_FILES}개까지 올릴 수 있습니다`);
-    onChange(next.slice(0, MAX_FILES));
+    onChange(next);
+    const msgs: string[] = [];
+    if (skipped.length) {
+      const hwp = skipped.some((n) => /\.hwpx?$/i.test(n)), old = skipped.some((n) => /\.(xls|ppt|doc)$/i.test(n));
+      msgs.push(`읽을 수 없는 형식 ${skipped.length}개는 뺐습니다${hwp ? ' — 한글(.hwp)은 PDF로 저장해 올려 주세요' : old ? ' — 예전 형식(.xls·.ppt·.doc)은 새 형식으로 저장해 올려 주세요' : ''}`);
+    }
+    if (big) msgs.push(`20MB가 넘는 파일 ${big}개는 뺐습니다`);
+    if (overflow) msgs.push(`한 번에 ${MAX_FILES}개까지라 ${overflow}개는 뺐습니다 — 핵심 자료부터 골라 주세요`);
+    if (msgs.length) setNote(msgs.join(' · '));
   };
   return (
     <div>
       <button type="button" disabled={disabled} onClick={() => input.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); if (!disabled) add(e.dataTransfer.files); }}
+        onDrop={(e) => {
+          e.preventDefault(); setOver(false);
+          if (disabled) return;
+          filesFromDrop(e.dataTransfer).then(add).catch(() => setErr('폴더를 읽지 못했습니다. 파일을 직접 골라 주세요'));
+        }}
         className={cx('w-full rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors disabled:opacity-60',
           over ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-300 bg-slate-50/60 hover:border-indigo-300 hover:bg-indigo-50/30')}>
         <Upload size={20} className="mx-auto text-indigo-600" />
-        <div className="mt-2 text-sm font-semibold text-slate-800">파일을 끌어 놓거나 눌러서 고르세요</div>
+        <div className="mt-2 text-sm font-semibold text-slate-800">파일이나 폴더를 끌어 놓거나 눌러서 고르세요</div>
         <div className="mt-1 text-xs text-slate-500">PDF · PPT · 엑셀 · 워드 · 이미지(사진·캡처) · 텍스트 — {MAX_FILES}개까지, 파일당 20MB</div>
       </button>
-      <input ref={input} type="file" multiple accept={ACCEPT_ONBOARD} className="hidden" onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
+      <div className="mt-1.5 text-right">
+        <button type="button" disabled={disabled} onClick={() => folder.current?.click()} className="text-xs text-slate-500 hover:text-indigo-700 disabled:opacity-60">폴더째 고르기</button>
+      </div>
+      <input ref={input} type="file" multiple accept={ACCEPT_ONBOARD} className="hidden" onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
+      <input ref={folder} type="file" multiple className="hidden" {...({ webkitdirectory: '' } as Record<string, string>)}
+        onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
       <ErrorBox error={err} />
+      {note && <p className="mt-2 text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">{note}</p>}
       {!!files.length && (
         <ul className="mt-3 flex flex-wrap gap-2">
           {files.map((f, i) => {
