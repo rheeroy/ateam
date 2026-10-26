@@ -5,7 +5,7 @@
 // 상태는 teams.settings.onboarding 에 둔다. 시작하기 안의 AI는 크레딧을 쓰지 않는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, FileText, Image as ImageIcon, Link2, Plus, Presentation, Sheet, Target, Trash2, Upload, UserPlus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, FileText, Image as ImageIcon, Link2, Plus, Presentation, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_ONBOARD, IMAGE_EXT, MAX_BYTES, extractText, safeName, shrinkImage } from '../lib/extract';
@@ -22,6 +22,9 @@ import { ORG_KIND } from '../components/home/shared';
 interface OrgCand { kind: string; title: string; body?: string; source?: string; event_date?: string | null; exec?: string }
 interface ExecCand { name: string; title?: string; interests?: string }
 interface OnboardJob { id?: string; status?: 'running' | 'done' | 'failed'; at?: string; error?: string; output_id?: string }
+/** 뒤에서 만드는 초안의 진행 상태 (teams.settings.onboarding.job) */
+const jobOf = (settings: Record<string, unknown> | undefined): OnboardJob =>
+  (((settings?.onboarding ?? {}) as { job?: OnboardJob }).job ?? {});
 interface OnboardOut { summary: string; ops: PlanOp[]; org?: OrgCand[]; execs?: ExecCand[]; onboarding?: boolean }
 
 const MAX_FILES = 10;
@@ -319,7 +322,7 @@ function StepPlan({ onNext }: { onNext: () => void }) {
     while (Date.now() < until) {
       await new Promise((r) => setTimeout(r, 4000));
       const { data } = await supabase.from('teams').select('settings').eq('id', team.id).single();
-      const job = (onboardingOf(data?.settings as Record<string, unknown>).job ?? {}) as OnboardJob;
+      const job = jobOf(data?.settings as Record<string, unknown>);
       if (job.id !== jobId) continue;
       if (job.status === 'failed') throw new Error(job.error ? `초안을 만들지 못했습니다: ${job.error}` : '초안을 만들지 못했습니다. 다시 시도해 주세요');
       if (job.status === 'done' && job.output_id) {
@@ -337,7 +340,7 @@ function StepPlan({ onNext }: { onNext: () => void }) {
   useEffect(() => {
     if (resumed.current) return;
     resumed.current = true;
-    const job = (onboardingOf(team.settings).job ?? {}) as OnboardJob;
+    const job = jobOf(team.settings);
     if (job.status === 'running' && job.id && job.at && Date.now() - Date.parse(job.at) < 8 * 60000) {
       setBusy(true); setMsg(2);
       waitJob(job.id).catch((e) => setErr(errorText(e))).finally(() => setBusy(false));
@@ -381,7 +384,7 @@ function StepPlan({ onNext }: { onNext: () => void }) {
   return (
     <section className="flex-1 flex flex-col">
       <StepHead title="가지고 있는 자료로 팀목표 초안을 만듭니다">
-        사업계획서, 업무 분장표, 회의록, 임원 보고 자료처럼 이미 있는 자료를 그대로 올려 주세요. 정리되지 않아도 괜찮습니다.
+        사업계획서, 업무 분장표, 회의록, 임원 보고 자료처럼 이미 있는 자료를 그대로 올려 주세요. 정리되지 않아도 괜찮고, 내년 계획 자료여도 올해 팀목표로 정리합니다.
         {' '}<CoreAI />가 목표 › 과제 › 할 일 초안을 만들고, 위에서 내려온 방침·요청·일정은 임원 브리핑에 쓸 '상위 전략·방침'으로 따로 골라 둡니다.
       </StepHead>
       <div className="rounded-2xl bg-slate-50/70 ring-1 ring-slate-200/70 p-5 sm:p-6 space-y-4">
@@ -461,7 +464,10 @@ function PlanReview({ out, canRedo, onRedo, onNext }: { out: AiOutput<OnboardOut
       if (d.ops == null) {
         const chosen = ops.filter((_, i) => selOps.has(i));
         const refs = new Set(chosen.map((o) => o.ref));
-        const fixed = chosen.map((o) => (o.parent && !refs.has(o.parent) ? { ...o, parent: null } : o));
+        // 시작하기는 '올해' 팀목표를 채운다 — 자료가 다른 해를 다뤄도 올해 밖의 날짜는 비워서 올해 판에 들어가게
+        const y = String(new Date().getFullYear());
+        const inYear = (dt?: string | null) => (dt && dt.slice(0, 4) === y ? dt : null);
+        const fixed = chosen.map((o) => ({ ...o, parent: o.parent && !refs.has(o.parent) ? null : o.parent, start_date: inYear(o.start_date), due_date: inYear(o.due_date) }));
         d.opsErr = fixed.length ? await applyOps(team.id, fixed, members) : [];
         d.ops = fixed.length;
       }
@@ -469,7 +475,7 @@ function PlanReview({ out, canRedo, onRedo, onNext }: { out: AiOutput<OnboardOut
       refresh();
       qc.invalidateQueries();
       if (d.opsErr?.length) toast(`일부 반영 실패: ${d.opsErr[0]}`);
-      else if (d.ops || d.org || d.exN) toast(`팀목표 ${d.ops}건 · 상위 전략·방침 ${d.org}건 · 임원 기초정보 ${d.exN}명을 반영했습니다`);
+      else if (d.ops || d.org || d.exN) toast(`올해 팀목표 ${d.ops}건 · 상위 전략·방침 ${d.org}건 · 임원 기초정보 ${d.exN}명을 반영했습니다`);
       onNext();
     } catch (e) { setErr(errorText(e)); } finally { setBusy(false); }
   };
@@ -722,61 +728,71 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
   const set = (i: number, k: keyof Row, v: string) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const okLinks = made.filter((x) => x.link);
 
+  const cell = 'w-full min-w-0 bg-transparent text-sm px-3 py-2.5 placeholder:text-slate-300 focus:outline-none focus:bg-indigo-50/50';
+  const cols = 'sm:grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem]';
+  const copyAll = () => { void navigator.clipboard.writeText(okLinks.map((x) => `${x.email}  ${x.link}`).join('\n')); toast('모두 복사했습니다'); };
+
   return (
     <section className="flex-1 flex flex-col">
       <StepHead title="팀원을 초대하세요">
         초대 링크를 만들어 메신저나 메일로 보내 주세요. 팀원이 초대한 메일 주소로 로그인하면 바로 합류합니다. 팀원은 무료이고, 링크는 14일 동안 유효합니다.
       </StepHead>
-      <div className="rounded-2xl bg-slate-50/70 ring-1 ring-slate-200/70 p-5 sm:p-6 space-y-4">
-        <div className="space-y-2.5">
-          <p className="text-xs text-slate-500">강점·보완할 점은 선택입니다. 적어 두면 1on1 준비와 팀원관리 추천에 참고하며, <b className="font-semibold text-slate-700">팀원에게는 보이지 않습니다.</b></p>
-          {rows.map((r, i) => (
-            <div key={i} className="rounded-xl bg-white ring-1 ring-slate-200 p-3 space-y-2">
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,9rem)_2rem] gap-2 items-center">
-                <input type="email" className={inputCls} value={r.email} onChange={(e) => set(i, 'email', e.target.value)} placeholder="member@company.com" aria-label={`${i + 1}번째 이메일`} />
-                <input className={inputCls} value={r.title} onChange={(e) => set(i, 'title', e.target.value)} placeholder="직무 (예: 기획)" aria-label={`${i + 1}번째 직무`} />
-                {rows.length > 1
-                  ? <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} className="p-1.5 text-slate-400 hover:text-rose-600" aria-label="이 사람 빼기"><Trash2 size={14} /></button>
-                  : <span />}
-              </div>
-              <div className="grid sm:grid-cols-2 gap-2">
-                <input className={inputCls} value={r.strength} onChange={(e) => set(i, 'strength', e.target.value)} placeholder="강점 (예: 기획 속도가 빠르고 꼼꼼함)" aria-label={`${i + 1}번째 강점`} />
-                <input className={inputCls} value={r.weak} onChange={(e) => set(i, 'weak', e.target.value)} placeholder="보완할 점 (예: 숫자 근거가 약함)" aria-label={`${i + 1}번째 보완할 점`} />
-              </div>
-            </div>
-          ))}
-          <button type="button" onClick={() => setRows([...rows, { email: '', title: '', strength: '', weak: '' }])} className="text-sm text-indigo-700 font-semibold inline-flex items-center gap-1"><Plus size={14} />한 명 더</button>
-        </div>
-        <Button onClick={create} loading={busy} disabled={!valid.length}><Link2 size={15} />{valid.length ? `초대 링크 ${valid.length}개 만들기` : '초대 링크 만들기'}</Button>
 
-        {!!made.length && (
-          <div className="rounded-xl bg-slate-50 p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <UserPlus size={14} className="text-indigo-600" /><span className="text-sm font-semibold">만든 초대 링크</span>
-              {okLinks.length > 1 && (
-                <button type="button" className="ml-auto text-xs text-indigo-700 font-semibold inline-flex items-center gap-1"
-                  onClick={() => { void navigator.clipboard.writeText(okLinks.map((x) => `${x.email}  ${x.link}`).join('\n')); toast('모두 복사했습니다'); }}>
-                  <Copy size={12} />모두 복사
-                </button>
-              )}
-            </div>
-            <ul className="space-y-1.5 text-xs">
-              {made.map((m, i) => (
-                <li key={i} className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium text-slate-700 shrink-0 max-w-[40%] truncate">{m.email}</span>
-                  {m.link
-                    ? <><span className="text-slate-500 truncate flex-1">{m.link}</span>
-                      <button type="button" className="text-slate-400 hover:text-indigo-700 shrink-0" aria-label="링크 복사" onClick={() => { void navigator.clipboard.writeText(m.link!); toast('복사했습니다'); }}><Copy size={13} /></button></>
-                    : <span className="text-rose-600 flex-1 truncate">{m.error}</span>}
-                </li>
-              ))}
-            </ul>
+      {!!made.length && (
+        <div className="mb-4 rounded-2xl bg-emerald-50/70 ring-1 ring-emerald-200/70 p-4">
+          <div className="flex items-center gap-2">
+            <Check size={15} className="text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-900">초대 링크 {okLinks.length}개를 만들었습니다</span>
+            <span className="text-xs text-emerald-800/70 hidden sm:inline">메신저나 메일로 보내 주세요</span>
+            {okLinks.length > 0 && <Button size="sm" variant="secondary" className="ml-auto" onClick={copyAll}><Copy size={12} />모두 복사</Button>}
           </div>
-        )}
+          <ul className="mt-2.5 space-y-1 text-xs">
+            {made.map((m, i) => (
+              <li key={i} className="flex items-center gap-2 min-w-0">
+                <span className="font-medium text-slate-700 shrink-0 max-w-[45%] truncate">{m.email}</span>
+                {m.link
+                  ? <><span className="text-slate-500 truncate flex-1">{m.link}</span>
+                    <button type="button" className="text-slate-400 hover:text-indigo-700 shrink-0" aria-label="링크 복사" onClick={() => { void navigator.clipboard.writeText(m.link!); toast('복사했습니다'); }}><Copy size={13} /></button></>
+                  : <span className="text-rose-600 flex-1 truncate">{m.error}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="rounded-2xl bg-white ring-1 ring-slate-200 overflow-hidden">
+        <div className={cx('hidden sm:grid gap-px bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500', cols)}>
+          <span className="px-3 py-2">이메일</span><span className="px-3 py-2">직무</span>
+          <span className="px-3 py-2">강점 <span className="font-normal text-slate-400">선택</span></span>
+          <span className="px-3 py-2">보완할 점 <span className="font-normal text-slate-400">선택</span></span><span />
+        </div>
+        <ul className="divide-y divide-slate-100">
+          {rows.map((r, i) => (
+            <li key={i} className={cx('grid grid-cols-2 sm:divide-x divide-slate-100 items-center', cols)}>
+              <input type="email" className={cx(cell, 'col-span-2 sm:col-span-1')} value={r.email} onChange={(e) => set(i, 'email', e.target.value)} placeholder="name@company.com" aria-label={`${i + 1}번째 이메일`} />
+              <input className={cell} value={r.title} onChange={(e) => set(i, 'title', e.target.value)} placeholder="기획" aria-label={`${i + 1}번째 직무`} />
+              <input className={cell} value={r.strength} onChange={(e) => set(i, 'strength', e.target.value)} placeholder="예) 기획이 빠름" aria-label={`${i + 1}번째 강점`} />
+              <input className={cx(cell, 'col-span-2 sm:col-span-1')} value={r.weak} onChange={(e) => set(i, 'weak', e.target.value)} placeholder="예) 숫자 근거가 약함" aria-label={`${i + 1}번째 보완할 점`} />
+              <span className="hidden sm:flex justify-center">
+                {rows.length > 1 && <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} className="p-1.5 text-slate-300 hover:text-rose-600" aria-label="이 사람 빼기"><X size={14} /></button>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={() => setRows([...rows, { email: '', title: '', strength: '', weak: '' }])}
+          className="w-full border-t border-slate-100 px-3 py-2.5 text-left text-sm text-indigo-700 font-semibold hover:bg-indigo-50/40 inline-flex items-center gap-1"><Plus size={14} />한 명 더</button>
       </div>
-      <StepFoot onBack={onBack} right={
-        <Button onClick={onFinish} loading={finishing}>{okLinks.length ? 'ATEAM 시작하기' : '건너뛰고 시작하기'}<ArrowRight size={15} /></Button>
-      } />
+      <p className="mt-2 text-xs text-slate-500">강점·보완할 점은 1on1 준비와 팀원관리 추천에 참고하며, <b className="font-semibold text-slate-700">팀원에게는 보이지 않습니다.</b></p>
+
+      <StepFoot onBack={onBack} right={valid.length ? <>
+        <Button variant="ghost" onClick={onFinish} disabled={busy || finishing}>{okLinks.length ? '이대로 시작하기' : '건너뛰고 시작하기'}</Button>
+        <Button onClick={create} loading={busy}><Link2 size={15} />초대 링크 {valid.length}개 만들기</Button>
+      </> : okLinks.length ? (
+        <Button onClick={onFinish} loading={finishing}>ATEAM 시작하기<ArrowRight size={15} /></Button>
+      ) : <>
+        <Button variant="ghost" onClick={onFinish} loading={finishing}>건너뛰고 시작하기</Button>
+        <Button disabled><Link2 size={15} />초대 링크 만들기</Button>
+      </>} />
     </section>
   );
 }
