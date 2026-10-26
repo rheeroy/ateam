@@ -107,7 +107,7 @@ serve(async (req) => {
     `오늘: ${kstToday()}`, `팀: ${team?.name} / 미션: ${team?.mission || '-'}`,
     `단계 이름: ${levels.join(' > ')}`,
     `팀원: ${people.map((p) => `${p.name}(${p.job || '-'})`).join(', ')} — 아직 팀원을 초대하기 전이라 담당자는 대부분 비워 둡니다`,
-    `계획 연도: ${kstToday().slice(0, 4)}년 — 자료에 다른 해가 분명하면 그 해를 따릅니다`,
+    `계획 연도: ${kstToday().slice(0, 4)}년 — 처음 시작하는 팀이므로 자료가 다른 해(예: 내년 사업계획)를 다뤄도 올해(${kstToday().slice(0, 4)}년) 팀목표로 만듭니다. 날짜는 오늘부터 ${kstToday().slice(0, 4)}-12-31 사이로만 잡고, 그 안에 맞출 수 없으면 비워 둡니다`,
     book.knowhowText(),
     '## 현재 목표·과제\n(없음 — 처음 시작하는 팀)',
   ].filter(Boolean).join('\n\n');
