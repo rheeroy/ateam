@@ -139,13 +139,16 @@ export function Tabs<T extends string>({ value, onChange, items }: { value: T; o
 // ---------- Modal ----------
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  // onClose 는 부모가 렌더마다 새로 만들 수 있다 — 효과를 다시 돌리면 입력 중에 포커스가 닫기 버튼으로 튄다. 열릴 때 한 번만
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
     window.addEventListener('keydown', onKey);
     ref.current?.querySelector<HTMLElement>('input,textarea,select,button')?.focus();
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   // body 로 띄워서, 어두운 띠(AI 밴드·TOP PRIORITY) 안에서 열어도 글자색·정렬을 물려받지 않게
   return createPortal(
