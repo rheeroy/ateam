@@ -1,14 +1,14 @@
 // 업무플랫폼 › 팀원 업무 스페이스 (팀장) — 맨 위 한 줄 요약(펼치면 업무 수행 결과 · 최근 한 일) + 채팅형 스페이스
+//   요청은 입력창 ＋ › 요청 보내기 하나로 (상단 버튼은 두지 않는다)
 import { useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Send, Users } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useItems } from '../lib/items';
 import { useSubmissionsAi } from '../lib/work';
 import { usePeopleActions } from '../lib/peopleActions';
 import { cx } from '../lib/format';
 import { Avatar } from '../components/ui';
-import { RequestModal } from '../components/RequestModal';
 import { WorkSummary } from '../components/people/WorkSummary';
 import { Space } from '../components/space/Space';
 import { AiMark } from '../components/Brand';
@@ -17,7 +17,6 @@ export default function WorkSpace() {
   const { id } = useParams();
   const { members } = useTeam();
   const mb = members.find((x) => x.user_id === id);
-  const [req, setReq] = useState(false);
   const [more, setMore] = useState(false);
   if (!mb || !id) return <Navigate to="/work" replace />;
   const name = mb.profiles?.full_name ?? '팀원';
@@ -37,7 +36,6 @@ export default function WorkSpace() {
         </div>
         <div className="flex items-center gap-2">
           <Link to={`/people/${id}`} className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><Users size={15} />팀원관리</Link>
-          <button onClick={() => setReq(true)} className="text-sm rounded-xl px-3 py-2 bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5"><Send size={15} />요청 보내기</button>
         </div>
       </div>
       <SummaryLine uid={id} open={more} onToggle={() => setMore((x) => !x)} />
@@ -45,7 +43,6 @@ export default function WorkSpace() {
         <WorkSummary uid={id} />
       )}
       <Space space={{ kind: 'user', id }} leaderView offset={more ? '14rem' : '15rem'} />
-      <RequestModal open={req} onClose={() => setReq(false)} toId={id} defaultKind="share" />
     </div>
   );
 }
@@ -76,4 +73,3 @@ function SummaryLine({ uid, open, onToggle }: { uid: string; open: boolean; onTo
     </button>
   );
 }
-
