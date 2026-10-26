@@ -122,10 +122,11 @@ function StepHead({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function StepFoot({ onBack, backLabel = '이전', right }: { onBack?: () => void; backLabel?: string; right: ReactNode }) {
+function StepFoot({ onBack, backLabel = '이전', left, right }: { onBack?: () => void; backLabel?: string; left?: ReactNode; right: ReactNode }) {
   return (
     <><div className="h-6 shrink-0" /><div className="sticky bottom-0 mt-auto -mx-5 sm:-mx-10 px-5 sm:px-10 py-4 bg-white/95 backdrop-blur border-t border-slate-100 flex items-center gap-2 flex-wrap">
       {onBack && <Button variant="ghost" onClick={onBack} aria-label={backLabel}><ArrowLeft size={15} /><span className="hidden sm:inline">{backLabel}</span></Button>}
+      {left && <span className="text-xs text-slate-500 min-w-0">{left}</span>}
       <div className="ml-auto flex items-center gap-1 sm:gap-2 flex-wrap justify-end">{right}</div>
     </div></>
   );
@@ -265,6 +266,37 @@ function StepPlan({ onNext }: { onNext: () => void }) {
 
   if (shown) return <PlanReview out={shown} canRedo={runs < FREE_RUNS} onRedo={() => { setOut(null); setRedo(true); }} onNext={onNext} />;
 
+  // 초안 만드는 중 — 입력 화면 대신 진행 화면으로 넘어간다
+  if (busy) return (
+    <section className="flex-1 flex flex-col">
+      <StepHead title="자료를 읽고 초안을 만들고 있습니다">
+        <CoreAI />가 {files.length ? `올린 자료 ${files.length}개${text.trim() ? '와 붙여 넣은 글을' : '를'}` : '붙여 넣은 글을'} 읽고 있습니다. 자료 양에 따라 1~2분 걸리니 이 창을 닫지 말아 주세요.
+      </StepHead>
+      <div className="rounded-2xl bg-slate-50/70 ring-1 ring-slate-200/70 p-6 sm:p-8" role="status" aria-live="polite">
+        <ol className="space-y-4">
+          {RUN_MSGS.map((t, i) => {
+            const done = i < msg, on = i === msg;
+            return (
+              <li key={t} className="flex items-center gap-3">
+                {done ? <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0"><Check size={13} /></span>
+                  : on ? <span className="w-6 h-6 rounded-full border-[3px] border-indigo-200 border-t-indigo-600 animate-spin shrink-0" />
+                  : <span className="w-6 h-6 rounded-full border-2 border-slate-200 shrink-0" />}
+                <span className={cx('text-[15px]', done ? 'text-slate-500' : on ? 'text-slate-900 font-semibold' : 'text-slate-400')}>{t.replace(/…$/, '')}</span>
+              </li>
+            );
+          })}
+        </ol>
+        {!!files.length && (
+          <ul className="mt-6 pt-5 border-t border-slate-200/70 flex flex-wrap gap-1.5">
+            {files.map((f, i) => { const I = kindIcon(f.name); return <li key={i} className="inline-flex items-center gap-1 text-xs text-slate-500 bg-white ring-1 ring-slate-200 rounded-md px-2 py-0.5"><I size={12} />{f.name}</li>; })}
+          </ul>
+        )}
+      </div>
+      <StepFoot left="초안이 나오면 바로 이 화면에서 확인합니다" right={null} />
+    </section>
+  );
+
+  const blocked = runs >= FREE_RUNS;
   return (
     <section className="flex-1 flex flex-col">
       <StepHead title="가지고 있는 자료로 팀목표 초안을 만듭니다">
@@ -272,28 +304,22 @@ function StepPlan({ onNext }: { onNext: () => void }) {
         {' '}<CoreAI />가 목표 › 과제 › 할 일 초안을 만들고, 위에서 내려온 방침·요청·일정은 임원 브리핑에 쓸 '상위 전략·방침'으로 따로 골라 둡니다.
       </StepHead>
       <div className="rounded-2xl bg-slate-50/70 ring-1 ring-slate-200/70 p-5 sm:p-6 space-y-4">
-        <FileDrop files={files} onChange={setFiles} disabled={busy} />
+        <FileDrop files={files} onChange={setFiles} />
         <div>
           <label className="text-xs font-semibold text-slate-600" htmlFor="ob-text">붙여 넣기 <span className="font-normal text-slate-400">(선택)</span></label>
-          <textarea id="ob-text" rows={4} className={cx(inputCls, 'mt-1')} value={text} onChange={(e) => setText(e.target.value)} disabled={busy}
+          <textarea id="ob-text" rows={4} className={cx(inputCls, 'mt-1')} value={text} onChange={(e) => setText(e.target.value)}
             placeholder="메일·메신저로 받은 방침, 회의 메모, 올해 하려는 일을 그대로 붙여 넣어도 됩니다" />
         </div>
         <ErrorBox error={err} />
-        {busy ? (
-          <div className="rounded-xl bg-indigo-50/70 px-4 py-3 text-sm text-indigo-900 flex items-center gap-3" role="status">
-            <span className="w-4 h-4 rounded-full border-2 border-indigo-300 border-t-indigo-700 animate-spin shrink-0" />
-            <span className="flex-1">{RUN_MSGS[msg]}<span className="block text-xs text-indigo-700/80">자료 양에 따라 1~2분 걸립니다. 이 화면을 닫지 말아 주세요.</span></span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button onClick={run} disabled={(!files.length && !text.trim()) || runs >= FREE_RUNS}><AiIcon size={16} />초안 만들기</Button>
-            <span className="text-xs text-slate-500">{runs >= FREE_RUNS
-              ? `시작하기에서는 초안을 ${FREE_RUNS}번까지 만들 수 있습니다. 건너뛰고 팀목표 화면에서 이어서 다듬어 주세요`
-              : `시작하기에서는 크레딧을 쓰지 않습니다${runs ? ` · ${FREE_RUNS - runs}번 남음` : ''}`}</span>
-          </div>
-        )}
       </div>
-      <StepFoot right={<Button variant="ghost" onClick={onNext} disabled={busy}>건너뛰기<ArrowRight size={15} /></Button>} />
+      <StepFoot
+        left={blocked
+          ? `시작하기에서는 초안을 ${FREE_RUNS}번까지 만들 수 있습니다. 팀목표 화면에서 이어서 다듬어 주세요`
+          : `시작하기에서는 크레딧을 쓰지 않습니다${runs ? ` · ${FREE_RUNS - runs}번 남음` : ''}`}
+        right={<>
+          <Button variant="ghost" onClick={onNext}>건너뛰기</Button>
+          <Button onClick={run} disabled={(!files.length && !text.trim()) || blocked}><AiIcon size={16} />초안 만들기<ArrowRight size={15} /></Button>
+        </>} />
     </section>
   );
 }
