@@ -2,6 +2,7 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { useSession } from './state/session';
 import { isConfigured, supabase } from './lib/supabase';
+import { onboardingPending } from './lib/onboarding';
 import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import Login from './pages/Login';
@@ -9,6 +10,7 @@ import Invite from './pages/Invite';
 import Onboarding from './pages/Onboarding';
 
 const Home = lazy(() => import('./pages/Home'));
+const Setup = lazy(() => import('./pages/Setup'));
 const OneOnOneDetail = lazy(() => import('./pages/OneOnOneDetail'));
 const Reviews = lazy(() => import('./pages/Reviews'));
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'));
@@ -53,7 +55,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function RequireTeam({ children }: { children: ReactNode }) {
-  const { team, membershipError, refresh, session } = useSession();
+  const { team, membershipError, refresh, session, isLeader } = useSession();
   if (!team && membershipError) return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="max-w-sm text-center space-y-3 text-sm">
@@ -67,7 +69,9 @@ function RequireTeam({ children }: { children: ReactNode }) {
     </div>
   );
   if (!team) return <Navigate to="/onboarding" replace />;
-  return <>{children}</>;
+  // 새 팀의 팀장: 마치거나 건너뛰기 전까지 앱 위에 '시작하기' 팝업
+  const pending = isLeader && onboardingPending(team.settings);
+  return <>{children}{pending && <Suspense fallback={null}><Setup /></Suspense>}</>;
 }
 
 /** 옛 주소 → 새 메뉴 (쿼리는 이어 붙임) */
@@ -109,6 +113,7 @@ export default function App() {
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
+      <Route path="/setup" element={<Navigate to="/" replace />} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <MemberIndex />} />
         <Route path="brief/org" element={<Moved to="/upward" />} />

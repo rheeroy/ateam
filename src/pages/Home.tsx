@@ -16,9 +16,10 @@ import { useBoard, usePriorities } from '../components/decide/priorities';
 import { useAdvisor } from '../lib/advisor';
 import { useLatestAi } from '../lib/hooks';
 import { AiIcon, aiText, AteamAI, LogoMark } from '../components/Brand';
+import { onboardingOf } from '../lib/onboarding';
 import { useNotes } from '../lib/notes';
 import {
-  MemoModal, PeriodTabs, QuickStart, periodRangeLabel, STATUS_META,
+  MemoModal, PeriodTabs, QuickStart, SetupResume, periodRangeLabel, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
   type HomeModel, type MainSection,
 } from '../components/home/shared';
@@ -543,6 +544,7 @@ export default function Home() {
   return (
     <div className="space-y-3">
       <Header />
+      {onboardingOf(team.settings).status === 'done' && <SetupResume teamId={team.id} />}
       <DailyBriefing m={m} />
       <div className="pt-2 flex items-center gap-2 flex-wrap"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs font-semibold text-slate-500 num">{periodRangeLabel(period)}</span>
         <span className="ml-auto"><PeriodTabs period={period} setPeriod={setPeriod} /></span></div>

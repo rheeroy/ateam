@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, errorText, q } from '../lib/supabase';
 import { useSession } from '../state/session';
+import { saveOnboarding } from '../lib/onboarding';
 import { Button, ErrorBox, Field, inputCls } from '../components/ui';
 
 export default function Onboarding() {
@@ -12,7 +13,6 @@ export default function Onboarding() {
   const [mission, setMission] = useState('');
   const [title, setTitle] = useState('팀장');
   const [myName, setMyName] = useState(profile?.full_name ?? '');
-  const [sample, setSample] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -26,7 +26,8 @@ export default function Onboarding() {
         await q(supabase.from('profiles').update({ full_name: myName }).eq('id', profile.id));
       }
       const id = await q<string>(supabase.rpc('create_team', { p_name: name, p_mission: mission, p_job_title: title }));
-      if (sample) await q(supabase.rpc('seed_sample_strategy', { p_team: id }));
+      // 새 팀은 '시작하기'(자료 → 팀목표 초안 · 업무 기준 · 팀원 초대)부터 — 건너뛸 수 있다
+      await saveOnboarding(id, { status: 'pending', step: 1 });
       setTeamId(id);
       refresh();
       nav('/', { replace: true });
@@ -60,10 +61,6 @@ export default function Onboarding() {
         <Field label="팀 미션" hint="나중에 바꿀 수 있습니다">
           <textarea rows={2} className={inputCls} value={mission} onChange={(e) => setMission(e.target.value)} placeholder="예) 신사업 기회를 빠르게 검증해, 회사의 다음 성장 동력을 만든다" />
         </Field>
-        <label className="flex items-start gap-2.5 text-sm cursor-pointer">
-          <input type="checkbox" checked={sample} onChange={(e) => setSample(e.target.checked)} className="mt-1 accent-indigo-600" />
-          <span>샘플 목표·과제·실적 지표를 넣어 둡니다<span className="block text-xs text-slate-500">전략·성과·시뮬레이션 화면이 어떻게 보이는지 바로 확인할 수 있습니다. 언제든 지울 수 있습니다.</span></span>
-        </label>
         <ErrorBox error={err} />
         <Button type="submit" loading={busy} className="w-full">팀 만들기</Button>
       </form>

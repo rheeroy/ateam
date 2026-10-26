@@ -20,6 +20,7 @@ import {
   type Domain, type DomainSummary, type HomeSection, type Period, type Raw, type Signal, type SignalType, type Status,
 } from '../../lib/insights';
 import { aiText, CoreAI } from '../Brand';
+import { onboardingOf, saveOnboarding } from '../../lib/onboarding';
 
 // =====================================================================
 // 데이터 (대기열·조직 메모)
@@ -892,8 +893,79 @@ export function AiStrip({ teamId }: { teamId: string }) {
 }
 
 const QS_KEY = 'ateam.quickstart.hidden';
+/** 시작하기(온보딩)를 거친 팀: 건너뛴 단계를 대시보드에서 이어서 — 세 단계를 어느 정도 채우면 사라진다 */
+export function SetupResume({ teamId }: { teamId: string }) {
+  const { team, members, refresh } = useTeam();
+  const [opening, setOpening] = useState<number | null>(null);
+  const st = useQuery({
+    queryKey: ['setup-resume', teamId],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const count = async (t: string, f?: (x: any) => any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let qb: any = supabase.from(t).select('id', { count: 'exact', head: true }).eq('team_id', teamId);
+        if (f) qb = f(qb);
+        return (await qb).count ?? 0;
+      };
+      const [it, kh, inv] = await Promise.all([count('work_items'), count('knowhow_sources'), count('invitations', (x) => x.is('accepted_at', null))]);
+      return { it, kh, inv };
+    },
+  });
+  if (!st.data) return null;
+  // 팀을 만든 지 30일 안에는 시작하기 팝업을 다시 열고(무료 AI), 그 뒤에는 각 메뉴로
+  const young = Date.now() - Date.parse(team.created_at) < 30 * 86400000;
+  const steps = [
+    { n: 1 as const, done: st.data.it > 0, title: '팀목표 초안', desc: '가지고 있는 자료로 목표 › 과제 › 할 일 초안을 만듭니다', to: '/goals' },
+    { n: 2 as const, done: st.data.kh > 0, title: '업무 기준·노하우', desc: '평가 기준·보고 양식을 넣으면 AI가 팀장님 기준을 먼저 적용합니다', to: '/knowhow?tab=mine' },
+    { n: 3 as const, done: st.data.inv > 0 || members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/settings?tab=members' },
+  ];
+  const doneN = steps.filter((x) => x.done).length;
+  if (doneN === steps.length) return null;
+  const open = async (n: 1 | 2 | 3) => {
+    setOpening(n);
+    try { await saveOnboarding(teamId, { status: 'pending', step: n }); refresh(); } finally { setOpening(null); }
+  };
+  return (
+    <div className="rounded-2xl bg-indigo-50/70 border border-indigo-100 p-4">
+      <div className="flex items-center gap-3">
+        <Sparkles size={16} className="text-indigo-600 shrink-0" />
+        <div className="font-semibold text-sm">시작하기 이어서 하기</div>
+        <div className="flex-1 h-1.5 rounded-full bg-indigo-100 max-w-40"><div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${(doneN / steps.length) * 100}%` }} /></div>
+        <span className="font-mono text-xs text-indigo-700">{doneN}/{steps.length}</span>
+        <span className="ml-auto hidden sm:inline text-xs text-slate-500">세 가지를 채우면 이 안내는 사라집니다</span>
+      </div>
+      <div className="mt-3 grid sm:grid-cols-3 gap-2">
+        {steps.map((x) => {
+          const inner = (
+            <>
+              {x.done ? <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                : <span className="w-4 h-4 mt-0.5 rounded-full border-2 border-indigo-300 text-[9px] font-bold flex items-center justify-center text-indigo-600 shrink-0">{x.n}</span>}
+              <span className="min-w-0 flex-1">
+                <span className={cx('font-semibold block', x.done && 'line-through')}>{x.title}</span>
+                {!x.done && <span className="text-xs text-slate-500 block mt-0.5">{aiText(x.desc)}</span>}
+              </span>
+              {!x.done && <span className="text-xs font-semibold text-indigo-700 shrink-0 mt-0.5">{opening === x.n ? '여는 중…' : '이어서 하기 →'}</span>}
+            </>
+          );
+          const cls = cx('rounded-xl px-3 py-2.5 text-sm flex items-start gap-2.5 text-left', x.done ? 'text-slate-400' : 'bg-white border border-indigo-100 hover:border-indigo-300');
+          if (x.done) return <div key={x.n} className={cls}>{inner}</div>;
+          return young
+            ? <button key={x.n} type="button" disabled={opening != null} onClick={() => void open(x.n)} className={cls}>{inner}</button>
+            : <Link key={x.n} to={x.to} className={cls}>{inner}</Link>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function QuickStart({ teamId }: { teamId: string }) {
-  const { members } = useTeam();
+  const { members, team } = useTeam();
+  // 새 시작하기(온보딩)를 거친 팀은 대시보드 맨 위의 '시작하기 이어서 하기'(SetupResume)로 대신한다
+  if (onboardingOf(team.settings).status === 'done') return null;
+  return <QuickStartLegacy teamId={teamId} members={members} />;
+}
+
+function QuickStartLegacy({ teamId, members }: { teamId: string; members: ReturnType<typeof useTeam>['members'] }) {
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(QS_KEY) === '1'; } catch { return false; } });
   const st = useQuery({
     queryKey: ['quickstart', teamId],

@@ -6,6 +6,8 @@ import { callClaude, parseJson, toBase64, MODEL_SMART, type Block } from '../_sh
 import { INGEST } from '../_shared/prompts/index.ts';
 
 const CREDITS = 2;
+const FREE_ONBOARDING = 10;
+const IMAGE_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const KINDS = ['principle', 'rubric', 'framework', 'context', 'coaching', 'glossary'];
 const FEATURES = ['review', 'prep', 'report', 'evaluation', 'briefing', 'strategy', 'scenario', 'plan'];
 
@@ -20,7 +22,18 @@ serve(async (req) => {
   const caller = await getCaller(req);
   const src = must(await admin.from('knowhow_sources').select('*').eq('id', source_id).maybeSingle());
   await assertLeader(caller, src.team_id);
-  await assertCredits(src.team_id, CREDITS);
+  // 시작하기(온보딩) 중에 처음 정리하는 노하우는 크레딧을 쓰지 않는다
+  //   팀 생성 30일 이내 · 무료 정리 팀당 10번까지(크레딧 원장 기준이라 지워도 다시 늘지 않음) · 이미 정리된 자료를 다시 돌리면 유료
+  const { data: tm } = await admin.from('teams').select('settings, created_at').eq('id', src.team_id).single();
+  const onboarding = ((tm?.settings as Record<string, unknown> | null)?.onboarding ?? {}) as { status?: string };
+  let credits = CREDITS;
+  const young = !!tm?.created_at && Date.now() - Date.parse(tm.created_at) < 30 * 86400000;
+  if (onboarding.status === 'pending' && young && src.status !== 'done') {
+    const { count } = await admin.from('credit_ledger').select('id', { count: 'exact', head: true })
+      .eq('team_id', src.team_id).eq('ai_kind', 'knowhow_ingest').eq('delta', 0);
+    if ((count ?? 0) < FREE_ONBOARDING) credits = 0;
+  }
+  await assertCredits(src.team_id, credits);
 
   await admin.from('knowhow_sources').update({ status: 'processing', error: null }).eq('id', src.id);
   try {
@@ -31,12 +44,19 @@ serve(async (req) => {
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (bytes.length > 20 * 1024 * 1024) throw new HttpError(413, 'FILE_TOO_LARGE');
       content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: toBase64(bytes) }, title: src.title || src.file_name || '자료' });
+    } else if (IMAGE_MIME.includes(src.mime_type) && src.file_path) {
+      // 사진·캡처로 올린 기준표·양식
+      const { data: file, error } = await admin.storage.from('knowhow').download(src.file_path);
+      if (error) throw error;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (bytes.length > 5 * 1024 * 1024) throw new HttpError(413, 'FILE_TOO_LARGE');
+      content.push({ type: 'image', source: { type: 'base64', media_type: src.mime_type, data: toBase64(bytes) } });
     } else if (!src.raw_text.trim()) {
       throw new HttpError(422, 'NO_TEXT', '내용이 비어 있습니다');
     }
     content.push({ type: 'text', text: [
       `자료 제목: ${src.title || src.file_name || '(제목 없음)'}`,
-      src.raw_text.trim() ? `## 자료 본문\n${src.raw_text.slice(0, 60000)}` : '## 자료 본문\n(첨부 PDF)',
+      src.raw_text.trim() ? `## 자료 본문\n${src.raw_text.slice(0, 60000)}` : `## 자료 본문\n(첨부 ${IMAGE_MIME.includes(src.mime_type) ? '이미지' : 'PDF'})`,
     ].join('\n\n') });
 
     const res = await callClaude({ model: MODEL_SMART, system: `${BASE_RULES}\n\n${INGEST}`, content, maxTokens: 3000 });
@@ -57,7 +77,7 @@ serve(async (req) => {
     }
     await admin.from('knowhow_sources').update({ status: 'done', summary: out.summary ?? '', card_count: rows.length }).eq('id', src.id);
     await admin.rpc('consume_credits', {
-      p_team: src.team_id, p_credits: CREDITS, p_kind: 'knowhow_ingest', p_ai_output: null,
+      p_team: src.team_id, p_credits: credits, p_kind: 'knowhow_ingest', p_ai_output: null,
       p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd,
     });
     return json({ source_id: src.id, summary: out.summary, cards: rows.length });
