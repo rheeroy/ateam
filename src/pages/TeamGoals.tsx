@@ -47,7 +47,11 @@ export default function TeamGoals() {
       avg: rs.length ? Math.round(rs.reduce((a, r) => a + (r.status === 'done' ? 100 : r.progress), 0) / rs.length) : null,
     }));
   }, [roots, nowYear]);
-  const cur = years.find((x) => x.y === year) ?? years.find((x) => x.y === nowYear)!;
+  // 연도를 고르지 않았는데 올해 목표가 없으면, 목표가 있는 가장 가까운 해(내년 준비 등)를 먼저 보여 준다
+  const autoY = !params.get('year') && !years.find((x) => x.y === nowYear)?.roots.length
+    ? years.filter((x) => x.roots.length).sort((a, b) => Math.abs(a.y - nowYear) - Math.abs(b.y - nowYear) || b.y - a.y)[0]?.y
+    : undefined;
+  const cur = years.find((x) => x.y === (autoY ?? year)) ?? years.find((x) => x.y === nowYear)!;
   const past = cur.y < nowYear;
   const all = useMemo(() => { const out: Node[] = []; const walk = (a: Node[]) => a.forEach((n) => { out.push(n); walk(n.children); }); walk(cur.roots); return out; }, [cur]);
   const proposed = [...byId.values()].filter((n) => n.status === 'proposed').length;
