@@ -9,7 +9,7 @@ import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
 import { cx } from '../lib/format';
 import { Avatar, Spinner } from './ui';
-import { ProvLegend, useAiMark } from './Prov';
+import { ProvLegend } from './Prov';
 import { Notifications } from './Notifications';
 import { dDay, useHomeModel, usePeriod } from './home/shared';
 import { usePriorities } from './decide/priorities';
@@ -17,7 +17,7 @@ import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { QuickNote } from './notes/Notes';
 import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
-import { AiIcon, ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand';
+import { ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
 
@@ -90,11 +90,9 @@ export default function Layout() {
   const mb = useMemberBadges(!isLeader);
   const hUnread = useUnreadShares(!isLeader);
   const leaderTodo = (mb.data?.requests ?? 0) + (mb.data?.coaching ?? 0) + (mb.data?.promises ?? 0);   // 매니징 보드: 답할 것
-  const { on, toggle } = useAiMark();
   const nav = useNavigate();
   const loc = useLocation();
   const mainRef = useRef<HTMLDivElement>(null);
-  const [chipCount, setChipCount] = useState(0);
   const [menu, setMenu] = useState(false);
 
   const levelQ = useQuery({
@@ -103,16 +101,6 @@ export default function Layout() {
     queryFn: () => q<InsightLevel>(supabase.rpc('team_insight_level', { p_team: team!.id })),
     staleTime: 5 * 60_000,
   });
-
-  useEffect(() => {
-    const el = mainRef.current;
-    if (!el) return;
-    const count = () => setChipCount(el.querySelectorAll('[data-chip]').length);
-    count();
-    const mo = new MutationObserver(count);
-    mo.observe(el, { childList: true, subtree: true });
-    return () => mo.disconnect();
-  }, [loc.pathname]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); setMenu(false); }, [loc.pathname]);
 
@@ -171,17 +159,7 @@ export default function Layout() {
             )}
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {isLeader && (
-              <button type="button" onClick={toggle} aria-pressed={on} title="이 화면에서 AI가 만든 부분을 표시합니다"
-                className={cx('hidden sm:inline-flex items-center gap-2 text-[13px] border rounded-lg px-2.5 py-1.5',
-                  on ? 'border-violet-300 text-violet-800 bg-violet-50' : 'border-slate-200 text-slate-600 bg-white')}>
-                <span className={cx('relative w-7 h-4 rounded-full transition-colors', on ? 'bg-violet-600' : 'bg-slate-300')}>
-                  <span className={cx('absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all', on ? 'left-3.5' : 'left-0.5')} />
-                </span>
-                <AiIcon size={14} className="text-violet-600" />표시
-                <span className="font-mono text-[11px] font-semibold text-violet-700 bg-violet-100/60 rounded px-1.5">{chipCount}</span>
-              </button>
-            )}
+            {/* 'AI 표시' 토글은 뺐다 — AI 영역은 브랜드 표시(ATEAM AI·Core AI)와 근거 칩으로 이미 구분된다. 점선 표시 기능(ProvBlock·ProvLegend)은 남겨 둠 */}
             {isLeader && credits && credits.plan_id !== 'free' && (
               <NavLink to="/settings?tab=billing" className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500" title="평가 초안·계획서 초안 등 프리미엄 AI에 쓰는 크레딧 (기본 AI는 구독에 포함)">
                 프리미엄 <span className="font-mono font-semibold text-slate-800">{credits.monthly_remaining + credits.topup_remaining}</span>
