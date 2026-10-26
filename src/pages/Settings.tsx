@@ -19,8 +19,8 @@ const KIND_LABEL: Record<string, string> = {
 
 /** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리 · 크레딧 (요금제 카드에 표시) */
 const INCLUDED: { title: string; sub: string; items: string[] }[] = [
-  { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제 (팀원 계획 · 승인)', '업무플랫폼 (개인 · 그룹 스페이스)', '컨디션 공유 · 1on1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '노하우 라이브러리 · 내 메모'] },
-  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트 (매일 · 매주 · 매월)', 'ATEAM의 제안 (매주 월요일)', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM의 코칭', '임원 브리핑'] },
+  { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제', '업무플랫폼', '컨디션 공유 · 1on1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '노하우 라이브러리 · 내 메모'] },
+  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트', 'ATEAM의 제안', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM의 코칭', '임원 브리핑'] },
   { title: '프리미엄', sub: '월 크레딧으로 · 1회 차감', items: ['AI 목표 초안 2', '노하우 자료 정리 2', '성과 해석 1'] },
 ];
 
@@ -202,9 +202,9 @@ function Billing() {
                 <ul className="mt-4 space-y-2 text-sm flex-1">
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />기록·협업 · AI 참모 전체</li>
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
-                  <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{evalOn ? ' (1회 5 크레딧)' : ' 없음'}</li>
-                  <li className={cx('flex gap-2', !conOn && 'text-slate-400')}>{conOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}ATEAM Method™{conOn ? ' (방법론 78개)' : ' 없음'}</li>
-                  <li className={cx('flex gap-2', !histOn && 'text-slate-400')}>{histOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}히스토리 관리{histOn ? ' (과제별 맥락 전달)' : ' 없음'}</li>
+                  <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{evalOn ? '' : ' 없음'}</li>
+                  <li className={cx('flex gap-2', !conOn && 'text-slate-400')}>{conOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}ATEAM Method™{conOn ? '' : ' 없음'}</li>
+                  <li className={cx('flex gap-2', !histOn && 'text-slate-400')}>{histOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}히스토리 관리{histOn ? '' : ' 없음'}</li>
                 </ul>
                 <div className="mt-5">
                   {current ? <Button variant="secondary" disabled className="w-full">현재 요금제</Button>
