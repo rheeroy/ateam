@@ -301,7 +301,8 @@ export function CheckinDetail({ sub, versions, leaderView }: { sub: Submission; 
 // ---------------------------------------------------------------------
 // 팀목표 항목 — 성과입력 이력 (점 하나가 성과입력 하나)
 // ---------------------------------------------------------------------
-export function CheckinHistory({ item, canCheckin, onCheckin }: { item: Node; canCheckin: boolean; onCheckin: () => void }) {
+/** metric=false(지표가 아닌 과제): 진척은 직접 바꾸고, 성과입력은 공식 기록이 필요할 때만 쓰는 선택 기능으로 약하게 보여 준다 */
+export function CheckinHistory({ item, canCheckin, onCheckin, metric = true }: { item: Node; canCheckin: boolean; onCheckin: () => void; metric?: boolean }) {
   const { isLeader } = useTeam();
   const list = useItemCheckins(item.id);
   const decide = useDecideCheckin();
@@ -309,11 +310,17 @@ export function CheckinHistory({ item, canCheckin, onCheckin }: { item: Node; ca
   return (
     <div className="rounded-xl border border-slate-200 p-3.5">
       <div className="flex items-center gap-2">
-        <Crosshair size={14} className="text-indigo-600" /><span className="text-sm font-semibold">성과입력</span>
+        <Crosshair size={14} className={metric ? 'text-indigo-600' : 'text-slate-400'} /><span className={cx('text-sm font-semibold', !metric && 'text-slate-600')}>성과입력</span>
+        {!metric && <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">선택</span>}
         <span className="text-xs text-slate-400">지금 공식 {currentLabel(item)}</span>
-        {canCheckin && <Button size="sm" variant="secondary" className="ml-auto" title={PERF_TIP} onClick={onCheckin}><Crosshair size={13} />성과입력</Button>}
+        {canCheckin && (metric
+          ? <Button size="sm" variant="secondary" className="ml-auto" title={PERF_TIP} onClick={onCheckin}><Crosshair size={13} />성과입력</Button>
+          : <button type="button" title={PERF_TIP} onClick={onCheckin} className="ml-auto text-xs font-semibold text-slate-500 hover:text-indigo-700 inline-flex items-center gap-1"><Crosshair size={12} />승인받아 기록하기</button>)}
       </div>
-      {!rows.length ? <p className="mt-2 text-xs text-slate-400">아직 성과입력이 없습니다. 숫자가 바뀌거나 단계가 넘어가면 [성과입력]으로 남겨 주세요 — 팀장님이 승인하면 팀목표 진척에 반영됩니다.</p> : (
+      {!rows.length ? <p className="mt-2 text-xs text-slate-400">{metric
+        ? '아직 성과입력이 없습니다. 숫자가 바뀌거나 단계가 넘어가면 [성과입력]으로 남겨 주세요 — 팀장님이 승인하면 팀목표 진척에 반영됩니다.'
+        : isLeader ? '지표가 아닌 과제는 팀원이 진척을 직접 바꿉니다. 근거를 붙인 공식 기록이 필요할 때만 팀원이 승인을 요청합니다.'
+        : '지표가 아닌 과제라 진척은 아래에서 직접 바꾸면 됩니다. 근거를 붙여 팀장님 승인을 받은 공식 기록으로 남기고 싶을 때만 [승인받아 기록하기]를 쓰세요.'}</p> : (
         <ol className="mt-2.5 space-y-1.5">
           {[...rows].reverse().map((s) => {
             const c = latestPayload(s);
