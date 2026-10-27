@@ -26,6 +26,10 @@ body { font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSy
 .ap-dial.busy .seg { animation-duration: .6s; }
 .ap-dial.busy { filter: drop-shadow(0 0 18px rgba(167,139,250,.75)); }
 .ap-dial.busy svg { animation: ap-pulse 1s ease-in-out infinite; }
+/* 플로팅 버튼 입체감 — 접지 그림자 + 퍼지는 그림자 + 은은한 보라 반사, 호버 시 살짝 뜨고 누르면 눌림 */
+.ap-fab { transition: transform .18s ease, filter .18s ease; filter: drop-shadow(0 2px 2px rgba(7,9,26,.55)) drop-shadow(0 10px 14px rgba(11,14,26,.35)) drop-shadow(0 22px 30px rgba(79,70,229,.22)); }
+.ap-fab:hover { transform: translateY(-2px); filter: drop-shadow(0 3px 3px rgba(7,9,26,.5)) drop-shadow(0 14px 18px rgba(11,14,26,.35)) drop-shadow(0 28px 36px rgba(79,70,229,.3)); }
+.ap-fab:active { transform: translateY(1px) scale(.97); filter: drop-shadow(0 1px 1px rgba(7,9,26,.6)) drop-shadow(0 5px 8px rgba(11,14,26,.35)); }
 .ap-fill { transition: width .6s cubic-bezier(.2,.8,.2,1); }
 .ap-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.22) 45%, transparent 60%); background-size: 220px 100%; animation: ap-shim 1.3s linear infinite; }
 .ap-fill::before { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: #E9D5FF; box-shadow: 0 0 12px 3px #C4B5FD; }

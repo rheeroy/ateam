@@ -13,6 +13,7 @@ import { AutopilotSettings } from './Settings';
 
 const LS = 'ateam.autopilot.run.';
 const storeFor = (team: string) => ({ get: () => { try { return sessionStorage.getItem(LS + team); } catch { return null; } }, set: (v: string | null) => { try { if (v) sessionStorage.setItem(LS + team, v); else sessionStorage.removeItem(LS + team); } catch { /* 저장 불가 */ } } });
+const SHOW_ON = ['/', '/goals', '/perf'];
 const STALE = 10 * 60000;
 
 /** 진행률 — 서버 단계(0~3 데이터 · 7 정리 · 8 발송)와 경과 시간을 섞는다. 끝나기 전에는 95%를 넘지 않는다 */
@@ -81,6 +82,9 @@ export function AutopilotFab() {
     return () => { window.removeEventListener('mousedown', h); window.removeEventListener('keydown', k); };
   }, [open]);
   useEffect(() => setOpen(false), [loc.pathname]);
+  // 버튼은 대시보드 · 팀 목표 · 팀 성과에서만 보인다. 다른 화면에서는 실행 중이거나(결과 화면의 '다시 실행' 등으로) 팝업을 열었을 때만 잠깐 나타난다
+  const home = SHOW_ON.includes(loc.pathname.replace(/\/+$/, '') || '/');
+  const visible = home || open || busy;
   // 결과 화면 등 다른 곳에서 '실행'을 누르면 팝업을 연다
   useEffect(() => { const h = () => setOpen(true); window.addEventListener(AP_EVENT, h); return () => window.removeEventListener(AP_EVENT, h); }, []);
 
@@ -100,9 +104,9 @@ export function AutopilotFab() {
 
   return (
     <>
-      <div ref={box} className="fixed z-40 right-4 bottom-4 sm:right-7 sm:bottom-7 print:hidden">
+      <div ref={box} className={cx('fixed z-40 right-4 bottom-4 sm:right-7 sm:bottom-7 print:hidden transition-all duration-300', visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none')} aria-hidden={!visible}>
         <div role="dialog" aria-label="AUTOPILOT" aria-hidden={!open}
-          className={cx('absolute right-0 bottom-[88px] w-[380px] max-w-[calc(100vw-32px)] rounded-[20px] bg-white ring-1 ring-slate-200 shadow-[0_24px_60px_rgba(11,14,26,.28)] overflow-hidden origin-bottom-right transition-all duration-200',
+          className={cx('absolute right-0 bottom-[88px] sm:bottom-[100px] w-[380px] max-w-[calc(100vw-32px)] rounded-[20px] bg-white ring-1 ring-slate-200 shadow-[0_24px_60px_rgba(11,14,26,.28)] overflow-hidden origin-bottom-right transition-all duration-200',
             open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[.98] translate-y-2 pointer-events-none')}>
           <div className="bg-gradient-to-r from-[#0B0E1A] via-[#1E1B4B] to-[#2E1F7A] text-white px-[18px] py-4">
             <div className="flex items-center"><span className="inline-flex items-baseline gap-2"><span className="ap-font text-base">AUTOPILOT</span><span className="ap-on text-[13px] text-violet-400">ON</span></span>
@@ -132,15 +136,15 @@ export function AutopilotFab() {
               : left === 0 ? <p className="mt-2 text-[11.5px] text-slate-500 text-center">{q?.trial ? '체험 기간에는 1번 실행할 수 있습니다. 요금제를 시작하면 매달 다시 채워집니다.' : '이번 달 실행 횟수를 모두 썼습니다. 다음 달 1일에 다시 채워집니다.'}</p> : null}
           </div>
         </div>
-        <button onClick={() => (busy ? null : setOpen((x) => !x))} aria-label="AUTOPILOT" aria-expanded={open} title={busy ? 'AUTOPILOT 진행 중' : 'AUTOPILOT'}
-          className="block rounded-full drop-shadow-[0_12px_24px_rgba(11,14,26,.45)] active:scale-95 transition-transform">
-          <AutopilotDial size={64} busy={busy} className="sm:hidden" />
-          <AutopilotDial size={72} busy={busy} className="hidden sm:inline-block" />
+        <button tabIndex={visible ? 0 : -1} onClick={() => (busy ? null : setOpen((x) => !x))} aria-label="AUTOPILOT" aria-expanded={open} title={busy ? 'AUTOPILOT 진행 중' : 'AUTOPILOT'}
+          className="ap-fab block rounded-full">
+          <AutopilotDial size={72} busy={busy} className="sm:hidden" />
+          <AutopilotDial size={84} busy={busy} className="hidden sm:inline-block" />
         </button>
       </div>
 
       {/* 실행 중 — 하단 중앙에 떠 있는 로딩 바 (버튼과 세로 중심 맞춤) */}
-      <div aria-live="polite" className={cx('fixed z-40 left-4 right-[92px] bottom-[30px] sm:right-auto sm:left-1/2 sm:bottom-[46px] sm:w-[min(860px,calc(100vw-180px))] sm:-translate-x-1/2 transition-all duration-500 print:hidden',
+      <div aria-live="polite" className={cx('fixed z-40 left-4 right-[100px] bottom-[34px] sm:right-auto sm:left-1/2 sm:bottom-[52px] sm:w-[min(860px,calc(100vw-200px))] sm:-translate-x-1/2 transition-all duration-500 print:hidden',
         busy ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[140%] pointer-events-none')}>
         <div className="relative h-9 rounded-full overflow-hidden bg-[#0B0E1A]/90 backdrop-blur ring-1 ring-violet-400/35 shadow-[0_18px_40px_rgba(11,14,26,.35),0_0_0_4px_rgba(124,58,237,.08),0_0_28px_rgba(124,58,237,.25)]">
           <div className="ap-fill absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-600/55 to-violet-600/75" style={{ width: `${busy ? Math.round(pr.pct) : 0}%` }} />
