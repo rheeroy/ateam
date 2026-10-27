@@ -6,16 +6,16 @@ import { callClaude, parseJson, type Block } from './anthropic.ts';
 export type AiKind =
   | 'briefing' | 'one_on_one_prep' | 'review' | 'weekly_report'
   | 'evaluation_draft' | 'forecast_note' | 'strategy_check' | 'scenario_note'
-  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly' | 'exec_brief' | 'coaching' | 'checkin_draft' | 'work_brief' | 'task_history';
+  | 'insight_daily' | 'insight_weekly' | 'insight_monthly' | 'plan_draft' | 'plan_edit' | 'self_check' | 'org_impact' | 'people_actions' | 'advisor_weekly' | 'exec_brief' | 'coaching' | 'checkin_draft' | 'work_brief' | 'task_history' | 'autopilot';
 
 /** 코어 AI: 구독에 포함 (크레딧 차감 없음, 요금제별 공정 사용 한도만) */
 export const CORE: AiKind[] = ['briefing', 'one_on_one_prep', 'review', 'weekly_report',
-  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check', 'org_impact', 'people_actions', 'advisor_weekly', 'exec_brief', 'coaching', 'checkin_draft', 'work_brief', 'task_history'];
+  'insight_daily', 'insight_weekly', 'insight_monthly', 'plan_edit', 'self_check', 'org_impact', 'people_actions', 'advisor_weekly', 'exec_brief', 'coaching', 'checkin_draft', 'work_brief', 'task_history', 'autopilot'];
 
 /** 프리미엄 AI: 크레딧 차감 */
 export const CREDITS: Record<AiKind, number> = {
   one_on_one_prep: 0, review: 0, briefing: 0, weekly_report: 0,
-  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0, org_impact: 0, people_actions: 0, advisor_weekly: 0, exec_brief: 0, coaching: 0, checkin_draft: 0, work_brief: 0, task_history: 0,
+  insight_daily: 0, insight_weekly: 0, insight_monthly: 0, plan_edit: 0, self_check: 0, org_impact: 0, people_actions: 0, advisor_weekly: 0, exec_brief: 0, coaching: 0, checkin_draft: 0, work_brief: 0, task_history: 0, autopilot: 0,
   evaluation_draft: 5, plan_draft: 2, forecast_note: 1, strategy_check: 1, scenario_note: 1,
 };
 
@@ -194,6 +194,8 @@ export interface AiJob {
   extra?: Record<string, unknown>;
   /** true면 10분 안의 같은 결과를 재사용하지 않고 새로 만든다 */
   force?: boolean;
+  /** AI 호출 한 번의 시간 제한 (ms) */
+  timeoutMs?: number;
 }
 
 export async function assertCredits(teamId: string, need: number) {
@@ -267,6 +269,7 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
     system: `${BASE_RULES}\n\n${job.system}`,
     content: job.content,
     maxTokens: job.maxTokens,
+    timeoutMs: job.timeoutMs,
   });
   let parsed: T;
   try {

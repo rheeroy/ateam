@@ -715,33 +715,6 @@ begin
     end if;
   exception when others then null;
   end;
-  -- 김현정 · 박서연 개인 스페이스 대화 (24_work_space 이후에만 들어감)
-  begin
-    insert into space_messages (team_id, space_user, author_id, item_id, body, created_at) values
-      (T, m_kim, L, t1, '런칭 FGI 결과 정리되면 여기로 올려 주세요. 의견 요청으로 올리면 AI가 먼저 한 번 봐 둡니다.', now() - interval '30 hours'),
-      (T, m_kim, m_kim, t1, '네, 내일 오전까지 올리겠습니다.', now() - interval '29 hours'),
-      (T, m_park, L, t7, '10월 리포트 잘 봤어요. 제휴 CAC가 낮게 나온 근거만 한 줄 보강해 주세요.', now() - interval '7 hours'),
-      (T, m_park, m_park, t7, '제휴는 수수료 정산이 다음 달이라 비용이 덜 잡혔습니다. 보정값 넣어서 v2 올릴게요.', now() - interval '6 hours');
-  exception when others then null;
-  end;
-  -- 요청 (대화창 ＋ › 요청 보내기): 기한 내 완료 여부 추적 — 열린 것 · 완료된 것 · 기한 지난 것
-  declare rq_open uuid; rq_done uuid;
-  begin
-    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, due_date, created_at)
-      values (T, L, m_kim, 'other', t1, 'FGI 대상자 리스트 공유 부탁해요', '연령대별로 나눠 주면 좋겠어요', current_date + 1, now() - interval '3 hours') returning id into rq_open;
-    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, status, response, responded_at, created_at)
-      values (T, L, m_kim, 'other', null, '경쟁사 사전예약 혜택 정리', '3사 정도면 충분해요', 'done', '3사 비교표 정리했습니다', now() - interval '1 day', now() - interval '26 hours') returning id into rq_done;
-    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, due_date, created_at)
-      values (T, L, m_park, 'other', t7, 'CAC 산식 메모 공유해 주세요', '채널별로 무엇을 비용에 넣었는지만요', current_date - 1, now() - interval '3 days');
-    -- 요청 스레드 답글 (space_messages.request_id 가 있는 프로젝트에서만)
-    begin
-      insert into space_messages (team_id, space_user, author_id, request_id, body, created_at) values
-        (T, m_kim, m_kim, rq_open, '20대/30대로 나눠서 오늘 오후에 드릴게요.', now() - interval '2 hours'),
-        (T, m_kim, m_kim, rq_done, '3사 비교표 정리했습니다', now() - interval '1 day');
-    exception when others then null;
-    end;
-  exception when others then null;
-  end;
   -- 히스토리 관리 (30_history 이후에만 들어감): 과제 3개 히스토리 + 한수진 님에게 전달 1건 · 질문/답
   declare h_tmpl text; h_txt text; h_m text; h_sh uuid;
   begin
@@ -2391,17 +2364,6 @@ begin
   end loop;
 end $$;
 
--- =====================================================================
--- ATEAM 플레이북 — 데모 팀의 적용 이력 · 팀원 공개 카드 · AI 검토의 '기준 점검'
---   (29_playbook.sql 을 실행한 프로젝트에서만 동작 · 아니면 건너뜀)
--- =====================================================================
-do $$ declare r record; begin
-  if to_regprocedure('public.seed_demo_playbook(uuid)') is not null then
-    for r in select id from public.teams where is_demo loop perform public.seed_demo_playbook(r.id); end loop;
-  end if;
-end $$;
-
--- 검토 수정 (32_review_fixes) — 위에서 다시 만든 함수·정책을 최신으로 되돌린다
 -- =====================================================================
 -- 32_review_fixes.sql — 전체 검토에서 나온 서버 쪽 수정
 --   ① 요청 알림: 종류별로 실제 보이는 곳으로 링크 · 화면과 같은 이름(육성 · 지원·격려 · 업무 독려)

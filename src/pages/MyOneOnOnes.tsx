@@ -19,6 +19,7 @@ import { PromiseList, RequestOOModal, useMyOORequest, usePromises } from '../com
 import { ConditionShare } from '../components/member/ConditionShare';
 import { FromLeader } from '../components/member/FromLeader';
 import { OneOnOneThread } from '../components/oneonone/Thread';
+import { ViaAutopilot } from '../components/autopilot/Dial';
 
 /** 다음 1on1 — 미리 꺼낼 이야기 (함께 보는 노트에 한 줄씩 쌓인다) */
 function NextOneOnOne({ o }: { o: OneOnOne }) {
@@ -62,6 +63,7 @@ function LeaderMeetings() {
           <div className="text-[11px] font-semibold text-indigo-700">팀장님이 1on1을 요청했어요{r.due_date && <span className="font-normal text-indigo-500"> · {fmtDate(r.due_date)}까지</span>}</div>
           <div className="text-sm font-semibold text-slate-900 mt-0.5">{r.title}</div>
           {r.body && <p className="text-xs text-slate-600 mt-0.5">{r.body}</p>}
+          {r.via_autopilot && <ViaAutopilot className="mt-1" />}
           <div className="mt-2 flex gap-1.5">
             <input className="flex-1 min-w-0 text-xs border border-indigo-200 bg-white rounded-lg px-2.5 py-1.5" value={reply[r.id] ?? ''} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })} placeholder="가능한 시간 · 한 줄 답 (선택)" />
             <Button size="sm" variant="secondary" loading={done.isPending && done.variables?.id === r.id} onClick={() => done.mutate(r)}><CheckCircle2 size={13} />확인</Button>

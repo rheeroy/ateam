@@ -23,6 +23,7 @@ import { PlanBar } from '../goals/PlanBar';
 import { AiReview, Bubble, Composer, VersionBody, type Review } from '../../pages/ReviewDetail';
 import { STATUS } from '../../pages/MySubmissions';
 import { AiIcon } from '../Brand';
+import { ViaAutopilot } from '../autopilot/Dial';
 
 type Filter = 'all' | 'wait' | 'fix' | 'unread' | 'none' | `i:${string}`;
 type Sel = { t: 'sub' | 'msg' | 'req'; id: string; /** 업무 카드: AI 분석 탭으로 열기 (그 버전) */ aiVer?: string } | null;
@@ -282,6 +283,7 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
                 <span className={cx('ml-auto font-semibold', e.r.status === 'open' ? 'text-violet-700' : 'text-emerald-700')}>{e.r.status === 'open' ? (e.r.due_date ? `${fmtShort(e.r.due_date)}까지` : '열림') : '완료'}</span></div>
               <div className="mt-1 text-sm font-semibold text-slate-800">{e.r.title}</div>
               {e.r.body && <div className="mt-0.5 text-xs text-slate-500 line-clamp-2">{e.r.body}</div>}
+              {e.r.via_autopilot && <ViaAutopilot className="mt-1" />}
               {e.r.status === 'done' && e.r.response && <div className="mt-1.5 text-xs text-emerald-800 bg-emerald-50 rounded px-2 py-1">답: {e.r.response}</div>}
             </button>
             {e.r.status === 'open' && e.r.to_id === uid && (

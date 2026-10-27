@@ -84,15 +84,26 @@ async function callClaude(opts) {
   };
   let lastErr = "";
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(`${Deno.env.get("ANTHROPIC_BASE_URL") ?? "https://api.anthropic.com"}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
+    const ctl = opts.timeoutMs ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), opts.timeoutMs) : null;
+    let res;
+    try {
+      res = await fetch(`${Deno.env.get("ANTHROPIC_BASE_URL") ?? "https://api.anthropic.com"}/v1/messages`, {
+        method: "POST",
+        signal: ctl?.signal,
+        headers: {
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      if (timer) clearTimeout(timer);
+      if (ctl?.signal.aborted) throw new HttpError(504, "AI_TIMEOUT", `AI \uC751\uB2F5\uC774 ${Math.round((opts.timeoutMs ?? 0) / 1e3)}\uCD08 \uC548\uC5D0 \uC624\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4`);
+      throw e;
+    }
+    if (timer) clearTimeout(timer);
     if (res.ok) {
       const data = await res.json();
       const text = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
@@ -224,7 +235,8 @@ var CORE = [
   "coaching",
   "checkin_draft",
   "work_brief",
-  "task_history"
+  "task_history",
+  "autopilot"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -244,6 +256,7 @@ var CREDITS = {
   checkin_draft: 0,
   work_brief: 0,
   task_history: 0,
+  autopilot: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -442,7 +455,8 @@ async function runAi(job) {
 
 ${job.system}`,
     content: job.content,
-    maxTokens: job.maxTokens
+    maxTokens: job.maxTokens,
+    timeoutMs: job.timeoutMs
   });
   let parsed;
   try {
@@ -535,25 +549,30 @@ var IMAGE_MIME = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 var MAX_FILES = 10;
 var MAX_TOTAL = 16 * 1024 * 1024;
 var FREE_RUNS = 3;
-var ONBOARD = `${PLAN_DRAFT}
+var ONBOARD_PLAN = `${PLAN_DRAFT}
 
-[\uCD94\uAC00 \uACFC\uC81C \u2014 \uC628\uBCF4\uB529] \uC774 \uC790\uB8CC\uB294 \uD300\uC7A5\uC774 ATEAM\uC744 \uCC98\uC74C \uC2DC\uC791\uD558\uBA70 \uD55C\uAEBC\uBC88\uC5D0 \uC62C\uB9B0 \uAC83\uC785\uB2C8\uB2E4(\uC0AC\uC5C5\uACC4\uD68D\uC11C, \uC5C5\uBB34 \uBD84\uC7A5, \uD68C\uC758\uB85D, \uC784\uC6D0 \uBCF4\uACE0 \uC790\uB8CC, \uD654\uBA74 \uCEA1\uCC98 \uB4F1).
-\uC704\uC758 \uBAA9\uD45C\xB7\uACFC\uC81C \uCD08\uC548(ops)\uC5D0 \uB354\uD574, \uC790\uB8CC\uC5D0\uC11C '\uC704\uC5D0\uC11C \uC628 \uAC83'\uACFC '\uC784\uC6D0'\uC744 \uBF51\uC544 \uB461\uB2C8\uB2E4. \uC790\uB8CC\uC5D0 \uC788\uB294 \uAC83\uB9CC \uBF51\uACE0, \uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4\uB85C \uB461\uB2C8\uB2E4.
+[\uC628\uBCF4\uB529] \uC774 \uC790\uB8CC\uB294 \uD300\uC7A5\uC774 ATEAM\uC744 \uCC98\uC74C \uC2DC\uC791\uD558\uBA70 \uD55C\uAEBC\uBC88\uC5D0 \uC62C\uB9B0 \uAC83\uC785\uB2C8\uB2E4(\uC0AC\uC5C5\uACC4\uD68D\uC11C, \uC5C5\uBB34 \uBD84\uC7A5, \uD68C\uC758\uB85D, \uC784\uC6D0 \uBCF4\uACE0 \uC790\uB8CC, \uD654\uBA74 \uCEA1\uCC98 \uB4F1).
+\uD300\uC774 \uC2A4\uC2A4\uB85C \uC774\uB8F0 \uBAA9\uD45C\xB7\uACFC\uC81C\uB9CC ops \uB85C \uB9CC\uB4ED\uB2C8\uB2E4. \uC704(\uC804\uC0AC\xB7\uC784\uC6D0\xB7\uB2E4\uB978 \uD300)\uC5D0\uC11C \uC815\uD574\uC9C0\uAC70\uB098 \uC694\uAD6C\uB41C \uBC29\uCE68\xB7\uC694\uCCAD\xB7\uC77C\uC815\uC740 \uB530\uB85C \uC815\uB9AC\uD558\uBBC0\uB85C ops \uC5D0 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.`;
+var ONBOARD_ORG = `\uACFC\uC81C: \uD300\uC7A5\uC774 ATEAM\uC744 \uCC98\uC74C \uC2DC\uC791\uD558\uBA70 \uC62C\uB9B0 \uC790\uB8CC\uC5D0\uC11C '\uC704\uC5D0\uC11C \uC628 \uAC83'\uACFC '\uC784\uC6D0'\uC744 \uBF51\uC2B5\uB2C8\uB2E4. \uC790\uB8CC\uC5D0 \uC788\uB294 \uAC83\uB9CC \uBF51\uACE0, \uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4\uB85C \uB461\uB2C8\uB2E4. \uC9C0\uC5B4\uB0B4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - org: \uD300 \uBC14\uAE65\xB7\uC704\uC5D0\uC11C \uC815\uD574\uC9C0\uAC70\uB098 \uC694\uAD6C\uB41C \uAC83. kind \uB294 \uB2E4\uC74C \uC911 \uD558\uB098:
   strategy(\uC804\uC0AC \uBC29\uCE68\xB7\uC804\uB7B5\xB7\uBAA9\uD45C\xB7\uC608\uC0B0 \uBCC0\uACBD), exec(\uC784\uC6D0\uC774 \uAC15\uC870\uD558\uAC70\uB098 \uC790\uC8FC \uBB3B\uB294 \uAC83), request(\uC0C1\uC704 \uBCF4\uACE0\xB7\uC790\uB8CC \uC694\uCCAD\uACFC \uAE30\uD55C), peer(\uB2E4\uB978 \uD300\uC758 \uBCC0\uD654\xB7\uD611\uC5C5\xB7\uC758\uC874), calendar(\uD3C9\uAC00 \uC2DC\uC98C\xB7\uC608\uC0B0 \uD3B8\uC131\xB7\uC870\uC9C1 \uAC1C\uD3B8 \uAC19\uC740 \uC804\uC0AC \uC77C\uC815), other.
-  \uD300\uC774 \uC2A4\uC2A4\uB85C \uC138\uC6B4 \uBAA9\uD45C\xB7\uACFC\uC81C\uB294 org \uC5D0 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4(\uADF8\uAC74 ops). \uAC19\uC740 \uB0B4\uC6A9\uC744 ops \uC640 org \uC5D0 \uACB9\uCCD0 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uCD5C\uB300 8\uAC1C.
+  \uD300\uC774 \uC2A4\uC2A4\uB85C \uC138\uC6B4 \uBAA9\uD45C\xB7\uACFC\uC81C\uB294 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uCD5C\uB300 8\uAC1C.
   title \uC740 \uD55C \uC904(40\uC790 \uC774\uB0B4), body \uB294 \uC790\uB8CC \uC18D \uADFC\uAC70\uB97C \uD55C\uB450 \uBB38\uC7A5, source \uB294 \uC5B4\uB290 \uC790\uB8CC\uC5D0\uC11C \uC654\uB294\uC9C0(\uC608: "3\uBD84\uAE30 \uBCF8\uBD80 \uC804\uB7B5 \uBCF4\uACE0.pdf 4\uCABD"), event_date \uB294 \uC77C\uC815\xB7\uAE30\uD55C\uC774 \uC788\uC73C\uBA74 YYYY-MM-DD \uC544\uB2C8\uBA74 null,
   exec \uC740 \uADF8 \uB0B4\uC6A9\uC744 \uB9D0\uD55C \uC784\uC6D0 \uC774\uB984(\uC544\uB798 execs \uC758 name \uACFC \uAC19\uAC8C), \uBAA8\uB974\uBA74 \uBE48 \uBB38\uC790\uC5F4.
 - execs: \uC790\uB8CC\uC5D0 \uC774\uB984\uC774\uB098 \uC9C1\uCC45\uC73C\uB85C \uB098\uC624\uB294 \uD300 \uC704\uC758 \uAD00\uB9AC\uC790(\uBCF8\uBD80\uC7A5\xB7\uC784\uC6D0\xB7\uB300\uD45C \uB4F1). \uD300\uC6D0\xB7\uD300\uC7A5 \uBCF8\uC778\uC740 \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uCD5C\uB300 5\uBA85.
   name \uC740 \uC790\uB8CC\uC5D0 \uB098\uC628 \uC774\uB984(\uC774\uB984\uC774 \uC5C6\uC73C\uBA74 \uC9C1\uCC45\uB9CC, \uC608: "\uB9C8\uCF00\uD305\uBCF8\uBD80\uC7A5"), title \uC740 \uC9C1\uCC45, interests \uB294 \uC790\uB8CC\uB85C \uC54C \uC218 \uC788\uB294 \uAD00\uC2EC\uC0AC \uD55C \uBB38\uC7A5(\uBAA8\uB974\uBA74 \uBE48 \uBB38\uC790\uC5F4).
 
-\uCD5C\uC885 \uCD9C\uB825 JSON \uD615\uC2DD (\uC704 \uD615\uC2DD\uC5D0 org, execs \uB97C \uB354\uD55C \uAC83):
+\uCD9C\uB825 JSON \uD615\uC2DD:
 {
-  "summary": "\uC790\uB8CC\uB97C \uC5B4\uB5BB\uAC8C \uAD6C\uC870\uD654\uD588\uB294\uC9C0 \uD55C\uB450 \uBB38\uC7A5",
-  "ops": [ ...\uC704\uC640 \uAC19\uC740 add \uD56D\uBAA9\uB4E4... ],
   "org": [{"kind": "strategy", "title": "...", "body": "...", "source": "...", "event_date": null, "exec": ""}],
   "execs": [{"name": "...", "title": "...", "interests": "..."}]
 }`;
+async function setJob(teamId, job) {
+  const { data } = await admin.from("teams").select("settings").eq("id", teamId).single();
+  const settings = data?.settings ?? {};
+  const onboarding = settings.onboarding ?? {};
+  await admin.from("teams").update({ settings: { ...settings, onboarding: { ...onboarding, job } } }).eq("id", teamId);
+}
 serve(async (req) => {
   const body = await readJson(req);
   if (!body.team_id) throw new HttpError(400, "MISSING_FIELDS");
@@ -564,8 +583,13 @@ serve(async (req) => {
   const settings = team?.settings ?? {};
   const onboarding = settings.onboarding ?? {};
   const young = !!team?.created_at && Date.now() - Date.parse(team.created_at) < 30 * 864e5;
-  if (onboarding.status !== "pending" || !young) throw new HttpError(403, "ONBOARDING_DONE", "\uC2DC\uC791\uD558\uAE30 \uB2E8\uACC4\uC5D0\uC11C\uB9CC \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uD300\uBAA9\uD45C \uD654\uBA74\uC758 \uACC4\uD68D \uCD08\uC548 \uAE30\uB2A5\uC744 \uC368 \uC8FC\uC138\uC694");
+  if (!young) throw new HttpError(403, "ONBOARDING_EXPIRED", "\uD300\uC744 \uB9CC\uB4E0 \uC9C0 30\uC77C\uC774 \uC9C0\uB098 \uC2DC\uC791\uD558\uAE30 \uCD08\uC548\uC740 \uC4F8 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uD300\uBAA9\uD45C \uD654\uBA74\uC758 \uACC4\uD68D \uCD08\uC548 \uAE30\uB2A5\uC744 \uC368 \uC8FC\uC138\uC694");
+  if (onboarding.status !== "pending") throw new HttpError(403, "ONBOARDING_DONE", "\uC2DC\uC791\uD558\uAE30 \uB2E8\uACC4\uC5D0\uC11C\uB9CC \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uD300\uBAA9\uD45C \uD654\uBA74\uC758 \uACC4\uD68D \uCD08\uC548 \uAE30\uB2A5\uC744 \uC368 \uC8FC\uC138\uC694");
   const { count } = await admin.from("ai_outputs").select("id", { count: "exact", head: true }).eq("team_id", body.team_id).eq("kind", "plan_draft").eq("content->>onboarding", "true");
+  const running = onboarding.job ?? {};
+  if (running.status === "running" && running.at && Date.now() - Date.parse(running.at) < 7 * 6e4) {
+    throw new HttpError(409, "ONBOARD_RUNNING", "\uCD08\uC548\uC744 \uB9CC\uB4E4\uACE0 \uC788\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uB4A4 \uB2E4\uC2DC \uD655\uC778\uD574 \uC8FC\uC138\uC694");
+  }
   if ((count ?? 0) >= FREE_RUNS) throw new HttpError(429, "ONBOARD_LIMIT", `\uC2DC\uC791\uD558\uAE30\uC5D0\uC11C\uB294 \uCD08\uC548\uC744 ${FREE_RUNS}\uBC88\uAE4C\uC9C0 \uB9CC\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uD300\uBAA9\uD45C \uD654\uBA74\uC5D0\uC11C \uC774\uC5B4\uC11C \uB2E4\uB4EC\uC5B4 \uC8FC\uC138\uC694`);
   const files = (body.files ?? []).slice(0, MAX_FILES);
   const text = (body.text ?? "").trim();
@@ -595,7 +619,7 @@ serve(async (req) => {
     `\uD300: ${team?.name} / \uBBF8\uC158: ${team?.mission || "-"}`,
     `\uB2E8\uACC4 \uC774\uB984: ${levels.join(" > ")}`,
     `\uD300\uC6D0: ${people.map((p) => `${p.name}(${p.job || "-"})`).join(", ")} \u2014 \uC544\uC9C1 \uD300\uC6D0\uC744 \uCD08\uB300\uD558\uAE30 \uC804\uC774\uB77C \uB2F4\uB2F9\uC790\uB294 \uB300\uBD80\uBD84 \uBE44\uC6CC \uB461\uB2C8\uB2E4`,
-    `\uACC4\uD68D \uC5F0\uB3C4: ${kstToday().slice(0, 4)}\uB144 \u2014 \uC790\uB8CC\uC5D0 \uB2E4\uB978 \uD574\uAC00 \uBD84\uBA85\uD558\uBA74 \uADF8 \uD574\uB97C \uB530\uB985\uB2C8\uB2E4`,
+    `\uACC4\uD68D \uC5F0\uB3C4: ${kstToday().slice(0, 4)}\uB144 \u2014 \uCC98\uC74C \uC2DC\uC791\uD558\uB294 \uD300\uC774\uBBC0\uB85C \uC790\uB8CC\uAC00 \uB2E4\uB978 \uD574(\uC608: \uB0B4\uB144 \uC0AC\uC5C5\uACC4\uD68D)\uB97C \uB2E4\uB904\uB3C4 \uC62C\uD574(${kstToday().slice(0, 4)}\uB144) \uD300\uBAA9\uD45C\uB85C \uB9CC\uB4ED\uB2C8\uB2E4. \uB0A0\uC9DC\uB294 \uC624\uB298\uBD80\uD130 ${kstToday().slice(0, 4)}-12-31 \uC0AC\uC774\uB85C\uB9CC \uC7A1\uACE0, \uADF8 \uC548\uC5D0 \uB9DE\uCD9C \uC218 \uC5C6\uC73C\uBA74 \uBE44\uC6CC \uB461\uB2C8\uB2E4`,
     book.knowhowText(),
     "## \uD604\uC7AC \uBAA9\uD45C\xB7\uACFC\uC81C\n(\uC5C6\uC74C \u2014 \uCC98\uC74C \uC2DC\uC791\uD558\uB294 \uD300)"
   ].filter(Boolean).join("\n\n");
@@ -603,20 +627,46 @@ serve(async (req) => {
 
 ## \uC790\uB8CC (PDF\xB7\uC774\uBBF8\uC9C0\uB294 \uC704\uC5D0 \uCCA8\uBD80, \uC544\uB798\uB294 PPT\xB7\uC5D1\uC140\xB7\uC6CC\uB4DC\uC5D0\uC11C \uBF51\uC740 \uAE00\uACFC \uBD99\uC5EC \uB123\uC740 \uAE00)
 ${text.slice(0, 12e4) || "(\uCCA8\uBD80\uB9CC)"}` });
-  const { output } = await runAi({
-    teamId: body.team_id,
-    kind: "plan_draft",
-    model: MODEL_SMART,
-    system: ONBOARD,
-    content,
-    book,
-    depth: 1,
-    level: "L1",
-    createdBy: caller.userId,
-    credits: 0,
-    visibility: "leader",
-    maxTokens: 7e3,
-    extra: { onboarding: true, scope: null, people: people.map((p) => ({ id: p.id, name: p.name })) }
-  });
-  return json(output);
+  const jobId = crypto.randomUUID();
+  const at = (/* @__PURE__ */ new Date()).toISOString();
+  const work = async () => {
+    try {
+      const plan = runAi({
+        teamId: body.team_id,
+        kind: "plan_draft",
+        model: MODEL_SMART,
+        system: ONBOARD_PLAN,
+        content,
+        book,
+        depth: 1,
+        level: "L1",
+        createdBy: caller.userId,
+        credits: 0,
+        visibility: "leader",
+        maxTokens: 6e3,
+        extra: { onboarding: true, job: jobId, scope: null, org: [], execs: [], people: people.map((p) => ({ id: p.id, name: p.name })) }
+      });
+      const orgCall = callClaude({ model: MODEL_SMART, system: `${BASE_RULES}
+
+${ONBOARD_ORG}`, content, maxTokens: 3e3 }).then(async (res) => {
+        await admin.rpc("consume_credits", { p_team: body.team_id, p_credits: 0, p_kind: "plan_draft", p_ai_output: null, p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd });
+        return parseJson(res.text);
+      }).catch((e) => {
+        console.error("onboard org failed", e);
+        return { org: [], execs: [] };
+      });
+      const [{ output }, extra] = await Promise.all([plan, orgCall]);
+      const merged = { ...output.content, org: (extra.org ?? []).slice(0, 8), execs: (extra.execs ?? []).slice(0, 5) };
+      await admin.from("ai_outputs").update({ content: merged }).eq("id", output.id);
+      await setJob(body.team_id, { id: jobId, status: "done", at, output_id: output.id });
+    } catch (e) {
+      console.error("onboard failed", e);
+      const msg = e instanceof HttpError ? e.message : e instanceof Error ? e.message : String(e);
+      await setJob(body.team_id, { id: jobId, status: "failed", at, error: String(msg).slice(0, 300) });
+    }
+  };
+  await setJob(body.team_id, { id: jobId, status: "running", at });
+  if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(work());
+  else await work();
+  return json({ job: jobId, status: "running", at });
 });

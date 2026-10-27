@@ -52,3 +52,4 @@ node ../scripts/build-playbook.mjs
 { echo "-- ATEAM 검토 수정 (요청 알림 링크·이름 · 히스토리/요청/코칭 팀 확인 · 내 메모는 팀장만 · 초대 보완 · 요금제 history 확인) — 31_invite_email 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261110000037_review_fixes.sql; } > dashboard/32_review_fixes.sql
 { echo "-- ATEAM 요금제 가격 조정 (Starter 29,000 · Pro 49,000 · Pro+ 79,000 · AI 원가 상한 8/14/28달러) — 32_review_fixes 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261111000038_plans_price.sql; } > dashboard/33_plans_price.sql
 { echo "-- ATEAM 초대 메모(강점·보완할 점 → 합류하면 팀장 개인 메모, AI 참고) — 33_plans_price 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261112000039_invite_note.sql; } > dashboard/34_invite_note.sql
+{ echo "-- ATEAM AUTOPILOT(자율주행) — 34_invite_note 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261113000040_autopilot.sql; } > dashboard/35_autopilot.sql

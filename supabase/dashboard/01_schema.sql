@@ -2693,6 +2693,17 @@ begin
     values (T, g2, '제휴 채널 신규 고객', '만 명', 20, (v_month - interval '3 months')::date, (v_month + interval '2 months')::date, true) returning id into mt;
   insert into work_items (team_id, parent_id, owner_id, title, measure, num_target, unit, metric_id, sort)
     values (T, g2, m_lee, '제휴 채널 신규 고객', 'number', 20, '만 명', mt, 4);
+  -- 목표마다 지표(결과를 재는 항목) — 목표 진척은 지표 평균 (23_goal_metrics)
+  insert into work_items (team_id, parent_id, owner_id, title, measure, num_current, num_target, unit, sort, start_date, due_date) values
+    (T, g1, m_kim, '런칭 사전 예약 누적', 'number', 1840, 5000, '건', 0, current_date - 45, current_date + 40),
+    (T, g2, m_lee, '제휴 고객 30일 재방문율', 'number', 22, 35, '%', 5, current_date - 40, current_date + 50);
+  insert into work_items (team_id, parent_id, owner_id, title, measure, num_current, num_target, unit, higher_is_better, sort, start_date, due_date)
+    values (T, g3, m_choi, '콘텐츠 제작 리드타임', 'number', 6, 5, '일', false, 0, current_date - 50, current_date + 30);
+  begin
+    execute $q$insert into work_items (team_id, parent_id, owner_id, title, measure, stages, stage_current, sort, start_date, due_date)
+      values ($1, $2, $3, '성과 보고 체계 표준화', 'stage', array['착수', '초안', '검증', '확정', '확산'], 2, 1, current_date - 60, current_date + 60)$q$ using T, g3, m_jung;
+  exception when others then null;
+  end;
   insert into metric_values (metric_id, team_id, period, value) values
     (mt, T, (v_month - interval '3 months')::date, 3.4), (mt, T, (v_month - interval '2 months')::date, 3.6), (mt, T, (v_month - interval '1 months')::date, 4.2);
   insert into metric_pipeline (metric_id, team_id, label, amount, probability, expected_close) values
@@ -4969,6 +4980,11 @@ alter type public.item_measure add value if not exists 'stage';
 alter table public.work_items add column if not exists stages text[] not null default '{}';
 alter table public.work_items add column if not exists stage_current smallint;
 alter table public.submission_versions add column if not exists checkin jsonb;
+-- 23_goal_metrics 와 같은 칸 (어느 쪽을 먼저·다시 돌려도 트리거가 같도록)
+alter table public.work_items add column if not exists role text;
+do $$ begin
+  alter table public.work_items add constraint work_items_role_chk check (role in ('goal', 'metric', 'task'));
+exception when duplicate_object then null; end $$;
 
 do $$ declare c text; begin
   for c in select conname from pg_constraint where conrelid = 'public.submissions'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%kind%document%' loop
@@ -4998,6 +5014,13 @@ begin
     v_depth := 0;
   end if;
 
+  -- 역할: 최상위는 목표, 그 아래는 지표(결과를 재는 항목) 또는 과제, 그 아래는 할 일(과제)
+  if v_depth = 0 then new.role := 'goal';
+  elsif v_depth >= 2 then new.role := 'task';
+  elsif new.role is null or new.role = 'goal' then
+    new.role := case when new.measure::text in ('number', 'stage') or new.metric_id is not null then 'metric' else 'task' end;
+  end if;
+
   if not v_leader then
     v_open := public.plan_open(new.team_id);
     if tg_op = 'INSERT' then
@@ -5023,9 +5046,11 @@ begin
       v_plan_changed := (to_jsonb(new) - array['progress', 'num_current', 'stage_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort'])
                      is distinct from (to_jsonb(old) - array['progress', 'num_current', 'stage_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort']);
       -- 목표·과제의 성과 값(숫자·진척률·단계)은 팀장이 승인한 체크인으로만 바뀐다 (하위 항목 평균은 자동 계산이라 예외)
-      if v_old_depth < 2 and (new.num_current is distinct from old.num_current or new.stage_current is distinct from old.stage_current
-                              or (new.progress is distinct from old.progress and new.measure::text = 'percent')) then
-        raise exception 'CHECKIN_ONLY: 목표·과제의 성과 값은 체크인으로 남겨 주세요. 팀장님이 승인하면 반영됩니다';
+      -- 지표와 숫자를 건 목표의 값만 체크인으로 (과제 진척은 자유)
+      if (new.role = 'metric' or (v_old_depth = 0 and new.measure::text in ('number', 'percent', 'stage')))
+         and (new.num_current is distinct from old.num_current or new.stage_current is distinct from old.stage_current
+              or (new.progress is distinct from old.progress and new.measure::text = 'percent')) then
+        raise exception 'CHECKIN_ONLY: 지표 값은 체크인으로 남겨 주세요. 팀장님이 승인하면 반영됩니다';
       end if;
       if v_old_depth >= 2 then
         v_skip_replan := true;                            -- 할 일은 자유: 재계획 기록 안 남김
@@ -5105,6 +5130,7 @@ begin
 end $$;
 
 
+
 create or replace function public.trg_submission_version() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_sub submissions; v_leader boolean;
@@ -5134,6 +5160,7 @@ begin
   select checkin into v_c from submission_versions where submission_id = new.id order by version desc limit 1;
   select * into v_item from work_items where id = new.item_id;
   if v_c is null or v_item.id is null then return new; end if;
+  if v_item.metric_id is not null then return new; end if;   -- 실적 데이터와 연결된 지표: 값은 실적이 정한다 (체크인은 성과 기록으로만)
   v_t := v_c->>'type';
   if v_t = 'number' and v_c ? 'value' then
     update work_items set num_current = (v_c->>'value')::numeric where id = v_item.id;
@@ -5168,3 +5195,1416 @@ end $$;
 grant execute on function public.approve_checkin(uuid, int) to authenticated;
 
 create index if not exists submissions_checkin_item_idx on public.submissions (item_id, created_at) where kind = 'checkin';
+
+-- >>>>>>>>>> 20261101000028_goal_metrics.sql
+-- =====================================================================
+-- 목표 = 지표 + 과제 — KPI · OKR 을 고르지 않고 하나의 구조로
+--   · work_items.role: goal(최상위) · metric(지표: 결과를 재는 항목) · task(과제 · 할 일)
+--   · 목표 진척: 지표가 있으면 지표 평균만 (과제 완료는 넣지 않는다). 지표가 없으면 예전처럼 하위 평균.
+--     목표에 숫자를 직접 걸면(KPI형) 그 숫자가 진척.
+--   · 지표 · 숫자를 건 목표의 값은 승인된 체크인(또는 연결된 실적)으로만 바뀐다. 과제 진척은 담당자가 자유롭게.
+--   · 실적 데이터와 연결된 지표는 체크인이 승인돼도 값을 바꾸지 않는다 (성과 기록으로만 남음)
+--   · 기존 항목: 최상위 → goal, 둘째 단계 중 숫자·단계로 재거나 실적과 연결된 것 → metric, 나머지 → task
+-- 22_checkin 다음에 Run. 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter table public.work_items add column if not exists role text;
+do $$ begin
+  alter table public.work_items add constraint work_items_role_chk check (role in ('goal', 'metric', 'task'));
+exception when duplicate_object then null; end $$;
+
+-- 항목 저장 전: 역할 · 단계 진척 · 지표 값은 체크인으로만
+create or replace function public.trg_work_item_before() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_leader boolean := coalesce(auth.role(), 'service') <> 'authenticated' or public.is_team_leader(new.team_id);
+  v_open boolean;
+  v_parent work_items;
+  v_depth int;          -- 저장 후 깊이
+  v_old_depth int;
+  v_plan_changed boolean := false;
+  v_skip_replan boolean := false;
+  v_lock text := 'PLAN_LOCKED: 지금은 팀원 목표 수정이 꺼져 있습니다. 진척·상태만 남길 수 있어요. 바꿔야 할 게 있으면 팀장님께 변경 요청을 보내 주세요';
+begin
+  if new.parent_id is not null then
+    select * into v_parent from work_items where id = new.parent_id;
+    if v_parent.team_id <> new.team_id then raise exception '다른 팀 항목 아래에 둘 수 없습니다'; end if;
+    v_depth := public.item_depth(new.parent_id) + 1;
+  else
+    v_depth := 0;
+  end if;
+
+  -- 역할: 최상위는 목표, 그 아래는 지표(결과를 재는 항목) 또는 과제, 그 아래는 할 일(과제)
+  if v_depth = 0 then new.role := 'goal';
+  elsif v_depth >= 2 then new.role := 'task';
+  elsif new.role is null or new.role = 'goal' then
+    new.role := case when new.measure::text in ('number', 'stage') or new.metric_id is not null then 'metric' else 'task' end;
+  end if;
+
+  if not v_leader then
+    v_open := public.plan_open(new.team_id);
+    if tg_op = 'INSERT' then
+      if new.owner_id is distinct from auth.uid() then raise exception '팀원은 본인 담당 항목만 만들 수 있습니다'; end if;
+      new.needs_plan := false;
+      if v_depth >= 2 then
+        -- 할 일: 내 과제 아래라면 언제든, 승인 없이
+        if v_parent.owner_id is distinct from auth.uid() then raise exception '할 일은 내 과제 아래에만 만들 수 있습니다'; end if;
+        if new.status in ('proposed', 'changes_requested') then new.status := 'active'; end if;
+      elsif not v_open then
+        raise exception '%', v_lock;
+      else
+        new.status := 'proposed';                         -- 목표·과제: 팀장 승인 후 진행
+      end if;
+    else
+      v_old_depth := case when old.parent_id is null then 0 else public.item_depth(old.parent_id) + 1 end;
+      if new.owner_id is distinct from old.owner_id then raise exception '담당자는 팀장만 바꿀 수 있습니다'; end if;
+      if new.parent_id is distinct from old.parent_id
+         and not (v_old_depth >= 2 and v_depth >= 2 and v_parent.owner_id = auth.uid()) then
+        raise exception '항목 위치는 팀장만 바꿀 수 있습니다';
+      end if;
+      -- 진척·상태 말고 계획 자체가 바뀌었나
+      v_plan_changed := (to_jsonb(new) - array['progress', 'num_current', 'stage_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort'])
+                     is distinct from (to_jsonb(old) - array['progress', 'num_current', 'stage_current', 'status', 'done_at', 'updated_at', 'change_reason', 'needs_plan', 'sort']);
+      -- 목표·과제의 성과 값(숫자·진척률·단계)은 팀장이 승인한 체크인으로만 바뀐다 (하위 항목 평균은 자동 계산이라 예외)
+      -- 지표와 숫자를 건 목표의 값만 체크인으로 (과제 진척은 자유)
+      if (new.role = 'metric' or (v_old_depth = 0 and new.measure::text in ('number', 'percent', 'stage')))
+         and (new.num_current is distinct from old.num_current or new.stage_current is distinct from old.stage_current
+              or (new.progress is distinct from old.progress and new.measure::text = 'percent')) then
+        raise exception 'CHECKIN_ONLY: 지표 값은 체크인으로 남겨 주세요. 팀장님이 승인하면 반영됩니다';
+      end if;
+      if v_old_depth >= 2 then
+        v_skip_replan := true;                            -- 할 일은 자유: 재계획 기록 안 남김
+        if new.status in ('proposed', 'changes_requested') and old.status not in ('proposed', 'changes_requested') then new.status := old.status; end if;
+      else
+        -- 검토 중인 제안: 꺼져 있으면 상태도 못 바꾼다(거두기 포함)
+        if not v_open and old.status in ('proposed', 'changes_requested') and new.status is distinct from old.status then
+          raise exception '%', v_lock;
+        end if;
+        -- 승인은 팀장만: 제안·수정 요청 상태에서 진행 상태로 바로 못 간다
+        if old.status in ('proposed', 'changes_requested') and new.status not in ('proposed', 'changes_requested', 'dropped') then
+          raise exception '팀장 승인 전에는 진행 상태로 바꿀 수 없습니다';
+        end if;
+        if new.status = 'dropped' and old.status not in ('proposed', 'changes_requested', 'dropped') then
+          raise exception '목표·과제 중단은 팀장님께 변경 요청으로 알려 주세요';
+        end if;
+        if v_plan_changed then
+          if not v_open then raise exception '%', v_lock; end if;
+          if old.status in ('active', 'blocked', 'changes_requested') then new.status := 'proposed'; end if;   -- 고친 계획은 다시 승인
+        end if;
+      end if;
+      new.needs_plan := old.needs_plan and not exists (select 1 from work_items c where c.parent_id = new.id);
+    end if;
+  end if;
+
+  -- 진척 계산
+  if new.status = 'done' then
+    new.done_at := coalesce(new.done_at, now());
+    if new.measure in ('check', 'percent') then new.progress := 100; end if;
+  elsif tg_op = 'UPDATE' and old.status = 'done' then
+    new.done_at := null;
+    if new.measure = 'check' then new.progress := 0; end if;
+  end if;
+  if new.measure = 'check' then new.progress := case when new.status = 'done' then 100 else 0 end; end if;
+  if new.measure::text = 'stage' then
+    new.progress := case when coalesce(array_length(new.stages, 1), 0) = 0 then 0
+                         else greatest(0, least(100, round(100.0 * coalesce(new.stage_current, 0) / array_length(new.stages, 1))))::smallint end;
+  end if;
+  if new.measure = 'number' and new.num_target is not null and new.num_target <> 0 and new.num_current is not null then
+    new.progress := greatest(0, least(100, round(
+      case when new.higher_is_better then 100 * new.num_current / new.num_target
+           else 100 * new.num_target / nullif(new.num_current, 0) end)))::smallint;
+  end if;
+
+  -- 기준선: 처음 '진행'이 되는 순간의 계획을 보관
+  if new.baselined_at is null and new.status in ('active', 'blocked', 'done') then
+    new.base_start := new.start_date; new.base_due := new.due_date; new.base_target := new.num_target;
+    new.baselined_at := now();
+  elsif tg_op = 'UPDATE' and old.baselined_at is not null and not v_skip_replan then
+    if new.due_date is distinct from old.due_date or new.start_date is distinct from old.start_date then
+      new.replan_count := old.replan_count + 1;
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(), 'replan',
+              jsonb_build_object('start', old.start_date, 'due', old.due_date),
+              jsonb_build_object('start', new.start_date, 'due', new.due_date), new.change_reason);
+    end if;
+    if new.num_target is distinct from old.num_target then
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(), 'target', to_jsonb(old.num_target), to_jsonb(new.num_target), new.change_reason);
+    end if;
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.status is distinct from old.status then
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(),
+              case when old.status in ('proposed', 'changes_requested') and new.status = 'active' then 'approved'
+                   when new.status = 'changes_requested' then 'changes_requested' else 'status' end,
+              to_jsonb(old.status), to_jsonb(new.status), new.change_reason);
+    end if;
+    if new.owner_id is distinct from old.owner_id then
+      insert into work_item_events (item_id, team_id, actor_id, kind, old, new, reason)
+      values (new.id, new.team_id, auth.uid(), 'owner', to_jsonb(old.owner_id), to_jsonb(new.owner_id), new.change_reason);
+    end if;
+  end if;
+  new.change_reason := null;
+  return new;
+end $$;
+
+
+
+-- 기존 항목 분류 (트리거가 깊이를 보고 정한다)
+update public.work_items w set role = case
+    when w.parent_id is null then 'goal'
+    when public.item_depth(w.id) >= 2 then 'task'
+    when w.measure::text in ('number', 'stage') or w.metric_id is not null then 'metric'
+    else 'task' end
+  where w.role is null;
+
+-- 상위 진척: 지표가 있으면 지표 평균만
+create or replace function public._rollup_item(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_p smallint; v_has_metric boolean;
+begin
+  select exists (select 1 from work_items c where c.parent_id = p_id and c.role = 'metric' and c.status not in ('dropped', 'proposed', 'changes_requested'))
+    into v_has_metric;
+  select coalesce(round(avg(case when c.status = 'done' then 100 else c.progress end)), 0)::smallint into v_p
+    from work_items c where c.parent_id = p_id and c.status not in ('dropped', 'proposed', 'changes_requested')
+      and (not v_has_metric or c.role = 'metric');
+  update work_items set progress = v_p where id = p_id and measure = 'children' and progress <> v_p;
+end $$;
+
+-- 지금 목표들 다시 계산
+do $$ declare r record; begin
+  for r in select id from public.work_items where parent_id is null and measure = 'children' loop perform public._rollup_item(r.id); end loop;
+end $$;
+
+-- 체크인 승인 반영: 실적 연결 지표는 값을 바꾸지 않음
+create or replace function public.trg_checkin_apply() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_c jsonb; v_item work_items; v_t text;
+begin
+  if new.kind <> 'checkin' or new.item_id is null or new.status <> 'approved' or old.status = 'approved' then return new; end if;
+  select checkin into v_c from submission_versions where submission_id = new.id order by version desc limit 1;
+  select * into v_item from work_items where id = new.item_id;
+  if v_c is null or v_item.id is null then return new; end if;
+  if v_item.metric_id is not null then return new; end if;   -- 실적 데이터와 연결된 지표: 값은 실적이 정한다 (체크인은 성과 기록으로만)
+  v_t := v_c->>'type';
+  if v_t = 'number' and v_c ? 'value' then
+    update work_items set num_current = (v_c->>'value')::numeric where id = v_item.id;
+  elsif v_t = 'percent' and v_c ? 'value' then
+    update work_items set progress = greatest(0, least(100, (v_c->>'value')::numeric))::smallint where id = v_item.id;
+  elsif v_t = 'stage' and v_c ? 'stage' then
+    update work_items set stage_current = (v_c->>'stage')::smallint where id = v_item.id;
+  elsif v_t = 'done' then
+    update work_items set status = 'done' where id = v_item.id and status <> 'done';
+  elsif v_t = 'note' and v_c ? 'progress' and v_item.measure::text = 'percent' then
+    update work_items set progress = greatest(0, least(100, (v_c->>'progress')::numeric))::smallint where id = v_item.id;
+  end if;
+  return new;
+end $$;
+
+
+-- >>>>>>>>>> 20261102000029_condition.sql
+-- =====================================================================
+-- 컨디션 공유 + 팀장님과 알림 + 1on1 이름 통일 (예전 '주간 체크인'을 사람의 상태만 남기도록 바꿈)
+--   · checkins 에 moods(영향 요인 키 여러 개) · note(메모, 선택) 추가
+--     키: rested · energized · good_news · tired · unwell · heavy · personal · need_rest
+--   · did · blocked · next(업무 칸)는 지난 기록 보존용으로만 남긴다. 새로 쓰지 않는다.
+--   · 컨디션은 평가 근거가 아니다 → 근거 원장(evidence)에 더는 쌓지 않는다. 변경 이력(events)만.
+-- 23_goal_metrics 다음에 Run. 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter table public.checkins add column if not exists moods text[] not null default '{}';
+alter table public.checkins add column if not exists note  text   not null default '';
+
+create or replace function public.trg_checkin() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform log_event(new.team_id, case when tg_op = 'INSERT' then 'checkin.created' else 'checkin.updated' end,
+                    'checkins', new.id, new.user_id, 'human',
+                    jsonb_build_object('week_start', new.week_start, 'condition', new.condition, 'moods', new.moods));
+  return new;
+end $$;
+
+-- 이미 근거 원장에 들어간 예전 체크인은 평가 근거에서 뺀다 (원본 기록은 checkins 에 그대로 남음)
+delete from public.evidence where source = 'checkin';
+
+-- ---------------------------------------------------------------------
+-- 팀원 '팀장님과' 개편에 맞춘 알림
+--   · 칭찬 배지: 팀원에게 알림 (예전엔 알림이 없어 찾아 들어와야만 보였다)
+--   · ATEAM 코칭: 알림 링크를 팀장님과로 (예전 '/?coach=' 는 앱에서 넘겨 준다)
+-- ---------------------------------------------------------------------
+create or replace function public._praise_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.kind = 'praise' and new.subject_id is not null and new.subject_id <> new.author_id then
+    perform public._notify(new.subject_id, new.team_id, 'praise', '팀장님이 칭찬을 보냈습니다',
+      left(regexp_replace(new.body, '^\[칭찬 배지\]\s*', ''), 120), '/my/one-on-ones?praise=' || new.id);
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_praise_notify on public.observations;
+create trigger t_praise_notify after insert on public.observations for each row execute function public._praise_notify();
+
+do $$ begin
+  if to_regclass('public.coaching_notes') is not null then
+    create or replace function public._coaching_notify() returns trigger
+    language plpgsql security definer set search_path = public as $f$
+    begin
+      insert into notifications (user_id, team_id, kind, title, body, link)
+      values (new.member_id, new.team_id, 'coaching', 'ATEAM의 코칭이 도착했습니다', new.title, '/my/one-on-ones?coach=' || new.id);
+      return new;
+    end $f$;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 이름 통일: 1:1 → 1on1 (알림 문구 · 근거 원장 문구 · 기본 제공 노하우)
+-- ---------------------------------------------------------------------
+create or replace function public.trg_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_up boolean;
+begin
+  v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
+  if tg_op = 'INSERT' then
+    perform public._notify(new.to_id, new.team_id, 'request',
+      case when v_up and new.kind = 'meeting' then '1on1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
+           when new.kind = 'grow' then '성장 제안: ' when new.kind = 'cheer' then '팀장님 격려: ' else '요청: ' end || new.title,
+      left(new.body, 120),
+      case when new.kind = 'change' then '/goals/edit' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/people/' || new.from_id || '?oo=1' else '/' end);
+    if new.kind = 'plan' then
+      if new.item_id is not null then update work_items set needs_plan = true where id = new.item_id; end if;
+      if new.from_id = public._team_leader(new.team_id) then
+        update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": true}'::jsonb
+         where id = new.team_id and not public.plan_open(new.team_id);
+      end if;
+    end if;
+  elsif new.status is distinct from old.status and new.status = 'done' then
+    new.responded_at := coalesce(new.responded_at, now());
+    perform public._notify(new.from_id, new.team_id, 'request.done',
+      case when v_up and new.kind = 'meeting' then '1on1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
+           when new.kind = 'grow' then '성장 제안 답: ' when new.kind = 'cheer' then '격려 확인: ' else '완료: ' end || new.title,
+      left(new.response, 120),
+      case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/my/one-on-ones' else '/' end);
+  end if;
+  return new;
+end $$;
+
+create or replace function public.trg_one_on_one() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'done' and (tg_op = 'INSERT' or old.status <> 'done') then
+    new.completed_at := coalesce(new.completed_at, now());
+    perform log_event(new.team_id, 'one_on_one.done', 'one_on_ones', new.id, new.member_id);
+    perform upsert_evidence(new.team_id, new.member_id, 'one_on_one', new.id,
+      '1on1 — ' || left(new.shared_notes, 300), 'neutral', null, new.scheduled_at);
+  end if;
+  return new;
+end $$;
+
+update public.evidence set summary = replace(summary, '1:1 — ', '1on1 — ') where source = 'one_on_one' and summary like '1:1 — %';
+do $$ begin
+  if to_regclass('public.knowhow_templates') is not null then
+    update public.knowhow_templates set title = replace(title, '1:1', '1on1'), body = replace(body, '1:1', '1on1'),
+      rules = replace(rules::text, '1:1', '1on1')::jsonb, keywords = array_replace(keywords, '1:1', '1on1')
+    where title like '%1:1%' or body like '%1:1%' or rules::text like '%1:1%' or '1:1' = any(keywords);
+    update public.knowhow_cards set title = replace(title, '1:1', '1on1'), body = replace(body, '1:1', '1on1'),
+      rules = replace(rules::text, '1:1', '1on1')::jsonb
+    where source = 'consulting' and (title like '%1:1%' or body like '%1:1%' or rules::text like '%1:1%');
+  end if;
+end $$;
+
+-- >>>>>>>>>> 20261103000030_oo_entries.sql
+-- =====================================================================
+-- 1on1 함께 보는 노트 → 글 쌓기
+--   · 한 칸을 같이 고치면 마지막 저장이 앞사람 글을 지웠다. 이제는 각자 한 줄씩 남긴다 (작성자 · 시간)
+--   · 내 글만 고치고 지운다. 예전 노트는 '이전 노트' 한 줄로 옮겨 그대로 둔다
+--   · one_on_ones.shared_notes 는 이 글들을 이어 붙인 읽기용 사본으로 남긴다
+--     (AI 1on1 준비 · 주간 보고 · 근거 원장이 그대로 읽는다 — 앱은 더 이상 직접 쓰지 않음)
+-- 24_condition 다음에 Run. 다시 Run 해도 안전합니다 (기존 노트는 한 번만 옮겨짐).
+-- =====================================================================
+create table if not exists public.one_on_one_entries (
+  id             uuid primary key default gen_random_uuid(),
+  one_on_one_id  uuid not null references public.one_on_ones(id) on delete cascade,
+  team_id        uuid not null references public.teams(id) on delete cascade,
+  author_id      uuid references public.profiles(id) on delete set null,
+  body           text not null check (length(btrim(body)) > 0 and length(body) <= 2000),
+  legacy         boolean not null default false,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists one_on_one_entries_oo_idx on public.one_on_one_entries (one_on_one_id, created_at);
+alter table public.one_on_one_entries enable row level security;
+
+-- 읽기: 그 팀의 팀장 · 그 1on1의 팀원
+drop policy if exists ooe_select on public.one_on_one_entries;
+create policy ooe_select on public.one_on_one_entries for select to authenticated
+  using (public.is_team_leader(team_id) or exists (select 1 from public.one_on_ones o where o.id = one_on_one_id and o.member_id = auth.uid()));
+-- 쓰기: 본인 이름으로, 그 1on1의 당사자만
+drop policy if exists ooe_insert on public.one_on_one_entries;
+create policy ooe_insert on public.one_on_one_entries for insert to authenticated
+  with check (author_id = auth.uid() and legacy = false and exists (
+    select 1 from public.one_on_ones o where o.id = one_on_one_id and o.team_id = team_id
+      and (o.member_id = auth.uid() or o.leader_id = auth.uid() or public.is_team_leader(o.team_id))));
+-- 고치기 · 지우기: 내 글만
+drop policy if exists ooe_update on public.one_on_one_entries;
+create policy ooe_update on public.one_on_one_entries for update to authenticated
+  using (author_id = auth.uid()) with check (author_id = auth.uid());
+drop policy if exists ooe_delete on public.one_on_one_entries;
+create policy ooe_delete on public.one_on_one_entries for delete to authenticated
+  using (author_id = auth.uid());
+
+create or replace function public._ooe_touch() returns trigger
+language plpgsql as $$
+begin
+  new.updated_at := now();
+  if new.one_on_one_id <> old.one_on_one_id or new.team_id <> old.team_id or new.author_id is distinct from old.author_id then
+    raise exception 'ENTRY_IMMUTABLE' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_ooe_touch on public.one_on_one_entries;
+create trigger t_ooe_touch before update on public.one_on_one_entries for each row execute function public._ooe_touch();
+
+-- 글이 바뀌면 읽기용 사본(shared_notes)과 근거 원장을 다시 만든다
+create or replace function public._ooe_sync() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_oo uuid := coalesce(new.one_on_one_id, old.one_on_one_id); v text; r public.one_on_ones;
+begin
+  select coalesce(string_agg(case when e.legacy then e.body else '[' || coalesce(p.full_name, '') || '] ' || e.body end, E'\n' order by e.created_at), '')
+    into v from public.one_on_one_entries e left join public.profiles p on p.id = e.author_id where e.one_on_one_id = v_oo;
+  update public.one_on_ones set shared_notes = v where id = v_oo and shared_notes is distinct from v returning * into r;
+  if r.id is not null and r.status = 'done' then
+    perform public.upsert_evidence(r.team_id, r.member_id, 'one_on_one', r.id, '1on1 — ' || left(v, 300), 'neutral', null, r.scheduled_at);
+  end if;
+  return null;
+end $$;
+drop trigger if exists t_ooe_sync on public.one_on_one_entries;
+create trigger t_ooe_sync after insert or update or delete on public.one_on_one_entries for each row execute function public._ooe_sync();
+
+-- 노트를 들고 만들어진 1on1(데모 · 예전 방식)은 그 노트를 '이전 노트' 한 줄로
+create or replace function public._oo_legacy_entry() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if btrim(coalesce(new.shared_notes, '')) <> '' and not exists (select 1 from public.one_on_one_entries where one_on_one_id = new.id) then
+    insert into public.one_on_one_entries (one_on_one_id, team_id, author_id, body, legacy, created_at)
+    values (new.id, new.team_id, new.leader_id, left(new.shared_notes, 2000), true, coalesce(new.completed_at, new.scheduled_at, now()));
+  end if;
+  return null;
+end $$;
+drop trigger if exists t_oo_legacy_entry on public.one_on_ones;
+create trigger t_oo_legacy_entry after insert on public.one_on_ones for each row execute function public._oo_legacy_entry();
+
+-- 기존 노트 옮기기 (다시 Run 해도 한 번만)
+insert into public.one_on_one_entries (one_on_one_id, team_id, author_id, body, legacy, created_at)
+select o.id, o.team_id, o.leader_id, left(o.shared_notes, 2000), true, coalesce(o.completed_at, o.scheduled_at, o.created_at)
+from public.one_on_ones o
+where btrim(coalesce(o.shared_notes, '')) <> '' and not exists (select 1 from public.one_on_one_entries e where e.one_on_one_id = o.id);
+
+-- >>>>>>>>>> 20261104000031_perf_input_name.sql
+-- =====================================================================
+-- 이름 바꾸기: 성과 체크인 → 성과입력 (화면 이름만 — 코드·DB 이름 checkin 은 그대로)
+--   · 이미 올라간 성과입력 카드의 제목 머리말 '체크인 · ' → '성과입력 · '
+--   · 알림에 남은 같은 머리말도 함께
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+update public.submissions set title = regexp_replace(title, '^체크인 · ', '성과입력 · ')
+ where kind = 'checkin' and title like '체크인 · %';
+update public.notifications set title = replace(title, '체크인 · ', '성과입력 · '), body = replace(body, '체크인 · ', '성과입력 · ')
+ where title like '%체크인 · %' or body like '%체크인 · %';
+
+-- >>>>>>>>>> 20261105000032_realtime.sql
+-- 27_realtime.sql — 업무 스페이스 실시간 반영
+--   상대가 쓴 대화 · 요청 상태 변화 · 업무 카드 변화를 화면에 바로 띄운다.
+--   (Supabase Realtime 'supabase_realtime' 발행 목록에 테이블을 추가. 읽기 권한은 기존 RLS 그대로 적용됨)
+--   여러 번 실행해도 안전합니다.
+do $$
+declare t text;
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+  foreach t in array array['space_messages', 'team_requests', 'submissions'] loop
+    if to_regclass('public.' || t) is not null and not exists (
+      select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
+-- >>>>>>>>>> 20261106000033_realtime_ai.sql
+-- 28_realtime_ai.sql — AI 1차 분석 완료를 팀장 화면에 바로 반영
+--   업무 카드 위 'AI 분석 ●' 표시와 오른쪽 AI 분석 패널이 분석이 끝나는 순간 바뀐다.
+--   (supabase_realtime 발행 목록에 ai_outputs 추가. 읽기 권한은 기존 RLS 그대로 — 검토 결과는 팀장만 받음)
+--   여러 번 실행해도 안전합니다.
+do $$
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+  if to_regclass('public.ai_outputs') is not null and not exists (
+    select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'ai_outputs'
+  ) then
+    alter publication supabase_realtime add table public.ai_outputs;
+  end if;
+end $$;
+
+-- >>>>>>>>>> 20261107000034_playbook.sql
+-- =====================================================================
+-- ATEAM · 0034 ATEAM 플레이북 (컨설팅 기준 카드 확장 · 2026.11)
+--   · 기본 제공 카드를 78장(8개 영역)으로 늘린다: 현장 컨설팅 기준 22 + 글로벌 방법론 56
+--     영역: 로지컬 씽킹 · 보고서·문서 · 상사·고객 커뮤니케이션 · 창의적 사고·기획 · 의사결정·실행 · 목표·성과관리 · 코칭·피드백 · 팀 운영
+--   · 카드 원본(knowhow_templates)에 화면용 정보를 더한다: 영역 · 대표 여부 · 언제 쓰나 · 왜 효과적인가 · 나쁜 예/좋은 예 · 출처
+--   · 팀장이 고치지 않은 기존 카드는 새 문안으로 바꾸고, 고친 카드는 그대로 둔다 (켜기/끄기·반영할 곳·공개 설정도 그대로)
+--   · 모든 팀에 새 카드를 넣는다. Starter 팀은 기존 규칙대로 꺼진 채로 들어간다 (Pro부터 AI가 사용)
+--   · 데모 팀에는 적용 이력과 AI 검토 기록을 함께 채운다 (seed_demo_playbook)
+--   · 내부 이름(source = 'consulting', 기능 consulting_knowhow)은 그대로 둔다 — 화면 이름만 'ATEAM 플레이북'
+-- 16_consulting_knowhow.sql 을 실행한 프로젝트에서 Run. 다시 Run 해도 안전합니다.
+-- 원본: supabase/playbook/playbook.json → node scripts/build-playbook.mjs
+-- =====================================================================
+
+do $$ begin
+  if to_regclass('public.knowhow_templates') is null then
+    raise exception '먼저 16_consulting_knowhow.sql 을 실행해 주세요 (knowhow_templates 가 없습니다)';
+  end if;
+end $$;
+
+-- ---------- 원본에 화면용 정보 ----------
+alter table public.knowhow_templates add column if not exists domain text not null default 'goal';
+alter table public.knowhow_templates add column if not exists tier smallint not null default 2;          -- 1 = 대표 방법론 (AI가 먼저 고려)
+alter table public.knowhow_templates add column if not exists situation text not null default '';      -- 언제 쓰나
+alter table public.knowhow_templates add column if not exists why text not null default '';            -- 왜 효과적인가
+alter table public.knowhow_templates add column if not exists example_bad text not null default '';
+alter table public.knowhow_templates add column if not exists example_good text not null default '';
+alter table public.knowhow_templates add column if not exists origin text not null default '';         -- 출처·참고
+alter table public.knowhow_templates add column if not exists origin_type text not null default 'field'; -- field = 현장 컨설팅 · global = 글로벌 방법론
+
+-- ---------- 새 원본 ----------
+drop table if exists pg_temp._pb;
+create temp table _pb (
+  key text primary key, domain text, kind public.knowhow_kind, tier smallint, title text, body text, rules jsonb,
+  applies_to text[], keywords text[], sort int, situation text, why text, example_bad text, example_good text, origin text, origin_type text
+);
+insert into _pb values
+  ('problem_question', 'logic', 'framework'::public.knowhow_kind, 1, '문제를 질문 한 문장으로', '일을 시작하기 전에 풀어야 할 문제를 대상·기한·수준이 담긴 질문 한 문장으로 쓴다. ''매출 개선 방안''이 아니라 ''3분기 안에 신규 고객 매출을 10% 늘리려면 무엇을 바꿔야 하는가''처럼. 질문이 흐리면 분석도 흐려진다.', '["결과물 앞에 풀려는 질문이 있는가 본다","질문에 대상·기한·수준이 있는가 본다","주제명만 있으면 질문으로 바꿔 보게 한다"]'::jsonb, array['review', 'plan', 'strategy']::text[], array['문제정의', '핵심 질문', '기획', '착수', '목적', '과제 정의', '방안']::text[], 101, '일을 받은 첫날, 착수 전', '같은 시간을 써도 질문이 구체적일수록 필요한 분석만 하게 된다. 컨설팅 프로젝트가 첫 주에 ''핵심 질문''부터 합의하는 이유다.', '고객 이탈 현황 분석', '올해 안에 3개월 내 이탈률을 15%에서 10%로 낮추려면 어느 구간부터 손대야 하나?', 'McKinsey 문제 해결 7단계 · 『Bulletproof Problem Solving』', 'global'),
+  ('mece', 'logic', 'principle'::public.knowhow_kind, 2, '빠짐없이, 겹치지 않게 (MECE)', '원인이나 대안을 나눌 때 서로 겹치지 않고 합치면 전체가 되게 나눈다. 고객별·채널별·단계별처럼 기준 하나로 자르고, 기준이 섞이면 같은 것을 두 번 세거나 큰 덩어리를 놓친다. ''기타''가 커지면 기준이 잘못된 것이다.', '["분류마다 기준이 하나인가 본다","항목끼리 겹치면 짚는다","빠진 축이 있으면 무엇인지 묻는다","''기타''가 크면 기준을 다시 보게 한다"]'::jsonb, array['review', 'plan', 'strategy']::text[], array['MECE', '분류', '구조화', '누락', '중복', '원인', '항목']::text[], 102, '원인·대안·항목을 나눌 때', '나누는 기준이 섞이면 같은 원인을 두 번 세거나 큰 원인을 통째로 놓친다. 모든 구조화의 기본 단위다.', '원인: 가격, 경쟁 심화, 20대 이탈, 마케팅 부족 (기준이 섞임)', '원인을 유입 감소 · 전환 하락 · 재구매 하락 세 단계로 나눠 각각 숫자로 확인', 'McKinsey · Barbara Minto 『The Pyramid Principle』', 'global'),
+  ('issue_tree', 'logic', 'framework'::public.knowhow_kind, 2, '이슈 트리로 쪼갠다', '큰 질문을 하위 질문으로 나무처럼 쪼개, 맨 아래가 바로 확인하거나 실행할 수 있는 크기가 될 때까지 내려간다. 숫자 목표는 ''매출 = 고객 수 × 객단가 × 구매 빈도''처럼 수식으로 쪼개면(드라이버 트리) 어디를 움직일지 보인다.', '["큰 질문이 하위 질문으로 나뉘었는가 본다","맨 아래가 실행 가능한 크기인가 본다","숫자 목표는 수식으로 쪼개 보게 한다"]'::jsonb, array['plan', 'review', 'strategy']::text[], array['이슈트리', '로직트리', '드라이버', '분해', '과제 도출', 'KPI 트리', '매출']::text[], 103, '큰 문제를 과제로 나눌 때', '쪼개야 일을 나눠 맡길 수 있고, 어느 가지가 가장 큰 효과를 내는지 비교할 수 있다.', '''매출 늘리기'' 과제 하나에 할 일 15개를 나열', '매출을 신규·기존 고객으로 나누고, 신규를 유입 × 전환으로 다시 나눠 전환 개선을 1순위로', 'McKinsey 이슈 트리 · 드라이버 트리', 'global'),
+  ('hypothesis', 'logic', 'principle'::public.knowhow_kind, 1, '가설부터 세우고 검증한다', '자료를 다 모은 뒤 결론을 내지 말고, 첫날 ''아마 답은 이것''이라는 가설을 세운 뒤 그 가설이 맞는지 판정할 자료만 모은다. 가설마다 ''무엇을 보면 맞다고 할지''를 함께 적고, 틀리면 빨리 버리고 바꾼다.', '["분석에 가설이 먼저 있는가 본다","가설마다 검증 방법이 짝지어 있는가 본다","자료 나열만 있으면 가설을 묻는다"]'::jsonb, array['review', 'plan', 'strategy']::text[], array['가설', '검증', '분석', '조사', '리서치', '데이터', 'FGI']::text[], 104, '분석·조사를 시작할 때', '가설 없이 모은 자료는 끝없이 늘어나고 결론으로 모이지 않는다. 가설이 조사 범위를 줄여 속도를 만든다.', '시장 자료를 최대한 모아 보고 방향을 정하겠습니다', '가설: 이탈은 첫 구매 후 30일 안에 다시 오지 않아서다 → 가입 월별 재방문 데이터로 확인', 'McKinsey ''Day One Answer'' · 가설 주도 문제 해결', 'global'),
+  ('so_what', 'logic', 'rubric'::public.knowhow_kind, 1, '그래서? 왜 그런데? (So What / Why So)', '사실을 쓴 뒤에는 ''그래서 무엇을 뜻하는가(So What)''를 한 번 더 써서 시사점까지 간다. 결론을 쓴 뒤에는 ''왜 그렇게 말할 수 있나(Why So)''에 근거로 답한다. 두 질문을 모두 통과한 문장만 남긴다.', '["사실 나열 뒤에 시사점이 있는가 본다","결론마다 근거가 받쳐 주는가 본다","시사점이 없으면 ''그래서?''를 묻는다"]'::jsonb, array['review', 'report']::text[], array['시사점', '인사이트', '결론', '근거', '분석', '현황']::text[], 105, '분석 결과를 정리할 때', '사실만 있으면 읽는 사람이 해석을 대신해야 하고, 결론만 있으면 믿을 근거가 없다. 위아래 논리를 함께 잠근다.', '20대 매출 비중이 작년 32%에서 24%로 줄었다. (끝)', '…24%로 줄었다. 그래서 20대 신규 유입 예산부터 다시 봐야 한다.', 'Barbara Minto 『The Pyramid Principle』 · McKinsey', 'global'),
+  ('root_cause', 'logic', 'framework'::public.knowhow_kind, 2, '원인은 다섯 번 묻는다', '눈에 보이는 현상에서 멈추지 말고 ''왜?''를 거듭 물어 손댈 수 있는 원인까지 내려간다. 사람 탓에서 멈추면 원인이 아니다. 그 사람이 그렇게 할 수밖에 없던 구조(절차·정보·도구)를 찾는다. 현상·원인·대책은 따로 쓴다.', '["현상과 원인을 나눠 썼는가 본다","사람 탓에서 멈추면 구조를 묻는다","대책이 원인과 짝지어 있는가 본다"]'::jsonb, array['review', 'report', 'briefing']::text[], array['원인', '5Why', '근본 원인', '재발 방지', '이슈', '장애', '지연', '병목', '개선', '프로세스', '리드타임', '원인 분석']::text[], 106, '문제·사고·지연이 생겼을 때', '현상에 대책을 붙이면 같은 문제가 다른 모양으로 돌아온다. 구조를 고쳐야 재발이 멈춘다.', '담당자 실수로 발송 오류 → 재교육 실시', '발송 전 검수 단계가 없음 → 발송 체크리스트와 2인 확인 도입', 'Toyota 생산방식 ''5 Whys''(오노 다이이치)', 'global'),
+  ('pareto', 'logic', 'principle'::public.knowhow_kind, 2, '큰 20%에 집중한다 (80/20)', '결과의 대부분은 소수의 원인에서 나온다. 원인·고객·과제를 영향이 큰 순서로 줄 세워 상위 몇 개에 시간과 자원을 몰고, 나머지는 의도적으로 미룬다. 모두를 조금씩 하면 아무것도 바뀌지 않는다.', '["영향이 큰 순서로 줄 세웠는가 본다","상위 항목에 자원이 몰려 있는가 본다","모든 항목을 같은 무게로 다루면 짚는다"]'::jsonb, array['review', 'strategy', 'briefing', 'plan']::text[], array['파레토', '80/20', '우선순위', '집중', '선택과 집중', '과제 수']::text[], 107, '할 일·원인이 많을 때', '팀의 시간은 한정돼 있다. 효과가 큰 소수를 먼저 고르는 것이 가장 싼 성과 개선이다.', '개선 과제 12개를 동시에 착수', '불량의 78%를 만드는 상위 3개 공정부터 개선, 나머지는 다음 분기', '파레토 법칙 · Joseph Juran ''vital few''', 'global'),
+  ('fact_opinion', 'logic', 'rubric'::public.knowhow_kind, 2, '사실·해석·의견을 나눈다', '확인된 사실(데이터·관찰), 그 사실에 대한 해석, 내 의견·제안을 문장 단위로 나눈다. ''고객 불만이 많다''는 해석이고, 사실은 ''지난달 VOC 142건 중 배송 관련 61건''이다. 추정은 추정이라고 밝히고 가정을 함께 쓴다.', '["사실과 의견이 섞인 문장을 짚는다","추정치에는 가정이 있는가 본다","형용사 대신 숫자·사례가 있는가 본다"]'::jsonb, array['review', 'report', 'prep']::text[], array['사실', '의견', '해석', '근거', '객관', '추정', '가정', 'VOC']::text[], 108, '보고·회의록·관찰 메모를 쓸 때', '섞어 쓰면 읽는 사람이 어디까지 믿을지 판단하지 못하고, 논의가 사실 확인 대신 감정 싸움이 된다.', '신규 채널 반응이 매우 좋습니다', '신규 채널 클릭률 3.1%(기존 1.8%). 초기 2주 데이터라 추세 확인이 더 필요합니다', '비판적 사고(Critical Thinking) · 사실 기반 보고', 'global'),
+  ('number_sense', 'logic', 'rubric'::public.knowhow_kind, 2, '숫자는 비교해야 의미가 생긴다', '숫자 하나로는 판단할 수 없다. 목표 대비, 지난 기간 대비, 업계·경쟁 대비 중 하나 이상과 비교하고, 비율과 절대값을 함께 본다. 출처·기준 시점·표본 크기를 밝히고, 평균만 보지 말고 분포(상위·하위)를 확인한다.', '["숫자마다 비교 기준이 있는가 본다","출처·기준 시점·표본을 밝혔는가 본다","비율만 있으면 절대값도 묻는다"]'::jsonb, array['review', 'report']::text[], array['숫자', '데이터', '지표', '출처', '비교', '통계', '수치', '점유율', '전환율']::text[], 109, '숫자가 들어간 모든 문서', '''매출 12억''은 좋은지 나쁜지 알 수 없다. 비교 기준이 붙어야 숫자가 메시지가 된다.', '이번 달 신규 가입 4,200명', '신규 가입 4,200명 — 목표 대비 84%, 전월 대비 +12% (사내 CRM, 10/31 기준)', '데이터 리터러시 · 컨설팅 보고 표준', 'global'),
+  ('depth_scale', 'logic', 'rubric'::public.knowhow_kind, 2, '고민의 깊이 눈금', '1 지시된 것을 정리해 사실을 나열한다. 2 표준 기준으로 구조화한다(빠짐·겹침 없음). 3 상황에 맞게 해석해 원인과 시사점을 낸다. 4 정답이 없는 문제에서 선택지를 설계·비교하고 권고와 리스크를 밝힌다.', '["현상→원인→시사점→권고 중 어디까지 왔는지 본다","빠진 단계를 보완점으로 짚는다","대안 비교와 버린 이유가 있으면 높게 본다"]'::jsonb, array['review']::text[], array['판단깊이', '결과물품질', '고민', '깊이', '시사점', '권고']::text[], 110, '결과물의 고민 수준을 볼 때', '같은 분량이어도 사실 나열과 권고는 가치가 다르다. 눈금이 있어야 피드백이 ''더 깊게''가 아니라 ''다음 단계''로 구체화된다.', '경쟁사 3곳의 가격표를 정리함 (1단계)', '가격 대안 3개를 비교해 B안을 권고하고, 리스크와 대응을 밝힘 (4단계)', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('pyramid', 'writing', 'framework'::public.knowhow_kind, 1, '결론 먼저, 근거는 그 아래 (피라미드 원칙)', '맨 위에 하나의 결론(주장·요청)을 두고, 그 아래에 결론을 받치는 근거 3개 안팎, 각 근거 아래에 데이터를 둔다. 같은 층의 근거는 같은 종류로 묶고, 위에서 아래로는 ''왜?''에, 아래에서 위로는 ''그래서?''에 답이 되게 한다.', '["첫 문단에 결론이 있는가 본다","근거가 3개 안팎으로 묶였는가 본다","근거 아래에 데이터가 있는가 본다","결론이 뒤에 묻혀 있으면 앞으로 올리게 한다"]'::jsonb, array['review', 'report']::text[], array['피라미드', '두괄식', '결론', '보고서', '구조', '논리', '기획서', '요약', '결론부터', '제안']::text[], 201, '보고서·메일·기획서의 첫 장', '바쁜 상사는 첫 문단에서 읽기를 멈출 수 있다. 결론부터 주면 나머지는 확인 작업이 되어 판단이 빨라진다.', '배경 → 현황 → 분석 → (마지막 장에) 제안', 'B안으로 가야 합니다. 이유는 세 가지입니다 — 비용, 일정, 리스크.', 'Barbara Minto 『The Pyramid Principle』 (McKinsey 보고서 표준)', 'global'),
+  ('scqa', 'writing', 'framework'::public.knowhow_kind, 2, '상황-문제-질문-답으로 연다 (SCQA)', '도입부는 모두가 아는 상황(S) → 그 상황을 흔드는 변화나 문제(C) → 그래서 생기는 질문(Q) → 그 질문의 답(A, 곧 결론) 순서로 짧게 쓴다. 상대가 이미 아는 배경은 한 줄로 줄인다.', '["도입부에 상황·문제·질문·답이 있는가 본다","배경 설명이 길면 줄이게 한다","도입부 끝에 답이 나오는가 본다"]'::jsonb, array['review', 'report']::text[], array['SCQA', '스토리라인', '도입부', '발표', '서론', '배경']::text[], 202, '보고서 도입부·발표 첫 장', '읽는 사람이 ''왜 지금 이 얘기를 하지?''를 묻기 전에 맥락과 답을 함께 준다. 설득의 첫 세 문장이다.', '당사는 1998년 설립 이후… 로 시작하는 배경 두 쪽', '온라인 매출이 40%가 됐다(S). 그런데 반품률이 2배가 됐다(C). 무엇부터 고칠까(Q)? 사이즈 안내부터다(A).', 'Barbara Minto 『The Pyramid Principle』', 'global'),
+  ('action_title', 'writing', 'rubric'::public.knowhow_kind, 1, '제목은 주제가 아니라 메시지로', '장표와 문단 제목에는 주제(''시장 현황'')가 아니라 그 장이 말하는 결론 문장(''시장은 커지지만 저가 구간만 커진다'')을 쓴다. 제목만 이어 읽어도 전체 이야기가 통해야 하고, 한 장에는 메시지 하나만 담는다.', '["제목이 주제어가 아니라 문장인가 본다","제목만 읽어도 흐름이 이어지는가 본다","한 장에 메시지가 하나인가 본다"]'::jsonb, array['review', 'report']::text[], array['헤드라인', '장표', '슬라이드', '제목', 'PPT', '한 장 한 메시지']::text[], 203, '장표·문단 제목을 달 때', '임원은 제목만 훑는다. 제목이 결론이면 훑기만 해도 설득이 끝난다.', '3. 경쟁사 분석', '경쟁사 3곳 모두 구독형으로 전환 — 단품 판매로는 가격 비교에서 진다', 'McKinsey·BCG 장표 원칙(Action Title · Horizontal Logic)', 'global'),
+  ('one_page', 'writing', 'framework'::public.knowhow_kind, 2, '한 장 요약으로 판단하게 한다', '문서가 길어도 맨 앞 한 장에 결론·근거·요청·필요한 결정·리스크를 모은다. 그 한 장만 읽고도 결정할 수 있어야 하고, 본문과 부록은 확인용 자료다. 한 장으로 줄지 않으면 아직 생각이 정리되지 않은 것이다.', '["맨 앞에 한 장 요약이 있는가 본다","요약에 결정 요청이 있는가 본다","세부 데이터는 부록으로 뺐는가 본다"]'::jsonb, array['review', 'report']::text[], array['요약', '한 장', '결재', '임원 보고', 'Executive Summary', '부록']::text[], 204, '결재·임원 보고 문서', '결정권자의 시간이 가장 비싸다. 한 장 요약은 결정 속도를 높이고, 쓰는 사람의 생각도 정리해 준다.', '30쪽 보고서, 요청 사항은 28쪽에', '1쪽: 결론 · 근거 3개 · 요청 2건 · 리스크 / 2쪽부터: 근거 자료', 'Toyota A3 보고서 · Executive Summary', 'global'),
+  ('ghost_deck', 'writing', 'framework'::public.knowhow_kind, 1, '쓰기 전에 뼈대부터 맞춘다', '본문을 쓰기 전에 장마다 제목(메시지)만 적은 빈 뼈대를 만들고, 들어갈 차트·표는 손그림 수준으로 표시한다. 이 뼈대를 상사와 먼저 맞춘 뒤 채운다. 뼈대를 바꾸는 데는 10분이 들지만, 완성본을 바꾸는 데는 며칠이 든다.', '["큰 문서는 목차·메시지를 먼저 맞췄는가 본다","재작업이 반복되면 뼈대 합의를 권한다","장마다 넣을 근거가 정해졌는가 본다"]'::jsonb, array['review', 'prep', 'briefing']::text[], array['목차', '뼈대', '스토리보드', '재작업', '착수', '초안']::text[], 205, '큰 문서를 착수할 때', '재작업의 대부분은 내용이 아니라 방향 차이에서 생긴다. 뼈대 단계에서 방향을 맞추면 재작업이 줄어든다.', '2주 동안 완성본을 만든 뒤 첫 보고 → 방향 수정', '이틀째 제목 12장만 들고 10분 확인 → 방향 확정 후 채우기', 'McKinsey·BCG ''Ghost Deck'' · 스토리보딩', 'global'),
+  ('chart_message', 'writing', 'rubric'::public.knowhow_kind, 2, '차트 하나에 메시지 하나', '차트는 장식이 아니라 메시지의 증거다. 먼저 하고 싶은 말(비교·추세·구성·분포·상관)을 정하고 그에 맞는 형태를 고른다. 추세는 선, 항목 비교는 막대, 구성은 누적 막대. 강조할 곳 하나에만 색을 쓰고, 제목에 메시지를 쓴다.', '["차트마다 말하려는 메시지가 있는가 본다","메시지에 맞는 형태인가 본다","강조가 한 곳에 모였는가 본다"]'::jsonb, array['review', 'report']::text[], array['차트', '그래프', '시각화', '표', '장표', '대시보드']::text[], 206, '표·그래프를 넣을 때', '같은 숫자도 형태에 따라 3초 만에 읽히기도, 30초가 걸리기도 한다.', '원그래프 4개로 지역별 매출 비교', '막대 하나에 4개 지역, 줄어든 한 곳만 진한 색, 제목 ''동부만 역성장''', 'Gene Zelazny 『Say It With Charts』(McKinsey)', 'global'),
+  ('narrative', 'writing', 'principle'::public.knowhow_kind, 2, '문장으로 써 보면 빈틈이 보인다', '중요한 제안은 글머리표만 늘어놓지 말고 완결된 문장과 문단으로 써 본다. 글머리표는 항목 사이의 관계(그래서, 그런데, 왜냐하면)를 숨긴다. 회의 전에 읽을 수 있게 미리 돌리고, 회의 시간은 질문과 결정에 쓴다.', '["핵심 논리가 문장으로 이어지는가 본다","글머리표 사이 인과가 비면 짚는다","중요한 회의는 사전 배포를 권한다"]'::jsonb, array['review', 'briefing']::text[], array['서술', '메모', '내러티브', '기획서', '제안서', '글머리표', '회의 자료']::text[], 207, '중요한 제안·기획을 쓸 때', '문장으로 쓰면 ''그래서''와 ''왜냐하면''을 피할 수 없어 생각의 빈틈이 드러난다.', '· 시장 성장 · 경쟁 심화 · 신규 진입 필요', '시장은 연 8% 크지만 상위 3사가 성장분의 70%를 가져간다. 그래서 정면 경쟁보다 틈새 진입이 낫다.', 'Amazon 6-page Narrative Memo', 'global'),
+  ('plain_words', 'writing', 'rubric'::public.knowhow_kind, 2, '쉬운 말, 짧은 문장, 구체적 표현', '한 문장에는 한 가지만 쓰고 두 줄을 넘기지 않는다. ''적극 검토'', ''최적화'', ''고도화''처럼 무엇을 하는지 알 수 없는 말 대신 행동과 숫자를 쓴다. 약어와 내부 용어는 처음 나올 때 풀어 쓰고, 누가 하는지 주어를 밝힌다.', '["뜻이 흐린 말(고도화·적극 검토)을 짚는다","주어와 행동이 분명한가 본다","약어는 처음에 풀어 썼는가 본다"]'::jsonb, array['review', 'report']::text[], array['문장', '글쓰기', '가독성', '표현', '용어', '메일', '고도화']::text[], 208, '모든 글', '어려운 말은 똑똑해 보이지 않고 무언가 숨기는 것처럼 보인다. 쉽게 쓴 글이 더 빨리 결정된다.', '고객 경험 고도화를 위한 다각적 방안을 적극 검토 예정', '다음 달까지 반품 절차를 5단계에서 3단계로 줄이겠습니다(담당 김OO)', 'Plain Language 원칙 · 『The Elements of Style』', 'global'),
+  ('doc_check', 'writing', 'rubric'::public.knowhow_kind, 2, '문서 유형별 점검', '기획서: 풀 질문·범위·일정·역할·리스크·성공 기준. 진행 보고: 결론과 요청 먼저, 계획 대비 숫자, 이슈는 원인→영향→대응. 분석: 질문과 가설, 출처·기간·표본, 비교 기준, 한계. 제안: 진단과 처방의 연결, 대안 2개 이상, 실행 계획, 기대 효과.', '["문서 유형에 맞는 빠진 요소를 짚는다","수치와 인용엔 출처가 있는지 본다","세부 데이터는 참고로 분리했는지 본다"]'::jsonb, array['review']::text[], array['기획서', '보고서', '분석', '제안서', '진행 보고', '체크리스트']::text[], 209, '기획서·진행보고·분석·제안을 볼 때', '문서마다 갖춰야 할 요소가 다르다. 유형별 점검표가 있어야 ''어딘가 아쉽다''가 ''이것이 빠졌다''로 바뀐다.', '제안서에 대안이 하나뿐이고 실행 계획이 없음', '제안서: 진단→처방 연결, 대안 2개 비교, 일정·담당, 기대 효과 숫자', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('answer_first', 'comm', 'principle'::public.knowhow_kind, 1, '물으면 답부터, 설명은 그다음', '질문을 받으면 먼저 답(예·아니오, 숫자, 날짜)을 말하고, 그다음에 이유와 상황을 붙인다. 모르면 ''모릅니다, 언제까지 확인하겠습니다''가 답이다. 메일·메신저도 첫 줄에 결론을 쓴다(BLUF: Bottom Line Up Front).', '["질문에 대한 답이 첫 문장에 있는가 본다","모르면 확인 시점을 밝혔는가 본다","메시지 첫 줄에 결론이 있는가 본다"]'::jsonb, array['review', 'report', 'briefing']::text[], array['두괄식', '답변', 'BLUF', '메일', '메신저', '보고', '질문']::text[], 301, '상사·고객의 질문에 답할 때', '상대는 답을 듣기 위해 물었다. 설명이 먼저 나오면 답을 피하는 것처럼 들린다.', '그게 사실 협력사 쪽 사정이 좀 있어서… (2분 뒤) 그래서 하루 늦을 것 같습니다', '하루 늦습니다. 금요일 오전에 드립니다. 이유는 협력사 자료 지연입니다.', '미 육군 BLUF 원칙 · 컨설팅 ''Answer First''', 'global'),
+  ('boss_lens', 'comm', 'framework'::public.knowhow_kind, 1, '상사의 관심사로 번역한다', '상사에게도 자기 목표와 위에서 받는 압박, 선호하는 보고 방식이 있다. 보고 전에 이 일이 상사의 어떤 목표에 닿는지, 상사가 위에 무엇을 설명해야 하는지, 숫자·글·대면 중 무엇을 선호하는지 확인하고, 내가 하고 싶은 말을 상사가 결정에 필요한 말로 바꾼다.', '["상위 목표·관심사와 연결했는가 본다","상사가 위에 설명할 문장이 있는가 본다","보고 형식이 받는 사람에 맞는가 본다"]'::jsonb, array['report', 'briefing', 'review']::text[], array['상향 관리', '상사', '임원', '본부장', '보고', '관점', '관심사']::text[], 302, '보고·제안을 준비할 때', '같은 내용도 상사의 목표 언어로 말하면 ''내 일''이 되고, 그렇지 않으면 ''아랫사람의 일''로 남는다.', '저희 팀이 이번에 정말 고생해서 시스템을 바꿨습니다', '본부 과제인 처리 시간 단축에 기여: 건당 12분 → 7분. 분기 보고에 바로 쓰실 수 있습니다', 'Gabarro & Kotter 「Managing Your Boss」(HBR)', 'global'),
+  ('clarify_ask', 'comm', 'framework'::public.knowhow_kind, 2, '일을 받을 때 네 가지를 되묻는다', '일을 받으면 그 자리에서 목적(왜, 어디에 쓰나), 결과물 모양(분량·형식·수준), 기한(최종과 중간 점검), 판단 기준(무엇이 되면 잘된 것인가)을 확인하고, 이해한 내용을 한 문장으로 되말한다. 묻지 않고 짐작하면 재작업이 된다.', '["목적·결과물·기한·기준을 확인했는가 본다","이해한 내용을 되말해 확인했는가 본다","쓰임새가 흐리면 묻게 한다"]'::jsonb, array['review', 'prep', 'briefing']::text[], array['업무 지시', '요청', '착수', '재작업', '기대 수준', '되묻기']::text[], 303, '지시·요청을 받을 때', '재작업의 상당수는 실력이 아니라 기대 차이에서 생긴다. 1분의 질문이 하루의 재작업을 막는다.', '넵 알겠습니다 → 사흘 뒤 50쪽 보고서 제출 → ''한 장이면 됐는데''', '임원회의 참고용 한 장, 목요일 오전 초안 확인, 경쟁사 3곳 비교가 핵심 — 맞을까요?', '컨설팅 착수 관행(Kick-off) · 업무 지시 표준', 'global'),
+  ('early_check', 'comm', 'principle'::public.knowhow_kind, 1, '중간보고는 일찍, 30% 시점에', '전체 일정의 30% 안팎 시점에 방향과 뼈대만 들고 짧게 확인받는다. 완성도를 높인 뒤 처음 보여 주면 방향이 틀렸을 때 버릴 것이 너무 많다. 상사가 다른 경로로 먼저 듣지 않게(No Surprises) 진행 상황과 이슈는 먼저 알린다.', '["긴 일에 중간 확인 시점이 있는가 본다","완성 전에 방향을 맞췄는가 본다","이슈를 먼저 알렸는가 본다"]'::jsonb, array['review', 'prep', 'briefing', 'report']::text[], array['중간보고', '진척 공유', '방향 확인', '일정', '공유', '지연']::text[], 304, '며칠 이상 걸리는 일', '방향 오류는 늦게 발견할수록 비용이 크게 불어난다. 일찍 보여 주는 것은 실력의 문제가 아니라 위험 관리다.', '마감 전날 처음 공유 → 방향 전환으로 마감 연기', '2주 일정 중 4일째 목차와 핵심 가설만 10분 공유 → 방향 확정', '컨설팅 중간보고 관행 · ''No Surprises'' 원칙', 'global'),
+  ('prewire', 'comm', 'framework'::public.knowhow_kind, 2, '회의 전에 핵심 인물과 미리 맞춘다', '결정이 필요한 회의라면 그 전에 결정권자와 반대할 가능성이 큰 사람을 따로 만나 안을 미리 보여 주고 우려를 듣는다. 회의장에서 처음 듣는 사람은 방어적이 된다. 들은 우려는 안에 반영하거나 답을 준비해 간다.', '["결정 회의 전 사전 공유를 했는가 본다","예상 반대와 답이 준비됐는가 본다","회의에서 처음 듣는 핵심 인물이 없게 한다"]'::jsonb, array['briefing', 'report', 'review']::text[], array['사전 조율', '이해관계자', '회의', '설득', '합의', '협의']::text[], 305, '중요한 결정 회의 전', '회의는 결정을 확인하는 자리여야 한다. 사전 조율 없이 회의에서 설득하려 하면 결정이 미뤄진다.', '부서장 회의에서 처음 안을 공개 → 타 부서 반대로 보류', '회의 이틀 전 재무팀장과 15분 사전 공유 → 예산 우려를 반영한 B안으로 통과', 'McKinsey ''Pre-wiring'' 관행', 'global'),
+  ('stakeholder', 'comm', 'framework'::public.knowhow_kind, 2, '이해관계자 지도를 그린다', '일에 영향을 주거나 받는 사람을 적고 영향력과 관심도로 나눈다. 둘 다 높으면 함께 설계하고, 영향력만 높으면 핵심만 보고해 만족시키고, 관심만 높으면 자주 알리고, 둘 다 낮으면 결과만 공유한다. 사람마다 얻는 것과 잃는 것을 적어 둔다.', '["관련 부서·사람을 빠짐없이 적었는가 본다","사람마다 소통 방식을 달리했는가 본다","잃는 사람이 있으면 대응을 묻는다"]'::jsonb, array['strategy', 'review', 'briefing']::text[], array['이해관계자', '협업', '부서 간', '조율', '변화 관리', '제휴', '협력사']::text[], 306, '여러 부서가 얽힌 일', '여러 부서가 걸린 일은 논리보다 사람 때문에 막힌다. 누가 무엇을 잃는지 알면 저항을 미리 다룰 수 있다.', '전사 시스템 변경을 IT팀과만 논의 → 현업 반발로 일정 지연', '영향이 큰 영업·재무는 설계 단계부터 참여, 나머지는 격주 소식 공유', '이해관계자 분석(Mendelow 영향력-관심 매트릭스)', 'global'),
+  ('real_need', 'comm', 'principle'::public.knowhow_kind, 2, '요청 뒤의 진짜 목적을 찾는다', '요청받은 것(무엇을)과 필요한 것(왜)은 다를 수 있다. ''자료 좀 뽑아 줘''의 목적이 임원 질문에 답하기라면 필요한 것은 원자료가 아니라 한 줄 답이다. 요청의 목적을 확인하고, 목적에 더 맞는 방법이 있으면 대안을 함께 제안한다.', '["요청의 목적을 확인했는가 본다","목적에 더 맞는 대안을 제안했는가 본다","요청만 그대로 수행했으면 목적을 묻는다"]'::jsonb, array['review', 'prep', 'briefing']::text[], array['고객 관점', '니즈', '요청', '목적', '고객', '서비스', '내부 고객']::text[], 307, '고객·상사의 요청을 받을 때', '시킨 일만 하면 기대만큼이고, 목적을 채우면 기대 이상이 된다. ''일 잘한다''는 평판은 대부분 여기서 나온다.', '요청대로 엑셀 원자료 3만 행 전달', '''왜 줄었나''가 질문이라면 원인 3개를 한 장으로 드릴게요. 원자료는 첨부합니다.', '컨설팅 고객 관리 · Jobs to be Done 관점', 'global'),
+  ('msg_once', 'comm', 'rubric'::public.knowhow_kind, 2, '메일·메신저는 한 번에 끝나게', '메시지 하나에 용건 하나. 제목이나 첫 줄에 [요청·공유·결정]과 기한을 쓰고, 상대가 할 일을 분명히 적는다. 상대가 다시 물어야 할 정보(파일·링크·배경)는 미리 붙인다. ''잠깐 시간 되세요?'' 대신 용건을 바로 쓴다.', '["첫 줄에 요청과 기한이 있는가 본다","상대가 할 일이 분명한가 본다","필요한 자료를 함께 보냈는가 본다"]'::jsonb, array['review', 'briefing']::text[], array['메일', '메신저', '요청', '협업', '커뮤니케이션', '공유']::text[], 308, '메일·메신저로 요청할 때', '주고받는 횟수가 한 번 늘 때마다 하루가 늦어진다. 한 번에 끝나는 메시지가 팀의 속도다.', '팀장님 혹시 잠깐 시간 되실까요?', '[결정 요청 · 오늘 17시] B사 견적 2안 중 선택 부탁드립니다. 비교표 첨부, 저는 2안을 추천합니다.', '비동기 커뮤니케이션 원칙(BLUF)', 'global'),
+  ('upward_report', 'comm', 'framework'::public.knowhow_kind, 2, '상향 보고의 순서', '첫 줄에 결론과 요청, 그다음 근거 숫자, 마지막에 필요한 결정과 지원. 결정이 필요하면 선택지 두 개 이상을 장단점과 함께. 한 장에 한 메시지, 세부는 참고로 뺀다.', '["결론과 요청을 첫 줄에","결정 사항은 선택지 2개 이상으로","한 장에 한 메시지"]'::jsonb, array['report']::text[], array['보고', '임원보고', '상향관리', '결재', '선택지']::text[], 309, '위로 보고할 때', '윗사람의 시간은 결정에 써야 한다. 결론과 요청이 먼저 오면 보고가 결정으로 바로 이어진다.', '이번 주 진행 사항을 순서대로 나열하고 끝', '첫 줄 ''예산 2천만 원 추가 승인 요청'' → 근거 3개 → 선택지 A·B와 추천안', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('bad_news', 'comm', 'principle'::public.knowhow_kind, 2, '나쁜 소식은 먼저, 대응안과 함께', '위에서 다른 경로로 듣기 전에 팀장이 먼저 말한다. 원인 → 영향 → 대응안 순서로, 대응안이 여럿이면 권하는 안을 밝힌다. 목표 대비 부족이 구조적이면 추세·바뀐 환경·필요한 자원을 근거로 재협의를 준비한다.', '["나쁜 소식은 원인→영향→대응안","권하는 대응안을 밝힌다","구조적 부족은 재협의 근거를 준비"]'::jsonb, array['report', 'briefing']::text[], array['리스크보고', '에스컬레이션', '지연', '목표 미달', '이슈']::text[], 310, '일정·성과가 어긋났을 때', '나쁜 소식은 늦을수록 더 나빠진다. 먼저 말하는 사람이 대응의 주도권을 가진다.', '목표 미달을 분기 마감 회의에서 처음 보고', '마감 3주 전: ''3분기 80% 예상 — 원인 2개, 만회안 A(추천)·B''', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('reframe', 'creative', 'framework'::public.knowhow_kind, 1, '문제를 다시 정의해 본다', '주어진 문제를 그대로 풀기 전에 다르게 정의해 본다. ''왜 이걸 해결하려 하나?''를 물어 한 단계 위 목적으로 올라가면 다른 해법이 보이고, ''정확히 무엇이 문제인가?''로 내려가면 손댈 곳이 보인다. 정의를 세 가지 이상 써 보고 하나를 고른다.', '["문제 정의를 다르게 해 봤는가 본다","한 단계 위 목적에서 해법을 찾았는가 본다","첫 정의를 그대로 썼으면 다른 정의를 묻는다"]'::jsonb, array['review', 'strategy', 'plan']::text[], array['리프레이밍', '재정의', '관점', '창의', '기획', '아이디어', '새로운 시도']::text[], 401, '뻔한 답만 나올 때', '잘못 정의한 문제는 아무리 잘 풀어도 소용없다. 정의를 바꾸는 것이 가장 큰 창의성이다.', '엘리베이터가 느리다 → 더 빠른 엘리베이터로 교체(수억 원)', '''기다림이 지루하다''로 재정의 → 거울 설치로 불만 해소', 'Wedell-Wedellsborg 「Are You Solving the Right Problems?」(HBR)', 'global'),
+  ('hmw', 'creative', 'framework'::public.knowhow_kind, 2, '''어떻게 하면 ~할까''로 묻는다', '문제를 불평(''고객 문의가 너무 많다'')이 아니라 기회 질문(''어떻게 하면 고객이 묻지 않고도 해결할까?'')으로 바꿔 시작한다. 너무 넓으면 막연하고 너무 좁으면 답이 정해져 있다. 대상과 원하는 변화가 담기게 쓴다.', '["문제를 기회 질문으로 바꿨는가 본다","질문이 너무 넓거나 좁지 않은가 본다","질문에 대상과 원하는 변화가 있는가 본다"]'::jsonb, array['review', 'plan']::text[], array['HMW', '아이디어', '브레인스토밍', '디자인씽킹', '질문', '워크숍']::text[], 402, '아이디어 회의를 시작할 때', '질문의 모양이 답의 범위를 정한다. 열린 질문이 더 많은 아이디어를 끌어낸다.', '콜센터 인력을 어떻게 줄일까?', '어떻게 하면 고객이 전화하기 전에 답을 찾게 할까?', 'IDEO · 디자인 씽킹 ''How Might We''', 'global'),
+  ('diverge_converge', 'creative', 'principle'::public.knowhow_kind, 2, '넓히는 시간과 좁히는 시간을 나눈다', '아이디어를 낼 때(발산)는 평가를 미루고 양을 늘리며, 고를 때(수렴)는 기준을 정해 냉정하게 줄인다. 두 단계를 섞으면 첫 아이디어가 평가받는 순간 나머지가 나오지 않는다. 문제 정의와 해결책에서 두 번 반복한다.', '["대안을 충분히 넓힌 뒤 골랐는가 본다","고르는 기준이 밝혀졌는가 본다","대안이 하나뿐이면 발산 단계를 묻는다"]'::jsonb, array['review', 'plan', 'strategy']::text[], array['발산', '수렴', '더블 다이아몬드', '아이디어', '브레인스토밍', '대안']::text[], 403, '아이디어를 내고 고를 때', '좋은 아이디어는 많은 아이디어 속에서 나온다. 평가를 미루면 양이, 기준을 세우면 질이 확보된다.', '회의 첫 아이디어에 ''그건 예산이 안 돼''로 바로 종료', '15분 동안 평가 없이 30개 → 효과·실행 용이성 기준으로 3개 선정', '영국 디자인 카운슬 ''Double Diamond'' · Alex Osborn', 'global'),
+  ('first_principles', 'creative', 'principle'::public.knowhow_kind, 2, '당연한 가정을 의심한다', '''원래 그렇게 한다''는 가정을 적어 보고, 각각이 물리적·법적 제약인지 단지 관행인지 구분한다. 관행이면 바꿀 수 있다. 원가와 시간을 가장 작은 요소까지 쪼갠 뒤 ''꼭 필요한 것''에서 다시 쌓아 올린다.', '["전제로 깔린 가정을 밝혔는가 본다","제약과 관행을 구분했는가 본다","''원래 그렇다''가 근거면 짚는다"]'::jsonb, array['strategy', 'review', 'plan']::text[], array['제1원칙', '가정', '관행', '혁신', '원가', '재설계', '리드타임']::text[], 404, '관행·전례가 답을 막을 때', '경쟁사와 같은 가정에서 출발하면 같은 답에 도착한다. 차별화는 대개 아무도 의심하지 않은 가정에서 나온다.', '업계 표준 납기가 4주라 우리도 4주', '4주 중 실제 작업은 6일, 나머지는 대기 → 대기 단계를 없애 1주 납기', '제1원칙 사고(First Principles Thinking)', 'global'),
+  ('scamper', 'creative', 'framework'::public.knowhow_kind, 2, '일곱 질문으로 비틀어 본다 (SCAMPER)', '지금 있는 것에 일곱 질문을 던진다. 바꾸면? 합치면? 다른 데서 빌려오면? 키우거나 줄이면? 다른 용도로 쓰면? 빼면? 순서를 뒤집으면? 질문마다 하나 이상 적어 보면 백지에서 생각할 때보다 빨리, 넓게 나온다.', '["개선안이 한 방향뿐이면 다른 질문을 권한다","빼기(없애기)를 검토했는가 본다","아이디어마다 기대 효과를 묻는다"]'::jsonb, array['review', 'plan']::text[], array['SCAMPER', '개선', '아이디어', '혁신', '상품 기획', '프로세스 개선']::text[], 405, '기존 상품·프로세스를 개선할 때', '있는 것을 비트는 편이 백지에서 시작하는 것보다 빠르고, 질문 목록이 생각의 사각지대를 비춘다.', '개선안: 기능 추가 하나', '빼기: 가입 단계 7개 → 3개 / 합치기: 결제와 배송 조회를 한 화면에', 'Bob Eberle SCAMPER (Alex Osborn 체크리스트 기반)', 'global'),
+  ('analogy', 'creative', 'principle'::public.knowhow_kind, 2, '다른 업계에서 빌려 온다', '같은 구조의 문제를 이미 푼 다른 업계를 찾는다. 대기 줄 관리는 놀이공원이, 재구매는 구독 서비스가, 현장 표준화는 프랜차이즈가 먼저 풀었다. 겉모습이 아니라 문제의 구조가 같은 사례를 찾아 무엇을 가져올지 적는다.', '["다른 업계·사례를 참고했는가 본다","사례와 우리 상황의 차이를 밝혔는가 본다","경쟁사만 보고 있으면 이종 사례를 권한다"]'::jsonb, array['review', 'strategy', 'plan']::text[], array['벤치마킹', '사례', '유추', '이종 업계', '아이디어', '경쟁사']::text[], 406, '막혔을 때·새 기획', '경쟁사만 보면 따라가게 되고, 다른 업계를 보면 앞서가게 된다.', '경쟁사 A·B의 기능을 비교해 빠진 기능을 추가', '병원 예약 노쇼 문제 → 항공사의 초과 예약·위약금 구조를 응용', '유추적 사고(Analogical Thinking) · 이종 벤치마킹', 'global'),
+  ('inversion', 'creative', 'framework'::public.knowhow_kind, 2, '거꾸로 생각한다', '''어떻게 성공할까'' 대신 ''어떻게 하면 확실히 망할까''를 먼저 적는다. 실패를 부르는 행동 목록이 나오면 그것을 하지 않는 것이 첫 전략이 된다. 고객을 떠나게 하는 방법, 프로젝트를 늦추는 방법을 적어 보면 막아야 할 것이 보인다.', '["실패를 부르는 요인을 적어 봤는가 본다","그 요인을 막는 장치가 계획에 있는가 본다"]'::jsonb, array['plan', 'strategy', 'review']::text[], array['역발상', '리스크', '실패 요인', '전략', '고객 이탈']::text[], 407, '방법이 떠오르지 않을 때', '성공 요인은 많고 흐릿하지만 실패 요인은 구체적이다. 피할 것을 먼저 지우면 성공 확률이 오른다.', '고객 만족을 높인다 (막연함)', '고객을 떠나게 하는 법: 늦은 답, 같은 질문 반복 → 응답 4시간 기준, 문의 이력 공유', 'Charlie Munger · Carl Jacobi ''거꾸로 생각하라''', 'global'),
+  ('customer_job', 'creative', 'framework'::public.knowhow_kind, 1, '고객이 해결하려는 일을 본다', '고객은 제품을 사는 게 아니라 자기 일을 해결하려고 ''고용''한다. 고객이 어떤 상황에서, 무엇을 끝내려고, 무엇이 불편해서 우리를 찾는지 한 문장으로 쓴다. 타 부서·상사 같은 내부 고객도 같다. 기능이 아니라 해결된 상태를 기획한다.', '["고객의 상황과 해결하려는 일이 있는가 본다","기능 나열이면 고객 관점을 묻는다","고객 근거(인터뷰·데이터)가 있는가 본다"]'::jsonb, array['review', 'plan', 'strategy']::text[], array['고객', 'JTBD', '니즈', '고객 가치', '상품 기획', '타깃', '페르소나']::text[], 408, '상품·서비스·내부 고객 기획', '기능 경쟁은 끝이 없지만, 고객의 일을 더 잘 해결하는 쪽이 선택받는다.', '앱에 AI 추천 기능 추가', '퇴근길 10분 안에 저녁 메뉴를 정하고 싶은 1인 가구 → 3개만 추천', 'Clayton Christensen ''Jobs to be Done''', 'global'),
+  ('working_backwards', 'creative', 'framework'::public.knowhow_kind, 1, '끝에서 거꾸로 기획한다', '기획을 시작할 때 ''완성됐을 때 고객(또는 상사)에게 보낼 발표문''을 먼저 쓴다. 누구의 어떤 문제를 어떻게 해결했고 무엇이 달라졌는가. 그다음 예상 질문과 답(FAQ)을 적는다. 발표문이 설득력이 없으면 기획을 고친다.', '["완성 후 모습을 먼저 그렸는가 본다","고객이 얻는 변화가 한 문장으로 되는가 본다","예상 질문과 답을 준비했는가 본다"]'::jsonb, array['plan', 'review', 'strategy']::text[], array['워킹 백워드', 'PR/FAQ', '기획', '신사업', '프로젝트', '런칭', '비전']::text[], 409, '새 기획·프로젝트 착수', '끝을 먼저 쓰면 ''만들 수 있는 것''이 아니라 ''만들 가치가 있는 것''에서 출발하게 된다.', '기술 사양과 일정부터 정리', '''3월, 고객은 가입 2분 만에 첫 견적을 받는다'' 발표문 → 거꾸로 짚은 과제 4개', 'Amazon ''Working Backwards''(PR/FAQ)', 'global'),
+  ('small_bet', 'creative', 'principle'::public.knowhow_kind, 2, '작게, 빨리 실험한다', '크게 준비해 한 번에 시작하지 말고, 가장 불확실한 가정 하나를 가장 싸게 검증할 실험부터 한다. 실험마다 ''무엇을 보면 계속하고 무엇을 보면 멈출지''를 미리 정한다. 실패는 비용이 작을 때 해야 배움이 된다.', '["가장 불확실한 가정을 먼저 검증하는가 본다","계속·중단 기준을 미리 정했는가 본다","큰 투자 전에 작은 검증이 있었는가 본다"]'::jsonb, array['plan', 'strategy', 'review']::text[], array['실험', 'MVP', '파일럿', '검증', '테스트', '신사업', '가설']::text[], 410, '확신이 없는 새 시도', '검증 없이 크게 시작하면 틀렸을 때 돌아올 수 없다. 작은 실험이 큰 실패를 막는다.', '6개월 개발 후 전국 출시', '2주간 매장 1곳 파일럿, 재구매율 20%를 넘으면 확대', 'Eric Ries 『The Lean Startup』', 'global'),
+  ('door_type', 'decision', 'principle'::public.knowhow_kind, 1, '되돌릴 수 있는 결정은 빨리 한다', '결정을 두 종류로 나눈다. 되돌리기 어려운 결정(큰 투자·채용·구조 변경)은 충분히 검토하고, 되돌릴 수 있는 결정(대부분의 운영 결정)은 빨리 내린 뒤 결과를 보며 고친다. 모든 결정을 무겁게 다루면 팀이 느려진다.', '["되돌릴 수 있는 결정인지 구분했는가 본다","가벼운 결정이 오래 걸리면 짚는다","무거운 결정은 검토 깊이를 묻는다"]'::jsonb, array['briefing', 'strategy', 'scenario', 'review']::text[], array['의사결정', '속도', '결정', '리스크', '실행', '판단', '보류']::text[], 501, '결정이 늘어질 때', 'McKinsey 조사(2019)에서 응답자들은 업무 시간의 37%를 결정에 쓰지만, 61%는 그 시간 대부분이 비효율적이라고 답했다. 결정마다 무게를 달리해야 한다.', '이벤트 문구 하나를 정하는 데 회의 3번', '문구는 담당자가 정하고 A/B 테스트로 조정, 연간 예산 배분은 2주 검토', 'Amazon ''Type 1·Type 2 결정'' · McKinsey 의사결정 조사(2019)', 'global'),
+  ('info_70', 'decision', 'principle'::public.knowhow_kind, 2, '정보 70%에서 결정한다', '원하는 정보의 70% 정도가 모이면 결정한다. 90%를 기다리면 대부분 늦다. 대신 결정과 함께 ''어떤 신호가 보이면 다시 판단할지''를 정해 둔다. 틀린 결정을 빨리 알아채고 고치는 힘이 완벽한 결정보다 중요하다.', '["추가 조사가 결정을 바꿀 수 있는가 묻는다","재검토 신호를 함께 정했는가 본다","결정을 미루는 비용을 밝혔는가 본다"]'::jsonb, array['briefing', 'strategy', 'review']::text[], array['결정', '속도', '불확실성', '판단', '정보', '지연', '추가 조사']::text[], 502, '''자료를 더 모으자''가 반복될 때', '기다리는 동안에도 기회·시장·팀 사기의 비용은 쌓인다. 대부분의 결정은 나중에 고칠 수 있다.', '한 달 더 시장 조사 후 결정하겠습니다 (세 번째)', '지금 자료로 B안 결정. 첫 4주 전환율이 2% 미만이면 A안으로 전환', 'Jeff Bezos 2016 주주서한', 'global'),
+  ('criteria_first', 'decision', 'framework'::public.knowhow_kind, 1, '기준을 먼저 정하고 대안을 본다', '대안을 보기 전에 판단 기준(효과·비용·속도·리스크 등)과 그 무게를 먼저 정한다. 대안을 먼저 보면 마음에 드는 안에 맞춰 기준이 바뀐다. 대안은 최소 두 개, ''아무것도 안 하기''도 하나의 대안으로 함께 비교한다.', '["판단 기준과 무게가 먼저 있는가 본다","대안이 2개 이상인가 본다","''안 하기''와 비교했는가 본다","버린 대안과 이유를 쓰게 한다"]'::jsonb, array['review', 'strategy', 'report', 'scenario']::text[], array['대안 비교', '의사결정', '평가 기준', '가중치', '선택', '버린 대안', '비교', '검토']::text[], 503, '여러 안 중에서 고를 때', '기준이 먼저 있어야 결정을 설명할 수 있고, 나중에 ''왜 그걸 골랐나''에 답할 수 있다.', 'A안이 좋아 보여서 A안으로 갑니다', '효과 40·비용 30·속도 30 기준 → A 72점, B 81점, 현행 유지 55점 → B안', 'Kepner-Tregoe 의사결정 분석 · 대안 비교 표준', 'global'),
+  ('premortem', 'decision', 'framework'::public.knowhow_kind, 1, '시작 전에 실패를 상상한다 (사전 부검)', '실행 전에 ''1년 뒤 이 프로젝트가 크게 실패했다. 왜 실패했나?''를 각자 적게 한다. 이미 일어난 일로 상상하면 위험이 훨씬 잘 보이고, 말하기 어려운 우려도 꺼내기 쉬워진다. 나온 실패 원인 중 큰 것부터 대응책을 계획에 넣는다.', '["실패 시나리오를 미리 검토했는가 본다","주요 리스크마다 대응이 있는가 본다","리스크 항목이 비어 있으면 묻는다"]'::jsonb, array['review', 'strategy', 'plan', 'scenario']::text[], array['프리모템', '리스크', '실패', '사전 점검', '위험 관리', '프로젝트', '대응', '일정', '계획']::text[], 504, '큰 프로젝트·결정 직전', '결과가 이미 일어났다고 상상하면 그 원인을 찾아내는 능력이 약 30% 높아진다는 연구가 있다(Mitchell 외, 1989).', '리스크: 특이사항 없음', '실패 원인 1위 ''협력사 데이터 지연'' → 대체 데이터원 확보, 2주 여유', 'Gary Klein 「Performing a Project Premortem」(HBR, 2007)', 'global'),
+  ('devil', 'decision', 'principle'::public.knowhow_kind, 2, '큰 결정엔 반대 논거를 일부러 세운다', '되돌리기 어려운 결정일수록 한 사람에게 반대 역할을 맡겨 가장 강한 반대 논거를 세우게 한다. 반대가 없는 회의는 합의가 아니라 침묵일 수 있다. 핵심 가정마다 ''이게 틀리면 어떻게 되나''를 묻는다.', '["큰 결정에 반대 논거를 검토했는가 본다","핵심 가정이 틀릴 경우를 따졌는가 본다","만장일치면 반론을 한 번 묻는다"]'::jsonb, array['strategy', 'scenario', 'briefing']::text[], array['반대 의견', '집단 사고', '의사결정', '검증', '토론', '가정', '신사업']::text[], 505, '모두가 찬성하는 큰 결정', 'McKinsey 조사(2019)에서 큰 결정에 가정을 반박하고 반대 역할을 두는 등 토론의 질이 높은 조직은 성과가 좋은 조직일 가능성이 2.3배 높았다.', '신사업 진출을 15분 만에 만장일치 승인', '반대 역할이 ''시장 규모 과대평가'' 논거를 제시 → 1단계 파일럿으로 줄여 승인', 'McKinsey 「Decision making in the age of urgency」(2019)', 'global'),
+  ('decision_roles', 'decision', 'framework'::public.knowhow_kind, 2, '누가 결정하는지 먼저 정한다', '결정마다 역할을 나눈다. 안을 만드는 사람(추천), 반드시 동의를 받아야 하는 사람(합의), 의견을 내는 사람(의견), 최종 결정하는 사람(결정, 한 명), 실행하는 사람(실행). 결정자가 둘이면 아무도 결정하지 않는다.', '["결정자가 한 명으로 정해졌는가 본다","의견과 합의 대상을 구분했는가 본다","결정이 떠돌면 역할을 묻는다"]'::jsonb, array['briefing', 'strategy', 'review']::text[], array['RAPID', 'RACI', '결정권', '역할', '책임', '협업', '합의']::text[], 506, '여러 사람이 걸린 결정', 'Bain이 1,000개 넘는 기업을 조사한 결과 의사결정 효과성과 사업 성과는 뚜렷하게 함께 움직였다(95% 신뢰수준). 결정이 느린 가장 흔한 이유는 결정권이 흐린 것이다.', '관련 팀들이 협의해서 정하기로', '추천 마케팅 김OO · 합의 재무 · 의견 영업 · 결정 본부장 · 실행 마케팅', 'Bain & Company RAPID® 의사결정 모델', 'global'),
+  ('disagree_commit', 'decision', 'principle'::public.knowhow_kind, 2, '반대해도 결정되면 함께 간다', '결정 전에는 반대 의견을 분명히 말하고, 결정이 나면 반대했던 사람도 전력으로 실행한다. 뒤에서 다시 문제 삼거나 소극적으로 실행하면 같은 결정에 비용을 두 번 쓴다. 다시 볼 조건은 결정할 때 함께 정한다.', '["결정 전에 반대 의견을 들었는가 본다","결정 후 실행이 미뤄지면 짚는다","재검토 조건을 정했는가 본다"]'::jsonb, array['briefing', 'prep']::text[], array['실행', '합의', '갈등', '팀워크', '결정', '몰입', '반대']::text[], 507, '결정 후 실행 단계', '결정의 질만큼 실행의 속도가 성과를 가른다. 반대할 권리와 따를 책임은 함께 간다.', '결정 후에도 ''저는 원래 반대였어요'' 하며 실행 지연', '우려는 기록해 두고 4주 뒤 지표로 다시 보죠. 그때까지는 이 안으로 갑니다.', 'Amazon 리더십 원칙 ''Disagree and Commit''', 'global'),
+  ('priority_matrix', 'decision', 'framework'::public.knowhow_kind, 2, '중요도와 긴급도로 나눈다', '할 일을 중요도와 긴급도로 나눈다. 중요하고 급한 일은 바로, 중요하지만 급하지 않은 일은 일정에 박아 지키고, 급하지만 중요하지 않은 일은 맡기거나 줄이고, 둘 다 아니면 지운다. 성과는 대부분 ''중요하지만 급하지 않은 일''에서 나온다.', '["일을 중요·긴급으로 나눴는가 본다","중요하지만 급하지 않은 일에 시간이 있는가 본다","급한 일만 하고 있으면 짚는다"]'::jsonb, array['briefing', 'prep', 'plan']::text[], array['우선순위', '시간 관리', '아이젠하워', '업무량', '계획', '일정', '과부하']::text[], 508, '일이 몰릴 때·주간 계획', '급한 일은 스스로 시간을 요구하지만, 중요한 일은 누군가 지켜 주지 않으면 계속 밀린다.', '하루 종일 메신저·요청 대응, 분기 핵심 과제는 3주째 0%', '매주 화·목 오전 2시간은 핵심 과제에 고정, 단순 요청은 오후에 묶어서', '아이젠하워 매트릭스 · Stephen Covey 『성공하는 사람들의 7가지 습관』', 'global'),
+  ('stop_doing', 'decision', 'principle'::public.knowhow_kind, 2, '하지 않을 일을 정한다', '새 일을 더할 때는 무엇을 뺄지 함께 정한다. 분기마다 팀이 하는 일을 적고 ''안 하면 누가 언제 알아챌까''를 물어, 아무도 모를 일은 멈춘다. 하지 않을 일 목록은 할 일 목록만큼 중요하다.', '["새 과제와 함께 뺄 일을 정했는가 본다","효과 없는 정례 업무를 짚는다","과제 수가 늘기만 하면 묻는다"]'::jsonb, array['briefing', 'strategy', 'plan', 'scenario']::text[], array['업무 축소', '중단', '선택과 집중', '업무량', '기회비용', '정례 업무']::text[], 509, '새 과제를 받을 때·분기 계획', '팀의 시간은 늘지 않는다. 빼지 않고 더하기만 하면 모든 일이 조금씩 나빠진다.', '신규 과제 3개 추가, 기존 업무는 그대로', '월간 리포트 2종을 대시보드로 대체 → 월 16시간을 신규 과제에 투입', 'Jim Collins ''Stop Doing List'' · Peter Drucker ''계획적 폐기''', 'global'),
+  ('goal_state', 'goal', 'framework'::public.knowhow_kind, 1, '목표는 이루려는 상태로', '목표는 하는 일의 목록이 아니라 이루려는 상태다. 새로 만들 것(Build), 개선할 것(Improve), 다르게 바꿀 것(Innovate) 중 무엇인지가 드러나야 한다. 늘 하던 일, 무난히 되는 수치, 작년과 같은 목표는 목표가 아니다.', '["목표 제목에 이루려는 상태를 쓴다","만들기·개선·혁신 중 성격을 밝힌다","일상 업무 나열은 목표로 올리지 않는다","작년 목표의 반복이면 무엇이 다른지 묻는다"]'::jsonb, array['plan', 'strategy']::text[], array['목표', 'BII', '목표수립', '상태', '연간 목표']::text[], 601, '목표를 세울 때', '할 일 목록은 바빠도 성과가 없을 수 있다. 상태로 쓴 목표만 ''다 됐는가''를 판단할 수 있다.', 'SNS 채널 운영 및 콘텐츠 관리', 'SNS 유입이 신규 가입의 30%를 차지하는 채널로 만든다 (Build)', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('goal_check', 'goal', 'rubric'::public.knowhow_kind, 1, '목표 점검 네 가지', '목표를 세운 뒤 네 가지를 본다. 집중(3~5개로 추렸는가), 정렬(상위 목표·전사 방침과 이어지는가), 도전(최선을 다하면 60~70% 달성할 수준인가), 추적(달성 여부를 무엇으로 알 수 있는가).', '["팀 목표는 3~5개","상위 목표와 연결을 밝힌다","60~70% 달성 수준으로 도전적으로","달성 판단 기준이 없으면 붙인다"]'::jsonb, array['plan', 'strategy']::text[], array['목표점검', '집중', '정렬', '도전', '추적']::text[], 602, '목표 초안을 검토할 때', '목표가 많으면 아무것도 중요하지 않고, 정렬이 없으면 열심히 해도 위에서 보이지 않는다.', '팀 목표 9개, 상위 목표와 연결 표시 없음', '팀 목표 4개, 각 목표에 연결되는 본부 과제와 판단 지표를 함께 표시', 'ATEAM 현장 컨설팅 기준 · OKR 원칙', 'field'),
+  ('measure_outcome', 'goal', 'rubric'::public.knowhow_kind, 1, '결과를 재는 지표', '달성 지표는 한 일이 아니라 일어난 결과를 잰다. "~실시, ~수행, ~관리"는 과제다. 지표 하나에는 한 가지만 담고, 하위로 갈수록 과정 지표(선행), 팀 목표에는 결과 지표(후행)를 둔다.', '["활동이면 과제로 내리고 결과 지표를 찾는다","지표 하나에 한 가지 내용만","팀 목표엔 결과, 하위엔 과정 지표","과정 지표만으로 성과를 판단하지 않는다"]'::jsonb, array['plan']::text[], array['KR', '지표', '측정', '결과 지표', '선행 지표']::text[], 603, '달성 지표를 정할 때', '활동을 지표로 삼으면 일은 다 했는데 결과는 없는 상태가 성공으로 기록된다.', '지표: 고객 간담회 4회 실시', '지표: 핵심 고객 재계약률 85% (간담회 4회는 과제로)', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('kpi_five', 'goal', 'rubric'::public.knowhow_kind, 2, '좋은 지표의 다섯 조건', '전략과 이어지는가(전략 연계), 자의적으로 부풀릴 수 없는가(객관성), 데이터를 쉽게 얻는가(측정 용이), 담당자가 결과를 움직일 수 있는가(통제 가능), 중요한 업무를 재는가(업무 대표). 통제가 어려운 지표는 기여 정도로 바꿔 잰다.', '["다섯 조건 중 빠진 것을 짚는다","통제 어려운 지표는 기여도로 바꾼다","질·양·비용·시간 중 두 축 이상"]'::jsonb, array['plan', 'strategy']::text[], array['KPI', '지표품질', '통제 가능', '측정']::text[], 604, 'KPI를 고르거나 고칠 때', '나쁜 지표는 사람을 엉뚱한 방향으로 열심히 일하게 만든다.', '마케팅팀 KPI: 전사 매출 (팀이 통제하기 어려움)', '마케팅팀 KPI: 마케팅 기여 신규 고객 수 · 고객 획득 비용', 'ATEAM 현장 컨설팅 기준 · KPI 설계 원칙', 'field'),
+  ('qual_measure', 'goal', 'framework'::public.knowhow_kind, 2, '정성 성과를 재는 다섯 방법', '숫자로 안 나오는 성과도 잴 수 있다. 고객·사용자 만족 조사(Survey), 난이도·적시성·완결성 점수(표준화), 수준별 행동 기준(행동기준), 단계별 완료와 가중치(마일스톤), 필수 요소 유무(체크리스트). 어느 방법이든 등급별 판단 기준을 미리 정한다.', '["정성 목표엔 측정 방법을 고른다","등급별 판단 기준을 함께 쓴다","마일스톤은 단계별 가중치를 둔다"]'::jsonb, array['plan']::text[], array['정성지표', '마일스톤', '측정방식', '체크리스트', '정성']::text[], 605, '숫자로 안 나오는 목표', '정성 목표를 재지 않으면 평가 때 인상으로 판단하게 되고, 팀원은 무엇이 잘한 것인지 모른 채 일한다.', '목표: 브랜드 가이드 정비 (측정 방법 없음)', '마일스톤: 초안 30% · 부서 합의 30% · 전사 배포 40%, 기한별 판단 기준 명시', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('baseline_target', 'goal', 'rubric'::public.knowhow_kind, 2, '목표치엔 기준선과 산정 근거', '목표 숫자에는 지금 값(기준선), 목표 값, 그 차이를 무엇으로 메울지(산정 근거)를 함께 쓴다. ''전년 대비 10%''처럼 근거 없는 관행 수치는 도전인지 무리인지 알 수 없다. 기준선이 없으면 첫 달에 먼저 잰다.', '["목표에 지금 값이 있는가 본다","목표치의 산정 근거가 있는가 본다","기준선이 없으면 측정부터 계획하게 한다"]'::jsonb, array['plan', 'strategy', 'review']::text[], array['목표치', '기준선', '베이스라인', '목표 수립', 'KPI', '산정 근거', '리드타임', '측정', '목표']::text[], 606, '목표 숫자를 정할 때', '기준선 없는 목표는 달성 여부를 판단할 수 없고, 근거 없는 목표치는 연말에 협상거리가 된다.', '고객 만족도 향상 (목표 90점) — 지금 점수는 모름', '만족도 72점(9월) → 80점(12월): 응답 시간 단축 +5, 재문의 감소 +3', 'ATEAM 현장 컨설팅 기준 · OKR Key Result 작성 원칙', 'field'),
+  ('weekly_rhythm', 'goal', 'framework'::public.knowhow_kind, 2, '목표는 매주 굴린다', '목표는 세우는 것보다 굴리는 것이 어렵다. 매주 같은 시간에 목표별 달성 확신도(높음·보통·낮음), 이번 주 우선순위 3개, 막힌 것을 짧게 점검한다. 확신도가 두 주 연속 내려가면 그때 1on1이나 계획 수정으로 다룬다.', '["목표별 주간 점검 리듬이 있는가 본다","확신도가 떨어진 목표를 먼저 다룬다","분기 말에야 처음 점검하면 짚는다"]'::jsonb, array['briefing', 'plan', 'prep']::text[], array['주간 점검', 'OKR', '체크인', '확신도', '목표 관리', '리듬']::text[], 607, '목표를 세운 다음', '분기 말에 처음 확인하는 목표는 이미 늦다. 짧고 잦은 점검이 목표를 살아 있게 한다.', '1월에 세운 목표를 6월 중간평가 때 처음 다시 열어 봄', '매주 월요일 10분: 목표 4개 확신도 표시, ''낮음'' 1개만 집중 논의', 'John Doerr 『Measure What Matters』 · Intel 주간 점검', 'global'),
+  ('goal_change', 'goal', 'principle'::public.knowhow_kind, 2, '목표 수정은 세 가지 경우에만', '목표는 상위 목표가 바뀌었을 때, 업무 분장이 바뀌었을 때, 중대한 새 과업이 생겼을 때 고친다. "달성이 어려워서"는 수정 이유가 아니다. 고칠 때는 이유를 남긴다.', '["수정 이유가 세 경우인지 확인한다","어렵다는 이유로 목표를 낮추지 않는다","수정할 때 사유를 기록한다"]'::jsonb, array['plan', 'prep', 'strategy']::text[], array['목표수정', '재계획', '하향 조정']::text[], 608, '목표를 고치자는 말이 나올 때', '어려울 때마다 목표를 낮추면 목표가 기대가 아니라 예측이 된다.', '3분기 진척이 낮아 연간 목표를 20% 하향', '본부 방침 변경(신사업 보류)으로 목표 2를 수정, 사유와 날짜 기록', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('keep_stop', 'goal', 'framework'::public.knowhow_kind, 2, '지속·보완·중단 회고', '분기마다 목표를 지속·보완·중단 중 하나로 정한다. 일찍·크게 넘었다면 목표가 쉬웠는지, 실제로 상위 목표에 기여했는지 본다. 통제할 수 없는 이유로 막혔다면 수정·중단을, 순항이면 지속을. 중단할 때는 배운 것을 남긴다.', '["초과 달성이면 목표 난이도를 되묻는다","외부 요인 막힘이면 수정·중단 검토","중단할 때 배운 점을 기록한다"]'::jsonb, array['strategy', 'briefing']::text[], array['회고', '분기점검', '중단', '지속']::text[], 609, '분기 점검', '분기 점검이 없으면 이미 의미가 없어진 목표에 연말까지 자원이 계속 들어간다.', '6월에 사실상 멈춘 목표가 연말 평가표에 그대로 남음', '2분기 점검: 목표 3 중단(시장 철수), 배운 점 2줄 기록 → 인력은 목표 1로', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('task_naming', 'goal', 'principle'::public.knowhow_kind, 2, '과제 이름은 효과가 보이게', '과제 이름은 "(효과)를 위한 (활동)" 또는 "(활동)을 통한 (효과)"로 쓴다. "검토 철저", "관리 강화"처럼 끝을 알 수 없는 이름은 무엇이 되면 끝인지 드러나게 고친다. 할 일은 담당자가 바로 손댈 수 있는 행동 단위로.', '["과제명에 효과와 활동을 함께","끝이 안 보이는 이름은 고친다","할 일은 행동 단위로 쪼갠다"]'::jsonb, array['plan']::text[], array['과제명', '과제설계', '할 일']::text[], 610, '과제를 만들 때', '이름에 효과가 없으면 과제가 왜 있는지 잊히고, 끝이 없으면 진척을 잴 수 없다.', '고객 관리 강화', '재구매율 개선을 위한 이탈 고객 3단계 연락 체계 도입', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('oo_flow', 'coach', 'coaching'::public.knowhow_kind, 1, '1on1 대화 순서', '근황과 지난 이후 변화 → 잘된 것과 어려웠던 것(그 원인) → 앞으로의 우선순위와 목표 유지·수정 → 내가 도울 것. 팀장이 지키지 못한 약속이 있으면 그것부터 꺼낸다. 진척 확인은 체크인으로 보고, 1on1에서는 사람과 막힘을 본다.', '["밀린 팀장 약속을 첫 안건으로","마지막 질문은 내가 도울 것","1on1에서 진척 점검만 하지 않는다"]'::jsonb, array['prep']::text[], array['1on1', '면담', '대화', '약속']::text[], 701, '1on1을 준비할 때', '1on1은 팀장의 보고 시간이 아니라 팀원의 시간이다. 순서가 있어야 매번 진척 확인으로 끝나지 않는다.', '과제별 진척을 차례로 묻고 15분 만에 종료', '지난번 약속한 예산 확인부터 → 요즘 막힌 것 → 다음 2주 우선순위 → ''내가 뭘 도우면 될까요?''', 'ATEAM 현장 컨설팅 기준 · Andy Grove 『High Output Management』', 'field'),
+  ('ask_or_tell', 'coach', 'coaching'::public.knowhow_kind, 2, '팀원 수준에 맞춘 대화', '스스로 판단할 수 있는 팀원에게는 질문으로 깨닫게 하는 대화를 80%, 아직 기준이 서지 않은 팀원에게는 기대와 방법을 직접 알려 주는 대화를 80%로 한다. 질문은 무엇을·어떻게로 열고, 추궁형(언제까지, 왜 안 했나)은 쓰지 않는다.', '["판단 깊이 높으면 질문형으로","판단 깊이 낮으면 방법과 예시 먼저","추궁형 질문은 쓰지 않는다"]'::jsonb, array['prep', 'review']::text[], array['코칭', '질문', '티칭', '수준']::text[], 702, '코칭 방식을 정할 때', '같은 질문도 경험 많은 사람에겐 성장이 되고, 신입에겐 막막함이 된다. 업무 성숙도에 따라 방식을 바꿔야 한다.', '입사 2개월 차에게 ''어떻게 하면 좋을 것 같아요?''만 반복', '신입에겐 예시 보고서와 순서를 먼저, 5년 차에겐 ''반대하는 사람은 뭘 물을까요?''', '상황적 리더십(Hersey·Blanchard) · Andy Grove ''업무 성숙도''', 'field'),
+  ('feedback_four', 'coach', 'coaching'::public.knowhow_kind, 1, '피드백은 관찰→영향→기대→질문', '관찰한 행동을 사실로 말하고, 그 행동이 일이나 팀에 준 영향을 말하고, 기대하는 다음 행동을 말한 뒤, 상대의 생각을 묻는다. "항상, 늘" 같은 일반화와 성격·태도 판단은 쓰지 않는다.', '["사실→영향→기대→질문 순서로","일반화·성격 판단은 쓰지 않는다","기대는 관찰 가능한 행동으로"]'::jsonb, array['prep', 'review']::text[], array['피드백', 'SBI', '관찰', '영향']::text[], 703, '피드백을 줄 때', '사실로 시작하면 방어가 줄고, 기대를 행동으로 말하면 다음에 무엇을 할지 분명해진다.', '요즘 일에 집중을 안 하는 것 같아요', '어제 회의에서 숫자 출처가 없어 질문이 몰렸어요(관찰·영향). 다음엔 각주로 달아 줄래요(기대)? 어떻게 생각해요?', 'CCL(Center for Creative Leadership) SBI 모델 · ATEAM 현장 기준', 'field'),
+  ('recognition', 'coach', 'coaching'::public.knowhow_kind, 2, '인정은 구체적으로, 고르게', '인정은 구체적 행동과 그 결과를 짚어 바로 한다. 성과가 있는데 인정이 끊기면 사람은 "내가 뭘 했지"를 느낀다. 인정이 한두 사람에게 몰리지 않게 고르게 나누고, 위로 보고할 때 기여한 사람의 이름을 넣는다.', '["행동과 결과를 짚어 칭찬한다","인정이 몰리지 않게 고르게","상향 보고에 기여자 이름을 넣는다"]'::jsonb, array['prep', 'briefing']::text[], array['칭찬', '인정', '동기']::text[], 704, '성과·기여가 보일 때', '구체적인 인정은 어떤 행동이 이 팀에서 가치 있는지 알려 주는 가장 빠른 신호다.', '다들 수고 많았어요', '서연 님이 채널별 전환율을 다시 뽑아 줘서 예산 재배분 결정이 하루 만에 났어요', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('demotivation', 'coach', 'coaching'::public.knowhow_kind, 2, '동기 저하 원인별 대응', '비판에 민감해진 사람에게는 구체적인 기준과 지침을, 소외감을 느끼는 사람에게는 핵심 업무에 참여할 기회를, 일의 의미를 잃은 사람에게는 그 일이 목표와 고객에 어떻게 이어지는지를 준다. 성장하고 싶은 사람에게는 성공 가능성 50~70% 정도의 한 단계 어려운 일을 맡긴다.', '["원인을 먼저 구분하고 대응한다","도전 과제는 성공 가능성 50~70%로","컨디션이 낮을 때는 독려보다 지원"]'::jsonb, array['prep']::text[], array['동기부여', '몰입', '이탈', '컨디션']::text[], 705, '몰입이 떨어져 보일 때', '원인이 다른데 같은 처방(격려·압박)을 쓰면 오히려 악화된다.', '누구에게나 ''힘내요, 조금만 더''', '소외감 → 다음 런칭 회의에 정식 참여 / 의미 상실 → 고객 VOC를 직접 보여 줌', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('grow', 'coach', 'framework'::public.knowhow_kind, 2, 'GROW로 코칭 대화를 이끈다', '답을 바로 주기 전에 네 단계로 묻는다. 원하는 결과는 무엇인가(Goal), 지금은 어떤 상황인가(Reality), 할 수 있는 방법은 무엇인가(Options), 무엇을 언제 하겠는가(Will). 마지막 단계에서는 팀원이 스스로 다음 행동과 날짜를 말하게 한다.', '["답보다 질문으로 시작하는가 본다","지금 상황을 사실로 확인했는가 본다","팀원이 스스로 다음 행동을 정했는가 본다"]'::jsonb, array['prep']::text[], array['GROW', '코칭', '질문', '1on1', '면담', '성장', '고민']::text[], 706, '팀원이 고민을 가져왔을 때', '스스로 찾은 답은 지시받은 답보다 실행될 가능성이 높고, 다음에 혼자 풀 힘을 기른다.', '그건 이렇게 하면 돼 (2분 만에 정답 지시)', '이번 주까지 어떤 상태면 좋겠어요? … 그중 뭐부터 해 볼래요? 언제까지요?', 'John Whitmore 『Coaching for Performance』', 'global'),
+  ('psych_safety', 'coach', 'coaching'::public.knowhow_kind, 1, '말해도 안전한 팀을 만든다', '팀원이 실수·모름·반대를 말해도 불이익이 없다고 믿을 때 문제가 일찍 드러난다. 팀장이 먼저 ''내가 놓친 게 있을까요?''라고 묻고, 나쁜 소식을 가져온 사람에게 고맙다고 말하고, 실수는 사람이 아니라 절차의 문제로 다룬다.', '["나쁜 소식을 가져온 사람을 인정하는가 본다","실수를 사람 탓으로 다루면 짚는다","팀장이 먼저 의견을 구하는가 본다"]'::jsonb, array['prep', 'briefing']::text[], array['심리적 안전감', '팀 문화', '실수', '신뢰', '회의', '막힘', '이슈 공유']::text[], 707, '팀 회의·실수 보고 때', 'Google이 180개 팀을 연구한 Project Aristotle에서 좋은 팀을 가른 첫 번째 요인은 누가 팀에 있느냐가 아니라 심리적 안전감이었다.', '오류를 보고한 팀원에게 ''왜 이제 말해요?'' → 다음부터 보고가 늦어짐', '일찍 말해 줘서 고마워요. 어디서 걸렸는지 같이 보죠.', 'Google re:Work Project Aristotle · Amy Edmondson', 'global'),
+  ('care_challenge', 'coach', 'coaching'::public.knowhow_kind, 2, '아끼는 마음으로, 분명하게 말한다', '좋은 피드백은 사람을 아끼는 마음과 분명한 지적을 함께 갖는다. 아끼기만 하고 말하지 않으면 상대는 성장할 기회를 잃고, 지적만 하면 상처만 남는다. 말하기 어려운 피드백일수록 일찍, 직접, 따로 한다.', '["지적이 구체적이고 분명한가 본다","돌려 말해 흐려지면 짚는다","공개 지적보다 따로 말하기를 권한다"]'::jsonb, array['prep', 'review']::text[], array['피드백', '쓴소리', '솔직함', '코칭', '관계', '개선점']::text[], 708, '쓴소리를 해야 할 때', '불편해서 미룬 피드백은 평가 시즌에 ''처음 듣는 나쁜 소식''으로 돌아온다.', '석 달째 같은 문제를 참다가 평가 면담에서 처음 언급', '회의 직후 따로: 발표 좋았어요. 다만 숫자 출처가 없어 질문이 몰렸어요. 다음엔 각주로 달아 봐요.', 'Kim Scott 『Radical Candor』', 'global'),
+  ('feedforward', 'coach', 'coaching'::public.knowhow_kind, 2, '지난 일보다 다음 행동을 말한다', '이미 지난 일을 따지기보다 다음에 무엇을 다르게 할지에 대화를 쓴다. ''왜 그랬어요?'' 대신 ''다음엔 어떻게 해 볼까요?''로 묻고, 제안은 하나나 둘로 좁힌다. 상대가 방어하지 않고 바로 써먹을 수 있게 한다.', '["피드백이 다음 행동으로 끝나는가 본다","제안을 1~2개로 좁혔는가 본다","과거 추궁형 질문을 짚는다"]'::jsonb, array['prep', 'review']::text[], array['피드포워드', '피드백', '코칭', '개선', '성장', '다음 행동']::text[], 709, '개선점을 전할 때', '과거는 바꿀 수 없지만 다음 행동은 바꿀 수 있다. 미래를 말하면 방어 대신 아이디어가 나온다.', '지난번 보고서 왜 그렇게 썼어요?', '다음 보고서는 첫 문단에 결론 두 줄을 먼저 써 보면 어때요?', 'Marshall Goldsmith ''Feedforward''', 'global'),
+  ('growth_talk', 'coach', 'coaching'::public.knowhow_kind, 2, '분기에 한 번, 성장 대화', '업무 점검과 따로 분기에 한 번은 성장만 이야기한다. 요즘 가장 몰입한 일, 강점이 잘 쓰인 장면, 더 해 보고 싶은 일, 1년 뒤 되고 싶은 모습. 들은 것 중 하나를 다음 분기 업무 배정에 실제로 반영한다.', '["업무 점검과 성장 대화를 구분하는가 본다","팀원의 바람을 업무 배정에 반영했는가 본다","성장 대화가 6개월 넘게 없으면 짚는다"]'::jsonb, array['prep', 'briefing']::text[], array['경력 개발', '성장', '커리어', '1on1', '육성', '동기', '강점']::text[], 710, '분기 1on1·평가 전후', 'Google Project Oxygen이 꼽은 좋은 매니저의 행동에 ''경력 개발을 돕고 성과를 이야기한다''가 들어 있다. 성장 대화가 없는 팀에서는 이탈 신호가 늦게 보인다.', '1on1이 매번 진척 확인으로만 끝남', '해 보고 싶다던 데이터 분석, 다음 프로젝트 지표 설계를 맡아 볼래요?', 'Google Project Oxygen · Career Conversation', 'global'),
+  ('work_ecs', 'team', 'framework'::public.knowhow_kind, 2, '업무를 핵심·공통·지원으로 나누기', '업무를 중요도와 난이도로 나누면 핵심(강화·집중), 공통(표준화·매뉴얼), 지원(축소·자동화·외부)으로 갈린다. 사람이 아니라 업무 기준으로 본다. 경험 많은 사람이 지원 업무를 오래 들고 있거나, 신입이 핵심 업무에 과부하면 배분을 다시 본다.', '["업무를 핵심·공통·지원으로 나눈다","지원 업무부터 줄이거나 넘긴다","업무 가치와 담당자 수준을 맞춘다"]'::jsonb, array['strategy', 'scenario', 'briefing']::text[], array['업무분류', '재배분', '업무량', '과부하']::text[], 801, '업무 배분·업무량을 볼 때', '업무 가치와 담당자 수준이 어긋나면 비싼 사람이 싼 일을 하고, 성장해야 할 사람은 버거운 일에 묶인다.', '8년 차가 주간 데이터 취합을 2년째 담당', '데이터 취합은 자동화·신입에게, 8년 차는 신규 제휴 기획에 집중', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('delegation', 'team', 'principle'::public.knowhow_kind, 1, '위임 판단 세 가지 축', '팀 안에서 끝나는 일인가, 해 본 적 있는 일인가, 실행 성격의 일인가. 셋 다 맞으면 팀원이 결정하게 넘긴다. 처음 하는 일·방향을 정하는 일은 팀장이 쥐고, 돈·법·인사가 걸린 일은 한 단계 위로 올린다. 과제마다 최종 책임자는 한 명이다.', '["팀 내·기존·실행 업무는 팀원에게 위임","신규·기획 업무는 팀장이 쥔다","과제마다 최종 책임자는 한 명"]'::jsonb, array['briefing', 'strategy']::text[], array['위임', '권한', 'RACI', '책임자']::text[], 802, '누가 결정할지 정할 때', '팀장이 모든 결정을 쥐면 팀장이 병목이 되고, 아무 기준 없이 넘기면 사고가 난다.', '모든 견적 승인을 팀장이 직접 → 평균 사흘 대기', '500만 원 이하·기존 거래처 견적은 담당자 결정, 신규 거래처만 팀장 승인', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('context_not_control', 'team', 'principle'::public.knowhow_kind, 1, '통제보다 맥락을 준다', '방법을 하나하나 지시하는 대신 왜 하는지, 무엇이 성공인지, 넘지 말아야 할 선(예산·일정·품질 하한)을 분명히 주고 방법은 맡긴다. 결과가 기대와 다르면 팀원을 탓하기 전에 내가 맥락을 충분히 줬는지 먼저 본다.', '["목적·성공 기준·제약을 함께 줬는가 본다","방법까지 세세히 지시하면 짚는다","결과가 빗나가면 맥락 전달을 먼저 본다"]'::jsonb, array['briefing', 'prep', 'strategy']::text[], array['권한 위임', '맥락', '자율', '마이크로매니징', '지시', '위임']::text[], 803, '일을 맡길 때', '맥락을 받은 팀원은 예상 밖 상황에서도 스스로 판단할 수 있다. 통제는 팀장을 병목으로 만든다.', '폰트는 12pt, 표는 3개, 순서는 이렇게…', '목적은 본부장 예산 승인, 성공은 2천만 원 확보, 금요일까지, 형식은 자유', 'Netflix ''Context, not Control'' · Google Project Oxygen', 'global'),
+  ('staffing', 'team', 'principle'::public.knowhow_kind, 2, '충원 요청 전에 먼저 볼 것', '충원을 말하기 전에 축소·중단, 재배분, 위임, 프로세스 개선·자동화를 먼저 검토하고 남는 부족분만 요청한다. 요청에는 지금 업무량과 필요한 인원, 늘어난 이유, 내부에서 해 본 것, 선택지(정규·한시·지원), 충원하지 않으면 생길 일을 담는다.', '["충원 전에 내부 해소안을 먼저","부족분은 숫자로 보인다","미충원 시 영향을 함께 쓴다"]'::jsonb, array['briefing', 'report', 'scenario']::text[], array['충원', '인력운영', '채용', '인력']::text[], 804, '인력이 부족하다고 느낄 때', '내부 해소안 없이 올린 충원 요청은 대부분 ''먼저 해 보라''로 돌아온다.', '업무가 많아 1명 충원이 필요합니다', '주 52시간 기준 1.4명분 초과. 리포트 축소로 0.4명 해소, 남은 1명은 6개월 한시 요청', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('meeting_default', 'team', 'framework'::public.knowhow_kind, 2, '회의·지시의 기본값', '회의는 결정·공유·논의 중 목적을 정하고, 공유가 목적이면 글로 대신한다. 끝날 때 결정·담당·기한을 남긴다. 지시할 때는 목적, 결과물 모양, 기한, 판단 기준 네 가지를 함께 준다. 같은 결과물이 여러 번 다시 돌아오면 착수 때 결론과 목차를 먼저 맞춘다.', '["공유 목적 회의는 글로 대신한다","회의마다 결정·담당·기한을 남긴다","지시엔 목적·결과물·기한·기준","재작업 반복이면 목차부터 합의"]'::jsonb, array['briefing']::text[], array['회의', '지시', '운영체계', '재작업']::text[], 805, '회의를 열거나 일을 줄 때', '목적 없는 회의와 기준 없는 지시는 팀의 시간을 가장 크게 새게 하는 두 구멍이다.', '주간 회의 1시간 — 각자 진행 상황 읽기', '진행 공유는 전날 글로, 회의 30분은 결정 2건만. 끝나면 결정·담당·기한 기록', 'ATEAM 현장 컨설팅 기준', 'field'),
+  ('team_norms', 'team', 'framework'::public.knowhow_kind, 2, '팀 규칙은 말로 정해 둔다', '응답 기대 시간, 보고 채널(급한 일·일반 공유), 회의 없는 시간, 문서 저장 위치, 부재 공유 방식처럼 매번 부딪히는 것들을 팀이 함께 정해 적어 둔다. 분기에 한 번 다시 보고 맞지 않는 규칙은 고친다.', '["반복되는 마찰이 규칙이 없어서인지 본다","채널·응답 시간 기준이 있는가 본다","규칙을 팀이 함께 정했는가 본다"]'::jsonb, array['briefing']::text[], array['팀 규칙', '그라운드 룰', '협업 방식', '소통', '팀 문화', '응답 시간']::text[], 806, '팀 셋업·같은 마찰이 반복될 때', '암묵적인 규칙은 사람마다 다르게 읽힌다. 적어 둔 규칙은 갈등을 사람 문제에서 방식 문제로 바꾼다.', '밤 10시 메신저에 답이 없다고 다음 날 서운함 표현', '급한 건 전화, 일반은 메신저(당일 답), 18시 이후는 다음 날 답', 'Working Agreement · Google re:Work ''구조와 명확성''', 'global'),
+  ('aar', 'team', 'framework'::public.knowhow_kind, 1, '끝나면 네 가지를 돌아본다 (AAR)', '일이 끝나면 짧게 네 가지를 묻는다. 원래 무엇을 하려 했나, 실제로 무슨 일이 있었나, 왜 차이가 났나, 다음에 무엇을 유지하고 무엇을 바꿀까. 누구 잘못인지가 아니라 무엇을 배웠는지에 집중하고, 배운 점은 다음 계획에 실제로 넣는다.', '["계획과 실제의 차이를 짚었는가 본다","책임 추궁이 아닌 배움 중심인가 본다","배운 점이 다음 계획에 반영됐는가 본다"]'::jsonb, array['briefing', 'strategy', 'review']::text[], array['회고', 'AAR', '레슨런', '사후 검토', '개선', '프로젝트 종료', '결과 보고']::text[], 807, '프로젝트·행사·분기 종료', '같은 실수가 반복되는 팀은 돌아보지 않는 팀이다. 15분 회고가 다음 프로젝트의 몇 주를 아낀다.', '프로젝트 종료 후 바로 다음 일 착수, 같은 일정 지연 반복', '계획 6주 → 실제 8주. 원인: 법무 검토를 늦게 요청. 다음엔 착수 주에 법무 미팅', '미 육군 After Action Review · 애자일 회고', 'global'),
+  ('dod', 'team', 'rubric'::public.knowhow_kind, 2, '''다 됐다''의 기준을 먼저 정한다', '시작할 때 ''완료''의 조건을 적어 둔다. 어떤 결과물이, 누구의 확인을 거쳐, 어디에 올라가 있으면 끝인가. ''거의 다 됐어요''가 반복되면 완료 기준이 없는 것이다. 완료 기준에는 검증(검수·테스트·승인)을 포함한다.', '["과제에 완료 기준이 있는가 본다","완료에 검증 단계가 들어 있는가 본다","''거의 다 됨''이 반복되면 기준을 묻는다"]'::jsonb, array['plan', 'review', 'briefing']::text[], array['완료 기준', '마감', '품질', '검수', '과제 관리', '진척률']::text[], 808, '일을 맡기거나 마감할 때', '사람마다 ''끝''의 정의가 다르면 진척률 90%에서 몇 주가 흐른다.', '진척률 90%로 3주째 그대로', '완료 = 최종본 공유 폴더 업로드 + 법무 검토 회신 + 팀장 승인', '애자일 ''Definition of Done''', 'global'),
+  ('focus_time', 'team', 'principle'::public.knowhow_kind, 2, '몰입 시간을 지켜 준다', '깊이 생각해야 하는 일에는 두 시간 이상 끊기지 않는 시간이 필요하다. 팀 차원에서 회의 없는 시간대를 정하고, 회의와 단순 요청은 특정 시간에 묶는다. 팀장의 즉흥 요청이 팀원의 몰입을 가장 많이 깬다.', '["팀에 회의 없는 시간이 있는가 본다","회의가 하루에 흩어져 있으면 짚는다","즉흥 요청을 묶어서 하는가 본다"]'::jsonb, array['briefing', 'scenario']::text[], array['몰입', '딥워크', '회의', '생산성', '집중', '시간 관리']::text[], 809, '회의·요청이 많을 때', '한 번 끊긴 집중을 되찾는 데는 생각보다 오래 걸린다. 잘게 쪼개진 하루로는 깊은 결과물이 나오지 않는다.', '오전 10시·11시, 오후 2시·4시에 30분 회의 4개', '화·목 오전은 회의 없는 시간, 팀 회의는 월요일 오후에 몰아서', 'Cal Newport 『Deep Work』 · Paul Graham ''Maker''s Schedule''', 'global'),
+  ('onboarding', 'team', 'framework'::public.knowhow_kind, 2, '새 팀원의 첫 30일을 설계한다', '새 팀원에게 첫 30일 계획을 준다. 1주차 사람·도구·맥락 익히기, 2~3주차 작은 일 하나 끝내 보기, 4주차 첫 성과 공유. 도와줄 동료(버디)를 한 명 붙이고, 주 1회 짧은 1on1로 막힌 것을 묻는다. 첫 작은 성공을 의도적으로 만든다.', '["새 팀원에게 30일 계획이 있는가 본다","버디가 정해졌는가 본다","첫 달에 끝낼 수 있는 작은 과제를 줬는가 본다"]'::jsonb, array['prep', 'briefing', 'plan']::text[], array['온보딩', '신규 입사', '적응', '버디', '신입', '전입', '신규']::text[], 810, '신규 입사·전입', '첫 달의 경험이 이후의 몰입과 이탈을 크게 좌우한다. 방치된 새 팀원은 일보다 눈치를 먼저 배운다.', '첫 주에 자료 폴더만 공유하고 ''일단 보고 있어요''', '30일 계획표 + 버디 + 3주차 ''고객 VOC 요약'' 같은 작은 과제', '30-60-90일 온보딩 · Google re:Work', 'global');
+
+-- ① 팀장이 고치지 않은 카드(지금 원본과 글자까지 같은 카드)만 새 문안으로
+update public.knowhow_cards c
+   set title = p.title, body = p.body, rules = p.rules
+  from public.knowhow_templates t
+  join _pb p on p.key = t.key
+ where c.source = 'consulting' and c.template_key = t.key
+   and c.title = t.title and c.body = t.body and c.rules = t.rules
+   and (c.title, c.body, c.rules) is distinct from (p.title, p.body, p.rules);
+-- 키워드는 화면에 보이지 않고 AI가 상황에 맞는 카드를 고를 때만 쓴다 → 늘 최신으로
+update public.knowhow_cards c set keywords = p.keywords
+  from _pb p where c.source = 'consulting' and c.template_key = p.key and c.keywords is distinct from p.keywords;
+
+-- ② 원본 갱신
+insert into public.knowhow_templates (key, kind, title, body, rules, applies_to, keywords, sort, domain, tier, situation, why, example_bad, example_good, origin, origin_type, updated_at)
+select key, kind, title, body, rules, applies_to, keywords, sort, domain, tier, situation, why, example_bad, example_good, origin, origin_type, now() from _pb
+on conflict (key) do update set kind = excluded.kind, title = excluded.title, body = excluded.body, rules = excluded.rules,
+  applies_to = excluded.applies_to, keywords = excluded.keywords, sort = excluded.sort, domain = excluded.domain, tier = excluded.tier,
+  situation = excluded.situation, why = excluded.why, example_bad = excluded.example_bad, example_good = excluded.example_good,
+  origin = excluded.origin, origin_type = excluded.origin_type, updated_at = now();
+drop table if exists pg_temp._pb;
+
+-- ③ 모든 팀에 새 카드 (없는 것만 · 고친 카드는 건드리지 않음)
+do $$ declare r record; begin
+  for r in select id from public.teams loop perform public._install_consulting_cards(r.id); end loop;
+end $$;
+
+-- ---------- 데모 팀: 플레이북이 실제로 쓰인 모습 ----------
+create or replace function public.seed_demo_playbook(p_team uuid) returns void
+language plpgsql security definer set search_path = public as $fn$
+declare
+  v1 uuid; v2 uuid;
+  k_concl uuid; k_plan uuid; k_num uuid;
+  p_hyp uuid; p_pre uuid; p_pyr uuid; p_base uuid; p_root uuid; p_crit uuid;
+  pick uuid; con jsonb;
+begin
+  if not exists (select 1 from teams where id = p_team and is_demo) then return; end if;
+  perform public._install_consulting_cards(p_team);
+
+  -- AI 결과에 반영된 횟수 (6개월 운영한 팀처럼)
+  update knowhow_cards c set use_count = v.n, last_used_at = now() - make_interval(days => v.d)
+  from (values ('pyramid', 23, 0), ('so_what', 14, 1), ('action_title', 12, 2), ('feedback_four', 11, 1), ('upward_report', 10, 3),
+               ('hypothesis', 9, 0), ('number_sense', 9, 2), ('oo_flow', 9, 1), ('criteria_first', 8, 0), ('mece', 7, 4),
+               ('early_check', 7, 2), ('grow', 7, 1), ('premortem', 6, 0), ('ghost_deck', 6, 5), ('recognition', 6, 3),
+               ('psych_safety', 5, 6), ('work_ecs', 5, 7), ('customer_job', 5, 9), ('door_type', 4, 4), ('small_bet', 4, 8),
+               ('onboarding', 4, 2), ('baseline_target', 3, 1), ('root_cause', 3, 1), ('clarify_ask', 3, 6), ('priority_matrix', 2, 10))
+       as v(k, n, d)
+  where c.team_id = p_team and c.template_key = v.k;
+  -- 팀원에게 공개 (팀원 화면의 '팀장 가이드')
+  update knowhow_cards set shared = true
+  where team_id = p_team and source = 'consulting' and template_key in ('pyramid', 'action_title', 'clarify_ask', 'early_check', 'hypothesis');
+
+  -- 업무플랫폼 AI 1차 검토: 내 노하우 + 플레이북을 함께 적용한 기록
+  select id into k_concl from knowhow_cards where team_id = p_team and source = 'team' and title = '결론부터, 한 장으로' limit 1;
+  select id into k_plan from knowhow_cards where team_id = p_team and source = 'team' and title = '좋은 기획서의 조건' limit 1;
+  select id into k_num from knowhow_cards where team_id = p_team and source = 'team' and title = '숫자에는 출처와 비교 기준' limit 1;
+  select id into p_hyp from knowhow_cards where team_id = p_team and template_key = 'hypothesis';
+  select id into p_pre from knowhow_cards where team_id = p_team and template_key = 'premortem';
+  select id into p_pyr from knowhow_cards where team_id = p_team and template_key = 'pyramid';
+  select id into p_base from knowhow_cards where team_id = p_team and template_key = 'baseline_target';
+  select id into p_root from knowhow_cards where team_id = p_team and template_key = 'root_cause';
+  select id into p_crit from knowhow_cards where team_id = p_team and template_key = 'criteria_first';
+
+  select sv.id into v1 from submission_versions sv join submissions s on s.id = sv.submission_id
+    where s.team_id = p_team and s.title = '하반기 신제품 런칭 캠페인 기획서' order by sv.version desc limit 1;
+  select sv.id into v2 from submission_versions sv join submissions s on s.id = sv.submission_id
+    where s.team_id = p_team and s.title = '콘텐츠 제작 프로세스 개선안' order by sv.version desc limit 1;
+
+  if v1 is not null then
+    update ai_outputs set
+      sources = jsonb_build_array(
+        jsonb_build_object('tag', 'E1', 'type', 'knowhow', 'id', k_concl, 'label', '내 노하우 · 결론부터, 한 장으로'),
+        jsonb_build_object('tag', 'E2', 'type', 'knowhow', 'id', k_plan, 'label', '내 노하우 · 좋은 기획서의 조건'),
+        jsonb_build_object('tag', 'E3', 'type', 'knowhow', 'id', k_num, 'label', '내 노하우 · 숫자에는 출처와 비교 기준'),
+        jsonb_build_object('tag', 'E4', 'type', 'consulting', 'id', p_hyp, 'label', 'ATEAM Method™ · 가설부터 세우고 검증한다'),
+        jsonb_build_object('tag', 'E5', 'type', 'consulting', 'id', p_pre, 'label', 'ATEAM Method™ · 시작 전에 실패를 상상한다 (사전 부검)'),
+        jsonb_build_object('tag', 'E6', 'type', 'submission', 'id', null, 'label', '이전 버전 v2')),
+      content = content || jsonb_build_object('criteria_check', jsonb_build_array(
+        jsonb_build_object('criterion', '결론부터, 한 장으로', 'met', false, 'note', '§1 시장 분석으로 시작해 결론(얼리버드 할인)이 §2에 묻혀 있습니다.', 'tag', 'E1'),
+        jsonb_build_object('criterion', '좋은 기획서의 조건', 'met', true, 'note', '§2에서 정가 런칭·상시 할인을 비교하고 버린 이유를 밝혔습니다.', 'tag', 'E2'),
+        jsonb_build_object('criterion', '숫자에는 출처와 비교 기준', 'met', true, 'note', '시장 규모·성장률·점유율에 수치를 달았습니다. 출처 표기는 보완하면 좋습니다.', 'tag', 'E3'),
+        jsonb_build_object('criterion', '가설부터 세우고 검증한다', 'met', true, 'note', '가설마다 검증 방법(예약 페이지 데이터, FGI 12명)을 짝지었습니다.', 'tag', 'E4'),
+        jsonb_build_object('criterion', '사전 부검', 'met', false, 'note', 'B사 데이터가 늦어질 때 같은 실패 시나리오와 대응이 없습니다.', 'tag', 'E5')))
+    where team_id = p_team and kind = 'review' and ref_table = 'submission_versions' and ref_id = v1;
+  end if;
+  if v2 is not null then
+    update ai_outputs set
+      sources = jsonb_build_array(
+        jsonb_build_object('tag', 'E1', 'type', 'knowhow', 'id', k_concl, 'label', '내 노하우 · 결론부터, 한 장으로'),
+        jsonb_build_object('tag', 'E2', 'type', 'knowhow', 'id', k_plan, 'label', '내 노하우 · 좋은 기획서의 조건'),
+        jsonb_build_object('tag', 'E3', 'type', 'consulting', 'id', p_base, 'label', 'ATEAM Method™ · 목표치엔 기준선과 산정 근거'),
+        jsonb_build_object('tag', 'E4', 'type', 'consulting', 'id', p_root, 'label', 'ATEAM Method™ · 원인은 다섯 번 묻는다'),
+        jsonb_build_object('tag', 'E5', 'type', 'consulting', 'id', p_crit, 'label', 'ATEAM Method™ · 기준을 먼저 정하고 대안을 본다')),
+      content = content || jsonb_build_object('criteria_check', jsonb_build_array(
+        jsonb_build_object('criterion', '결론부터, 한 장으로', 'met', true, 'note', '첫 줄에 개선안 세 가지를 먼저 밝혔습니다.', 'tag', 'E1'),
+        jsonb_build_object('criterion', '좋은 기획서의 조건', 'met', false, 'note', '다른 개선 방법과 비교하거나 버린 이유가 없습니다.', 'tag', 'E2'),
+        jsonb_build_object('criterion', '목표치엔 기준선과 산정 근거', 'met', false, 'note', '기준선(리드타임 3주)은 있지만 목표치와 개선별 단축 효과 추정이 없습니다.', 'tag', 'E3'),
+        jsonb_build_object('criterion', '원인은 다섯 번 묻는다', 'met', false, 'note', '리드타임이 긴 원인을 단계별로 짚지 않고 일반적인 개선책으로 바로 갔습니다.', 'tag', 'E4')))
+    where team_id = p_team and kind = 'review' and ref_table = 'submission_versions' and ref_id = v2;
+  end if;
+
+  -- 다른 AI 결과에도 '적용한 기준'이 남게 (가장 최근 것 하나씩, 이미 있으면 건너뜀)
+  for pick, con in
+    select o.id, x.c from (values
+        ('one_on_one_prep', '[["oo_flow","1on1 대화 순서"],["grow","GROW로 코칭 대화를 이끈다"],["recognition","인정은 구체적으로, 고르게"]]'),
+        ('weekly_report', '[["pyramid","결론 먼저, 근거는 그 아래 (피라미드 원칙)"],["upward_report","상향 보고의 순서"]]'),
+        ('exec_brief', '[["boss_lens","상사의 관심사로 번역한다"],["answer_first","물으면 답부터, 설명은 그다음"],["bad_news","나쁜 소식은 먼저, 대응안과 함께"]]'),
+        ('advisor_weekly', '[["work_ecs","업무를 핵심·공통·지원으로 나누기"],["priority_matrix","중요도와 긴급도로 나눈다"],["onboarding","새 팀원의 첫 30일을 설계한다"]]'),
+        ('insight_weekly', '[["weekly_rhythm","목표는 매주 굴린다"],["psych_safety","말해도 안전한 팀을 만든다"]]'))
+      as x(k, c)
+    cross join lateral (select id from ai_outputs where team_id = p_team and kind::text = x.k order by created_at desc limit 1) o
+  loop
+    update ai_outputs a set sources = (case when jsonb_typeof(a.sources) = 'array' then a.sources else '[]'::jsonb end) || (
+        select coalesce(jsonb_agg(jsonb_build_object('tag', 'E' || (90 + e.ord), 'type', 'consulting', 'id', kc.id, 'label', 'ATEAM Method™ · ' || (e.v ->> 1)) order by e.ord), '[]'::jsonb)
+        from jsonb_array_elements(con::jsonb) with ordinality as e(v, ord)
+        left join knowhow_cards kc on kc.team_id = p_team and kc.template_key = e.v ->> 0)
+    where a.id = pick and not (coalesce(a.sources, '[]'::jsonb) @> '[{"type": "consulting"}]'::jsonb);
+  end loop;
+end $fn$;
+revoke all on function public.seed_demo_playbook(uuid) from public, anon, authenticated;
+
+do $$ declare r record; begin
+  for r in select id from public.teams where is_demo loop perform public.seed_demo_playbook(r.id); end loop;
+end $$;
+
+-- >>>>>>>>>> 20261108000035_history.sql
+-- =====================================================================
+-- 30_history.sql — 히스토리 관리 (Pro부터)
+--   과제마다 '살아 있는 히스토리' 한 장: 매주 새 기록을 기존 히스토리에 합치고 묶고 연결해서 고쳐 쓴다 (ai-task-history)
+--   팀장이 고정·숨김·고친 줄은 다음 업데이트에서도 그대로 (edits)
+--   팀장 → 팀원 '전달': 보낸 순간의 히스토리를 사본(snapshot)으로 남긴다. 팀원은 받은 사본만 본다
+--   전달마다 확인 · 질문/답변 — 질문과 답은 다음 업데이트에 그 과제 히스토리로 들어간다
+--   넣지 않는 것: 1on1 · 컨디션 · 팀장 메모(AI 허용 안 한 것) · 평가 · 코칭
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+-- AI 종류
+alter type public.ai_kind add value if not exists 'task_history';
+
+-- ---------- 과제 히스토리 (팀장만) ----------
+create table if not exists public.task_histories (
+  item_id      uuid primary key references public.work_items(id) on delete cascade,
+  team_id      uuid not null references public.teams(id) on delete cascade,
+  content      jsonb not null default '{}'::jsonb,   -- AI 정리 (현황 · 줄기 · 사건 · 관계자 · 확정/미결/이전 시도/리스크/확인 필요 · 관련 과제 · 진척)
+  edits        jsonb not null default '{}'::jsonb,   -- 팀장 손질 { pinned: [id], hidden: [id], text: { id: '고친 문장' } }
+  synced_at    timestamptz,                          -- 이 시각까지의 기록을 반영
+  record_count int not null default 0,               -- 지금까지 반영한 기록 수
+  new_count    int not null default 0,               -- 마지막 업데이트에서 새로 반영한 기록 수
+  updated_at   timestamptz not null default now(),
+  created_at   timestamptz not null default now()
+);
+create index if not exists task_histories_team_idx on public.task_histories (team_id, updated_at desc);
+
+alter table public.task_histories enable row level security;
+drop policy if exists th_select on public.task_histories;
+create policy th_select on public.task_histories for select to authenticated using (public.is_team_leader(team_id));
+drop policy if exists th_update on public.task_histories;
+create policy th_update on public.task_histories for update to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+-- 만들기·AI 업데이트는 서버(service_role)만
+
+-- ---------- 전달 (팀장 → 팀원) · 요청 (팀원 → 팀장) ----------
+create table if not exists public.history_shares (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  item_id    uuid not null references public.work_items(id) on delete cascade,
+  from_id    uuid references public.profiles(id) on delete set null,          -- 보낸 팀장 (요청이면 받을 팀장)
+  to_id      uuid not null references public.profiles(id) on delete cascade,  -- 받는 팀원 (요청이면 요청한 팀원)
+  note       text not null default '',                                        -- 팀장 한마디 / 요청 사유
+  snapshot   jsonb not null default '{}'::jsonb,                              -- 보낸 순간의 히스토리 (팀장 손질 반영본)
+  status     text not null default 'sent' check (status in ('requested', 'sent', 'read', 'declined')),
+  sent_at    timestamptz,
+  read_at    timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists history_shares_to_idx on public.history_shares (to_id, created_at desc);
+create index if not exists history_shares_item_idx on public.history_shares (item_id, created_at desc);
+
+alter table public.history_shares enable row level security;
+drop policy if exists hs_select on public.history_shares;
+create policy hs_select on public.history_shares for select to authenticated
+  using (to_id = auth.uid() or from_id = auth.uid() or public.is_team_leader(team_id));
+-- 팀장: 전달 / 팀원: 내 과제가 아니어도 '요청'만
+drop policy if exists hs_insert on public.history_shares;
+create policy hs_insert on public.history_shares for insert to authenticated
+  with check (
+    (public.is_team_leader(team_id) and status = 'sent')
+    or (to_id = auth.uid() and status = 'requested' and public.is_team_member(team_id))
+  );
+drop policy if exists hs_update on public.history_shares;
+create policy hs_update on public.history_shares for update to authenticated
+  using (public.is_team_leader(team_id)) with check (public.is_team_leader(team_id));
+drop policy if exists hs_delete on public.history_shares;
+create policy hs_delete on public.history_shares for delete to authenticated
+  using (public.is_team_leader(team_id) or (to_id = auth.uid() and status = 'requested'));
+
+-- 팀원이 '확인했어요' (상태만 바꾼다)
+create or replace function public.history_mark_read(p_share uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update history_shares set status = 'read', read_at = now(), updated_at = now()
+   where id = p_share and to_id = auth.uid() and status = 'sent';
+end $$;
+revoke all on function public.history_mark_read(uuid) from public, anon;
+grant execute on function public.history_mark_read(uuid) to authenticated;
+
+-- ---------- 질문 · 답변 ----------
+create table if not exists public.history_messages (
+  id         uuid primary key default gen_random_uuid(),
+  share_id   uuid not null references public.history_shares(id) on delete cascade,
+  team_id    uuid not null references public.teams(id) on delete cascade,
+  author_id  uuid not null references public.profiles(id) on delete cascade default auth.uid(),
+  body       text not null check (length(trim(body)) > 0),
+  created_at timestamptz not null default now()
+);
+create index if not exists history_messages_share_idx on public.history_messages (share_id, created_at);
+
+alter table public.history_messages enable row level security;
+drop policy if exists hm_select on public.history_messages;
+create policy hm_select on public.history_messages for select to authenticated
+  using (exists (select 1 from history_shares s where s.id = history_messages.share_id
+                  and (s.to_id = auth.uid() or s.from_id = auth.uid() or public.is_team_leader(s.team_id))));
+drop policy if exists hm_insert on public.history_messages;
+create policy hm_insert on public.history_messages for insert to authenticated
+  with check (author_id = auth.uid() and exists (select 1 from history_shares s where s.id = history_messages.share_id and s.team_id = history_messages.team_id
+                  and s.status <> 'requested' and (s.to_id = auth.uid() or public.is_team_leader(s.team_id))));
+drop policy if exists hm_delete on public.history_messages;
+create policy hm_delete on public.history_messages for delete to authenticated using (author_id = auth.uid());
+
+-- ---------- 알림 ----------
+create or replace function public._history_share_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_title text;
+begin
+  select title into v_title from work_items where id = new.item_id;
+  if tg_op = 'INSERT' and new.status = 'sent' then
+    perform public._notify(new.to_id, new.team_id, 'history', '팀장님이 과제 히스토리를 전달했습니다', coalesce(v_title, ''), '/my/history?id=' || new.id);
+  elsif tg_op = 'INSERT' and new.status = 'requested' then
+    perform public._notify(public._team_leader(new.team_id), new.team_id, 'history_request', '히스토리 요청: ' || coalesce(v_title, ''),
+      coalesce((select full_name from profiles where id = new.to_id), '') || case when new.note <> '' then ' · ' || new.note else '' end,
+      '/history?item=' || new.item_id || '&request=' || new.id);
+  elsif tg_op = 'UPDATE' and old.status = 'requested' and new.status = 'sent' then
+    perform public._notify(new.to_id, new.team_id, 'history', '요청한 히스토리가 도착했습니다', coalesce(v_title, ''), '/my/history?id=' || new.id);
+  elsif tg_op = 'UPDATE' and old.status = 'sent' and new.status = 'read' then
+    perform public._notify(new.from_id, new.team_id, 'history_read', '전달한 히스토리를 확인했습니다',
+      coalesce((select full_name from profiles where id = new.to_id), '') || ' · ' || coalesce(v_title, ''), '/history?item=' || new.item_id);
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_history_share_notify on public.history_shares;
+create trigger t_history_share_notify after insert or update on public.history_shares
+  for each row execute function public._history_share_notify();
+
+create or replace function public._history_message_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare s history_shares; v_title text;
+begin
+  select * into s from history_shares where id = new.share_id;
+  select title into v_title from work_items where id = s.item_id;
+  if new.author_id = s.to_id then
+    perform public._notify(coalesce(s.from_id, public._team_leader(s.team_id)), s.team_id, 'history_question',
+      '히스토리 질문: ' || coalesce(v_title, ''), left(new.body, 120), '/history?item=' || s.item_id || '&share=' || s.id);
+  else
+    perform public._notify(s.to_id, s.team_id, 'history_answer', '팀장님이 답했습니다: ' || coalesce(v_title, ''), left(new.body, 120), '/my/history?id=' || s.id);
+  end if;
+  update history_shares set updated_at = now() where id = new.share_id;
+  return new;
+end $$;
+drop trigger if exists t_history_message_notify on public.history_messages;
+create trigger t_history_message_notify after insert on public.history_messages
+  for each row execute function public._history_message_notify();
+
+-- ---------- 요금제: Pro · Pro+ ----------
+update public.plans set features = array_append(features, 'history')
+ where id in ('pro', 'pro_plus') and not ('history' = any(features));
+
+-- ---------- 실시간 (받은 히스토리 · 질문 바로 반영) ----------
+do $$
+declare t text;
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+  foreach t in array array['history_shares', 'history_messages', 'task_histories'] loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
+-- ---------- 매주 월요일 06:00 (KST) 자동 업데이트 ----------
+--   히스토리를 켠(한 번이라도 만든) 팀마다 따로 부른다 — 팀 하나가 오래 걸려도 다른 팀은 영향 없게 (pg_net 비동기)
+--   02_schedules.sql(예약 작업)을 실행한 프로젝트에서만 등록된다. 아니면 '지금 업데이트' 버튼으로 동작.
+create or replace function public._history_weekly() returns void
+language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  for r in select distinct team_id from task_histories loop
+    if public.team_has_feature(r.team_id, 'history') then
+      perform public._invoke_function('ai-task-history', jsonb_build_object('team_id', r.team_id, 'weekly', true));
+    end if;
+  end loop;
+end $$;
+revoke all on function public._history_weekly() from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron')
+     and exists (select 1 from pg_proc where proname = '_invoke_function') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'task-history-weekly';
+    perform cron.schedule('task-history-weekly', '0 21 * * 0', $c$ select public._history_weekly() $c$);
+  end if;
+end $$;
+
+-- >>>>>>>>>> 20261109000036_invite_email.sql
+-- =====================================================================
+-- 31_invite_email.sql — 초대받은 메일로만 합류
+--   · accept_invitation: 로그인한 계정 메일 ≠ 초대 메일이면 막는다 (INVITE_EMAIL_MISMATCH)
+--     (메일 없이 만든 예전 초대는 그대로 허용)
+--   · invitation_preview: 로그인 전에도 링크를 가진 사람은 팀 이름 · 초대 메일을 본다
+--     → 가입 화면에서 초대 메일을 미리 채우고 고정
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+create or replace function public.accept_invitation(p_token uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_inv invitations; v_usage jsonb; v_mail text;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  select * into v_inv from invitations where token = p_token for update;
+  if not found then raise exception 'INVITE_NOT_FOUND' using errcode = 'P0001'; end if;
+  if v_inv.accepted_at is not null and v_inv.accepted_by <> auth.uid() then raise exception 'INVITE_USED' using errcode = 'P0001'; end if;
+  if v_inv.expires_at < now() then raise exception 'INVITE_EXPIRED' using errcode = 'P0001'; end if;
+  -- 초대받은 메일로 로그인해야 합류
+  select lower(coalesce(u.email, '')) into v_mail from auth.users u where u.id = auth.uid();
+  if coalesce(trim(v_inv.email), '') <> '' and lower(trim(v_inv.email)) <> coalesce(v_mail, '') then
+    raise exception 'INVITE_EMAIL_MISMATCH' using errcode = 'P0001', hint = v_inv.email;
+  end if;
+  if v_inv.role = 'member' then
+    v_usage := public.team_seat_usage(v_inv.team_id);
+    if (v_usage->>'members')::int >= (v_usage->>'max_members')::int then
+      raise exception 'PLAN_LIMIT_MEMBERS' using errcode = 'P0001';
+    end if;
+  end if;
+  insert into team_members (team_id, user_id, role, job_title)
+  values (v_inv.team_id, auth.uid(), v_inv.role, v_inv.job_title)
+  on conflict (team_id, user_id) do update set status = 'active', role = excluded.role;
+  update invitations set accepted_at = coalesce(accepted_at, now()), accepted_by = auth.uid() where id = v_inv.id;
+  perform log_event(v_inv.team_id, 'member.joined', 'team_members', null, auth.uid());
+  return v_inv.team_id;
+end $$;
+
+-- 링크(추측할 수 없는 토큰)를 가진 사람은 로그인 전에도 미리보기
+grant execute on function public.invitation_preview(uuid) to anon, authenticated;
+grant execute on function public.accept_invitation(uuid) to authenticated;
+
+-- >>>>>>>>>> 20261110000037_review_fixes.sql
+-- =====================================================================
+-- 32_review_fixes.sql — 전체 검토에서 나온 서버 쪽 수정
+--   ① 요청 알림: 종류별로 실제 보이는 곳으로 링크 · 화면과 같은 이름(육성 · 지원·격려 · 업무 독려)
+--   ② ATEAM 업무 피드백 알림 이름 · 히스토리 알림 링크 · 히스토리 요청 보류 알림
+--   ③ 팀 확인: 히스토리 전달·요청 · 요청의 과제 · 코칭 대상이 같은 팀인지
+--   ④ 내 메모(leader_notes)는 팀장만 쓴다 (팀원이 '팀장 메모'로 히스토리에 끼어들지 못하게)
+--   ⑤ 초대: 팀장이 팀원 초대를 받아도 팀장 그대로 · 끝난 초대는 미리보기에 메일을 안 보여 줌
+--   ⑥ 요금제 기능에 history 다시 확인 (21_plans_v3 를 다시 Run 해도 꺼지지 않게 — 21 파일도 함께 고침)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+-- ---------- ① 요청 알림 ----------
+create or replace function public.trg_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_up boolean; v_fb boolean;
+begin
+  v_up := new.to_id = public._team_leader(new.team_id);   -- 팀원 → 팀장
+  -- 팀장 액션(매니징 보드 Feedback에 보이는 것): 육성 · 지원·격려 · 과제 없는 업무 독려
+  v_fb := new.kind in ('grow', 'cheer') or (new.kind = 'progress' and new.item_id is null);
+  if tg_op = 'INSERT' then
+    perform public._notify(new.to_id, new.team_id, 'request',
+      case when v_up and new.kind = 'meeting' then '1on1 요청: ' when new.kind = 'change' then '목표 변경 요청: '
+           when new.kind = 'meeting' then '1on1 요청: '
+           when new.kind = 'grow' then '육성: ' when new.kind = 'cheer' then '지원·격려: '
+           when new.kind = 'progress' and new.item_id is null then '업무 독려: '
+           when new.kind = 'progress' then '성과입력 요청: ' when new.kind = 'plan' then '계획 요청: '
+           else '요청: ' end || new.title,
+      left(new.body, 120),
+      case when new.kind = 'change' then '/goals/edit' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/people/' || new.from_id || '?oo=1'
+           when v_fb then '/my/one-on-ones?req=' || new.id
+           when new.kind = 'meeting' then '/my/one-on-ones'
+           else '/my/submissions' end);
+    if new.kind = 'plan' then
+      if new.item_id is not null then update work_items set needs_plan = true where id = new.item_id and team_id = new.team_id; end if;
+      if new.from_id = public._team_leader(new.team_id) then
+        update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": true}'::jsonb
+         where id = new.team_id and not public.plan_open(new.team_id);
+      end if;
+    end if;
+  elsif new.status is distinct from old.status and new.status = 'done' then
+    new.responded_at := coalesce(new.responded_at, now());
+    perform public._notify(new.from_id, new.team_id, 'request.done',
+      case when v_up and new.kind = 'meeting' then '1on1 요청 확인: ' when new.kind = 'change' then '변경 요청 처리: '
+           when new.kind = 'grow' then '육성 답: ' when new.kind = 'cheer' then '지원·격려 확인: '
+           when new.kind = 'progress' and new.item_id is null then '업무 독려 답: '
+           else '완료: ' end || new.title,
+      left(new.response, 120),
+      case when new.kind = 'change' then '/my/goals' || case when new.item_id is not null then '?item=' || new.item_id else '' end
+           when v_up then '/my/one-on-ones'
+           when v_fb then '/people?sent=1'
+           when new.kind = 'meeting' then '/people/' || new.to_id || '?oo=1'
+           else '/work/u/' || new.to_id end);
+  end if;
+  return new;
+end $$;
+
+-- 요청의 과제는 같은 팀 것만
+drop policy if exists rq_insert on public.team_requests;
+create policy rq_insert on public.team_requests for insert to authenticated
+  with check (from_id = auth.uid() and public.is_team_member(team_id)
+              and exists (select 1 from team_members m where m.team_id = team_requests.team_id and m.user_id = to_id and m.status = 'active')
+              and (item_id is null or exists (select 1 from work_items w where w.id = team_requests.item_id and w.team_id = team_requests.team_id)));
+
+-- ---------- ② 알림 이름 · 링크 ----------
+do $$
+begin
+  if to_regclass('public.coaching_notes') is not null then
+    create or replace function public._coaching_notify() returns trigger
+    language plpgsql security definer set search_path = public as $f$
+    begin
+      insert into notifications (user_id, team_id, kind, title, body, link)
+      values (new.member_id, new.team_id, 'coaching', 'ATEAM 업무 피드백이 도착했어요', new.title, '/my/one-on-ones?coach=' || new.id);
+      return new;
+    end $f$;
+    -- 코칭 대상은 같은 팀의 팀원만
+    drop policy if exists coaching_leader on public.coaching_notes;
+    create policy coaching_leader on public.coaching_notes for all to authenticated
+      using (public.is_team_leader(team_id))
+      with check (public.is_team_leader(team_id)
+                  and exists (select 1 from team_members m where m.team_id = coaching_notes.team_id and m.user_id = coaching_notes.member_id and m.status = 'active'));
+  end if;
+end $$;
+
+do $$
+begin
+  if to_regclass('public.history_shares') is null then return; end if;
+
+  create or replace function public._history_share_notify() returns trigger
+  language plpgsql security definer set search_path = public as $f$
+  declare v_title text;
+  begin
+    select title into v_title from work_items where id = new.item_id;
+    if tg_op = 'INSERT' and new.status = 'sent' then
+      perform public._notify(new.to_id, new.team_id, 'history', '팀장님이 과제 히스토리를 전달했습니다', coalesce(v_title, ''), '/my/one-on-ones?history=' || new.id);
+    elsif tg_op = 'INSERT' and new.status = 'requested' then
+      perform public._notify(public._team_leader(new.team_id), new.team_id, 'history_request', '히스토리 요청: ' || coalesce(v_title, ''),
+        coalesce((select full_name from profiles where id = new.to_id), '') || case when new.note <> '' then ' · ' || new.note else '' end,
+        '/history?item=' || new.item_id || '&request=' || new.id);
+    elsif tg_op = 'UPDATE' and old.status = 'requested' and new.status = 'sent' then
+      perform public._notify(new.to_id, new.team_id, 'history', '요청한 히스토리가 도착했습니다', coalesce(v_title, ''), '/my/one-on-ones?history=' || new.id);
+    elsif tg_op = 'UPDATE' and old.status = 'requested' and new.status = 'declined' then
+      perform public._notify(new.to_id, new.team_id, 'history', '히스토리 요청이 보류됐습니다', coalesce(v_title, '') || ' · 필요하면 팀장님께 직접 물어봐 주세요', '/my/one-on-ones');
+    elsif tg_op = 'UPDATE' and old.status = 'sent' and new.status = 'read' then
+      perform public._notify(new.from_id, new.team_id, 'history_read', '전달한 히스토리를 확인했습니다',
+        coalesce((select full_name from profiles where id = new.to_id), '') || ' · ' || coalesce(v_title, ''), '/history?item=' || new.item_id);
+    end if;
+    return new;
+  end $f$;
+
+  create or replace function public._history_message_notify() returns trigger
+  language plpgsql security definer set search_path = public as $f$
+  declare s history_shares; v_title text;
+  begin
+    select * into s from history_shares where id = new.share_id;
+    select title into v_title from work_items where id = s.item_id;
+    if new.author_id = s.to_id then
+      perform public._notify(coalesce(s.from_id, public._team_leader(s.team_id)), s.team_id, 'history_question',
+        '히스토리 질문: ' || coalesce(v_title, ''), left(new.body, 120), '/history?item=' || s.item_id || '&share=' || s.id);
+    else
+      perform public._notify(s.to_id, s.team_id, 'history_answer', '팀장님이 답했습니다: ' || coalesce(v_title, ''), left(new.body, 120), '/my/one-on-ones?history=' || s.id);
+    end if;
+    update history_shares set updated_at = now() where id = new.share_id;
+    return new;
+  end $f$;
+
+  -- ③ 전달·요청은 같은 팀 과제 · 같은 팀 사람만, 팀원 요청은 히스토리 기능이 있는 팀에서만 (보낸 사람 칸은 비워 둔다)
+  drop policy if exists hs_insert on public.history_shares;
+  create policy hs_insert on public.history_shares for insert to authenticated
+    with check (
+      exists (select 1 from work_items w where w.id = history_shares.item_id and w.team_id = history_shares.team_id)
+      and (
+        (public.is_team_leader(team_id) and status = 'sent'
+          and exists (select 1 from team_members m where m.team_id = history_shares.team_id and m.user_id = history_shares.to_id and m.status = 'active'))
+        or (to_id = auth.uid() and status = 'requested' and from_id is null and public.is_team_member(team_id)
+          and public.team_has_feature(team_id, 'history'))
+      ));
+end $$;
+
+-- ---------- ④ 내 메모는 팀장만 쓴다 (읽기·지우기는 쓴 사람 그대로) ----------
+do $$
+begin
+  if to_regclass('public.leader_notes') is null then return; end if;
+  drop policy if exists leader_notes_owner on public.leader_notes;
+  create policy leader_notes_owner on public.leader_notes for all to authenticated
+    using (owner_id = auth.uid() and public.is_team_member(team_id))
+    with check (owner_id = auth.uid() and public.is_team_leader(team_id));
+end $$;
+
+-- ---------- ⑤ 초대 ----------
+create or replace function public.accept_invitation(p_token uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_inv invitations; v_usage jsonb; v_mail text;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  select * into v_inv from invitations where token = p_token for update;
+  if not found then raise exception 'INVITE_NOT_FOUND' using errcode = 'P0001'; end if;
+  if v_inv.accepted_at is not null and v_inv.accepted_by <> auth.uid() then raise exception 'INVITE_USED' using errcode = 'P0001'; end if;
+  if v_inv.expires_at < now() then raise exception 'INVITE_EXPIRED' using errcode = 'P0001'; end if;
+  -- 초대받은 메일로 로그인해야 합류
+  select lower(coalesce(u.email, '')) into v_mail from auth.users u where u.id = auth.uid();
+  if coalesce(trim(v_inv.email), '') <> '' and lower(trim(v_inv.email)) <> coalesce(v_mail, '') then
+    raise exception 'INVITE_EMAIL_MISMATCH' using errcode = 'P0001', hint = v_inv.email;
+  end if;
+  if v_inv.role = 'member' then
+    v_usage := public.team_seat_usage(v_inv.team_id);
+    if (v_usage->>'members')::int >= (v_usage->>'max_members')::int
+       and not exists (select 1 from team_members where team_id = v_inv.team_id and user_id = auth.uid() and status = 'active') then
+      raise exception 'PLAN_LIMIT_MEMBERS' using errcode = 'P0001';
+    end if;
+  end if;
+  insert into team_members (team_id, user_id, role, job_title)
+  values (v_inv.team_id, auth.uid(), v_inv.role, v_inv.job_title)
+  on conflict (team_id, user_id) do update
+    set status = 'active', role = case when team_members.role = 'leader' then team_members.role else excluded.role end;
+  update invitations set accepted_at = coalesce(accepted_at, now()), accepted_by = auth.uid() where id = v_inv.id;
+  perform log_event(v_inv.team_id, 'member.joined', 'team_members', null, auth.uid());
+  return v_inv.team_id;
+end $$;
+
+-- 끝난(합류·만료) 초대는 메일을 보여 주지 않는다 — 로그인 전에도 열리는 미리보기
+create or replace function public.invitation_preview(p_token uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('team_name', t.name, 'inviter', p.full_name,
+                            'email', case when i.accepted_at is null and i.expires_at >= now() then i.email else '' end,
+                            'expired', i.expires_at < now(), 'accepted', i.accepted_at is not null)
+  from invitations i join teams t on t.id = i.team_id join profiles p on p.id = i.invited_by
+  where i.token = p_token;
+$$;
+grant execute on function public.invitation_preview(uuid) to anon, authenticated;
+grant execute on function public.accept_invitation(uuid) to authenticated;
+
+-- ---------- ⑥ 요금제: Pro · Pro+ 에 history ----------
+update public.plans set features = array_append(features, 'history')
+ where id in ('pro', 'pro_plus') and not ('history' = any(features));
+
+-- >>>>>>>>>> 20261111000038_plans_price.sql
+-- =====================================================================
+-- 요금제 가격 조정 — Starter ₩29,000 · Pro ₩49,000 · Pro+ ₩79,000 (월, VAT 별도 / 연간은 10개월 값)
+--   모든 AI를 Sonnet 5.5로 돌리는 기준으로 월 AI 원가 상한도 함께 조정: $8 · $14 · $28
+--   팀원 수 · 크레딧 · 기능은 그대로. 이미 결제 중인 구독은 다음 결제일부터 새 가격으로 청구됩니다.
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+update public.plans set price_month_krw = 29000, price_year_krw = 290000, ai_cost_cap_usd = 8  where id = 'starter';
+update public.plans set price_month_krw = 49000, price_year_krw = 490000, ai_cost_cap_usd = 14 where id = 'pro';
+update public.plans set price_month_krw = 79000, price_year_krw = 790000, ai_cost_cap_usd = 28 where id = 'pro_plus';
+
+-- >>>>>>>>>> 20261112000039_invite_note.sql
+-- =====================================================================
+-- 초대할 때 적은 팀원 메모(강점·보완할 점) → 합류하면 팀장 개인 메모로
+--   · invitations.leader_note: 초대할 때 팀장이 적은 강점·보완할 점 (팀장만 봄)
+--   · accept_invitation: 팀원이 합류하는 순간, 그 팀원에게 붙은 팀장 메모(leader_notes, AI 참고 켜짐)로 옮긴다
+--     → 1on1 준비 노트 · 팀원관리 추천 · ATEAM AI의 제안이 참고한다. 평가 초안에는 쓰지 않는다. 팀원에게는 보이지 않는다.
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter table public.invitations add column if not exists leader_note text not null default '';
+
+create or replace function public.accept_invitation(p_token uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_inv invitations; v_usage jsonb; v_mail text;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  select * into v_inv from invitations where token = p_token for update;
+  if not found then raise exception 'INVITE_NOT_FOUND' using errcode = 'P0001'; end if;
+  if v_inv.accepted_at is not null and v_inv.accepted_by <> auth.uid() then raise exception 'INVITE_USED' using errcode = 'P0001'; end if;
+  if v_inv.expires_at < now() then raise exception 'INVITE_EXPIRED' using errcode = 'P0001'; end if;
+  -- 초대받은 메일로 로그인해야 합류
+  select lower(coalesce(u.email, '')) into v_mail from auth.users u where u.id = auth.uid();
+  if coalesce(trim(v_inv.email), '') <> '' and lower(trim(v_inv.email)) <> coalesce(v_mail, '') then
+    raise exception 'INVITE_EMAIL_MISMATCH' using errcode = 'P0001', hint = v_inv.email;
+  end if;
+  if v_inv.role = 'member' then
+    v_usage := public.team_seat_usage(v_inv.team_id);
+    if (v_usage->>'members')::int >= (v_usage->>'max_members')::int
+       and not exists (select 1 from team_members where team_id = v_inv.team_id and user_id = auth.uid() and status = 'active') then
+      raise exception 'PLAN_LIMIT_MEMBERS' using errcode = 'P0001';
+    end if;
+  end if;
+  insert into team_members (team_id, user_id, role, job_title)
+  values (v_inv.team_id, auth.uid(), v_inv.role, v_inv.job_title)
+  on conflict (team_id, user_id) do update
+    set status = 'active', role = case when team_members.role = 'leader' then team_members.role else excluded.role end;
+  -- 초대할 때 적은 메모 → 초대한 팀장의 개인 메모 (한 번만)
+  if coalesce(trim(v_inv.leader_note), '') <> '' and v_inv.invited_by is not null and v_inv.accepted_at is null then
+    insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, anchor_label, ai_allowed, tags)
+    values (v_inv.team_id, v_inv.invited_by, left(trim(v_inv.leader_note), 2000), 'member', auth.uid()::text,
+            coalesce((select full_name from profiles where id = auth.uid()), ''), true, array['초대 메모']);
+  end if;
+  update invitations set accepted_at = coalesce(accepted_at, now()), accepted_by = auth.uid() where id = v_inv.id;
+  perform log_event(v_inv.team_id, 'member.joined', 'team_members', null, auth.uid());
+  return v_inv.team_id;
+end $$;
+grant execute on function public.accept_invitation(uuid) to authenticated;
+
+-- 데모 팀: 초대할 때 적은 메모 예시 (최다은) — 이미 있으면 건너뜀
+do $$
+declare r record; v_choi uuid;
+begin
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+    select tm.user_id into v_choi from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '최다은' limit 1;
+    if v_choi is null or exists (select 1 from leader_notes where team_id = r.team_id and '초대 메모' = any(tags)) then continue; end if;
+    insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, anchor_label, ai_allowed, tags, created_at, updated_at)
+    values (r.team_id, r.leader_id, E'강점: 콘텐츠 기획이 빠르고 아이디어가 많음\n보완할 점: 일정이 밀릴 때 공유가 늦음', 'member', v_choi::text, '최다은', true,
+            array['초대 메모'], now() - interval '40 days', now() - interval '40 days');
+  end loop;
+end $$;
+
+-- >>>>>>>>>> 20261113000040_autopilot.sql
+-- =====================================================================
+-- AUTOPILOT (자율주행) — 팀장이 버튼을 누르면 핵심 질문 7개를 진단하고, 바로 보낼 액션까지 준비한다
+--   · 실행 횟수: 체험 14일 동안 1번 · Starter 월 3회 · Pro 월 5회 · Pro+ 월 8회 (매월 1일 KST 초기화)
+--   · 모드(teams.settings.autopilot): direct(기본, 아무것도 자동 발송 안 함) · semi(허용한 액션만) · auto(전부)
+--     모드는 '다음 실행부터' 적용된다 — 실행할 때의 모드가 autopilot_runs.mode 에 남는다
+--   · 자동으로 보낸 것은 via_autopilot = true → 팀원 화면에 "팀장님 설정에 따라 ATEAM이 보냄"
+--   · 보낸 뒤 10분 안에는 되돌릴 수 있다 (autopilot_undo)
+--   · 매주 자동으로 만들던 'ATEAM AI의 제안'(advisor-weekly)은 끈다
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'autopilot';
+
+alter table public.plans add column if not exists autopilot_monthly int not null default 0;
+update public.plans set autopilot_monthly = 3 where id = 'starter';
+update public.plans set autopilot_monthly = 5 where id = 'pro';
+update public.plans set autopilot_monthly = 8 where id = 'pro_plus';
+update public.plans set autopilot_monthly = 0 where id = 'free';
+
+alter table public.team_requests   add column if not exists via_autopilot boolean not null default false;
+alter table public.observations    add column if not exists via_autopilot boolean not null default false;
+alter table public.review_comments add column if not exists via_autopilot boolean not null default false;
+
+create table if not exists public.autopilot_runs (
+  id          uuid primary key default gen_random_uuid(),
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  leader_id   uuid not null references public.profiles(id) on delete cascade,
+  mode        text not null default 'direct' check (mode in ('direct', 'semi', 'auto')),
+  allow       jsonb not null default '{}'::jsonb,          -- 실행 시점의 액션별 허용값 (semi 일 때)
+  status      text not null default 'running' check (status in ('running', 'done', 'failed')),
+  step        int not null default 0,                      -- 0: 데이터 읽는 중 · 1~7: 질문 · 8: 정리
+  output      jsonb,                                       -- 진단 · 시뮬레이션 · 액션 (액션마다 key)
+  actions     jsonb not null default '{}'::jsonb,          -- key → { status: sent|skip, ref_table, ref_id, at, auto }
+  ai_output_id uuid references public.ai_outputs(id) on delete set null,
+  error       text,
+  created_at  timestamptz not null default now(),
+  finished_at timestamptz
+);
+create index if not exists autopilot_runs_team_idx on public.autopilot_runs (team_id, created_at desc);
+-- 한 팀에 진행 중인 실행은 하나만 (두 탭 · 두 번 누르기로 중복 실행 · 중복 발송되지 않게)
+create unique index if not exists autopilot_runs_one_running on public.autopilot_runs (team_id) where status = 'running';
+alter table public.autopilot_runs enable row level security;
+drop policy if exists autopilot_runs_leader_read on public.autopilot_runs;
+create policy autopilot_runs_leader_read on public.autopilot_runs for select using (public.is_team_leader(team_id));
+
+-- 이번 기간 실행 가능 횟수
+create or replace function public.autopilot_quota(p_team uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_owner uuid; v_plan plans; v_sub subscriptions; v_from timestamptz; v_limit int; v_used int; v_trial boolean;
+begin
+  if auth.uid() is not null and not public.is_team_leader(p_team) then raise exception 'forbidden' using errcode = '42501'; end if;
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then return null; end if;
+  -- 10분 넘게 '진행 중'인 실행은 멈춘 것으로 보고 실패 처리 (횟수에서 빠진다)
+  update autopilot_runs set status = 'failed', error = coalesce(error, '시간 안에 끝나지 않았습니다'), finished_at = now()
+   where team_id = p_team and status = 'running' and created_at < now() - interval '10 minutes';
+  v_plan := public.effective_plan_for_owner(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+  v_trial := v_sub.status = 'trialing' and coalesce(v_sub.trial_ends_at, now() + interval '1 day') > now();
+  if v_trial then
+    v_limit := 1;
+    v_from := coalesce(v_sub.current_period_start, v_sub.trial_ends_at - interval '14 days', now() - interval '14 days');
+  else
+    v_limit := coalesce(v_plan.autopilot_monthly, 0);
+    v_from := (date_trunc('month', now() at time zone 'Asia/Seoul')) at time zone 'Asia/Seoul';
+  end if;
+  select count(*) into v_used from autopilot_runs where team_id = p_team and status <> 'failed' and created_at >= v_from;
+  return jsonb_build_object('limit', v_limit, 'used', v_used, 'remaining', greatest(0, v_limit - v_used), 'trial', v_trial,
+    'resets_at', case when v_trial then null else ((date_trunc('month', now() at time zone 'Asia/Seoul') + interval '1 month') at time zone 'Asia/Seoul') end);
+end $$;
+revoke all on function public.autopilot_quota(uuid) from public, anon;
+grant execute on function public.autopilot_quota(uuid) to authenticated;
+
+-- 실행 시작 (서비스 전용) — 팀 단위 잠금 안에서 진행 중 확인 · 횟수 확인 · 기록을 한 번에
+create or replace function public.autopilot_start(p_team uuid, p_leader uuid, p_mode text, p_allow jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_q jsonb; v_id uuid;
+begin
+  if auth.uid() is not null then raise exception 'forbidden' using errcode = '42501'; end if;
+  perform pg_advisory_xact_lock(hashtext('autopilot:' || p_team::text));
+  v_q := public.autopilot_quota(p_team);
+  select id into v_id from autopilot_runs where team_id = p_team and status = 'running' limit 1;
+  if v_id is not null then return jsonb_build_object('run_id', v_id, 'existing', true); end if;
+  if coalesce((v_q ->> 'remaining')::int, 0) <= 0 then
+    raise exception 'AUTOPILOT_LIMIT' using errcode = 'P0001', hint = case when (v_q ->> 'trial')::boolean then 'trial' else 'month' end;
+  end if;
+  insert into autopilot_runs (team_id, leader_id, mode, allow) values (p_team, p_leader, coalesce(p_mode, 'direct'), coalesce(p_allow, '{}'::jsonb)) returning id into v_id;
+  return jsonb_build_object('run_id', v_id, 'existing', false);
+end $$;
+revoke all on function public.autopilot_start(uuid, uuid, text, jsonb) from public, anon, authenticated;
+
+-- 설정 저장 — autopilot 키만 바꾼다 (다른 설정을 덮어쓰지 않게)
+create or replace function public.autopilot_save_settings(p_team uuid, p_settings jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_team_leader(p_team) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if coalesce(p_settings ->> 'mode', '') not in ('direct', 'semi', 'auto') then raise exception 'BAD_MODE'; end if;
+  update teams set settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('autopilot',
+    jsonb_build_object('mode', p_settings ->> 'mode', 'allow', coalesce(p_settings -> 'allow', '{}'::jsonb))) where id = p_team;
+end $$;
+revoke all on function public.autopilot_save_settings(uuid, jsonb) from public, anon;
+grant execute on function public.autopilot_save_settings(uuid, jsonb) to authenticated;
+
+-- 액션 하나 보내기 — 결과 화면에서 팀장이 [보내기](p_auto=false) · 실행 직후 자동 발송(서비스, p_auto=true)
+--   p_body 가 있으면 고쳐 쓴 문구로 보낸다. 이미 보낸 것은 다시 보내지 않는다.
+create or replace function public.autopilot_send(p_run uuid, p_key text, p_body text default null, p_auto boolean default false)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  r autopilot_runs; a jsonb; v_type text; v_to uuid; v_body text; v_item uuid; v_sub uuid; v_ver uuid; v_id uuid; v_tbl text; v_title text; v_by uuid;
+begin
+  select * into r from autopilot_runs where id = p_run for update;
+  if r.id is null then raise exception 'NOT_FOUND'; end if;
+  if auth.uid() is not null then
+    if not public.is_team_leader(r.team_id) then raise exception 'forbidden' using errcode = '42501'; end if;
+    p_auto := false;
+  end if;
+  if coalesce(r.actions -> p_key ->> 'status', '') = 'sent' then return r.actions -> p_key; end if;
+  select x into a from jsonb_array_elements(coalesce(r.output -> 'actions', '[]'::jsonb)) x where x ->> 'key' = p_key;
+  if a is null then raise exception 'NO_ACTION'; end if;
+  -- 민감 내용은 어떤 경우에도 자동으로 보내지 않는다
+  if p_auto and coalesce(a ->> 'sensitive', '') <> '' then raise exception 'SENSITIVE'; end if;
+  v_by := coalesce(auth.uid(), r.leader_id);
+  v_type := a ->> 'type';
+  v_to := nullif(a ->> 'member_id', '')::uuid;
+  v_body := left(coalesce(nullif(trim(p_body), ''), a ->> 'message'), 600);
+  v_item := nullif(a ->> 'item_id', '')::uuid;
+  v_sub := nullif(a ->> 'submission_id', '')::uuid;
+  if v_to is null or not exists (select 1 from team_members where team_id = r.team_id and user_id = v_to and status = 'active') then raise exception 'NOT_MEMBER'; end if;
+  if v_item is not null and not exists (select 1 from work_items where id = v_item and team_id = r.team_id) then v_item := null; end if;
+
+  if v_type = 'praise' then
+    insert into observations (team_id, author_id, subject_id, kind, body, via_autopilot)
+      values (r.team_id, v_by, v_to, 'praise', '[칭찬 배지] ' || v_body, p_auto) returning id into v_id;   -- 알림은 t_praise_notify 가 보낸다
+    v_tbl := 'observations';
+  elsif v_type = 'memo' then
+    insert into observations (team_id, author_id, subject_id, kind, body, via_autopilot)
+      values (r.team_id, v_by, v_to, 'note', v_body, p_auto) returning id into v_id;
+    v_tbl := 'observations';
+  elsif v_type in ('cheer', 'grow', 'push', 'progress', 'plan', 'oo') then
+    v_title := left(split_part(v_body, E'\n', 1), 200);
+    insert into team_requests (team_id, from_id, to_id, kind, item_id, title, body, via_autopilot)
+      values (r.team_id, v_by, v_to,
+        case v_type when 'cheer' then 'cheer' when 'grow' then 'grow' when 'plan' then 'plan' when 'oo' then 'meeting' else 'progress' end,
+        case when v_type in ('progress', 'plan') then v_item else null end,
+        v_title, case when length(v_body) > length(v_title) then v_body else '' end, p_auto)
+      returning id into v_id;
+    v_tbl := 'team_requests';
+  elsif v_type in ('thread', 'rework') then
+    if v_sub is null or not exists (select 1 from submissions where id = v_sub and team_id = r.team_id) then raise exception 'NO_SUBMISSION'; end if;
+    select id into v_ver from submission_versions where submission_id = v_sub order by version desc limit 1;
+    insert into review_comments (submission_id, version_id, team_id, author_id, body, via_autopilot)
+      values (v_sub, v_ver, r.team_id, v_by, v_body, p_auto) returning id into v_id;
+    v_tbl := 'review_comments';
+  else
+    raise exception 'BAD_TYPE';
+  end if;
+
+  -- 자동으로 보낸 칭찬·관찰 메모는 평가 근거에서 'AI가 쓴 것'으로 남긴다
+  if p_auto and v_tbl = 'observations' then update evidence set provenance = 'ai' where source_id = v_id; end if;
+
+  update autopilot_runs set actions = actions || jsonb_build_object(p_key,
+    jsonb_build_object('status', 'sent', 'ref_table', v_tbl, 'ref_id', v_id, 'at', now(), 'auto', p_auto, 'body', v_body))
+   where id = p_run;
+  return jsonb_build_object('status', 'sent', 'ref_table', v_tbl, 'ref_id', v_id, 'at', now(), 'auto', p_auto);
+end $$;
+revoke all on function public.autopilot_send(uuid, text, text, boolean) from public, anon;
+grant execute on function public.autopilot_send(uuid, text, text, boolean) to authenticated;
+
+-- 보낸 지 10분 안이면 되돌리기 (보낸 기록을 지운다)
+create or replace function public.autopilot_undo(p_run uuid, p_key text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r autopilot_runs; s jsonb; v_ref uuid; v_req team_requests;
+begin
+  select * into r from autopilot_runs where id = p_run for update;
+  if r.id is null or not public.is_team_leader(r.team_id) then raise exception 'forbidden' using errcode = '42501'; end if;
+  s := r.actions -> p_key;
+  if coalesce(s ->> 'status', '') <> 'sent' then raise exception 'NOT_SENT'; end if;
+  -- 자동으로 보낸 것은 결과가 나온 때부터 10분
+  if greatest((s ->> 'at')::timestamptz, case when (s ->> 'auto')::boolean then coalesce(r.finished_at, now()) else (s ->> 'at')::timestamptz end) < now() - interval '10 minutes' then
+    raise exception 'UNDO_EXPIRED';
+  end if;
+  v_ref := (s ->> 'ref_id')::uuid;
+  if s ->> 'ref_table' = 'observations' then delete from observations where id = v_ref and team_id = r.team_id;
+  elsif s ->> 'ref_table' = 'team_requests' then
+    select * into v_req from team_requests where id = v_ref and team_id = r.team_id;
+    delete from team_requests where id = v_ref and team_id = r.team_id;
+    -- 계획 요청으로 켜진 '계획 필요' 표시는 다른 열린 계획 요청이 없으면 끈다
+    if v_req.kind = 'plan' and v_req.item_id is not null and not exists (select 1 from team_requests where item_id = v_req.item_id and kind = 'plan' and status = 'open') then
+      update work_items set needs_plan = false where id = v_req.item_id;
+    end if;
+  elsif s ->> 'ref_table' = 'review_comments' then delete from review_comments where id = v_ref and team_id = r.team_id;
+  end if;
+  -- 함께 생긴 평가 근거 · 팀원 알림도 지운다 (같은 트랜잭션에서 생겨 시각이 같다)
+  delete from evidence where source_id = v_ref;
+  delete from notifications where team_id = r.team_id and created_at = (s ->> 'at')::timestamptz
+    and user_id = (select (x ->> 'member_id')::uuid from jsonb_array_elements(coalesce(r.output -> 'actions', '[]'::jsonb)) x where x ->> 'key' = p_key);
+  update autopilot_runs set actions = actions - p_key where id = p_run;
+  return jsonb_build_object('status', 'wait');
+end $$;
+revoke all on function public.autopilot_undo(uuid, text) from public, anon;
+grant execute on function public.autopilot_undo(uuid, text) to authenticated;
+
+-- 건너뛰기 · 다시 보기 (기록만)
+create or replace function public.autopilot_mark(p_run uuid, p_key text, p_status text) returns void
+language plpgsql security definer set search_path = public as $$
+declare r autopilot_runs;
+begin
+  select * into r from autopilot_runs where id = p_run for update;
+  if r.id is null or not public.is_team_leader(r.team_id) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if coalesce(r.actions -> p_key ->> 'status', '') = 'sent' then return; end if;
+  if p_status = 'skip' then update autopilot_runs set actions = actions || jsonb_build_object(p_key, jsonb_build_object('status', 'skip', 'at', now())) where id = p_run;
+  else update autopilot_runs set actions = actions - p_key where id = p_run; end if;
+end $$;
+revoke all on function public.autopilot_mark(uuid, text, text) from public, anon;
+grant execute on function public.autopilot_mark(uuid, text, text) to authenticated;
+
+-- 매주 자동으로 만들던 'ATEAM AI의 제안'은 끈다 (자율주행은 팀장이 직접 실행)
+do $$ begin perform cron.unschedule('advisor-weekly'); exception when others then null; end $$;

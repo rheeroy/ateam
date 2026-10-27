@@ -30,6 +30,8 @@ export async function callClaude(opts: {
   content: Block[];
   maxTokens?: number;
   temperature?: number;
+  /** 한 번의 호출이 이 시간을 넘으면 끊는다 (없으면 제한 없음) */
+  timeoutMs?: number;
 }): Promise<ClaudeResult> {
   const key = Deno.env.get('ANTHROPIC_API_KEY');
   if (!key) throw new HttpError(500, 'AI_NOT_CONFIGURED', 'ANTHROPIC_API_KEY 가 설정되지 않았습니다');
@@ -46,8 +48,13 @@ export async function callClaude(opts: {
 
   let lastErr = '';
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(`${Deno.env.get('ANTHROPIC_BASE_URL') ?? 'https://api.anthropic.com'}/v1/messages`, {
+    const ctl = opts.timeoutMs ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), opts.timeoutMs) : null;
+    let res: Response;
+    try {
+      res = await fetch(`${Deno.env.get('ANTHROPIC_BASE_URL') ?? 'https://api.anthropic.com'}/v1/messages`, {
       method: 'POST',
+      signal: ctl?.signal,
       headers: {
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
@@ -55,6 +62,12 @@ export async function callClaude(opts: {
       },
       body: JSON.stringify(body),
     });
+    } catch (e) {
+      if (timer) clearTimeout(timer);
+      if (ctl?.signal.aborted) throw new HttpError(504, 'AI_TIMEOUT', `AI 응답이 ${Math.round((opts.timeoutMs ?? 0) / 1000)}초 안에 오지 않았습니다`);
+      throw e;
+    }
+    if (timer) clearTimeout(timer);
     if (res.ok) {
       const data = await res.json();
       const text = (data.content ?? [])

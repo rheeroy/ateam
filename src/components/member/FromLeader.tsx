@@ -15,8 +15,9 @@ import { AteamAI, LogoMark } from '../Brand';
 import type { CoachingNote } from '../people/Coaching';
 import { Button, useToast } from '../ui';
 import { BoardSection } from './BoardSection';
+import { ViaAutopilot } from '../autopilot/Dial';
 
-type Praise = { id: string; author_id: string; body: string; occurred_at: string };
+type Praise = { id: string; author_id: string; body: string; occurred_at: string; via_autopilot?: boolean };
 type Item =
   | { t: 'req'; id: string; at: string; open: boolean; r: TeamRequest }
   | { t: 'coach'; id: string; at: string; open: boolean; c: CoachingNote }
@@ -49,7 +50,7 @@ export function useFromLeader() {
   });
   const praise = useQuery({
     queryKey: ['my-praise', team.id, uid],
-    queryFn: () => q<Praise[]>(supabase.from('observations').select('id, author_id, body, occurred_at').eq('team_id', team.id).eq('subject_id', uid).eq('kind', 'praise').order('occurred_at', { ascending: false }).limit(30)),
+    queryFn: () => q<Praise[]>(supabase.from('observations').select('*').eq('team_id', team.id).eq('subject_id', uid).eq('kind', 'praise').order('occurred_at', { ascending: false }).limit(30)),
   });
   const items = useMemo<Item[]>(() => [
     ...(reqs.data ?? []).map((r) => ({ t: 'req' as const, id: r.id, at: r.created_at, open: r.status === 'open', r })),
@@ -143,6 +144,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
                     title={r.title} right={it.open ? (r.due_date ? <span className={cx('text-[11px] num', late ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{fmtShort(r.due_date)}까지</span> : null)
                       : <span className="text-[11px] text-emerald-700 inline-flex items-center gap-0.5"><CheckCircle2 size={11} />{r.responded_at ? fmtShort(r.responded_at) : '완료'}</span>}>
                     {r.body && <p className="text-sm text-slate-600 mt-0.5">{r.body}</p>}
+                    {r.via_autopilot && <ViaAutopilot className="mt-1" />}
                     {!it.open && r.response && <p className="text-xs text-slate-500 mt-1">내 답 · {r.response}</p>}
                     {it.open && (
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -176,7 +178,7 @@ export function FromLeader({ focus }: { focus?: string | null }) {
             const p = it.p;
             return (
               <li key={it.id} ref={focused ? focusRef : undefined} className={cx('px-5 py-3.5', focused && 'bg-amber-50/40')}>
-                <Row icon={META.praise.icon} cls={META.praise.cls} type={META.praise.label} from={nameOf(p.author_id)} at={p.occurred_at} title={`“${strip(p.body)}”`} />
+                <Row icon={META.praise.icon} cls={META.praise.cls} type={META.praise.label} from={nameOf(p.author_id)} at={p.occurred_at} title={`“${strip(p.body)}”`}>{p.via_autopilot && <ViaAutopilot className="mt-1" />}</Row>
               </li>
             );
           })}

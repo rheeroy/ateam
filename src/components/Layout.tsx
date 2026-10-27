@@ -20,6 +20,8 @@ import { openQuickNote } from '../lib/notes';
 import { ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
+import { AutopilotFab } from './autopilot/Fab';
+import { HeaderToday } from '../pages/Home';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string; locked?: boolean };
 
@@ -170,6 +172,7 @@ export default function Layout() {
                 className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100">
                 <StickyNote size={14} /><span className="hidden sm:inline">메모</span></button>
             )}
+            {isLeader && !locked && team && <HeaderToday />}
             <Notifications />
             <div className="relative">
               <button onClick={() => setMenu((x) => !x)} className="flex items-center gap-2 text-sm text-slate-600">
@@ -194,6 +197,7 @@ export default function Layout() {
       </main>
       {!isLeader && <MemberTabBar needsWork={(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0)} withLeader={!!leaderTodo} history={hUnread.data ?? 0} />}
       {isLeader && <QuickNote />}
+      {isLeader && !locked && team && <AutopilotFab />}
       <InstallPrompt />
       <ProvLegend />
     </div>

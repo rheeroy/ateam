@@ -7,6 +7,8 @@ import { SessionProvider } from './state/session';
 import { ToastProvider } from './components/ui';
 import { AiMarkProvider } from './components/Prov';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+import '@fontsource/michroma/latin-400.css';
+import '@fontsource/orbitron/latin-800.css';
 import './index.css';
 import { initPwa } from './lib/pwa';
 

@@ -1,7 +1,7 @@
 // 팀장 홈 — 스크롤 없이 한눈에: TOP PRIORITY(최상단) → 섹션 6칸(핵심 지표 + AI 한두 줄)
 // 색: 섹션 정체성 성과 indigo · 사람 teal · 의사결정 slate · 리스크 rose · 조직 fuchsia · 업무 sky / 상태는 rose·amber·emerald, 항상 글자와 함께.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, ChevronRight, Circle, FileText, Gavel, Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -13,7 +13,7 @@ import { isOpenSub, latestAt, useSubmissionsAi, type AiReview } from '../lib/wor
 import { usePeopleActions, type MemberIndex } from '../lib/peopleActions';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities } from '../components/decide/priorities';
-import { useAdvisor } from '../lib/advisor';
+import { useApRuns } from '../lib/autopilot';
 import { useLatestAi } from '../lib/hooks';
 import { AiIcon, aiText, AteamAI, LogoMark } from '../components/Brand';
 import { onboardingOf } from '../lib/onboarding';
@@ -75,7 +75,7 @@ function useBriefing(m: HomeModel): BLine[] {
   const pr = usePriorities(m);
   const pi = usePeopleIndex(m);
   const pa = usePeopleActions(team.id, team.is_demo);
-  const adv = useAdvisor(team.id, team.is_demo);
+  const apRuns = useApRuns(team.id);
   const brief = useLatestAi<{ briefs?: unknown[] }>(team.id, 'exec_brief');
   const subs = useSubmissionsAi(team.id);
   const notes = useNotes();
@@ -104,7 +104,9 @@ function useBriefing(m: HomeModel): BLine[] {
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
   if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Gavel, text: <><AteamAI />가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
-  if (adv.out?.content.advice.length) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <><AteamAI />가 이번 주 운영 제안 {n(adv.out.content.advice.length, '개')}를 만들었어요.</>, go: 'ATEAM AI의 제안을', to: '/advisor' });
+  // 최근 7일 안에 마친 AUTOPILOT 결과가 있으면 바로 가기
+  const apLast = apRuns.data?.find((r) => r.status === 'done' && Date.now() - Date.parse(r.created_at) < 7 * 86400000);
+  if (apLast) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <>AUTOPILOT 결과를 확인해 보세요 · 보낸 액션 {n(Object.values(apLast.actions ?? {}).filter((a) => a.status === 'sent').length, '건')}</>, go: 'ATEAM AI의 제안을', to: `/advisor?run=${apLast.id}` });
   if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <><AteamAI />가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
   if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <><AteamAI />가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
   else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });
@@ -495,19 +497,21 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
   );
 }
 
-/** 오늘 할 일 — 화면 오른쪽 아래 떠 있는 버튼. 처리할 건수를 배지로, 누르면 패널 */
-const OPEN_TODAY = 'ateam:open-today';
-function FloatingToday({ teamId, raw, orgNotes }: { teamId: string; raw: Raw | undefined; orgNotes: OrgNote[] }) {
+/** 오늘 할 일 — 상단 알림 아이콘 옆 버튼. 처리할 건수를 배지로, 누르면 아래로 패널 (오른쪽 아래는 AUTOPILOT 자리) */
+export function HeaderToday() {
+  const { team } = useTeam();
+  const [period] = usePeriod();
+  const m = useHomeModel(period);
+  const teamId = team.id;
+  const raw = m.raw;
+  const orgNotes = m.org.data?.notes ?? [];
   const [open, setOpen] = useState(false);
   const oo = useWeekOneOnOnes(teamId).data ?? [];
   const rv = useReviewQueue(teamId).data ?? [];
   const pr = usePromises(teamId).data ?? [];
   const today = todayYmd();
-  useEffect(() => {
-    const h = () => setOpen(true);
-    window.addEventListener(OPEN_TODAY, h);
-    return () => window.removeEventListener(OPEN_TODAY, h);
-  }, []);
+  const loc = useLocation();
+  useEffect(() => setOpen(false), [loc.pathname]);
   useEffect(() => {
     if (!open) return;
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
@@ -521,22 +525,20 @@ function FloatingToday({ teamId, raw, orgNotes }: { teamId: string; raw: Raw | u
   const n = ooToday + rv.length + pr.length + proposed + upReq;
   const urgent = late + upReq > 0;
   return (
-    <>
-      {open && <div className="fixed inset-0 z-40 bg-slate-900/20 sm:bg-transparent" onClick={() => setOpen(false)} aria-hidden />}
+    <div className="relative">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`오늘 할 일 ${n}건`} title="오늘 할 일"
+        className={cx('relative inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-2.5 py-1.5 ring-1', open ? 'bg-violet-600 text-white ring-violet-600' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50')}>
+        <CalendarCheck size={14} /><span className="hidden sm:inline">오늘 할 일</span>
+        {n > 0 && <span className={cx('num font-bold', open ? 'text-white' : 'text-violet-700')}>{n}</span>}
+        {!open && urgent && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+      </button>
+      {open && <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />}
       {open && (
-        <div role="dialog" aria-label="오늘 할 일" className="fixed z-50 inset-x-3 bottom-20 sm:inset-x-auto sm:right-6 sm:bottom-24 sm:w-[380px] rounded-2xl shadow-2xl ring-1 ring-slate-900/10 bg-white">
+        <div role="dialog" aria-label="오늘 할 일" className="fixed sm:absolute z-40 inset-x-3 top-16 sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[380px] rounded-2xl shadow-2xl ring-1 ring-slate-900/10 bg-white">
           <TodayCard teamId={teamId} raw={raw} orgNotes={orgNotes} onClose={() => setOpen(false)} />
         </div>
       )}
-      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`오늘 할 일 ${n}건`}
-        className={cx('fixed z-50 right-4 bottom-4 sm:right-6 sm:bottom-6 rounded-full shadow-xl pl-4 pr-5 py-3 inline-flex items-center gap-2.5 text-white transition-all hover:scale-[1.03]',
-          open ? 'bg-slate-900' : 'bg-gradient-to-r from-violet-600 to-indigo-600')}>
-        <span className="relative">{open ? <X size={18} /> : <CalendarCheck size={18} />}
-          {!open && urgent && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-violet-600" />}</span>
-        <span className="text-sm font-semibold">오늘 할 일</span>
-        {n > 0 && <span className="text-xs font-bold num rounded-full bg-white text-violet-700 px-2 py-0.5">{n}</span>}
-      </button>
-    </>
+    </div>
   );
 }
 
@@ -555,7 +557,6 @@ export default function Home() {
         <span className="ml-auto"><PeriodTabs period={period} setPeriod={setPeriod} /></span></div>
       <Tiles m={m} />
       <div className="pt-4"><QuickStart teamId={team.id} /></div>
-      <FloatingToday teamId={team.id} raw={m.raw} orgNotes={m.org.data?.notes ?? []} />
       <div className="h-12" aria-hidden />
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
     </div>

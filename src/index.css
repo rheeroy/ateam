@@ -11,3 +11,25 @@ body { font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSy
 .prose-plain p + p { margin-top: .5rem; }
 /* 그리드 자식이 내용 폭 때문에 화면을 넘지 않게 */
 .grid > * { min-width: 0; }
+
+/* ---------- AUTOPILOT ---------- */
+.ap-font { font-family: Michroma, "Pretendard Variable", sans-serif; letter-spacing: .14em; }
+.ap-on { font-family: Orbitron, "Pretendard Variable", sans-serif; font-weight: 800; letter-spacing: .12em; }
+@keyframes ap-spin { to { transform: rotate(360deg); } }
+@keyframes ap-spinr { to { transform: rotate(-360deg); } }
+@keyframes ap-pulse { 0%,100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes ap-shim { from { background-position: -220px 0; } to { background-position: 900px 0; } }
+.ap-dial .r { transform-origin: 50% 50%; transform-box: fill-box; }
+.ap-dial .sw { animation: ap-spin 3.2s linear infinite; }
+.ap-dial .seg { animation: ap-spinr 30s linear infinite; }
+.ap-dial .dot { animation: ap-pulse 1.8s ease-in-out infinite; }
+.ap-dial.busy .seg { animation-duration: .6s; }
+.ap-dial.busy { filter: drop-shadow(0 0 18px rgba(167,139,250,.75)); }
+.ap-dial.busy svg { animation: ap-pulse 1s ease-in-out infinite; }
+.ap-fill { transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.ap-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.22) 45%, transparent 60%); background-size: 220px 100%; animation: ap-shim 1.3s linear infinite; }
+.ap-fill::before { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: #E9D5FF; box-shadow: 0 0 12px 3px #C4B5FD; }
+.ap-rad { position: relative; overflow: hidden; }
+.ap-rad::before { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: conic-gradient(from 0deg, transparent 0 70%, rgba(196,181,253,.9)); animation: ap-spin 1.1s linear infinite; }
+.ap-rad::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 9999px; background: #fff; }
+@media (prefers-reduced-motion: reduce) { .ap-dial .sw, .ap-dial .seg, .ap-dial .dot, .ap-fill::after, .ap-rad::before { animation: none; } }

@@ -31,7 +31,7 @@ export interface SubmissionVersion { id: string; submission_id: string; team_id:
 /** 성과입력(코드 이름 checkin) — 목표 하나에 성과를 남긴다. 승인되면 그 항목의 공식 값이 된다 */
 export type CheckinType = 'number' | 'percent' | 'stage' | 'done' | 'note';
 export interface CheckinPayload { type: CheckinType; value?: number | null; stage?: number | null; progress?: number | null; prev?: string | null; label?: string | null; evidence?: { t: 'sub' | 'msg'; id: string; title: string }[] }
-export interface ReviewComment { id: string; submission_id: string; version_id: string | null; team_id: string; parent_id: string | null; author_id: string; section_ref: string | null; body: string; provenance: string; file_path?: string | null; file_name?: string | null; mime_type?: string | null; created_at: string }
+export interface ReviewComment { id: string; submission_id: string; version_id: string | null; team_id: string; parent_id: string | null; author_id: string; section_ref: string | null; body: string; provenance: string; file_path?: string | null; file_name?: string | null; mime_type?: string | null; created_at: string; via_autopilot?: boolean }
 
 export interface Hypothesis { id: string; team_id: string; item_id: string | null; statement: string; signal: string; status: 'testing' | 'validated' | 'refuted'; created_at: string }
 export type ItemStatus = 'proposed' | 'changes_requested' | 'active' | 'blocked' | 'done' | 'dropped';
@@ -55,6 +55,8 @@ export interface TeamRequest {
   id: string; team_id: string; from_id: string; to_id: string; kind: 'plan' | 'progress' | 'share' | 'meeting' | 'other' | 'grow' | 'cheer' | 'change';
   item_id: string | null; title: string; body: string; due_date: string | null; status: 'open' | 'done' | 'canceled';
   response: string; responded_at: string | null; created_at: string;
+  /** 팀장 설정에 따라 AUTOPILOT 이 자동으로 보냄 */
+  via_autopilot?: boolean;
 }
 export interface AppNotification { id: string; user_id: string; team_id: string | null; kind: string; title: string; body: string; link: string | null; read_at: string | null; created_at: string }
 export interface ScheduleRow { item_id: string; title: string; owner_id: string | null; progress: number; start_date: string | null; due_date: string | null; base_due: string | null; slip_days: number | null; replan_count: number; velocity: number | null; projected_done: string | null; projected_delay: number | null }

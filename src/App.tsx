@@ -16,7 +16,7 @@ const Reviews = lazy(() => import('./pages/Reviews'));
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'));
 const Upward = lazy(() => import('./pages/Upward'));
 const Perf = lazy(() => import('./pages/Perf'));
-const Advisor = lazy(() => import('./pages/Advisor'));
+const Autopilot = lazy(() => import('./pages/Autopilot'));   // ATEAM AI의 제안 = AUTOPILOT 결과 (예전 주간 제안 화면 pages/Advisor 는 쓰지 않음)
 const Evaluation = lazy(() => import('./pages/Evaluation'));
 const Insight = lazy(() => import('./pages/Insight'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
@@ -135,7 +135,7 @@ export default function App() {
         <Route path="upward" element={L(<Upward />)} />
         <Route path="report" element={<Moved to="/upward" />} />
         <Route path="perf" element={L(<Perf />)} />
-        <Route path="advisor" element={L(<Advisor />)} />
+        <Route path="advisor" element={L(<Autopilot />)} />
         <Route path="strategy" element={<Moved to="/perf" />} />
         <Route path="sim" element={<Moved to="/advisor" />} />
         <Route path="eval" element={L(<Evaluation />)} />

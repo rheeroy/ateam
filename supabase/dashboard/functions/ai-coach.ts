@@ -94,15 +94,26 @@ async function callClaude(opts) {
   };
   let lastErr = "";
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(`${Deno.env.get("ANTHROPIC_BASE_URL") ?? "https://api.anthropic.com"}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
+    const ctl = opts.timeoutMs ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), opts.timeoutMs) : null;
+    let res;
+    try {
+      res = await fetch(`${Deno.env.get("ANTHROPIC_BASE_URL") ?? "https://api.anthropic.com"}/v1/messages`, {
+        method: "POST",
+        signal: ctl?.signal,
+        headers: {
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      if (timer) clearTimeout(timer);
+      if (ctl?.signal.aborted) throw new HttpError(504, "AI_TIMEOUT", `AI \uC751\uB2F5\uC774 ${Math.round((opts.timeoutMs ?? 0) / 1e3)}\uCD08 \uC548\uC5D0 \uC624\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4`);
+      throw e;
+    }
+    if (timer) clearTimeout(timer);
     if (res.ok) {
       const data = await res.json();
       const text = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
@@ -228,7 +239,8 @@ var CORE = [
   "coaching",
   "checkin_draft",
   "work_brief",
-  "task_history"
+  "task_history",
+  "autopilot"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -248,6 +260,7 @@ var CREDITS = {
   checkin_draft: 0,
   work_brief: 0,
   task_history: 0,
+  autopilot: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -453,7 +466,8 @@ async function runAi(job) {
 
 ${job.system}`,
     content: job.content,
-    maxTokens: job.maxTokens
+    maxTokens: job.maxTokens,
+    timeoutMs: job.timeoutMs
   });
   let parsed;
   try {

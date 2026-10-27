@@ -18,6 +18,7 @@ import { FILE_ACCEPT, IMAGE } from '../components/Upload';
 import { STATUS } from './MySubmissions';
 import { PLAYBOOK } from '../lib/playbook';
 import { AiIcon, aiText, CoreAI } from '../components/Brand';
+import { ViaAutopilot } from '../components/autopilot/Dial';
 
 export interface Review {
   depth_score: number; summary: string; decisions?: string[];
@@ -411,6 +412,7 @@ export function Bubble({ c, mine }: { c: ReviewComment; mine: boolean }) {
           {c.section_ref && <span className="ml-1.5 text-[10px] text-indigo-700 border border-indigo-200 rounded px-1">{c.section_ref}</span>}</div>
         {!!c.body && <div className={cx('rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', mine ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 rounded-tl-sm text-slate-800')}>{c.body}</div>}
         <Attachment c={c} mine={mine} />
+        {c.via_autopilot && <ViaAutopilot className="mt-1" />}
       </div>
     </div>
   );
