@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, CheckCircle2, ChevronRight, Circle, FileText, Gavel, Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, ChevronRight, Circle, FileText, Gavel, Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { OrgNote } from '../lib/types';
@@ -22,6 +22,7 @@ import {
   MemoModal, PeriodTabs, QuickStart, SetupResume, periodRangeLabel, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
   type HomeModel, type MainSection,
+  type PromiseRow,
 } from '../components/home/shared';
 
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -439,38 +440,42 @@ function TodayCard({ teamId, raw, orgNotes, onClose }: { teamId: string; raw: Ra
   });
   const today = todayYmd();
   const ooUp = oo.filter((o) => new Date(o.scheduled_at).getTime() > Date.now() - 3600000);
-  const late = pr.filter((a) => a.due_date && a.due_date < today);
   const proposed = (raw?.items ?? []).filter((i) => i.status === 'proposed').length;
   const upReq = orgNotes.filter((n) => n.status === 'open' && n.kind === 'request' && n.event_date && dDay(n.event_date) <= 7);
+  const upMin = upReq.length ? Math.max(0, Math.min(...upReq.map((n) => dDay(n.event_date!)))) : 0;
   const cols = [
     { k: '1on1', n: ooUp.length, sub: ooUp.some((o) => isToday(o.scheduled_at)) ? `오늘 ${ooUp.filter((o) => isToday(o.scheduled_at)).length}건` : '이번 주', icon: MessagesSquare, to: '/people', alert: false },
     { k: '리뷰 대기', n: rv.length, sub: rv.length ? (rv.some((r) => r.review) ? 'AI 검토 완료 있음' : 'AI 검토 전') : '없음', icon: FileText, to: '/work', alert: rv.some((r) => daysAgo(r.v?.created_at ?? r.s.created_at) >= 3) },
-    { k: '내 약속', n: pr.length, sub: late.length ? `기한 지남 ${late.length}` : '기한 내', icon: CheckCircle2, to: '#', alert: late.length > 0 },
+    // 위에서 온 요청 중 7일 안에 기한이 오는 것 — 1on1 약속(팀장이 맡은 액션아이템)은 아래 목록에 섞여 나온다
+    { k: '상위 요청', n: upReq.length, sub: upReq.length ? (upMin === 0 ? '오늘 기한' : `가장 가까운 D-${upMin}`) : '7일 내 없음', icon: ArrowUpRight, to: '/upward', alert: upReq.length > 0 && upMin <= 3 },
   ];
   const extras = [
     proposed && { k: `팀원 계획 승인 ${proposed}`, to: '/goals/edit?filter=proposed', icon: ListTree },
-    upReq.length && { k: `상위 요청 D-${Math.max(0, Math.min(...upReq.map((n) => dDay(n.event_date!))))}`, to: '/upward', icon: ArrowUpRight },
     answered && { k: `팀원 답변 ${answered}`, to: '/settings?tab=members', icon: Inbox },
   ].filter(Boolean) as { k: string; to: string; icon: typeof Inbox }[];
+  const promiseItems = pr.map((a) => promiseRow(a));
   const items = [
     ...ooUp.filter((o) => isToday(o.scheduled_at)).map((o) => ({ key: o.id, node: <Link to={`/one-on-ones/${o.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="font-mono text-xs text-teal-700 font-semibold w-11 shrink-0">{fmtTime(o.scheduled_at)}</span><span className="truncate">{nameOf(o.member_id)} 1on1</span></Link> })),
     ...rv.slice(0, 2).map(({ s }) => ({ key: s.id, node: <Link to={`/work/${s.id}`} className="flex items-center gap-3 hover:text-indigo-700"><span className="text-[11px] text-sky-700 font-semibold w-11 shrink-0">리뷰</span><span className="truncate">{s.title}</span></Link> })),
-    ...pr.slice(0, 3).map((a) => {
-      const isLate = a.due_date && a.due_date < today;
-      return { key: a.id, node: (
-        <div className="flex items-start gap-3">
-          <button onClick={() => done.mutate(a.id)} aria-label="완료로 표시" title="완료로 표시" className={cx('w-11 shrink-0 flex', isLate ? 'text-rose-400' : 'text-slate-300', 'hover:text-violet-600')}><Circle size={15} /></button>
-          <span className="min-w-0"><span className="block truncate">{a.title}</span><span className={cx('text-[11px]', isLate ? 'text-rose-600' : 'text-slate-400')}>{a.due_date ? fmtDate(a.due_date) : '기한 없음'}{isLate ? ' · 지남' : ''}</span></span>
-        </div>) };
-    }),
+    ...promiseItems.slice(0, 3),
   ];
+  function promiseRow(a: PromiseRow) {
+    const isLate = a.due_date && a.due_date < today;
+    const who = a.one_on_ones?.member_id ? nameOf(a.one_on_ones.member_id) : '';
+    return { key: a.id, node: (
+      <div className="flex items-start gap-3">
+        <button onClick={() => done.mutate(a.id)} aria-label="완료로 표시" title="완료로 표시" className={cx('w-11 shrink-0 flex', isLate ? 'text-rose-400' : 'text-slate-300', 'hover:text-violet-600')}><Circle size={15} /></button>
+        <Link to={a.one_on_one_id ? `/one-on-ones/${a.one_on_one_id}` : '/people'} className="min-w-0 hover:text-indigo-700"><span className="block truncate">{a.title}</span>
+          <span className={cx('text-[11px]', isLate ? 'text-rose-600' : 'text-slate-400')}>{who ? `${who} 1on1 약속 · ` : '1on1 약속 · '}{a.due_date ? fmtDate(a.due_date) : '기한 없음'}{isLate ? ' · 지남' : ''}</span></Link>
+      </div>) };
+  }
   return (
     <section aria-label="오늘 할 일" className="rounded-2xl bg-white overflow-hidden flex flex-col max-h-[70vh]">
       <div className="px-5 py-4 border-b border-slate-100 font-bold flex items-center gap-2"><CalendarCheck size={17} className="text-violet-600" />오늘 할 일
         {onClose && <button onClick={onClose} aria-label="닫기" className="ml-auto text-slate-400 hover:text-slate-700"><X size={17} /></button>}</div>
       <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
         {cols.map((c) => (
-          <Link key={c.k} to={c.to} onClick={(e) => { if (c.to === '#') e.preventDefault(); }} className="px-2 py-3.5 text-center hover:bg-slate-50">
+          <Link key={c.k} to={c.to} className="px-2 py-3.5 text-center hover:bg-slate-50">
             <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1"><c.icon size={12} />{c.k}</div>
             <div className="text-2xl font-bold num mt-0.5">{c.n}</div>
             <div className={cx('text-[11px]', c.alert ? 'text-rose-600 font-semibold' : 'text-slate-400')}>{aiText(c.sub, 'mark')}</div>
