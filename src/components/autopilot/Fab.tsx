@@ -104,9 +104,9 @@ export function AutopilotFab() {
 
   return (
     <>
-      <div ref={box} className={cx('fixed z-40 right-4 bottom-4 sm:right-7 sm:bottom-7 print:hidden transition-all duration-300', visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none')} aria-hidden={!visible}>
+      <div ref={box} className={cx('fixed z-40 right-5 bottom-5 sm:right-9 sm:bottom-9 print:hidden transition-all duration-300', visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none')} aria-hidden={!visible}>
         <div role="dialog" aria-label="AUTOPILOT" aria-hidden={!open}
-          className={cx('absolute right-0 bottom-[88px] sm:bottom-[100px] w-[380px] max-w-[calc(100vw-32px)] rounded-[20px] bg-white ring-1 ring-slate-200 shadow-[0_24px_60px_rgba(11,14,26,.28)] overflow-hidden origin-bottom-right transition-all duration-200',
+          className={cx('absolute right-0 bottom-[94px] sm:bottom-[108px] w-[380px] max-w-[calc(100vw-32px)] rounded-[20px] bg-white ring-1 ring-slate-200 shadow-[0_24px_60px_rgba(11,14,26,.28)] overflow-hidden origin-bottom-right transition-all duration-200',
             open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[.98] translate-y-2 pointer-events-none')}>
           <div className="bg-gradient-to-r from-[#0B0E1A] via-[#1E1B4B] to-[#2E1F7A] text-white px-[18px] py-4">
             <div className="flex items-center"><span className="inline-flex items-baseline gap-2"><span className="ap-font text-base">AUTOPILOT</span><span className="ap-on text-[13px] text-violet-400">ON</span></span>
@@ -138,13 +138,13 @@ export function AutopilotFab() {
         </div>
         <button tabIndex={visible ? 0 : -1} onClick={() => (busy ? null : setOpen((x) => !x))} aria-label="AUTOPILOT" aria-expanded={open} title={busy ? 'AUTOPILOT 진행 중' : 'AUTOPILOT'}
           className="ap-fab block rounded-full">
-          <AutopilotDial size={72} busy={busy} className="sm:hidden" />
-          <AutopilotDial size={84} busy={busy} className="hidden sm:inline-block" />
+          <AutopilotDial size={78} busy={busy} className="sm:hidden" />
+          <AutopilotDial size={92} busy={busy} className="hidden sm:inline-block" />
         </button>
       </div>
 
       {/* 실행 중 — 하단 중앙에 떠 있는 로딩 바 (버튼과 세로 중심 맞춤) */}
-      <div aria-live="polite" className={cx('fixed z-40 left-4 right-[100px] bottom-[34px] sm:right-auto sm:left-1/2 sm:bottom-[52px] sm:w-[min(860px,calc(100vw-200px))] sm:-translate-x-1/2 transition-all duration-500 print:hidden',
+      <div aria-live="polite" className={cx('fixed z-40 left-4 right-[110px] bottom-[41px] sm:right-auto sm:left-1/2 sm:bottom-[64px] sm:w-[min(860px,calc(100vw-240px))] sm:-translate-x-1/2 transition-all duration-500 print:hidden',
         busy ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[140%] pointer-events-none')}>
         <div className="relative h-9 rounded-full overflow-hidden bg-[#0B0E1A]/90 backdrop-blur ring-1 ring-violet-400/35 shadow-[0_18px_40px_rgba(11,14,26,.35),0_0_0_4px_rgba(124,58,237,.08),0_0_28px_rgba(124,58,237,.25)]">
           <div className="ap-fill absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-600/55 to-violet-600/75" style={{ width: `${busy ? Math.round(pr.pct) : 0}%` }} />

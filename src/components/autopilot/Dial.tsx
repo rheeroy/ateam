@@ -2,11 +2,12 @@
 import { useId } from 'react';
 import { cx } from '../../lib/format';
 
+// 바깥 눈금 띠 (r40~49) — 60칸, 5칸마다 긴 눈금
 const ticks = (() => {
   let s = '';
-  for (let i = 0; i < 36; i++) {
-    const a = (i / 36) * Math.PI * 2;
-    s += `<line x1="${(50 + Math.cos(a) * 47).toFixed(2)}" y1="${(50 + Math.sin(a) * 47).toFixed(2)}" x2="${(50 + Math.cos(a) * 45).toFixed(2)}" y2="${(50 + Math.sin(a) * 45).toFixed(2)}" stroke="#A5B4FC" stroke-width="${i % 9 === 0 ? 0.96 : 0.6}"/>`;
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2, long = i % 5 === 0, r2 = long ? 42.2 : 44.6;
+    s += `<line x1="${(50 + Math.cos(a) * 47.6).toFixed(2)}" y1="${(50 + Math.sin(a) * 47.6).toFixed(2)}" x2="${(50 + Math.cos(a) * r2).toFixed(2)}" y2="${(50 + Math.sin(a) * r2).toFixed(2)}" stroke="#A5B4FC" stroke-opacity="${long ? 0.9 : 0.6}" stroke-width="${long ? 0.9 : 0.55}"/>`;
   }
   return s;
 })();
@@ -18,7 +19,7 @@ const knurl = (() => {
   return d;
 })();
 
-/** D1-a 다이얼을 살짝 눕혀(윗면 세로 0.9) 아래쪽 두께가 보이게 한 버전 */
+/** D1-a 다이얼을 살짝 눕혀(윗면 세로 0.93) 아래쪽 두께가 보이게 한 버전 */
 export function AutopilotDial({ size = 84, busy, className }: { size?: number; busy?: boolean; className?: string }) {
   const id = useId().replace(/:/g, '');
   return (
@@ -29,24 +30,25 @@ export function AutopilotDial({ size = 84, busy, className }: { size?: number; b
           <linearGradient id={`s${id}`} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#4F46E5" stopOpacity="0" /><stop offset="1" stopColor="#A78BFA" stopOpacity=".85" /></linearGradient>
           {/* 옆면 — 가운데가 은은하게 밝고 양끝은 어둡게 */}
           <linearGradient id={`w${id}`} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#0B0E1F" /><stop offset=".3" stopColor="#353B66" /><stop offset=".5" stopColor="#3F4677" /><stop offset=".7" stopColor="#2A2F55" /><stop offset="1" stopColor="#0B0E1F" /></linearGradient>
-          <clipPath id={`c${id}`}><ellipse cx="50" cy="52.5" rx="49" ry="44.1" /></clipPath>
+          <clipPath id={`c${id}`}><ellipse cx="50" cy="52.4" rx="49" ry="45.6" /></clipPath>
         </defs>
         {/* 옆면(두께) */}
-        <ellipse cx="50" cy="52.5" rx="49" ry="44.1" fill={`url(#w${id})`} />
-        <path d={knurl} stroke="#05060F" strokeOpacity=".3" strokeWidth=".5" clipPath={`url(#c${id})`} />
+        <ellipse cx="50" cy="52.4" rx="49" ry="45.6" fill={`url(#w${id})`} />
+        <path d={knurl} stroke="#05060F" strokeOpacity=".22" strokeWidth=".5" clipPath={`url(#c${id})`} />
         {/* 윗면 — 초기 D1-a 그대로, 세로만 0.9 */}
-        <g transform="translate(50 45.5) scale(1 .9) translate(-50 -50)">
+        <g transform="translate(50 46) scale(1 .93) translate(-50 -50)">
           <circle cx="50" cy="50" r="49" fill={`url(#f${id})`} stroke="#4A5185" />
-          <g className="sw r"><path d="M50 50 L50 6 A44 44 0 0 1 80.4 18.2 Z" fill={`url(#s${id})`} opacity=".6" /></g>
-          <circle cx="50" cy="50" r="44" fill="none" stroke="#818CF8" strokeOpacity=".35" />
+          <g className="sw r"><path d="M50 50 L50 10 A40 40 0 0 1 77.6 21.1 Z" fill={`url(#s${id})`} opacity=".6" /></g>
+          <circle cx="50" cy="50" r="44.6" fill="none" stroke="#070917" strokeOpacity=".55" strokeWidth="8.8" />
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#818CF8" strokeOpacity=".45" />
           <circle cx="50" cy="50" r="30" fill="none" stroke="#818CF8" strokeOpacity=".22" />
           <path d="M50 20v60M20 50h60" stroke="#818CF8" strokeOpacity=".14" />
-          <g className="seg r"><path d="M50 3v7M50 90v7M3 50h7M90 50h7" stroke="#C4B5FD" strokeWidth="1.6" /><g dangerouslySetInnerHTML={{ __html: ticks }} /></g>
+          <g className="seg r"><path d="M50 1.8v9.8M50 88.4v9.8M1.8 50h9.8M88.4 50h9.8" stroke="#C4B5FD" strokeWidth="1.8" /><g dangerouslySetInnerHTML={{ __html: ticks }} /></g>
           <circle className="dot r" cx="64" cy="33" r="1.9" fill="#F0ABFC" />
           <circle className="dot r" cx="29" cy="72" r="1.5" fill="#C4B5FD" />
           <circle className="dot r" cx="73" cy="73" r="1.2" fill="#A5B4FC" />
-          <text x="50" y="49.5" textAnchor="middle" fontFamily="Michroma, sans-serif" fontSize="8.3" letterSpacing=".7" fill="#fff">AUTOPILOT</text>
-          <text x="50.8" y="66.5" textAnchor="middle" fontFamily="Orbitron, sans-serif" fontWeight="800" fontSize="13.5" letterSpacing="2.6" fill="#A78BFA">ON</text>
+          <text x="50" y="49.5" textAnchor="middle" fontFamily="Michroma, sans-serif" fontSize="8.6" letterSpacing=".2" fill="#fff">AUTOPILOT</text>
+          <text x="50.8" y="67.5" textAnchor="middle" fontFamily="Orbitron, sans-serif" fontWeight="800" fontSize="14.8" letterSpacing="2.6" fill="#A78BFA">ON</text>
         </g>
       </svg>
     </span>
