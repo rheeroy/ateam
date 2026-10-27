@@ -229,14 +229,16 @@ async function build(teamId: string, leaderId: string, runId: string) {
     teamId, kind: 'autopilot', model: MODEL_SMART, system: AUTOPILOT + NOTE_RULE + (compact ? '\n\n[간결 모드] 질문마다 진단 2줄 · 액션 2개 이내로 짧게 씁니다.' : ''),
     content: [{ type: 'text', text: compose(compact ? 24000 : 60000) }], book,
     depth: depthOf(book.size, [6, 12, 20]), level: 'L3', createdBy: leaderId, credits: 0,
-    maxTokens: compact ? 4500 : 7000, timeoutMs: compact ? 110_000 : 170_000, force: true,
+    // 먼저 생각하지 않고 바로 JSON 을 쓴다 — 기본(생각 후 답)은 입력이 큰 팀에서 출력 한도를 생각에 다 써서 빈 응답이 났다
+    thinking: 'fast', effort: compact ? 'low' : 'medium',
+    maxTokens: compact ? 5000 : 9000, timeoutMs: compact ? 120_000 : 180_000, force: true,
   });
   // 한 번 실패하면(시간 초과 · 응답 형식 오류 · 일시 장애) 입력과 출력을 줄여 한 번 더 — 전체가 함수 실행 한도(400초) 안에 끝나게
   let res: Awaited<ReturnType<typeof call>>;
   try { res = await call(false); }
   catch (e) {
     const code = e instanceof HttpError ? e.code : '';
-    if (['AI_RATE_HOUR', 'AI_RATE_DAY', 'AI_COST_CAP', 'AI_LOCKED', 'CORE_LIMIT', 'AI_NOT_CONFIGURED'].includes(code) || Date.now() - t0 > 200_000) throw e;
+    if (['AI_RATE_HOUR', 'AI_RATE_DAY', 'AI_COST_CAP', 'AI_LOCKED', 'CORE_LIMIT', 'AI_NOT_CONFIGURED'].includes(code) || Date.now() - t0 > 250_000) throw e;
     console.warn('autopilot retry compact', e instanceof Error ? e.message : e);
     await setRun(runId, { step: 4 });
     res = await call(true);

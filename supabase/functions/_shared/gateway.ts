@@ -196,6 +196,8 @@ export interface AiJob {
   force?: boolean;
   /** AI 호출 한 번의 시간 제한 (ms) */
   timeoutMs?: number;
+  thinking?: 'fast';
+  effort?: 'low' | 'medium' | 'high';
 }
 
 export async function assertCredits(teamId: string, need: number) {
@@ -270,6 +272,8 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
     content: job.content,
     maxTokens: job.maxTokens,
     timeoutMs: job.timeoutMs,
+    thinking: job.thinking,
+    effort: job.effort,
   });
   let parsed: T;
   try {

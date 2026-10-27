@@ -30,8 +30,11 @@ export async function callClaude(opts: {
   content: Block[];
   maxTokens?: number;
   temperature?: number;
-  /** 한 번의 호출이 이 시간을 넘으면 끊는다 (없으면 제한 없음) */
+  /** 이 시간 안에 끝나야 한다 — 재시도까지 포함한 전체 시간 (없으면 제한 없음) */
   timeoutMs?: number;
+  /** 'fast' = 먼저 생각하지 않고 바로 답을 쓴다 (Sonnet 5.5 는 기본이 '생각 후 답' 이라 출력 한도 · 시간을 생각에 먼저 쓴다) */
+  thinking?: 'fast';
+  effort?: 'low' | 'medium' | 'high';
 }): Promise<ClaudeResult> {
   const key = Deno.env.get('ANTHROPIC_API_KEY');
   if (!key) throw new HttpError(500, 'AI_NOT_CONFIGURED', 'ANTHROPIC_API_KEY 가 설정되지 않았습니다');
@@ -44,12 +47,17 @@ export async function callClaude(opts: {
     // 시스템 프롬프트는 기능마다 고정이므로 캐시한다
     system: [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: opts.content }],
+    ...(opts.thinking === 'fast' ? fastThinking(opts.model) : {}),
+    ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
   };
+  const deadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : 0;
 
   let lastErr = '';
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ctl = opts.timeoutMs ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => ctl.abort(), opts.timeoutMs) : null;
+    const remain = deadline ? deadline - Date.now() : 0;
+    if (deadline && remain < 5000) throw new HttpError(504, 'AI_TIMEOUT', `AI 응답이 ${Math.round((opts.timeoutMs ?? 0) / 1000)}초 안에 오지 않았습니다${lastErr ? ` (${lastErr.slice(0, 120)})` : ''}`);
+    const ctl = deadline ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), remain) : null;
     let res: Response;
     try {
       res = await fetch(`${Deno.env.get('ANTHROPIC_BASE_URL') ?? 'https://api.anthropic.com'}/v1/messages`, {
@@ -67,14 +75,21 @@ export async function callClaude(opts: {
       if (ctl?.signal.aborted) throw new HttpError(504, 'AI_TIMEOUT', `AI 응답이 ${Math.round((opts.timeoutMs ?? 0) / 1000)}초 안에 오지 않았습니다`);
       throw e;
     }
-    if (timer) clearTimeout(timer);
     if (res.ok) {
-      const data = await res.json();
+      // 본문을 다 받을 때까지 시간 제한을 유지한다
+      let data;
+      try { data = await res.json(); }
+      catch (e) { if (ctl?.signal.aborted) throw new HttpError(504, 'AI_TIMEOUT', `AI 응답이 ${Math.round((opts.timeoutMs ?? 0) / 1000)}초 안에 오지 않았습니다`); throw e; }
+      finally { if (timer) clearTimeout(timer); }
       const text = (data.content ?? [])
         .filter((b: { type: string }) => b.type === 'text')
         .map((b: { text: string }) => b.text)
         .join('');
-      // 빈 응답(출력 한도에 걸림 등)이면 한도를 늘려 다시 시도
+      // 빈 응답(출력 한도에 걸림 등)이면 한도를 늘려 다시 시도 — 시간 제한이 있는 호출은 부른 쪽이 줄여서 다시 하므로 바로 넘긴다
+      if (!text.trim() && deadline) {
+        console.warn('claude empty response', { stop: data.stop_reason, usage: data.usage });
+        throw new HttpError(502, 'AI_EMPTY', `AI 응답이 비어 있습니다 (stop: ${data.stop_reason ?? '-'})`);
+      }
       if (!text.trim() && attempt < 2) {
         lastErr = `empty response (stop: ${data.stop_reason ?? '-'})`;
         body.max_tokens = Math.min(12000, body.max_tokens * 2);
@@ -96,7 +111,8 @@ export async function callClaude(opts: {
         costUsd: Math.round(cost * 100000) / 100000,
       };
     }
-    lastErr = `${res.status} ${await res.text()}`;
+    lastErr = `${res.status} ${await res.text().catch(() => '')}`;
+    if (timer) clearTimeout(timer);
     if (res.status === 429 || res.status === 529 || res.status >= 500) {
       await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
       continue;
@@ -104,6 +120,13 @@ export async function callClaude(opts: {
     break;
   }
   throw new HttpError(502, 'AI_UPSTREAM', lastErr.slice(0, 500));
+}
+
+/** '바로 답하기' 설정은 모델마다 다르다 — 5.5 세대는 between_tools, Sonnet 5 · Opus 5 는 disabled, 그 이전은 원래 생각하지 않음 */
+function fastThinking(model: string) {
+  if (/-5-5|fable|mythos/.test(model)) return { thinking: { type: 'between_tools' } };
+  if (/-5($|-)/.test(model)) return { thinking: { type: 'disabled' } };
+  return {};
 }
 
 /** 응답에서 JSON 객체를 꺼낸다 (```json 펜스나 앞뒤 설명이 섞여도) */

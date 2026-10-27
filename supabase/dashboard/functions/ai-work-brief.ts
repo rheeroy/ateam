@@ -85,12 +85,17 @@ async function callClaude(opts) {
     ...opts.temperature !== void 0 ? { temperature: opts.temperature } : {},
     // 시스템 프롬프트는 기능마다 고정이므로 캐시한다
     system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
-    messages: [{ role: "user", content: opts.content }]
+    messages: [{ role: "user", content: opts.content }],
+    ...opts.thinking === "fast" ? fastThinking(opts.model) : {},
+    ...opts.effort ? { output_config: { effort: opts.effort } } : {}
   };
+  const deadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : 0;
   let lastErr = "";
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ctl = opts.timeoutMs ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => ctl.abort(), opts.timeoutMs) : null;
+    const remain = deadline ? deadline - Date.now() : 0;
+    if (deadline && remain < 5e3) throw new HttpError(504, "AI_TIMEOUT", `AI \uC751\uB2F5\uC774 ${Math.round((opts.timeoutMs ?? 0) / 1e3)}\uCD08 \uC548\uC5D0 \uC624\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4${lastErr ? ` (${lastErr.slice(0, 120)})` : ""}`);
+    const ctl = deadline ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), remain) : null;
     let res;
     try {
       res = await fetch(`${Deno.env.get("ANTHROPIC_BASE_URL") ?? "https://api.anthropic.com"}/v1/messages`, {
@@ -108,10 +113,21 @@ async function callClaude(opts) {
       if (ctl?.signal.aborted) throw new HttpError(504, "AI_TIMEOUT", `AI \uC751\uB2F5\uC774 ${Math.round((opts.timeoutMs ?? 0) / 1e3)}\uCD08 \uC548\uC5D0 \uC624\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4`);
       throw e;
     }
-    if (timer) clearTimeout(timer);
     if (res.ok) {
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        if (ctl?.signal.aborted) throw new HttpError(504, "AI_TIMEOUT", `AI \uC751\uB2F5\uC774 ${Math.round((opts.timeoutMs ?? 0) / 1e3)}\uCD08 \uC548\uC5D0 \uC624\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4`);
+        throw e;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
       const text = (data.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("");
+      if (!text.trim() && deadline) {
+        console.warn("claude empty response", { stop: data.stop_reason, usage: data.usage });
+        throw new HttpError(502, "AI_EMPTY", `AI \uC751\uB2F5\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4 (stop: ${data.stop_reason ?? "-"})`);
+      }
       if (!text.trim() && attempt < 2) {
         lastErr = `empty response (stop: ${data.stop_reason ?? "-"})`;
         body.max_tokens = Math.min(12e3, body.max_tokens * 2);
@@ -128,7 +144,8 @@ async function callClaude(opts) {
         costUsd: Math.round(cost * 1e5) / 1e5
       };
     }
-    lastErr = `${res.status} ${await res.text()}`;
+    lastErr = `${res.status} ${await res.text().catch(() => "")}`;
+    if (timer) clearTimeout(timer);
     if (res.status === 429 || res.status === 529 || res.status >= 500) {
       await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
       continue;
@@ -136,6 +153,11 @@ async function callClaude(opts) {
     break;
   }
   throw new HttpError(502, "AI_UPSTREAM", lastErr.slice(0, 500));
+}
+function fastThinking(model) {
+  if (/-5-5|fable|mythos/.test(model)) return { thinking: { type: "between_tools" } };
+  if (/-5($|-)/.test(model)) return { thinking: { type: "disabled" } };
+  return {};
 }
 function parseJson(text) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -462,7 +484,9 @@ async function runAi(job) {
 ${job.system}`,
     content: job.content,
     maxTokens: job.maxTokens,
-    timeoutMs: job.timeoutMs
+    timeoutMs: job.timeoutMs,
+    thinking: job.thinking,
+    effort: job.effort
   });
   let parsed;
   try {
