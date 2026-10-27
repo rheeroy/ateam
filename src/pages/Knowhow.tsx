@@ -237,7 +237,7 @@ export default function Knowhow() {
 
   return (
     <section>
-      <PageHeader title="노하우 라이브러리" sub={aiText('AI가 일할 때 따르는 기준입니다 — 팀장님이 넣은 노하우가 먼저, 그다음 ATEAM Method™')} />
+      <PageHeader title="노하우 라이브러리" sub={aiText('AI가 일할 때 따르는 기준입니다. 팀장님 노하우를 가장 먼저 적용하고, 차순위로 ATEAM Method™를 씁니다')} />
       <div className="mb-6">
         <Tabs value={tab} onChange={setTab} items={[
           { id: 'playbook', label: <><Library size={15} />{PLAYBOOK} <span className="num text-xs text-slate-400">{playbook.length}</span></> },

@@ -61,7 +61,7 @@ export default function Decide() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">의사결정
               {st && <span className={cx('text-xs font-semibold border rounded-full px-2 py-0.5', st.cls)}>{st.label}</span>}</h1>
-            <p className="text-sm text-slate-500">목표 · 팀원 · 위에서 온 것 · 결과물 — 경계 없이 결정이 필요한 것과 리스크를 한 판에 모읍니다</p>
+            <p className="text-sm text-slate-500">목표 · 팀원 · 상위 지시 · 결과물에서 팀장이 결정해야 할 것과 리스크를 한곳에 모아 보여줍니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

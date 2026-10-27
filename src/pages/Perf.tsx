@@ -196,7 +196,7 @@ export default function Perf() {
         <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-sm shrink-0"><ScatterChart size={20} /></span>
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">팀 성과</h1>
-          <p className="text-sm text-slate-500">{`${now.getFullYear()}년 ${Math.floor(now.getMonth() / 3) + 1}분기 · ${fmtDate(now.toISOString())} 기준 · 이대로 가면 어디에 떨어지는지, 시간은 어디에 쓰는지, 사람은 어디쯤인지`}</p>
+          <p className="text-sm text-slate-500">{`${now.getFullYear()}년 ${Math.floor(now.getMonth() / 3) + 1}분기 · ${fmtDate(now.toISOString())} 기준 · 목표 달성 전망 · 시간 배분 · 팀원별 성과를 한눈에 봅니다`}</p>
         </div>
       </div>
       <Tabs value={tab} onChange={setTab} items={PERF_TABS} />

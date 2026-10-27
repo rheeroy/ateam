@@ -269,6 +269,8 @@ cards \uB294 1~12\uAC1C. \uAC19\uC740 \uB0B4\uC6A9\uC740 \uD558\uB098\uB85C \uD5
 
 // functions/ai-ingest-knowhow/index.ts
 var CREDITS = 2;
+var FREE_ONBOARDING = 10;
+var IMAGE_MIME = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 var KINDS = ["principle", "rubric", "framework", "context", "coaching", "glossary"];
 var FEATURES = ["review", "prep", "report", "evaluation", "briefing", "strategy", "scenario", "plan"];
 serve(async (req) => {
@@ -277,7 +279,15 @@ serve(async (req) => {
   const caller = await getCaller(req);
   const src = must(await admin.from("knowhow_sources").select("*").eq("id", source_id).maybeSingle());
   await assertLeader(caller, src.team_id);
-  await assertCredits(src.team_id, CREDITS);
+  const { data: tm } = await admin.from("teams").select("settings, created_at").eq("id", src.team_id).single();
+  const onboarding = tm?.settings?.onboarding ?? {};
+  let credits = CREDITS;
+  const young = !!tm?.created_at && Date.now() - Date.parse(tm.created_at) < 30 * 864e5;
+  if (onboarding.status === "pending" && young && src.status !== "done") {
+    const { count } = await admin.from("credit_ledger").select("id", { count: "exact", head: true }).eq("team_id", src.team_id).eq("ai_kind", "knowhow_ingest").eq("delta", 0);
+    if ((count ?? 0) < FREE_ONBOARDING) credits = 0;
+  }
+  await assertCredits(src.team_id, credits);
   await admin.from("knowhow_sources").update({ status: "processing", error: null }).eq("id", src.id);
   try {
     const content = [];
@@ -287,13 +297,20 @@ serve(async (req) => {
       const bytes = new Uint8Array(await file.arrayBuffer());
       if (bytes.length > 20 * 1024 * 1024) throw new HttpError(413, "FILE_TOO_LARGE");
       content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: toBase64(bytes) }, title: src.title || src.file_name || "\uC790\uB8CC" });
+    } else if (IMAGE_MIME.includes(src.mime_type) && src.file_path) {
+      const { data: file, error } = await admin.storage.from("knowhow").download(src.file_path);
+      if (error) throw error;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (bytes.length > 5 * 1024 * 1024) throw new HttpError(413, "FILE_TOO_LARGE");
+      content.push({ type: "image", source: { type: "base64", media_type: src.mime_type, data: toBase64(bytes) } });
     } else if (!src.raw_text.trim()) {
       throw new HttpError(422, "NO_TEXT", "\uB0B4\uC6A9\uC774 \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4");
     }
     content.push({ type: "text", text: [
       `\uC790\uB8CC \uC81C\uBAA9: ${src.title || src.file_name || "(\uC81C\uBAA9 \uC5C6\uC74C)"}`,
       src.raw_text.trim() ? `## \uC790\uB8CC \uBCF8\uBB38
-${src.raw_text.slice(0, 6e4)}` : "## \uC790\uB8CC \uBCF8\uBB38\n(\uCCA8\uBD80 PDF)"
+${src.raw_text.slice(0, 6e4)}` : `## \uC790\uB8CC \uBCF8\uBB38
+(\uCCA8\uBD80 ${IMAGE_MIME.includes(src.mime_type) ? "\uC774\uBBF8\uC9C0" : "PDF"})`
     ].join("\n\n") });
     const res = await callClaude({ model: MODEL_SMART, system: `${BASE_RULES}
 
@@ -318,7 +335,7 @@ ${INGEST}`, content, maxTokens: 3e3 });
     await admin.from("knowhow_sources").update({ status: "done", summary: out.summary ?? "", card_count: rows.length }).eq("id", src.id);
     await admin.rpc("consume_credits", {
       p_team: src.team_id,
-      p_credits: CREDITS,
+      p_credits: credits,
       p_kind: "knowhow_ingest",
       p_ai_output: null,
       p_model: res.model,

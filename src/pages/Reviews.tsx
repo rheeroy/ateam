@@ -54,7 +54,7 @@ export default function Reviews() {
               className={cx('text-xs rounded-full px-3 py-1.5 border whitespace-nowrap', f === id ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300')}>
               {label} <span className="num">{count(id)}</span></button>
           ))}
-        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">업무스페이스</span><span className="text-xs text-slate-400 truncate">왼쪽은 팀원별, 오른쪽은 그룹별 — 최신이 위. 승인하거나 '정리'하면 카드에서 빠지고 스페이스에는 남습니다</span></div>}
+        </div> : <div className="flex items-center gap-2 min-w-0"><Users size={15} className="text-sky-600 shrink-0" /><span className="font-semibold whitespace-nowrap">업무스페이스</span><span className="text-xs text-slate-400 truncate">팀원별 · 그룹별로 최근 업무를 모아 봅니다. 승인하거나 정리한 업무는 목록에서 빠지고 기록은 남습니다</span></div>}
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5">
           {([['people', '업무스페이스', Users], ['list', '전체 목록', LayoutList], ['goal', '목표별', Layers]] as const).map(([id, label, I]) => (
             <button key={id} onClick={() => set('view', id === 'people' ? null : id)} className={cx('text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1', view === id ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}><I size={13} />{label}</button>

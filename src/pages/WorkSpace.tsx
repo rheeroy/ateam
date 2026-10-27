@@ -73,3 +73,4 @@ function SummaryLine({ uid, open, onToggle }: { uid: string; open: boolean; onTo
     </button>
   );
 }
+

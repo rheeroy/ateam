@@ -35,7 +35,7 @@ export default function Advisor() {
           <LogoBlock size={44} className="shadow-sm" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight"><ATeamAdvice /></h1>
-            <p className="text-sm text-slate-500">매주 월요일 아침, 팀 성과를 올리고 팀을 잘 운영하기 위한 참모의 처방 — 6개 운영 레버를 빠짐없이 점검합니다</p>
+            <p className="text-sm text-slate-500">매주 월요일 아침, 팀 성과와 운영을 위해 이번 주에 바꿀 것을 6개 영역에서 점검해 제안합니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -56,7 +56,7 @@ export default function Advisor() {
           {adv.stale && !adv.out && <p className="text-xs rounded-lg bg-amber-50 text-amber-800 px-3 py-2">지난주({fmtDate(adv.stale.period_start)}) 제안입니다. 이번 주 제안은 월요일 아침에 자동으로 만들어지고, '이번 주 제안 받기'로 지금 받을 수도 있습니다.</p>}
           <Hero c={c} at={shown!.created_at} />
           <section className="pt-3">
-            <SectionHead title="운영 레버 점검" sub="6개 영역을 매주 빠짐없이 — 처방이 없는 레버도 상태를 표시합니다" />
+            <SectionHead title="운영 레버 점검" sub="6개 영역을 매주 모두 점검합니다. 제안이 없는 영역도 현재 상태를 보여줍니다" />
             <LeverGrid c={c} />
           </section>
           <section className="pt-3 grid lg:grid-cols-3 gap-5 items-start">
@@ -70,7 +70,7 @@ export default function Advisor() {
             </div>
           </section>
           <section className="pt-3">
-            <SectionHead title="돌아보기" sub="지난주 제안의 결과와 이번 주 나의 상태 — 다음 주 처방에 반영됩니다" />
+            <SectionHead title="돌아보기" sub="지난주 제안을 어떻게 했는지 남기면 다음 주 제안에 반영됩니다" />
             <div className="grid lg:grid-cols-3 gap-5 items-start">
               <div className="lg:col-span-2"><Review c={c} prev={adv.prev?.content ?? null} prevWeek={adv.prev?.period_start ?? null} /></div>
               <SelfCheckCard teamId={team.id} uid={uid} />

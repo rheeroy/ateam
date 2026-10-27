@@ -70,7 +70,7 @@ export default function Setup() {
             <div className="text-[11px] font-semibold tracking-widest text-violet-300">시작하기 · 약 5분</div>
             <p className="mt-3 text-[17px] font-semibold leading-relaxed">
               안녕하세요{first ? `, ${first} 팀장님` : ''}.<br />
-              저는 <AteamAI supCls="text-violet-300" />입니다. {team.name}이 바로 쓸 수 있게 세 가지만 같이 정리해 볼게요.
+              저는 <AteamAI supCls="text-violet-300" />입니다. 바로 시작할 수 있도록 세 가지만 함께 준비해 볼게요.
             </p>
           </div>
           <ol className="relative mt-8 space-y-1" aria-label="시작하기 단계">
@@ -439,7 +439,7 @@ function StepPlan({ onNext }: { onNext: () => void }) {
   const blocked = runs >= FREE_RUNS;
   return (
     <section className="flex-1 flex flex-col">
-      <StepHead title="가지고 있는 자료로 팀목표 초안을 만듭니다" preview={1}>
+      <StepHead title="팀목표 초안을 만듭니다. 팀 운영의 중요한 뼈대입니다." preview={1}>
         사업계획서, 업무 분장표, 회의록, 임원 보고 자료처럼 이미 있는 자료를 그대로 올려 주세요. 정리되지 않아도 괜찮고, 내년 계획 자료여도 올해 팀목표로 정리합니다.
         {' '}<CoreAI />가 목표 › 과제 › 할 일 초안을 만들고, 위에서 내려온 방침·요청·일정은 임원 브리핑에 쓸 '상위 전략·방침'으로 따로 골라 둡니다.
       </StepHead>
@@ -702,8 +702,8 @@ function StepKnowhow({ onBack, onNext }: { onBack: () => void; onNext: () => voi
 
   return (
     <section className="flex-1 flex flex-col">
-      <StepHead title="팀장님이 일하는 기준을 알려 주세요" preview={2}>
-        평가 기준표, 보고서 양식, 일하는 원칙, 자주 하는 피드백을 올려 주세요. <CoreAI />가 카드로 정리해 결과물 검토 · 1on1 준비 · 보고 초안을 쓸 때 {PLAYBOOK}보다 먼저 적용합니다.
+      <StepHead title="팀원이 지향해야 할 일 잘하는 법 · 기준 · 방식 등을 적어주세요." preview={2}>
+        보고서 양식 · 일 잘하는 노하우 · 자주 하는 피드백 · 평가 철학 등을 올려 주세요. <CoreAI />가 카드로 정리해 결과물 검토 · 1on1 준비 · 보고 초안을 쓸 때 {PLAYBOOK}보다 먼저 적용합니다.
       </StepHead>
       <div className="rounded-2xl bg-slate-50/70 ring-1 ring-slate-200/70 p-5 sm:p-6 space-y-4">
         <div className="flex flex-wrap gap-1.5">

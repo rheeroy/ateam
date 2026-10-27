@@ -30,7 +30,7 @@ export default function Upward() {
           <span className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm"><UserRound size={20} /></span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight leading-tight">임원 브리핑</h1>
-            <p className="text-sm text-slate-500">위가 이번 주 궁금해하거나 챌린지할 것을 미리 챙깁니다 — 보고는 팀장이 직접 합니다</p>
+            <p className="text-sm text-slate-500">실장 · 본부장 등 상위 관리자가 요구할 것 · 챌린지 할 것 등을 미리 예측하고 챙깁니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
