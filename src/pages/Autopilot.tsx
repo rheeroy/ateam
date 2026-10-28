@@ -3,9 +3,9 @@
 //   ?run=<id> 가 없으면 가장 최근 실행을 보여 주고, 실행한 적이 없으면 시작 안내를 보여 준다
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ChevronDown, History, Settings2 } from 'lucide-react';
+import { ArrowRight, BookOpen, Briefcase, ChevronDown, Gauge, HeartHandshake, History, Hourglass, Landmark, Lightbulb, ListChecks, Scale, Settings2, Siren, Sparkles, Target, TrendingUp, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { cx, fmtDate } from '../lib/format';
+import { cx, fmtDate, initial } from '../lib/format';
 import {
   AP_EVENT, AP_TYPES, KEY_QUESTIONS, KQ_SHORT, LINKS, MODE_LABEL, itemsOf, stripTags, useApAct, useApQuota, useApRun, useApRuns,
   type ApAction, type ApGoalForecast, type ApItem, type ApOutput, type ApRun, type ApTodo,
@@ -179,8 +179,14 @@ function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun;
 
   // 제목 = 무엇을, 이유 = 왜 (액션 · 할 일마다 AI가 쓴 짧은 이유, 없으면 항목 제목)
   const title = a ? `${nameOf(a.member_id) || '팀원'}에게 ${AP_TYPES[a.type].label}` : l.kind === 'todo' ? stripTags(l.t.text) || stripTags(x.title) : stripTags(x.title);
-  const why = a ? stripTags(a.why) || stripTags(x.title) : l.kind === 'todo' ? stripTags(l.t.why) || stripTags(x.title) : x.forecast ? `현재 ${x.forecast.progress}%${x.forecast.plan_now != null ? ` · 계획상 오늘 ${x.forecast.plan_now}%` : ''} · 리스크 시 ${x.forecast.risk}%` : firstSentence(x.detail);
-  const more = !!(x.detail || x.forecast || a);
+  // 이유: 액션 · 할 일마다 AI가 쓴 한 줄. 예전 결과처럼 없으면, 액션은 받는 사람의 과제 · 결과물 이름으로 (다른 사람 이야기가 섞이지 않게)
+  const actWhy = a ? stripTags(a.why) || [a.submission_title, a.item_title].filter(Boolean).join(' · ') || stripTags(x.title) : '';
+  const why = a ? actWhy : l.kind === 'todo' ? stripTags(l.t.why) || stripTags(x.title) : x.forecast ? `현재 ${x.forecast.progress}%${x.forecast.plan_now != null ? ` · 계획상 오늘 ${x.forecast.plan_now}%` : ''} · 리스크 시 ${x.forecast.risk}%` : firstSentence(x.detail);
+  // 펼친 설명: 위 이유 줄이 그대로 다 보이고, 그 아래 자세한 내용. 알아 둘 것은 첫 문장이 이유 줄이므로 나머지만
+  // 한 항목에 여러 사람 액션이 묶이면 항목 설명이 다른 사람 이야기일 수 있어 액션 줄에는 붙이지 않는다
+  const sameItem = !a || x.action_keys.length <= 1;
+  const detail = !sameItem ? '' : l.kind === 'info' && !x.forecast ? stripTags(x.detail).slice(firstSentence(x.detail).length).trim() : stripTags(x.detail);
+  const more = !!(x.detail || x.forecast || a || why.length > 40);
   const btn = 'text-[12.5px] font-bold rounded-lg px-3 py-1.5 whitespace-nowrap';
   const canUndo = sent && Date.now() - Date.parse(st!.at) < 10 * 60000;
 
@@ -192,16 +198,15 @@ function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun;
 
   const head = (
     <>
-      <span title={KEY_QUESTIONS[x.q - 1]} className="hidden sm:block w-[78px] shrink-0 text-[12px] text-slate-500"><b className="num text-slate-800 mr-1">{x.q}</b>{KQ_SHORT[x.q - 1]}</span>
+      <Thumb l={l} name={a ? nameOf(a.member_id) : ''} />
       <div className="flex-1 min-w-0">
-        <div className="sm:hidden text-[11.5px] text-slate-500 mb-0.5"><b className="num text-slate-800 mr-1">{x.q}</b>{KQ_SHORT[x.q - 1]}</div>
+        <div title={KEY_QUESTIONS[x.q - 1]} className="text-[11.5px] text-slate-400 truncate mb-0.5"><b className="num font-bold text-violet-600 mr-1">Q{x.q}</b>{KEY_QUESTIONS[x.q - 1]}</div>
         <div className="min-w-0 leading-snug">
           <span className={cx('text-[14.5px] font-semibold text-slate-900 leading-snug', to && 'group-hover:text-indigo-700')}>{title}</span>
-          {l.kind === 'todo' && <span className="ml-1.5 align-[2px] whitespace-nowrap text-[10.5px] font-bold text-indigo-700 bg-indigo-50 rounded px-1.5 py-0.5">팀장님 할 일</span>}
           {x.effect && l.kind === 'info' && <span className={cx('ml-1.5 whitespace-nowrap text-[12px] font-bold', /[−-]\s?\d/.test(x.effect) ? 'text-rose-600' : 'text-emerald-600')}>{stripTags(x.effect)}</span>}
           {a?.sensitive && <span className="ml-1.5 align-[2px] whitespace-nowrap text-[10.5px] font-bold text-rose-700 bg-rose-50 rounded px-1.5 py-0.5">{a.sensitive}</span>}
         </div>
-        {why && <div className="mt-0.5 text-[12.5px] text-slate-500 truncate">{why}</div>}
+        {why && <div className={cx('mt-0.5 text-[12.5px] text-slate-500', open ? 'whitespace-pre-wrap' : 'truncate')}>{why}</div>}
       </div>
     </>
   );
@@ -219,9 +224,9 @@ function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun;
         </div>
       </div>
       {open && (
-        <div className="px-4 sm:pl-[110px] sm:pr-[60px] pb-4 -mt-0.5 space-y-3 text-[13px] leading-relaxed text-slate-600">
+        <div className="px-4 pl-[64px] sm:pl-[68px] sm:pr-[60px] pb-4 -mt-0.5 space-y-3 text-[13px] leading-relaxed text-slate-600">
           {x.forecast && <GoalBars g={x.forecast} quarterEnd={quarterEnd} />}
-          {x.detail && <p className={cx('whitespace-pre-wrap', x.q === 7 && 'text-[14px] text-slate-700 leading-[1.8]')}>{stripTags(x.detail)}</p>}
+          {detail && <p className="whitespace-pre-wrap">{detail}</p>}
           {a && (
             <div className={cx('rounded-xl ring-1 px-3.5 py-3', sent ? 'bg-violet-50/50 ring-violet-100' : 'bg-white ring-slate-200')}>
               <div className="flex items-center gap-2 text-[11.5px] text-slate-400 mb-1.5">
@@ -235,11 +240,23 @@ function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun;
               {a.sensitive && !sent && <p className="mt-2 text-[11.5px] text-rose-600">{a.sensitive} — 자동으로는 보내지 않았습니다. 내용을 확인하고 보내 주세요.</p>}
             </div>
           )}
-          {(x.tag || x.also.length > 0) && <div className="text-[11.5px] text-slate-400">{[x.tag, ...x.also.map((n) => `관련 질문 ${n} ${KQ_SHORT[n - 1]}`)].filter(Boolean).join(' · ')}</div>}
+          {sameItem && (x.tag || x.also.length > 0) && <div className="text-[11.5px] text-slate-400">{[x.tag, ...x.also.map((n) => `관련 질문 ${n} ${KQ_SHORT[n - 1]}`)].filter(Boolean).join(' · ')}</div>}
         </div>
       )}
     </div>
   );
+}
+
+/** 줄 앞 동그란 썸네일 — 사람에게 보내는 액션은 성(姓), 팀장님 할 일은 갈 곳의 아이콘, 알아 둘 것은 종류 아이콘 */
+const TODO_ICON: Record<string, LucideIcon> = { upward: Landmark, decide: Scale, work: Briefcase, people: Users, goals: Target, knowhow: BookOpen };
+const Q_ICON: Record<number, LucideIcon> = { 1: Siren, 2: Hourglass, 3: Gauge, 4: TrendingUp, 5: HeartHandshake, 6: Sparkles, 7: Lightbulb };
+function Thumb({ l, name }: { l: Line; name: string }) {
+  const base = 'w-9 h-9 rounded-full shrink-0 flex items-center justify-center mt-0.5 sm:mt-0';
+  if (l.kind === 'act') return <span className={cx(base, 'bg-slate-700 text-white text-sm font-semibold')}>{initial(name)}</span>;
+  if (l.kind === 'todo') { const I = TODO_ICON[l.t.link ?? ''] ?? ListChecks; return <span className={cx(base, 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100')}><I size={17} /></span>; }
+  const risk = /[−-]\s?\d/.test(l.x.effect) || l.x.tag.includes('리스크');
+  const I = risk ? TriangleAlert : Q_ICON[l.x.q] ?? Lightbulb;
+  return <span className={cx(base, risk ? 'bg-rose-50 text-rose-500' : l.x.forecast ? 'bg-violet-50 text-violet-600' : 'bg-slate-100 text-slate-500')}><I size={17} /></span>;
 }
 
 function GoalBars({ g, quarterEnd }: { g: ApGoalForecast; quarterEnd: string }) {
