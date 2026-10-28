@@ -154,7 +154,7 @@ function Result({ run, out }: { run: ApRun; out: ApOutput }) {
       <div className="rounded-[18px] bg-white ring-1 ring-slate-200 overflow-hidden">
         {!shown.length ? <p className="px-5 py-8 text-center text-sm text-slate-500">{todoOnly ? '처리할 것이 남아 있지 않습니다.' : '해당하는 항목이 없습니다.'}</p>
           : shown.map((l, i) => (
-            <Row key={`${l.key}-${openAll}`} run={run} l={l} first={i === 0} newGroup={i > 0 && shown[i - 1].x.q !== l.x.q} defaultOpen={openAll} quarterEnd={out.forecast.quarter_end} />
+            <Row key={`${l.key}-${openAll}`} n={i + 1} run={run} l={l} first={i === 0} newGroup={i > 0 && shown[i - 1].x.q !== l.x.q} defaultOpen={openAll} quarterEnd={out.forecast.quarter_end} />
           ))}
       </div>
       <p className="text-xs text-slate-400 px-1">분기 전망의 ‘지금 속도’는 지금까지의 진척 속도를 남은 기간에 그대로 적용한 계산값이고, 리스크 · 제안 실행 시의 변화폭은 Core AI가 근거를 보고 판단한 값입니다.</p>
@@ -165,7 +165,7 @@ function Result({ run, out }: { run: ApRun; out: ApOutput }) {
 const firstSentence = (t: string) => stripTags(t).split(/(?<=[.!?。])\s|\n/)[0] ?? '';
 
 /** 한 줄 — 제목(무엇을) · 한 줄 이유(왜) · 오른쪽 버튼 하나. 펼치면 자세한 설명과 (액션이면) 보낼 메시지 */
-function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun; l: Line; first: boolean; newGroup: boolean; defaultOpen: boolean; quarterEnd: string }) {
+function Row({ n, run, l, first, newGroup, defaultOpen, quarterEnd }: { n: number; run: ApRun; l: Line; first: boolean; newGroup: boolean; defaultOpen: boolean; quarterEnd: string }) {
   const { team, nameOf } = useTeam();
   const { send, undo } = useApAct(run.id, team.id);
   const [open, setOpen] = useState(defaultOpen);
@@ -198,9 +198,11 @@ function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun;
 
   const head = (
     <>
+      <span className="w-5 shrink-0 text-right text-[13px] font-bold num text-slate-400 mt-[9px] sm:mt-0">{n}</span>
+      <div className="hidden md:block w-[100px] shrink-0 text-[11.5px] leading-[1.35] text-slate-500"><b className="num font-bold text-violet-600 mr-1">Q{x.q}</b>{KEY_QUESTIONS[x.q - 1]}</div>
       <Thumb l={l} name={a ? nameOf(a.member_id) : ''} />
       <div className="flex-1 min-w-0">
-        <div title={KEY_QUESTIONS[x.q - 1]} className="text-[11.5px] text-slate-400 truncate mb-0.5"><b className="num font-bold text-violet-600 mr-1">Q{x.q}</b>{KEY_QUESTIONS[x.q - 1]}</div>
+        <div title={KEY_QUESTIONS[x.q - 1]} className="md:hidden text-[11.5px] text-slate-400 truncate mb-0.5"><b className="num font-bold text-violet-600 mr-1">Q{x.q}</b>{KEY_QUESTIONS[x.q - 1]}</div>
         <div className="min-w-0 leading-snug">
           <span className={cx('text-[14.5px] font-semibold text-slate-900 leading-snug', to && 'group-hover:text-indigo-700')}>{title}</span>
           {x.effect && l.kind === 'info' && <span className={cx('ml-1.5 whitespace-nowrap text-[12px] font-bold', /[−-]\s?\d/.test(x.effect) ? 'text-rose-600' : 'text-emerald-600')}>{stripTags(x.effect)}</span>}
@@ -224,7 +226,7 @@ function Row({ run, l, first, newGroup, defaultOpen, quarterEnd }: { run: ApRun;
         </div>
       </div>
       {open && (
-        <div className="px-4 pl-[64px] sm:pl-[68px] sm:pr-[60px] pb-4 -mt-0.5 space-y-3 text-[13px] leading-relaxed text-slate-600">
+        <div className="px-4 pl-[96px] sm:pl-[100px] md:pl-[212px] sm:pr-[60px] pb-4 -mt-0.5 space-y-3 text-[13px] leading-relaxed text-slate-600">
           {x.forecast && <GoalBars g={x.forecast} quarterEnd={quarterEnd} />}
           {detail && <p className="whitespace-pre-wrap">{detail}</p>}
           {a && (
