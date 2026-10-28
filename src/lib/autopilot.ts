@@ -113,16 +113,17 @@ export function itemsOf(out: ApOutput): ApItem[] {
     const s = out.sections?.[k];
     if (!s) return;
     const q = { critical: 1, bottleneck: 2, resource: 3, people: 5 }[k];
-    const rows: ApItem[] = s.diagnosis.map((d) => ({ ...base, id: id(), q, level: d.level === 'high' ? 'high' : 'mid', title: stripTags(d.text), detail: '', tag: d.tag ?? '' }));
+    // 예전 결과도 목록이 너무 길지 않게 — 질문마다 진단 3줄까지
+    const rows: ApItem[] = s.diagnosis.slice(0, 3).map((d) => ({ ...base, id: id(), q, level: d.level === 'high' ? 'high' : 'mid', title: stripTags(d.text), detail: '', tag: d.tag ?? '' }));
     if (!rows.length && (s.action_keys.length || s.todos.length)) rows.push({ ...base, id: id(), q, level: 'mid', title: stripTags(s.note) || KEY_QUESTIONS[q - 1], detail: '' });
     if (rows[0]) rows[0].action_keys = s.action_keys;
     s.todos.forEach((t, i) => { if (rows[i]) rows[i].todo = t; else rows.push({ ...base, id: id(), q, level: 'mid', title: stripTags(t.text), detail: '', todo: t }); });
     L.push(...rows);
   });
-  (out.forecast.risks ?? []).forEach((r) => L.push({ ...base, id: id(), q: 4, level: r.likelihood === 'high' ? 'high' : 'mid', title: stripTags(r.title), detail: r.detail ?? '', effect: r.impact ?? '', tag: '리스크' }));
+  (out.forecast.risks ?? []).slice(0, 2).forEach((r) => L.push({ ...base, id: id(), q: 4, level: r.likelihood === 'high' ? 'high' : 'mid', title: stripTags(r.title), detail: r.detail ?? '', effect: r.impact ?? '', tag: '리스크' }));
   (out.forecast.todos ?? []).forEach((t) => L.push({ ...base, id: id(), q: 4, level: 'mid', title: stripTags(t.text), detail: '', todo: t }));
-  if (out.forecast.lever?.text) L.push({ ...base, id: id(), q: 6, level: 'high', title: '가장 크게 움직이는 레버', detail: out.forecast.lever.text, goal_id: out.forecast.lever.goal_id });
-  (out.solutions ?? []).forEach((x) => L.push({ ...base, id: id(), q: 6, level: 'mid', title: stripTags(x.title), detail: x.why ?? '', effect: x.effect ?? '', todo: x.link ? { text: '', link: x.link, label: x.label } : null }));
+  if (out.forecast.lever?.text) { const t = stripTags(out.forecast.lever.text); const f = t.split(/(?<=[.!?])\s/)[0]; L.push({ ...base, id: id(), q: 6, level: 'high', title: f, detail: t.slice(f.length).trim(), goal_id: out.forecast.lever.goal_id }); }
+  (out.solutions ?? []).forEach((x) => L.push({ ...base, id: id(), q: 6, level: 'mid', title: stripTags(x.title), detail: x.why ?? '', effect: x.effect ?? '', todo: x.link ? { text: '', link: x.link, label: x.label, why: stripTags(x.why).split(/(?<=[.!?])\s/)[0] } : null }));
   if (out.perspective?.text) L.push({ ...base, id: id(), q: 7, level: 'low', title: '한 걸음 물러서서 보면', detail: out.perspective.text, tag: out.perspective.sources ?? '' });
   return ins(L.sort((a, b) => a.q - b.q));
 }
