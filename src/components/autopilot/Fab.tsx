@@ -2,14 +2,15 @@
 //   실제 진행(autopilot_runs.step)과 경과 시간을 함께 써서 진행률을 그리고, 끝나면 결과(/advisor?run=)로 간다
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Settings2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { cx } from '../../lib/format';
 import { errorText } from '../../lib/supabase';
-import { AP_EVENT, KEY_QUESTIONS, MODE_LABEL, autopilotOf, useApQuota, useApRun, useApRuns, useStartAutopilot } from '../../lib/autopilot';
+import { AP_EVENT, KEY_QUESTIONS, useApQuota, useApRun, useApRuns, useStartAutopilot } from '../../lib/autopilot';
 import { useToast } from '../ui';
 import { AutopilotDial } from './Dial';
 import { AutopilotSettings } from './Settings';
+import { ModeSwitch } from './ModeSwitch';
 
 const LS = 'ateam.autopilot.run.';
 const storeFor = (team: string) => ({ get: () => { try { return sessionStorage.getItem(LS + team); } catch { return null; } }, set: (v: string | null) => { try { if (v) sessionStorage.setItem(LS + team, v); else sessionStorage.removeItem(LS + team); } catch { /* 저장 불가 */ } } });
@@ -43,7 +44,6 @@ export function AutopilotFab() {
   const runs = useApRuns(team.id);
   const run = useApRun(runId);
   const start = useStartAutopilot(team.id);
-  const ap = autopilotOf(team.settings);
   const box = useRef<HTMLDivElement>(null);
   const hasMembers = members.some((m) => m.role === 'member');
 
@@ -106,12 +106,13 @@ export function AutopilotFab() {
     <>
       <div ref={box} className={cx('fixed z-40 right-5 bottom-5 sm:right-9 sm:bottom-9 print:hidden transition-all duration-300', visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none')} aria-hidden={!visible}>
         <div role="dialog" aria-label="AUTOPILOT" aria-hidden={!open}
-          className={cx('absolute right-0 bottom-[94px] sm:bottom-[108px] w-[380px] max-w-[calc(100vw-32px)] rounded-[20px] bg-white ring-1 ring-slate-200 shadow-[0_24px_60px_rgba(11,14,26,.28)] overflow-hidden origin-bottom-right transition-all duration-200',
+          className={cx('absolute right-0 bottom-[94px] sm:bottom-[108px] w-[380px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-140px)] overflow-y-auto rounded-[20px] bg-white ring-1 ring-slate-200 shadow-[0_24px_60px_rgba(11,14,26,.28)] overflow-hidden origin-bottom-right transition-all duration-200',
             open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[.98] translate-y-2 pointer-events-none')}>
           <div className="bg-gradient-to-r from-[#0B0E1A] via-[#1E1B4B] to-[#2E1F7A] text-white px-[18px] py-4">
             <div className="flex items-center"><span className="inline-flex items-baseline gap-2"><span className="ap-font text-base">AUTOPILOT</span><span className="ap-on text-[13px] text-violet-400">ON</span></span>
               <button onClick={() => setOpen(false)} aria-label="닫기" className="ml-auto text-indigo-200 hover:text-white"><X size={16} /></button></div>
             <p className="mt-2 text-[12.5px] leading-relaxed text-indigo-200">팀 데이터를 한 번에 읽고, 아래 핵심 질문에 답해 진단 · 시뮬레이션 · 바로 보낼 액션까지 준비합니다.</p>
+            <div className="mt-3.5"><ModeSwitch size="sm" /></div>
           </div>
           <div className="px-[18px] pt-3.5 pb-4">
             <div className="text-[11px] font-extrabold tracking-wider text-slate-400 mb-1.5">KEY QUESTIONS</div>
@@ -126,7 +127,7 @@ export function AutopilotFab() {
                 <span className="flex gap-[3px]">{Array.from({ length: q.limit }, (_, i) => <i key={i} className={cx('w-3.5 h-1.5 rounded-sm', i < q.used ? 'bg-violet-600' : 'bg-slate-200')} />)}</span>
                 <span>{q.remaining}/{q.limit}회 남음</span>
               </>}
-              <button onClick={() => { setOpen(false); setSettings(true); }} className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full px-2.5 py-1"><Settings2 size={12} />모드 · {MODE_LABEL[ap.mode]}</button>
+
             </div>
             <button onClick={go} disabled={!canRun || busy}
               className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold text-sm hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed">

@@ -35,6 +35,9 @@ export const KEY_QUESTIONS = [
   '한 걸음 물러서서, 관점 바꾸기',
 ];
 
+/** 목록 칩에 붙는 짧은 이름 */
+export const KQ_SHORT = ['크리티컬', '병목', '리소스', '분기 전망', '사람', '솔루션', '관점'];
+
 export interface ApSettings { mode: ApMode; allow: Record<ApType, boolean> }
 export function autopilotOf(settings: Record<string, unknown> | undefined): ApSettings {
   const a = (settings?.autopilot ?? {}) as { mode?: string; allow?: Partial<Record<ApType, boolean>> };
@@ -51,22 +54,77 @@ export interface ApAction {
   key: string; section: string; type: ApType; member_id: string; item_id: string | null; submission_id: string | null;
   message: string; sensitive: string; item_title?: string | null; submission_title?: string | null;
 }
+export interface ApGoalForecast { goal_id: string; title: string; progress: number; plan_now: number | null; plan_q: number | null; base: number; risk: number; exec: number; note: string }
+/** 목록 한 줄 — 알아야 할 것 + (있으면) 바로 할 액션 · 팀장 할 일. q 는 관련 핵심 질문 번호(1~7) */
+export interface ApItem {
+  id: string; q: number; also: number[]; level: 'high' | 'mid' | 'low'; title: string; detail: string; tag: string; effect: string;
+  goal_id: string | null; action_keys: string[]; todo: ApTodo | null;
+  /** 시스템이 계산해 만든 목표 전망 줄 */
+  forecast?: ApGoalForecast;
+}
 export interface ApOutput {
+  v?: number;
   headline: string;
-  sections: Record<'critical' | 'bottleneck' | 'resource' | 'people', ApSection>;
+  items?: ApItem[];
   forecast: {
     quarter_end: string;
-    goals: { goal_id: string; title: string; progress: number; plan_now: number | null; plan_q: number | null; base: number; risk: number; exec: number; note: string }[];
-    risks: { title: string; likelihood?: string; impact?: string; detail?: string }[];
-    lever: { text: string; goal_id: string | null } | null;
-    todos: ApTodo[];
+    goals: ApGoalForecast[];
+    // 아래는 이전 형식(v1)
+    risks?: { title: string; likelihood?: string; impact?: string; detail?: string }[];
+    lever?: { text: string; goal_id: string | null } | null;
+    todos?: ApTodo[];
   };
-  solutions: { title: string; why?: string; effect?: string; link?: string; label?: string }[];
-  perspective: { text?: string; sources?: string } | null;
+  // 이전 형식(v1) — 질문별 섹션
+  sections?: Record<'critical' | 'bottleneck' | 'resource' | 'people', ApSection>;
+  solutions?: { title: string; why?: string; effect?: string; link?: string; label?: string }[];
+  perspective?: { text?: string; sources?: string } | null;
   actions: ApAction[];
   sources: { tag: string; type: string; id: string | null; label: string }[];
   counts?: { signals: number; members: number };
 }
+
+/** 목표 전망 줄 (계산값) — 계획 대비 많이 모자라면 high */
+function goalItem(g: ApGoalForecast, qEnd: string): ApItem {
+  const gap = g.plan_q != null ? g.plan_q - g.base : 0;
+  const level = gap >= 15 ? 'high' : gap >= 5 ? 'mid' : 'low';
+  return {
+    id: `g-${g.goal_id}`, q: 4, also: [], level, tag: '팀목표 · 계산값', effect: g.exec > g.base ? `제안 실행 시 ${g.exec}%` : '',
+    title: `${g.title} — 지금 속도면 분기 말 ${g.base}%${g.plan_q != null ? ` (계획 ${g.plan_q}%)` : ''}`,
+    detail: g.note || `지금까지의 진척 속도를 ${qEnd.slice(5).replace('-', '/')}까지 그대로 적용한 값입니다.`,
+    goal_id: g.goal_id, action_keys: [], todo: null, forecast: g,
+  };
+}
+
+/** 화면에 그릴 목록 — 새 형식은 그대로, 이전 형식(질문별 섹션)은 목록으로 바꿔서 */
+export function itemsOf(out: ApOutput): ApItem[] {
+  const goals = (out.forecast?.goals ?? []).map((g) => goalItem(g, out.forecast.quarter_end));
+  const ins = (list: ApItem[]) => { // 목표 전망 줄은 4번 맨 앞에
+    const i = list.findIndex((x) => x.q >= 4);
+    return i < 0 ? [...list, ...goals] : [...list.slice(0, i), ...goals, ...list.slice(i)];
+  };
+  if (out.items) return ins(out.items);
+  const L: ApItem[] = [];
+  let n = 0;
+  const id = () => `v1-${++n}`;
+  const base = { also: [], tag: '', effect: '', goal_id: null, action_keys: [] as string[], todo: null as ApTodo | null };
+  (['critical', 'bottleneck', 'resource', 'people'] as const).forEach((k) => {
+    const s = out.sections?.[k];
+    if (!s) return;
+    const q = { critical: 1, bottleneck: 2, resource: 3, people: 5 }[k];
+    const rows: ApItem[] = s.diagnosis.map((d) => ({ ...base, id: id(), q, level: d.level === 'high' ? 'high' : 'mid', title: stripTags(d.text), detail: '', tag: d.tag ?? '' }));
+    if (!rows.length && (s.action_keys.length || s.todos.length)) rows.push({ ...base, id: id(), q, level: 'mid', title: stripTags(s.note) || KEY_QUESTIONS[q - 1], detail: '' });
+    if (rows[0]) rows[0].action_keys = s.action_keys;
+    s.todos.forEach((t, i) => { if (rows[i]) rows[i].todo = t; else rows.push({ ...base, id: id(), q, level: 'mid', title: stripTags(t.text), detail: '', todo: t }); });
+    L.push(...rows);
+  });
+  (out.forecast.risks ?? []).forEach((r) => L.push({ ...base, id: id(), q: 4, level: r.likelihood === 'high' ? 'high' : 'mid', title: stripTags(r.title), detail: r.detail ?? '', effect: r.impact ?? '', tag: '리스크' }));
+  (out.forecast.todos ?? []).forEach((t) => L.push({ ...base, id: id(), q: 4, level: 'mid', title: stripTags(t.text), detail: '', todo: t }));
+  if (out.forecast.lever?.text) L.push({ ...base, id: id(), q: 6, level: 'high', title: '가장 크게 움직이는 레버', detail: out.forecast.lever.text, goal_id: out.forecast.lever.goal_id });
+  (out.solutions ?? []).forEach((x) => L.push({ ...base, id: id(), q: 6, level: 'mid', title: stripTags(x.title), detail: x.why ?? '', effect: x.effect ?? '', todo: x.link ? { text: '', link: x.link, label: x.label } : null }));
+  if (out.perspective?.text) L.push({ ...base, id: id(), q: 7, level: 'low', title: '한 걸음 물러서서 보면', detail: out.perspective.text, tag: out.perspective.sources ?? '' });
+  return ins(L.sort((a, b) => a.q - b.q));
+}
+
 export interface ApActState { status: 'sent' | 'skip'; ref_table?: string; ref_id?: string; at: string; auto?: boolean; body?: string }
 export interface ApRun {
   id: string; team_id: string; leader_id: string; mode: ApMode; allow: Record<ApType, boolean>; status: 'running' | 'done' | 'failed';

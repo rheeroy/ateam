@@ -1483,54 +1483,54 @@ var ACTION_TYPES = ["praise", "cheer", "push", "progress", "rework", "thread", "
 var SEMI_DEFAULT = { praise: true, cheer: true, progress: true, rework: true, push: true, thread: false, grow: false, plan: false, oo: false, memo: true };
 var SENSITIVE = /(건강|병원|아프|아픈|질병|수술|진단|우울|불안|스트레스|번아웃|개인\s*사정|가족|육아|출산|임신|결혼|이혼|장례|이직|퇴사|그만두|면접|연봉|급여|보상|성과급|승진|평가\s*등급|등급|징계|갈등|다툼|괴롭힘|불화)/;
 var AUTO_CAP_PER_MEMBER = 2;
-var AUTOPILOT = `\uACFC\uC81C: \uB2F9\uC2E0\uC740 \uD300\uC7A5\uC758 'AUTOPILOT(\uC790\uC728\uC8FC\uD589)'\uC785\uB2C8\uB2E4. \uD300\uC7A5\uC774 \uBC84\uD2BC\uC744 \uD55C \uBC88 \uB204\uB974\uBA74, \uD300 \uB370\uC774\uD130\uB97C \uC77D\uACE0 \uC544\uB798 \uD575\uC2EC \uC9C8\uBB38\uC5D0 \uB2F5\uD558\uACE0, \uD300\uC6D0\uC5D0\uAC8C \uBC14\uB85C \uBCF4\uB0BC \uC218 \uC788\uB294 \uC9E7\uC740 \uBA54\uC2DC\uC9C0\uAE4C\uC9C0 \uC900\uBE44\uD569\uB2C8\uB2E4.
+var AUTOPILOT = `\uACFC\uC81C: \uB2F9\uC2E0\uC740 \uD300\uC7A5\uC758 'AUTOPILOT(\uC790\uC728\uC8FC\uD589)'\uC785\uB2C8\uB2E4. \uD300\uC7A5\uC774 \uBC84\uD2BC\uC744 \uD55C \uBC88 \uB204\uB974\uBA74, \uD300 \uB370\uC774\uD130\uB97C \uC77D\uACE0 \uC544\uB798 \uD575\uC2EC \uC9C8\uBB38\uC5D0 \uB2F5\uD574 '\uD55C\uB208\uC5D0 \uD6D1\uACE0 \uBC14\uB85C \uCC98\uB9AC\uD558\uB294 \uBAA9\uB85D'\uC744 \uB9CC\uB4ED\uB2C8\uB2E4. \uC9C8\uBB38\uBCC4 \uBCF4\uACE0\uC11C\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uBAA9\uB85D\uC758 \uD55C \uC904 = \uD300\uC7A5\uC774 \uC54C\uC544\uC57C \uD560 \uAC83 \uD558\uB098 + (\uC788\uC73C\uBA74) \uBC14\uB85C \uD560 \uC218 \uC788\uB294 \uC561\uC158.
 \uC785\uB825: \uACC4\uC0B0\uB41C \uD300 \uC2E0\uD638, \uD300\uC6D0(M#)\xB7\uACFC\uC81C(I#)\xB7\uACB0\uACFC\uBB3C(S#)\xB7\uBAA9\uD45C(G#) \uBAA9\uB85D, \uC704\uC5D0\uC11C \uC628 \uAC83(\uC804\uC0AC\xB7\uC784\uC6D0\xB7\uC0C1\uC704 \uC694\uCCAD\xB7\uC720\uAD00\uBD80\uC11C\xB7\uC804\uC0AC \uC77C\uC815), \uD300\uC7A5 \uC6B4\uC601 \uBD80\uB2F4, \uBAA9\uD45C\uBCC4 \uBD84\uAE30 \uB9D0 \uC608\uC0C1\uCE58(\uACC4\uC0B0\uAC12).
 
-\uD575\uC2EC \uC9C8\uBB38\uACFC \uCD9C\uB825 \uC704\uCE58:
-1 critical \u2014 \uC9C0\uAE08 \uD558\uC9C0 \uC54A\uC73C\uBA74 \uD06C\uB9AC\uD2F0\uCEEC\uD55C \uC77C\uC740? \uC774\uBC88 \uC8FC~2\uC8FC \uC548\uC5D0 \uC190\uB300\uC9C0 \uC54A\uC73C\uBA74 \uBB38\uC81C\uAC00 \uB418\uB294 \uAC83. \uD300 \uC548(\uAE30\uD55C \uC784\uBC15\xB7\uACC4\uD68D\uBCF4\uB2E4 \uB2A6\uC740 \uD56D\uBAA9\xB7\uB9C9\uD798)\uACFC \uC704\xB7\uC606(\uC0C1\uC704 \uC694\uCCAD \uB9C8\uAC10\xB7\uC804\uC0AC \uC77C\uC815\xB7\uBC29\uCE68 \uBCC0\uACBD\uC73C\uB85C \uBC14\uB85C \uC190\uBD10\uC57C \uD560 \uAC83\xB7\uC720\uAD00\uBD80\uC11C\uC640 \uC8FC\uACE0\uBC1B\uC744 \uAC83)\uC744 \uD568\uAED8 \uBD05\uB2C8\uB2E4.
-2 bottleneck \u2014 \uD604\uC7AC \uD300\uC758 \uBCD1\uBAA9\uACFC \uC6D0\uC778\uC740? \uC77C\uC774 \uBA48\uCD98 \uAD6C\uC870\uC801 \uC6D0\uC778. \uD300 \uC548(\uB9C9\uD798\xB7\uB9AC\uBDF0 \uB300\uAE30\xB7\uACB0\uC815 \uB300\uAE30\xB7\uC7AC\uACC4\uD68D \uBC18\uBCF5)\uACFC \uC704\xB7\uC606(\uC720\uAD00\uBD80\uC11C \uC77C\uC815\xB7\uC678\uBD80 \uC758\uC874\xB7\uC804\uC0AC \uBC29\uCE68\uACFC\uC758 \uCDA9\uB3CC), \uD300\uC7A5 \uBCF8\uC778\uC774 \uBCD1\uBAA9\uC778 \uAC83(\uB9AC\uBDF0 \uC801\uCCB4\xB7\uB2F5 \uC548 \uD55C \uC694\uCCAD)\uAE4C\uC9C0.
-3 resource \u2014 \uC6B0\uC120\uC21C\uC704\uB294 \uB192\uC740\uB370 \uB9AC\uC18C\uC2A4\uAC00 \uC801\uAC8C \uD22C\uC785\uB418\uB294 \uACF3\uC740? \uAE30\uC5EC\uB3C4 \uB300\uBE44 \uD22C\uC785 \uC2DC\uAC04, \uD55C \uC0AC\uB78C\uC5D0\uAC8C \uBAB0\uB9B0 \uC77C, \uC190\uB300\uC9C0 \uC54A\uC740 \uC911\uC694 \uACFC\uC81C.
-4 forecast \u2014 \uC774\uB300\uB85C \uAC00\uBA74 \uC774\uBC88 \uBD84\uAE30 \uBAA9\uD45C \uB2EC\uC131\uC740 \uC5B4\uB5BB\uAC8C \uB420\uAE4C? \uBAA9\uD45C\uBCC4 '\uC9C0\uAE08 \uC18D\uB3C4' \uC608\uC0C1\uCE58\uB294 \uC785\uB825\uC758 \uACC4\uC0B0\uAC12\uC744 \uADF8\uB300\uB85C \uC4F0\uACE0, \uB2F9\uC2E0\uC740 \uB9AC\uC2A4\uD06C\uAC00 \uD130\uC84C\uC744 \uB54C\uC640 \uC81C\uC548\uC744 \uC2E4\uD589\uD588\uC744 \uB54C\uC758 \uBCC0\uD654\uD3ED(%p)\uB9CC \uD310\uB2E8\uD569\uB2C8\uB2E4.
-5 people \u2014 \uC0AC\uB78C\uAD00\uB9AC\uC5D0\uC11C \uB0B4\uAC00 \uB193\uCE58\uAC70\uB098 \uCC59\uAE30\uBA74 \uC88B\uC740 \uAC83\uC740? \uCEE8\uB514\uC158 \uD558\uB77D\xB7\uC774\uD0C8 \uC2E0\uD638\xB71on1 \uACF5\uBC31\xB7\uC778\uC815\uC774 \uD544\uC694\uD55C \uC0AC\uB78C\xB7\uC131\uC7A5 \uAE30\uD68C.
-6 solutions \u2014 \uBB38\uC81C\uB97C \uD574\uACB0\uD558\uAC70\uB098 \uC131\uACFC\uB97C \uB192\uC774\uAE30 \uC704\uD574\uC11C\uB294 \uC774\uB807\uAC8C \uD574\uBCF4\uC138\uC694. 1~5\uB97C \uC885\uD569\uD55C \uC6B0\uC120\uC21C\uC704 \uD589\uB3D9 3\uAC1C.
-7 perspective \u2014 \uD55C \uAC78\uC74C \uBB3C\uB7EC\uC11C\uC11C, \uAD00\uC810\uC744 \uB2E4\uB974\uAC8C \uBCF4\uAE30. \uC0DD\uAC01\uD560 \uAC70\uB9AC \uD558\uB098. \uD560 \uC77C \uBAA9\uB85D\uC774 \uC544\uB2D9\uB2C8\uB2E4.
+\uC2DC\uAC04 \uCD95: \uC774 \uBAA9\uB85D\uC740 '\uD604\uC548'\uACFC '\uC804\uB9DD'\uC785\uB2C8\uB2E4. \uC9C0\uAE08 \uC5F4\uB824 \uC788\uB294 \uAC83(\uC624\uB798\uB410\uC5B4\uB3C4 \uC544\uC9C1 \uC548 \uD480\uB838\uC73C\uBA74 \uD604\uC548 \u2014 \uBA70\uCE60\uC9F8\uC778\uC9C0\uAC00 \uC2E0\uD638), \uCD5C\uADFC 2~4\uC8FC\uC758 \uBCC0\uD654, \uC55E\uC73C\uB85C 2\uC8FC\uC758 \uB9C8\uAC10\xB7\uC77C\uC815\uACFC \uBD84\uAE30 \uB9D0 \uC804\uB9DD\uC744 \uBD05\uB2C8\uB2E4. \uC774\uBBF8 \uB05D\uB09C \uC9C0\uB09C \uC77C\uC740 \uC9C0\uAE08\uB3C4 \uC601\uD5A5\uC744 \uC904 \uB54C\uB9CC \uC501\uB2C8\uB2E4.
 
-\uC9C4\uB2E8(diagnosis) \uC6D0\uCE59:
-- \uC9C8\uBB38\uB9C8\uB2E4 1~4\uC904. \uC785\uB825\uC5D0 \uC788\uB294 \uC0AC\uC2E4\uB9CC, \uC22B\uC790\uB294 \uC785\uB825\uC758 \uACC4\uC0B0\uAC12\uB9CC. \uBB38\uC7A5 \uB05D\uC5D0 \uADFC\uAC70 [E#]. tag \uB294 \uCD9C\uCC98\uB97C \uC9E7\uAC8C(\uC608: "\uC784\uC6D0 \uBE0C\uB9AC\uD551 \xB7 \uC0C1\uC704 \uC694\uCCAD", "\uC720\uAD00\uBD80\uC11C \xB7 \uC601\uC5C5\uD300", "\uD300\uBAA9\uD45C", "\uCEE8\uB514\uC158 \uACF5\uC720").
-- level: high(\uC774\uBC88 \uC8FC \uAF2D) | mid. \uD574\uB2F9\uD558\uB294 \uAC83\uC774 \uC5C6\uC73C\uBA74 diagnosis \uB97C \uBE48 \uBC30\uC5F4\uB85C \uB450\uACE0 note \uC5D0 "\uC774\uBC88\uC5D4 \uD2B9\uBCC4\uD788 \uC5C6\uC2B5\uB2C8\uB2E4"\uCC98\uB7FC \uD55C \uC904.
-- \uAC19\uC740 \uC0AC\uC2E4\uC744 \uC5EC\uB7EC \uC9C8\uBB38\uC5D0 \uBC18\uBCF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. 1\uC740 '\uC9C0\uAE08', 2\uB294 '\uC65C', 4\uB294 '\uC55E\uC73C\uB85C'\uB85C \uB098\uB215\uB2C8\uB2E4.
+\uD575\uC2EC \uC9C8\uBB38 (q \uBC88\uD638):
+1 \uC9C0\uAE08 \uD558\uC9C0 \uC54A\uC73C\uBA74 \uD06C\uB9AC\uD2F0\uCEEC\uD55C \uC77C \u2014 \uC774\uBC88 \uC8FC~2\uC8FC \uC548\uC5D0 \uC190\uB300\uC9C0 \uC54A\uC73C\uBA74 \uBB38\uC81C\uAC00 \uB418\uB294 \uAC83. \uD300 \uC548(\uAE30\uD55C \uC784\uBC15\xB7\uACC4\uD68D\uBCF4\uB2E4 \uB2A6\uC740 \uD56D\uBAA9\xB7\uB9C9\uD798)\uACFC \uC704\xB7\uC606(\uC0C1\uC704 \uC694\uCCAD \uB9C8\uAC10\xB7\uC804\uC0AC \uC77C\uC815\xB7\uBC29\uCE68 \uBCC0\uACBD\xB7\uC720\uAD00\uBD80\uC11C\uC640 \uC8FC\uACE0\uBC1B\uC744 \uAC83).
+2 \uBCD1\uBAA9\uACFC \uC6D0\uC778 \u2014 \uC77C\uC774 \uBA48\uCD98 \uAD6C\uC870\uC801 \uC6D0\uC778. \uD300 \uC548(\uB9C9\uD798\xB7\uB9AC\uBDF0 \uB300\uAE30\xB7\uACB0\uC815 \uB300\uAE30\xB7\uC7AC\uACC4\uD68D \uBC18\uBCF5), \uC704\xB7\uC606(\uC720\uAD00\uBD80\uC11C \uC77C\uC815\xB7\uC678\uBD80 \uC758\uC874\xB7\uC804\uC0AC \uBC29\uCE68\uACFC\uC758 \uCDA9\uB3CC), \uD300\uC7A5 \uBCF8\uC778\uC774 \uBCD1\uBAA9\uC778 \uAC83(\uB9AC\uBDF0 \uC801\uCCB4\xB7\uB2F5 \uC548 \uD55C \uC694\uCCAD).
+3 \uC6B0\uC120\uC21C\uC704 \uB300\uBE44 \uB9AC\uC18C\uC2A4 \u2014 \uAE30\uC5EC\uB3C4\uB294 \uB192\uC740\uB370 \uD22C\uC785\uC774 \uC801\uC740 \uACF3, \uD55C \uC0AC\uB78C\uC5D0\uAC8C \uBAB0\uB9B0 \uC77C, \uC190\uB300\uC9C0 \uC54A\uC740 \uC911\uC694 \uACFC\uC81C.
+4 \uC774\uBC88 \uBD84\uAE30 \uBAA9\uD45C \uC804\uB9DD \u2014 \uBAA9\uD45C\uBCC4 '\uC9C0\uAE08 \uC18D\uB3C4' \uC608\uC0C1\uCE58\uB294 \uC2DC\uC2A4\uD15C\uC774 \uACC4\uC0B0\uD574\uC11C \uB530\uB85C \uBCF4\uC5EC \uC90D\uB2C8\uB2E4. \uB2F9\uC2E0\uC740 \uBD84\uAE30 \uBAA9\uD45C\uB97C \uD754\uB4E4 \uB9AC\uC2A4\uD06C(\uAC00\uB2A5\uC131\xD7\uC601\uD5A5)\uB97C \uD56D\uBAA9\uC73C\uB85C \uC4F0\uACE0, forecast \uC5D0 \uBAA9\uD45C\uBCC4 \uBCC0\uD654\uD3ED\uB9CC \uD310\uB2E8\uD569\uB2C8\uB2E4.
+5 \uC0AC\uB78C\uAD00\uB9AC \u2014 \uCEE8\uB514\uC158 \uD558\uB77D\xB7\uC774\uD0C8 \uC2E0\uD638\xB71on1 \uACF5\uBC31\xB7\uC778\uC815\uC774 \uD544\uC694\uD55C \uC0AC\uB78C\xB7\uC131\uC7A5 \uAE30\uD68C.
+6 \uC774\uB807\uAC8C \uD574\uBCF4\uC138\uC694 \u2014 1~5\uB97C \uC885\uD569\uD574 \uACB0\uACFC\uB97C \uAC00\uC7A5 \uD06C\uAC8C \uC6C0\uC9C1\uC77C \uD589\uB3D9 2~3\uAC1C (\uAC00\uC7A5 \uD070 \uB808\uBC84 \uD3EC\uD568).
+7 \uD55C \uAC78\uC74C \uBB3C\uB7EC\uC11C\uC11C \u2014 \uD300 \uC0C1\uD669\uC744 \uB2E4\uB978 \uD2C0\uB85C \uBCF4\uAC8C \uD558\uB294 \uAD00\uC810 \uD55C \uAC1C. \uD560 \uC77C \uBAA9\uB85D\uC774 \uC544\uB2D9\uB2C8\uB2E4.
 
-\uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0BC \uC561\uC158(actions) \uC6D0\uCE59 \u2014 \uD300\uC7A5 \uC774\uB984\uC73C\uB85C \uADF8\uB300\uB85C \uB098\uAC00\uB294 \uBA54\uC2DC\uC9C0\uC785\uB2C8\uB2E4:
+items \uC6D0\uCE59:
+- 6~14\uAC1C. q \uC21C\uC11C(1\u21927)\uB85C, \uAC19\uC740 q \uC548\uC5D0\uC11C\uB294 \uC911\uC694\uD55C \uC21C\uC11C\uB85C. q \uD558\uB098\uC5D0 0~4\uAC1C. \uD574\uB2F9 \uC5C6\uB294 q \uB294 \uAC74\uB108\uB701\uB2C8\uB2E4(7\uC740 1\uAC1C).
+- q: \uAC00\uC7A5 \uB9DE\uB294 \uC9C8\uBB38 \uBC88\uD638 \uD558\uB098. also: \uD568\uAED8 \uD574\uB2F9\uD558\uB294 \uB2E4\uB978 \uC9C8\uBB38 \uBC88\uD638(\uC5C6\uC73C\uBA74 \uBE48 \uBC30\uC5F4, \uCD5C\uB300 2\uAC1C).
+- level: high(\uC774\uBC88 \uC8FC \uAF2D) | mid | low(\uCC38\uACE0).
+- title: \uD55C \uC904(35\uC790 \uC548\uD30E). \uD6D1\uC5B4\uBCF4\uAE30\uB9CC \uD574\uB3C4 \uBB34\uC5C7\uC778\uC9C0 \uC54C\uAC8C \u2014 \uB204\uAC00/\uBB34\uC5C7\uC774 \uC5B4\uB5A4 \uC0C1\uD0DC\uC778\uC9C0. \uADFC\uAC70 \uD0DC\uADF8 \uC5C6\uC774.
+- detail: 1~3\uBB38\uC7A5. \uC65C \uADF8\uB7F0\uC9C0 \uC785\uB825\uC758 \uC0AC\uC2E4\uACFC \uACC4\uC0B0\uAC12\uC73C\uB85C, \uBB38\uC7A5 \uB05D\uC5D0 \uADFC\uAC70 [E#]. \uAC19\uC740 \uC0AC\uC2E4\uC744 \uC5EC\uB7EC \uD56D\uBAA9\uC5D0 \uBC18\uBCF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
+- tag: \uCD9C\uCC98\uB97C \uC9E7\uAC8C(\uC608: "\uC0C1\uC704 \uC694\uCCAD", "\uC720\uAD00\uBD80\uC11C \xB7 \uC601\uC5C5\uD300", "\uD300\uBAA9\uD45C", "\uCEE8\uB514\uC158 \uACF5\uC720", "\uD300\uC7A5 \uBCF8\uC778").
+- effect: \uC9E7\uC740 \uD6A8\uACFC\xB7\uC601\uD5A5(\uC120\uD0DD). 4\uBC88 \uB9AC\uC2A4\uD06C\uB294 "\uC81C\uD734 \uBAA9\uD45C \u221218%p", 6\uBC88\uC740 "\uB2EC\uC131\uB960 +12%p \uAE30\uB300"\uCC98\uB7FC. \uC22B\uC790\uB294 \uACC4\uC0B0\uAC12\uC5D0 \uADFC\uAC70.
+- goal: \uAD00\uB828 \uBAA9\uD45C G#(\uC5C6\uC73C\uBA74 null).
+- actions: \uC774 \uD56D\uBAA9\uC744 \uCC98\uB9AC\uD558\uB824\uACE0 \uD300\uC6D0\uC5D0\uAC8C \uBC14\uB85C \uBCF4\uB0BC \uBA54\uC2DC\uC9C0 0~2\uAC1C. \uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0BC \uAC8C \uC544\uB2C8\uBA74 \uBE48 \uBC30\uC5F4.
+- todo: \uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0B4\uC9C0 \uC54A\uACE0 \uD300\uC7A5\uC774 \uC9C1\uC811 \uD560 \uC77C(\uC0C1\uC704 \uBCF4\uACE0\xB7\uC720\uAD00\uBD80\uC11C \uD611\uC758\xB7\uB2F4\uB2F9 \uC870\uC815\xB7\uACB0\uC815\xB7\uB9AC\uBDF0)\uC774 \uC788\uC73C\uBA74 { "text": \uD55C \uBB38\uC7A5, "link": goals|work|people|upward|decide|knowhow|none, "label": \uBC84\uD2BC \uBB38\uAD6C }, \uC5C6\uC73C\uBA74 null.
+- \uC561\uC158\uB3C4 \uD560 \uC77C\uB3C4 \uC5C6\uB294 \uD56D\uBAA9(\uC54C\uC544\uB9CC \uB450\uBA74 \uB418\uB294 \uAC83, 7\uBC88 \uAD00\uC810)\uB3C4 \uAD1C\uCC2E\uC2B5\uB2C8\uB2E4.
+
+\uC561\uC158(actions) \uC6D0\uCE59 \u2014 \uD300\uC7A5 \uC774\uB984\uC73C\uB85C \uADF8\uB300\uB85C \uB098\uAC00\uB294 \uBA54\uC2DC\uC9C0\uC785\uB2C8\uB2E4:
 - type: praise(\uCE6D\uCC2C \uBC30\uC9C0) \xB7 cheer(\uC9C0\uC6D0\xB7\uACA9\uB824) \xB7 push(\uC5C5\uBB34 \uB3C5\uB824, \uACFC\uC81C \uC9C0\uC815 \uC5C6\uC74C) \xB7 progress(\uC9C4\uCC99 \uACF5\uC720\xB7\uC131\uACFC\uC785\uB825 \uB9AC\uB9C8\uC778\uB4DC, item \uD544\uC218) \xB7 rework(\uBCF4\uC644 \uC694\uCCAD\uD55C \uACB0\uACFC\uBB3C \uB9AC\uB9C8\uC778\uB4DC, submission \uD544\uC218, \uC0C1\uD0DC\uAC00 \uBCF4\uC644 \uC694\uCCAD\uC778 \uAC83\uB9CC) \xB7 thread(\uACB0\uACFC\uBB3C \uC2A4\uB808\uB4DC\uC5D0 \uB0A8\uAE38 \uC9E7\uC740 \uD53C\uB4DC\uBC31, submission \uD544\uC218) \xB7 grow(\uC721\uC131 \uC81C\uC548) \xB7 plan(\uACC4\uD68D\uC744 \uC138\uC6CC \uB2EC\uB77C\uB294 \uC694\uCCAD, item \uC788\uC73C\uBA74 \uC9C0\uC815) \xB7 oo(1on1 \uC81C\uC548) \xB7 memo(\uD300\uC7A5\uB9CC \uBCF4\uB294 \uAD00\uCC30 \uBA54\uBAA8 \u2014 \uD300\uC6D0\uC5D0\uAC8C \uAC00\uC9C0 \uC54A\uC74C).
 - member \uB294 \uC785\uB825\uC758 M#. item \uC740 I#, submission \uC740 S#. \uBAA9\uB85D\uC5D0 \uC5C6\uB294 \uB300\uC0C1\uC740 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - message: \uD300\uC7A5\uC758 \uB9D0\uD22C\uB85C 1~2\uBB38\uC7A5, \uBD80\uB4DC\uB7EC\uC6B4 \uC874\uB313\uB9D0("~\uD574 \uC904\uB798\uC694?", "~\uACE0\uB9C8\uC6CC\uC694"). \uADFC\uAC70 \uD0DC\uADF8\uB97C \uB123\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
-  \uAD6C\uCCB4\uC801\uC778 \uC5C5\uBB34 \uC9C0\uC2DC(\uBB34\uC5C7\uC744 \uC5B8\uC81C\uAE4C\uC9C0 \uC5B4\uB5BB\uAC8C)\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. "\uC9C4\uCC99\uC774 \uACC4\uD68D\uBCF4\uB2E4 \uB290\uB824 \uBCF4\uC5EC\uC694, \uC0C1\uD669\uC744 \uD55C \uBC88 \uACF5\uC720\uD574 \uC904\uB798\uC694?", "\uAC00\uC124 2\uB294 \uADFC\uAC70\uB97C \uD55C \uBC88 \uB354 \uACE0\uBBFC\uD574 \uBCF4\uBA74 \uC88B\uACA0\uC5B4\uC694"\uCC98\uB7FC \uAD00\uCC30\uACFC \uBC29\uD5A5\uB9CC \uC501\uB2C8\uB2E4.
+  \uAD6C\uCCB4\uC801\uC778 \uC5C5\uBB34 \uC9C0\uC2DC(\uBB34\uC5C7\uC744 \uC5B8\uC81C\uAE4C\uC9C0 \uC5B4\uB5BB\uAC8C)\uB294 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. "\uC9C4\uCC99\uC774 \uACC4\uD68D\uBCF4\uB2E4 \uB290\uB824 \uBCF4\uC5EC\uC694, \uC0C1\uD669\uC744 \uD55C \uBC88 \uACF5\uC720\uD574 \uC904\uB798\uC694?"\uCC98\uB7FC \uAD00\uCC30\uACFC \uBC29\uD5A5\uB9CC \uC501\uB2C8\uB2E4.
   \uCE6D\uCC2C\uC740 \uBB34\uC5C7\uC744 \uC798\uD588\uB294\uC9C0 \uAD6C\uCCB4\uC801\uC73C\uB85C(\uC785\uB825\uC5D0 \uC788\uB294 \uC0AC\uC2E4\uB85C). memo \uB294 "[\uC798\uD55C \uC810] ..." \uB610\uB294 "[\uC6B0\uB824] ..."\uB85C \uC2DC\uC791\uD558\uB294 \uAD00\uCC30 \uAE30\uB85D.
 - sensitive: \uBA54\uC2DC\uC9C0\uB098 \uADF8 \uC774\uC720\uAC00 \uAC74\uAC15\xB7\uAC1C\uC778 \uC0AC\uC815\xB7\uC774\uD0C8\xB7\uD3C9\uAC00\xB7\uBCF4\uC0C1\xB7\uAC08\uB4F1\uC5D0 \uB2FF\uC73C\uBA74 \uADF8 \uB0B4\uC6A9\uC744 \uC9E7\uAC8C(\uC608: "\uAC1C\uC778 \uC0AC\uC815 \uC5B8\uAE09"), \uC544\uB2C8\uBA74 \uBE48 \uBB38\uC790\uC5F4.
-- \uC9C8\uBB38\uB2F9 \uCD5C\uB300 3\uAC1C, \uC804\uCCB4 \uCD5C\uB300 10\uAC1C. \uD55C \uC0AC\uB78C\uC5D0\uAC8C 3\uAC1C\uB97C \uB118\uAE30\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. 1on1\xB7\uC9C0\uC6D0\xB7\uCE6D\uCC2C\uC740 5 people \uC5D0, \uB3C5\uB824\xB7\uB9AC\uB9C8\uC778\uB4DC\uB294 1\xB72\uC5D0 \uB461\uB2C8\uB2E4.
+- \uC804\uCCB4 \uCD5C\uB300 10\uAC1C, \uD55C \uC0AC\uB78C\uC5D0\uAC8C 3\uAC1C\uB97C \uB118\uAE30\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 
-\uD300\uC7A5 \uD560 \uC77C(todos): \uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0B4\uC9C0 \uC54A\uACE0 \uD300\uC7A5\uC774 \uC9C1\uC811 \uD560 \uC77C(\uC0C1\uC704 \uBCF4\uACE0\xB7\uC720\uAD00\uBD80\uC11C \uD611\uC758\xB7\uB2F4\uB2F9 \uC870\uC815\xB7\uACB0\uC815\xB7\uB9AC\uBDF0). text \uD55C \uBB38\uC7A5, link \uB294 goals|work|people|upward|decide|knowhow|none, label \uC740 \uBC84\uD2BC \uBB38\uAD6C(\uC608: "\uC784\uC6D0 \uBE0C\uB9AC\uD551\uC5D0\uC11C \uBCF4\uAE30").
-
-forecast:
-- goals: \uC785\uB825\uC758 G# \uB9C8\uB2E4 { "ref": "G1", "risk_delta": -18, "plan_delta": 12, "note": "\uD55C \uC904" }. risk_delta \uB294 \uC544\uB798 risks \uAC00 \uD130\uC84C\uC744 \uB54C \uBD84\uAE30 \uB9D0 \uB2EC\uC131\uB960 \uBCC0\uD654(%p, -40~0), plan_delta \uB294 6 solutions \uB97C \uC2E4\uD589\uD588\uC744 \uB54C(0~+30). \uADFC\uAC70\uAC00 \uC57D\uD558\uBA74 0\uC5D0 \uAC00\uAE5D\uAC8C.
-- risks: \uCD5C\uB300 4\uAC1C { "title", "likelihood": "high|mid", "impact": "\uC81C\uD734 \u221218%p" \uCC98\uB7FC \uC9E7\uAC8C, "detail": \uD55C \uC904 [E#] }. \uAC00\uB2A5\uC131 \xD7 \uC601\uD5A5\uC774 \uD070 \uC21C.
-- lever: \uACB0\uACFC\uB97C \uAC00\uC7A5 \uD06C\uAC8C \uC6C0\uC9C1\uC774\uB294 \uB808\uBC84 \uD558\uB098 { "text": \uD55C\uB450 \uBB38\uC7A5, "goal_ref": "G2" }.
-- todos: \uC704\uC5D0 \uBA3C\uC800 \uC54C\uB9AC\uAE30\xB7\uB9AC\uC2A4\uD06C \uB300\uC751 \uACFC\uC81C \uCD94\uAC00 \uAC19\uC740 \uD300\uC7A5 \uD560 \uC77C.
-
-solutions: \uC815\uD655\uD788 3\uAC1C, \uC6B0\uC120\uC21C\uC704 \uC21C { "title": \uBA85\uB839\uD615 \uD55C \uBB38\uC7A5, "why": \uD55C\uB450 \uBB38\uC7A5 [E#], "effect": \uAE30\uB300 \uD6A8\uACFC \uC9E7\uAC8C(\uC22B\uC790\uB294 \uACC4\uC0B0\uAC12\uB9CC), "link", "label" }.
-perspective: { "text": 3~4\uBB38\uC7A5. \uC774\uBC88 \uC8FC \uD560 \uC77C\uC744 \uB2E4\uC2DC \uC4F0\uC9C0 \uC54A\uACE0, \uD300 \uC0C1\uD669\uC744 \uB2E4\uB978 \uD2C0\uB85C \uBCF4\uAC8C \uD558\uB294 \uAD00\uC810. "sources": \uC801\uC6A9\uD55C \uD300\uC7A5 \uB178\uD558\uC6B0\xB7ATEAM Method\u2122 \uC774\uB984(\uC5C6\uC73C\uBA74 \uBE48 \uBB38\uC790\uC5F4) }.
+forecast.goals: \uC785\uB825\uC758 G# \uB9C8\uB2E4 { "ref": "G1", "risk_delta": -18, "plan_delta": 12, "note": "\uD55C \uC904" }. risk_delta \uB294 4\uBC88 \uB9AC\uC2A4\uD06C\uAC00 \uD130\uC84C\uC744 \uB54C \uBD84\uAE30 \uB9D0 \uB2EC\uC131\uB960 \uBCC0\uD654(%p, -40~0), plan_delta \uB294 6\uBC88\uC744 \uC2E4\uD589\uD588\uC744 \uB54C(0~+30). \uADFC\uAC70\uAC00 \uC57D\uD558\uBA74 0\uC5D0 \uAC00\uAE5D\uAC8C.
 headline: \uC774\uBC88 \uC2E4\uD589\uC758 \uD55C \uBB38\uC7A5 \uC694\uC57D.
 
 \uCD9C\uB825 JSON:
 {
   "headline": "...",
-  "sections": {
-    "critical":   { "diagnosis": [{ "text": "... [E1]", "level": "high", "tag": "..." }], "note": "", "actions": [{ "type": "push", "member": "M2", "item": null, "submission": null, "message": "...", "sensitive": "" }], "todos": [{ "text": "...", "link": "upward", "label": "..." }] },
-    "bottleneck": { ... }, "resource": { ... }, "people": { ... }
-  },
-  "forecast": { "goals": [...], "risks": [...], "lever": {...}, "todos": [...] },
-  "solutions": [...],
-  "perspective": { "text": "...", "sources": "" }
+  "items": [
+    { "q": 1, "also": [2], "level": "high", "title": "...", "detail": "... [E1]", "tag": "...", "effect": "", "goal": null,
+      "actions": [{ "type": "push", "member": "M2", "item": null, "submission": null, "message": "...", "sensitive": "" }],
+      "todo": { "text": "...", "link": "upward", "label": "..." } }
+  ],
+  "forecast": { "goals": [{ "ref": "G1", "risk_delta": -10, "plan_delta": 8, "note": "..." }] }
 }`;
 var clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.round(n)));
 var ymdDiff = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / DAY);
@@ -1545,8 +1545,11 @@ async function setRun(id, patch) {
 }
 var arr = (v, n) => Array.isArray(v) ? v.slice(0, n) : [];
 var str = (v) => typeof v === "string" ? v : v == null ? "" : String(v);
-var cleanDiag = (v) => arr(v, 4).filter((d) => d && typeof d === "object").map((d) => ({ text: str(d.text), level: d.level === "high" ? "high" : "mid", tag: str(d.tag) })).filter((d) => d.text);
-var cleanTodo = (v) => arr(v, 3).filter((t) => t && typeof t === "object").map((t) => ({ text: str(t.text), link: str(t.link), label: str(t.label) })).filter((t) => t.text);
+var cleanTodo = (t) => t && typeof t === "object" && str(t.text) ? { text: str(t.text), link: str(t.link), label: str(t.label) } : null;
+var qOf = (v) => {
+  const n = Math.round(Number(v));
+  return n >= 1 && n <= 7 ? n : 0;
+};
 async function build(teamId, leaderId, runId) {
   const { data: team } = await admin.from("teams").select("id, name, mission, settings").eq("id", teamId).single();
   const { data: tm } = await admin.from("team_members").select("user_id, role, job_title, weekly_hours, joined_at, profiles(full_name)").eq("team_id", teamId).eq("status", "active");
@@ -1639,13 +1642,23 @@ ${(subs ?? []).map((s, i) => {
   }
   await setRun(runId, { step: 2 });
   const [{ data: notes }, { data: board }, { data: waitSubs }, { data: openReq }] = await Promise.all([
-    admin.from("org_notes").select("id, kind, title, body, source, event_date").eq("team_id", teamId).eq("status", "open").gte("created_at", since(60)).order("created_at", { ascending: false }).limit(10),
+    // 위에서 온 것은 '아직 열려 있으면' 오래돼도 현안 — 기간으로 자르지 않고 며칠째인지 붙인다
+    admin.from("org_notes").select("id, kind, title, body, source, event_date, created_at").eq("team_id", teamId).eq("status", "open").order("created_at", { ascending: false }).limit(12),
     admin.from("decision_board").select("title, stage, updated_at").eq("team_id", teamId).in("stage", ["reviewing", "promoted"]),
     admin.from("submissions").select("id, updated_at").eq("team_id", teamId).eq("status", "in_review").is("closed_at", null),
     admin.from("team_requests").select("id, created_at").eq("team_id", teamId).eq("to_id", leaderId).eq("status", "open")
   ]);
   const KIND2 = { strategy: "\uC804\uC0AC \uBC29\uCE68", exec: "\uC784\uC6D0 \uAD00\uC2EC\uC0AC", request: "\uC0C1\uC704 \uC694\uCCAD", peer: "\uC720\uAD00\uBD80\uC11C", calendar: "\uC804\uC0AC \uC77C\uC815", other: "\uAE30\uD0C0" };
-  for (const n2 of notes ?? []) book.add("org_note", n2.id, `${KIND2[n2.kind] ?? "\uC704\uC5D0\uC11C \uC628 \uAC83"} \xB7 ${n2.title}`, `${n2.body ?? ""}${n2.source ? ` (\uCD9C\uCC98 ${n2.source})` : ""}${n2.event_date ? ` \xB7 \uC77C\uC815 ${n2.event_date} (D-${ymdDiff(n2.event_date, today)})` : ""}`.slice(0, 400));
+  for (const n2 of notes ?? []) book.add("org_note", n2.id, `${KIND2[n2.kind] ?? "\uC704\uC5D0\uC11C \uC628 \uAC83"} \xB7 ${n2.title}`, `${n2.body ?? ""}${n2.source ? ` (\uCD9C\uCC98 ${n2.source})` : ""}${n2.event_date ? ` \xB7 \uC77C\uC815 ${n2.event_date} (D-${ymdDiff(n2.event_date, today)})` : ""} \xB7 \uB4F1\uB85D ${Math.max(0, ymdDiff(today, String(n2.created_at).slice(0, 10)))}\uC77C\uC9F8 \uC5F4\uB824 \uC788\uC74C`.slice(0, 400));
+  const in14 = addDaysYmd(today, 14);
+  const { data: dueDec } = await admin.from("decisions").select("title, review_on").eq("team_id", teamId).is("outcome", null).gte("review_on", today).lte("review_on", in14).limit(6);
+  const soon = [
+    ...(items ?? []).filter((x) => x.status !== "done" && x.due_date && String(x.due_date) >= addDaysYmd(today, -7) && String(x.due_date) <= in14).map((x) => ({ d: String(x.due_date), t: `${iRef.get(x.id) ?? gRef.get(x.id) ?? ""} ${x.title} \uB9C8\uAC10 \xB7 \uC9C4\uCC99 ${x.progress}% \xB7 \uB2F4\uB2F9 ${mRef.get(x.owner_id ?? "") ?? (x.owner_id === leaderId ? "\uD300\uC7A5" : "-")}${String(x.due_date) < today ? " (\uC774\uBBF8 \uC9C0\uB0A8)" : ""}` })),
+    ...(notes ?? []).filter((n2) => n2.event_date && n2.event_date >= today && n2.event_date <= in14).map((n2) => ({ d: n2.event_date, t: `${KIND2[n2.kind] ?? "\uC704\uC5D0\uC11C \uC628 \uAC83"} \xB7 ${n2.title}` })),
+    ...(dueDec ?? []).map((d) => ({ d: String(d.review_on), t: `\uACB0\uC815 \uB2E4\uC2DC \uBCF4\uAE30 \xB7 ${d.title}` }))
+  ].sort((a, b) => a.d.localeCompare(b.d)).slice(0, 15);
+  parts.push(`## \uC55E\uC73C\uB85C 2\uC8FC (${today} ~ ${in14}) \u2014 \uB9C8\uAC10 \xB7 \uC77C\uC815
+${soon.map((x) => `${x.d} (D${ymdDiff(x.d, today) >= 0 ? "-" : "+"}${Math.abs(ymdDiff(x.d, today))}) ${x.t.trim()}`).join("\n") || "(\uC5C6\uC74C)"}`);
   if (board?.length) book.add("decision_board", null, "\uC758\uC0AC\uACB0\uC815 \uBCF4\uB4DC \xB7 \uAC80\uD1A0 \uC911", board.map((b) => `${b.title} (${Math.floor((Date.now() - Date.parse(b.updated_at)) / DAY)}\uC77C\uC9F8)`).join(" / "));
   const oldest = (waitSubs ?? []).map((s) => Math.floor((Date.now() - Date.parse(s.updated_at)) / DAY)).sort((a, b) => b - a)[0];
   book.add("leader", null, "\uD300\uC7A5 \uBCF8\uC778 \uB300\uAE30", `\uB9AC\uBDF0 \uB300\uAE30 ${waitSubs?.length ?? 0}\uAC74${oldest != null ? ` (\uAC00\uC7A5 \uC624\uB798 ${oldest}\uC77C)` : ""} \xB7 \uD300\uC7A5\uC774 \uB2F5\uD560 \uC694\uCCAD ${openReq?.length ?? 0}\uAC74 \xB7 \uAC80\uD1A0 \uC911 \uACB0\uC815 ${board?.length ?? 0}\uAC74`);
@@ -1674,7 +1687,7 @@ ${mLines.join("\n")}`,
     teamId,
     kind: "autopilot",
     model: MODEL_SMART,
-    system: AUTOPILOT + NOTE_RULE + (compact ? "\n\n[\uAC04\uACB0 \uBAA8\uB4DC] \uC9C8\uBB38\uB9C8\uB2E4 \uC9C4\uB2E8 2\uC904 \xB7 \uC561\uC158 2\uAC1C \uC774\uB0B4\uB85C \uC9E7\uAC8C \uC501\uB2C8\uB2E4." : ""),
+    system: AUTOPILOT + NOTE_RULE + (compact ? "\n\n[\uAC04\uACB0 \uBAA8\uB4DC] items \uB294 6~8\uAC1C, detail \uC740 \uD55C \uBB38\uC7A5, \uC561\uC158\uC740 \uC804\uCCB4 6\uAC1C \uC774\uB0B4\uB85C \uC9E7\uAC8C \uC501\uB2C8\uB2E4." : ""),
     content: [{ type: "text", text: compose(compact ? 24e3 : 6e4) }],
     book,
     depth: depthOf(book.size, [6, 12, 20]),
@@ -1703,7 +1716,7 @@ ${mLines.join("\n")}`,
   const actions = [];
   const perMember = /* @__PURE__ */ new Map();
   let n = 0;
-  const fixActs = (sec2, list) => arr(list, 3).filter((a) => a && typeof a === "object").flatMap((a) => {
+  const fixActs = (q, list2) => arr(list2, 2).filter((a) => a && typeof a === "object").flatMap((a) => {
     const type = a.type;
     if (!ACTION_TYPES.includes(type)) return [];
     const member = mId.get(String(a.member ?? ""));
@@ -1722,7 +1735,7 @@ ${mLines.join("\n")}`,
     const key = `a${++n}`;
     const act = {
       key,
-      section: sec2,
+      section: `q${q}`,
       type,
       member_id: member,
       item_id: item,
@@ -1735,14 +1748,20 @@ ${mLines.join("\n")}`,
     actions.push(act);
     return [key];
   });
-  const S = parsed.sections ?? {};
-  const sec = (k) => ({
-    diagnosis: cleanDiag(S[k]?.diagnosis),
-    note: str(S[k]?.note),
-    todos: cleanTodo(S[k]?.todos),
-    action_keys: fixActs(k, S[k]?.actions)
-  });
-  const sections = { critical: sec("critical"), bottleneck: sec("bottleneck"), resource: sec("resource"), people: sec("people") };
+  const LV = { high: 0, mid: 1, low: 2 };
+  const list = arr(parsed.items, 18).filter((x) => x && typeof x === "object" && qOf(x.q) && str(x.title).trim()).map((x, i) => ({ x, i, q: qOf(x.q), lv: x.level === "high" || x.level === "low" ? x.level : "mid" })).sort((a, b) => a.q - b.q || LV[a.lv] - LV[b.lv] || a.i - b.i).map(({ x, q, lv }, i) => ({
+    id: `i${i + 1}`,
+    q,
+    also: arr(x.also, 2).map(qOf).filter((v) => v && v !== q),
+    level: lv,
+    title: str(x.title).replace(/\s*\[E\d+(?:\s*,\s*E\d+)*\]/g, "").trim().slice(0, 120),
+    detail: str(x.detail),
+    tag: str(x.tag),
+    effect: str(x.effect),
+    goal_id: x.goal ? gId.get(str(x.goal)) ?? null : null,
+    action_keys: fixActs(q, x.actions),
+    todo: cleanTodo(x.todo)
+  }));
   const fg = new Map(arr(parsed.forecast?.goals, 12).filter((g) => g && typeof g === "object").map((g) => [str(g.ref), g]));
   const forecast = {
     quarter_end: qEnd,
@@ -1751,17 +1770,13 @@ ${mLines.join("\n")}`,
       const rd = Math.max(-40, Math.min(0, Number(f?.risk_delta ?? 0)));
       const pd = Math.max(0, Math.min(30, Number(f?.plan_delta ?? 0)));
       return { goal_id: g.id, title: g.title, progress: g.progress, plan_now: g.planNow, plan_q: g.planQ, base: g.base, risk: clamp(g.base + (Number.isFinite(rd) ? rd : 0)), exec: clamp(g.base + (Number.isFinite(pd) ? pd : 0)), note: str(f?.note) };
-    }),
-    risks: arr(parsed.forecast?.risks, 4).filter((r) => r && typeof r === "object").map((r) => ({ title: str(r.title), likelihood: r.likelihood === "high" ? "high" : "mid", impact: str(r.impact), detail: str(r.detail) })).filter((r) => r.title),
-    lever: parsed.forecast?.lever && typeof parsed.forecast.lever === "object" ? { text: str(parsed.forecast.lever.text), goal_id: gId.get(str(parsed.forecast.lever.goal_ref)) ?? null } : null,
-    todos: cleanTodo(parsed.forecast?.todos)
+    })
   };
   const result = {
+    v: 2,
     headline: str(parsed.headline),
-    sections,
+    items: list,
     forecast,
-    solutions: arr(parsed.solutions, 3).filter((x) => x && typeof x === "object").map((x) => ({ title: str(x.title), why: str(x.why), effect: str(x.effect), link: str(x.link), label: str(x.label) })).filter((x) => x.title),
-    perspective: parsed.perspective && typeof parsed.perspective === "object" ? { text: str(parsed.perspective.text), sources: str(parsed.perspective.sources) } : null,
     actions,
     sources: output.sources ?? [],
     counts: { signals: signals.length, members: members.length }
