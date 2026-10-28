@@ -20,6 +20,8 @@ type ActType = typeof ACTION_TYPES[number];
 const SEMI_DEFAULT: Record<ActType, boolean> = { praise: true, cheer: true, progress: true, rework: true, push: true, thread: false, grow: false, plan: false, oo: false, memo: true };
 const SENSITIVE = /(건강|병원|아프|아픈|질병|수술|진단|우울|불안|스트레스|번아웃|개인\s*사정|가족|육아|출산|임신|결혼|이혼|장례|이직|퇴사|그만두|면접|연봉|급여|보상|성과급|승진|평가\s*등급|등급|징계|갈등|다툼|괴롭힘|불화)/;
 const AUTO_CAP_PER_MEMBER = 2;
+/** 결과 목록 전체 줄 수 한도 (보낼 액션 · 팀장 할 일 · 알아 둘 것 · 목표 전망 각각 한 줄) */
+const MAX_LINES = 20;
 
 const AUTOPILOT = `과제: 당신은 팀장의 'AUTOPILOT(자율주행)'입니다. 팀장이 버튼을 한 번 누르면, 팀 데이터를 읽고 아래 핵심 질문에 답해 '한눈에 훑고 바로 처리하는 목록'을 만듭니다. 질문별 보고서가 아닙니다. 목록의 한 줄 = 팀장이 알아야 할 것 하나 + (있으면) 바로 할 수 있는 액션.
 입력: 계산된 팀 신호, 팀원(M#)·과제(I#)·결과물(S#)·목표(G#) 목록, 위에서 온 것(전사·임원·상위 요청·유관부서·전사 일정), 팀장 운영 부담, 목표별 분기 말 예상치(계산값).
@@ -36,16 +38,17 @@ const AUTOPILOT = `과제: 당신은 팀장의 'AUTOPILOT(자율주행)'입니�
 7 한 걸음 물러서서 — 팀 상황을 다른 틀로 보게 하는 관점 한 개. 할 일 목록이 아닙니다.
 
 items 원칙:
-- 6~14개. q 순서(1→7)로, 같은 q 안에서는 중요한 순서로. q 하나에 0~4개. 해당 없는 q 는 건너뜁니다(7은 1개).
+- 목록의 줄 수에 한도가 있습니다(입력 첫머리의 '목록 한도'). 보낼 액션 하나 · 팀장 할 일 하나가 각각 한 줄이고, 둘 다 없는 항목은 한 줄입니다. 한도 안에서 정말 중요한 것만 고르고, 한도를 채우려고 덜 중요한 것을 넣지 않습니다.
+- q 순서(1→7)로, 같은 q 안에서는 중요한 순서로. 해당 없는 q 는 건너뜁니다(7은 1개).
 - q: 가장 맞는 질문 번호 하나. also: 함께 해당하는 다른 질문 번호(없으면 빈 배열, 최대 2개).
 - level: high(이번 주 꼭) | mid | low(참고).
-- title: 한 줄(35자 안팎). 훑어보기만 해도 무엇인지 알게 — 누가/무엇이 어떤 상태인지. 근거 태그 없이.
+- title: 한 줄(35자 이내, 넘기지 않음 — 숫자를 늘어놓지 말고 핵심만). 훑어보기만 해도 무엇인지 알게 — 누가/무엇이 어떤 상태인지. 근거 태그 없이.
 - detail: 1~3문장. 왜 그런지 입력의 사실과 계산값으로, 문장 끝에 근거 [E#]. 같은 사실을 여러 항목에 반복하지 않습니다.
 - tag: 출처를 짧게(예: "상위 요청", "유관부서 · 영업팀", "팀목표", "컨디션 공유", "팀장 본인").
 - effect: 짧은 효과·영향(선택). 4번 리스크는 "제휴 목표 −18%p", 6번은 "달성률 +12%p 기대"처럼. 숫자는 계산값에 근거.
 - goal: 관련 목표 G#(없으면 null).
 - actions: 이 항목을 처리하려고 팀원에게 바로 보낼 메시지 0~2개. 팀원에게 보낼 게 아니면 빈 배열.
-- todo: 팀원에게 보내지 않고 팀장이 직접 할 일(상위 보고·유관부서 협의·담당 조정·결정·리뷰)이 있으면 { "text": 한 문장, "link": goals|work|people|upward|decide|knowhow|none, "label": 버튼 문구 }, 없으면 null.
+- todo: 팀원에게 보내지 않고 팀장이 직접 할 일(상위 보고·유관부서 협의·담당 조정·결정·리뷰)이 있으면 { "text": 할 일 한 문장, "why": 왜 지금 해야 하는지 한 줄(30자 안팎), "link": goals|work|people|upward|decide|knowhow|none }, 없으면 null.
 - 액션도 할 일도 없는 항목(알아만 두면 되는 것, 7번 관점)도 괜찮습니다.
 
 액션(actions) 원칙 — 팀장 이름으로 그대로 나가는 메시지입니다:
@@ -54,8 +57,9 @@ items 원칙:
 - message: 팀장의 말투로 1~2문장, 부드러운 존댓말("~해 줄래요?", "~고마워요"). 근거 태그를 넣지 않습니다.
   구체적인 업무 지시(무엇을 언제까지 어떻게)는 쓰지 않습니다. "진척이 계획보다 느려 보여요, 상황을 한 번 공유해 줄래요?"처럼 관찰과 방향만 씁니다.
   칭찬은 무엇을 잘했는지 구체적으로(입력에 있는 사실로). memo 는 "[잘한 점] ..." 또는 "[우려] ..."로 시작하는 관찰 기록.
+- why: 이 액션이 왜 필요한지 한 줄(30자 안팎, 근거 태그 없이). 예: "제안서가 9일째 막힘 · 마감 11/15". 화면 목록에 그대로 보입니다.
 - sensitive: 메시지나 그 이유가 건강·개인 사정·이탈·평가·보상·갈등에 닿으면 그 내용을 짧게(예: "개인 사정 언급"), 아니면 빈 문자열.
-- 전체 최대 10개, 한 사람에게 3개를 넘기지 않습니다.
+- 전체 최대 10개, 한 사람에게 3개를 넘기지 않습니다. 같은 사람에게 비슷한 메시지를 두 번 보내지 않습니다.
 
 forecast.goals: 입력의 G# 마다 { "ref": "G1", "risk_delta": -18, "plan_delta": 12, "note": "한 줄" }. risk_delta 는 4번 리스크가 터졌을 때 분기 말 달성률 변화(%p, -40~0), plan_delta 는 6번을 실행했을 때(0~+30). 근거가 약하면 0에 가깝게.
 headline: 이번 실행의 한 문장 요약.
@@ -65,14 +69,14 @@ headline: 이번 실행의 한 문장 요약.
   "headline": "...",
   "items": [
     { "q": 1, "also": [2], "level": "high", "title": "...", "detail": "... [E1]", "tag": "...", "effect": "", "goal": null,
-      "actions": [{ "type": "push", "member": "M2", "item": null, "submission": null, "message": "...", "sensitive": "" }],
-      "todo": { "text": "...", "link": "upward", "label": "..." } }
+      "actions": [{ "type": "push", "member": "M2", "item": null, "submission": null, "message": "...", "why": "...", "sensitive": "" }],
+      "todo": { "text": "...", "why": "...", "link": "upward" } }
   ],
   "forecast": { "goals": [{ "ref": "G1", "risk_delta": -10, "plan_delta": 8, "note": "..." }] }
 }`;
 
-type RawAct = { type: string; member?: string; item?: string | null; submission?: string | null; message?: string; sensitive?: string };
-type Todo = { text: string; link?: string; label?: string };
+type RawAct = { type: string; member?: string; item?: string | null; submission?: string | null; message?: string; why?: string; sensitive?: string };
+type Todo = { text: string; link?: string; label?: string; why?: string };
 type RawItem = { q?: number; also?: number[]; level?: string; title?: string; detail?: string; tag?: string; effect?: string; goal?: string | null; actions?: RawAct[]; todo?: Todo | null };
 interface Out {
   headline?: string;
@@ -95,7 +99,8 @@ async function setRun(id: string, patch: Record<string, unknown>) {
 // 모델 출력이 기대와 다른 모양이어도 화면이 깨지지 않게
 const arr = <T,>(v: unknown, n: number): T[] => (Array.isArray(v) ? (v as T[]).slice(0, n) : []);
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
-const cleanTodo = (t: unknown) => (t && typeof t === 'object' && str((t as Todo).text) ? { text: str((t as Todo).text), link: str((t as Todo).link), label: str((t as Todo).label) } : null);
+const noTag = (v: unknown) => str(v).replace(/\s*\[E\d+(?:\s*,\s*E\d+)*\]/g, '').trim();
+const cleanTodo = (t: unknown) => (t && typeof t === 'object' && str((t as Todo).text) ? { text: noTag((t as Todo).text), why: noTag((t as Todo).why).slice(0, 80), link: str((t as Todo).link), label: str((t as Todo).label) } : null);
 const qOf = (v: unknown) => { const n = Math.round(Number(v)); return n >= 1 && n <= 7 ? n : 0; };
 
 async function build(teamId: string, leaderId: string, runId: string) {
@@ -216,9 +221,11 @@ async function build(teamId: string, leaderId: string, runId: string) {
   await addKnowhow(book, teamId, 'briefing', 1800);
   await setRun(runId, { step: 3 });
 
+  const itemBudget = Math.max(12, MAX_LINES - goals.length);
   // 입력은 양을 정해 두고 자른다 — 데이터가 많은 팀도 시간 안에 끝나게 (앞쪽일수록 중요한 순서)
   const head = [
     `오늘: ${today} · 이번 분기 말 ${qEnd} (남은 ${ymdDiff(qEnd, today)}일) / 팀: ${team?.name} / 미션: ${team?.mission || '-'} / 팀원 ${members.length}명`,
+    `목록 한도: 당신이 쓰는 줄은 최대 ${itemBudget}줄 (목표 전망 ${goals.length}줄은 시스템이 따로 붙임 · 전체 ${MAX_LINES}줄)`,
     `## 팀원 (M#)\n${mLines.join('\n')}`,
     ...parts,
   ].join('\n\n');
@@ -233,7 +240,7 @@ async function build(teamId: string, leaderId: string, runId: string) {
   };
   const t0 = Date.now();
   const call = (compact: boolean) => runAi<Out>({
-    teamId, kind: 'autopilot', model: MODEL_SMART, system: AUTOPILOT + NOTE_RULE + (compact ? '\n\n[간결 모드] items 는 6~8개, detail 은 한 문장, 액션은 전체 6개 이내로 짧게 씁니다.' : ''),
+    teamId, kind: 'autopilot', model: MODEL_SMART, system: AUTOPILOT + NOTE_RULE + (compact ? '\n\n[간결 모드] 목록은 12줄 이내, detail 은 한 문장, 액션은 전체 6개 이내로 짧게 씁니다.' : ''),
     content: [{ type: 'text', text: compose(compact ? 24000 : 60000) }], book,
     depth: depthOf(book.size, [6, 12, 20]), level: 'L3', createdBy: leaderId, credits: 0,
     // 먼저 생각하지 않고 바로 JSON 을 쓴다 — 기본(생각 후 답)은 입력이 큰 팀에서 출력 한도를 생각에 다 써서 빈 응답이 났다
@@ -274,7 +281,7 @@ async function build(teamId: string, leaderId: string, runId: string) {
     perMember.set(member, c);
     const sensitive = String(a.sensitive ?? '').trim() || (SENSITIVE.test(message) ? '민감 내용' : '');
     const key = `a${++n}`;
-    const act = { key, section: `q${q}`, type, member_id: member, item_id: item, submission_id: submission, message, sensitive,
+    const act = { key, section: `q${q}`, type, member_id: member, item_id: item, submission_id: submission, message, sensitive, why: noTag(a.why).slice(0, 80),
       item_title: item ? (items ?? []).find((x) => x.id === item)?.title ?? null : null,
       submission_title: submission ? (subs ?? []).find((s) => s.id === submission)?.title ?? null : null };
     actions.push(act);
@@ -282,7 +289,7 @@ async function build(teamId: string, leaderId: string, runId: string) {
   });
   // 목록 — q 순서 · 같은 q 안에서는 중요도 순 (모델 순서를 기본으로 유지)
   const LV: Record<string, number> = { high: 0, mid: 1, low: 2 };
-  const list = arr<RawItem>(parsed.items, 18).filter((x) => x && typeof x === 'object' && qOf(x.q) && str(x.title).trim())
+  const list = arr<RawItem>(parsed.items, 24).filter((x) => x && typeof x === 'object' && qOf(x.q) && str(x.title).trim())
     .map((x, i) => ({ x, i, q: qOf(x.q), lv: x.level === 'high' || x.level === 'low' ? x.level : 'mid' }))
     .sort((a, b) => a.q - b.q || LV[a.lv] - LV[b.lv] || a.i - b.i)
     .map(({ x, q, lv }, i) => ({
@@ -291,6 +298,21 @@ async function build(teamId: string, leaderId: string, runId: string) {
       goal_id: x.goal ? gId.get(str(x.goal)) ?? null : null,
       action_keys: fixActs(q, x.actions), todo: cleanTodo(x.todo),
     }));
+  // 한도를 넘으면 덜 중요한 항목(참고 → 보통, 같은 수준이면 뒤쪽)부터 뺀다. 관점(7)은 하나 남긴다
+  const lines = (x: (typeof list)[number]) => Math.max(1, x.action_keys.length + (x.todo ? 1 : 0));
+  let total = list.reduce((n, x) => n + lines(x), 0);
+  while (total > itemBudget + 2) {
+    let at = -1;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const x = list[i];
+      if (x.level === 'high' || (x.q === 7 && list.filter((y) => y.q === 7).length === 1)) continue;
+      if (at < 0 || LV[x.level] > LV[list[at].level]) at = i;
+    }
+    if (at < 0) break;
+    const [cut] = list.splice(at, 1);
+    total -= lines(cut);
+    for (const k of cut.action_keys) { const j = actions.findIndex((a) => a.key === k); if (j >= 0) actions.splice(j, 1); }
+  }
   const fg = new Map(arr<{ ref: string; risk_delta?: number; plan_delta?: number; note?: string }>(parsed.forecast?.goals, 12).filter((g) => g && typeof g === 'object').map((g) => [str(g.ref), g]));
   const forecast = {
     quarter_end: qEnd,

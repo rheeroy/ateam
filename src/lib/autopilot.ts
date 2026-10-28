@@ -48,11 +48,13 @@ export function autopilotOf(settings: Record<string, unknown> | undefined): ApSe
 export const allowedIn = (s: ApSettings, t: ApType) => (s.mode === 'auto' ? true : s.mode === 'direct' ? false : !!s.allow[t]);
 
 export interface ApDiag { text: string; level?: string; tag?: string }
-export interface ApTodo { text: string; link?: string; label?: string }
+export interface ApTodo { text: string; link?: string; label?: string; why?: string }
 export interface ApSection { diagnosis: ApDiag[]; note?: string; todos: ApTodo[]; action_keys: string[] }
 export interface ApAction {
   key: string; section: string; type: ApType; member_id: string; item_id: string | null; submission_id: string | null;
   message: string; sensitive: string; item_title?: string | null; submission_title?: string | null;
+  /** 이 액션이 왜 필요한지 한 줄 */
+  why?: string;
 }
 export interface ApGoalForecast { goal_id: string; title: string; progress: number; plan_now: number | null; plan_q: number | null; base: number; risk: number; exec: number; note: string }
 /** 목록 한 줄 — 알아야 할 것 + (있으면) 바로 할 액션 · 팀장 할 일. q 는 관련 핵심 질문 번호(1~7) */
