@@ -17,6 +17,7 @@ import { errorText } from '../lib/supabase';
 import { ReceivedHistories } from '../components/history/ReceivedHistories';
 import { PromiseList, RequestOOModal, useMyOORequest, usePromises } from '../components/member/Member';
 import { ConditionShare } from '../components/member/ConditionShare';
+import { DirectionCard } from '../components/direction/TeamDirection';
 import { FromLeader } from '../components/member/FromLeader';
 import { OneOnOneThread } from '../components/oneonone/Thread';
 import { ViaAutopilot } from '../components/autopilot/Dial';
@@ -133,8 +134,12 @@ export default function MyOneOnOnes() {
   return (
     <section>
       <PageHeader title="매니징 보드" sub="받은 히스토리와 팀장님과의 소통 · 피드백 · 1on1을 한곳에서"
-        right={req ? <span className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">1on1 요청함 · {fmtDate(req.created_at)} · 일정 대기</span>
-          : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1on1 요청하기</Button>} />
+        right={<div className="flex items-center gap-3 flex-wrap justify-end">
+          <ConditionShare inline />
+          <span className="hidden sm:block w-px h-6 bg-slate-200" />
+          {req ? <span className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">1on1 요청함 · {fmtDate(req.created_at)} · 일정 대기</span>
+            : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1on1 요청하기</Button>}
+        </div>} />
       <div className="space-y-5">
         <div className="grid lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-6 items-start">
           <ReceivedHistories />
@@ -143,11 +148,11 @@ export default function MyOneOnOnes() {
             <div className="flex items-end gap-3 mb-2.5 px-1 min-h-[44px]">
               <div className="min-w-0">
                 <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-1.5"><Users size={16} className="text-slate-400" />소통 및 피드백</h2>
-                <p className="text-xs text-slate-500 mt-0.5">이번 주 컨디션을 나누고, 팀장님 피드백에 답하고, 1on1을 함께 준비합니다</p>
+                <p className="text-xs text-slate-500 mt-0.5">팀장님 지침을 확인하고, 피드백에 답하고, 1on1을 함께 준비합니다</p>
               </div>
             </div>
             <div className="rounded-2xl bg-slate-100/70 ring-1 ring-slate-200/70 p-4 space-y-4">
-              <ConditionShare stack />
+              <DirectionCard />
               <div className="grid 2xl:grid-cols-2 gap-4 items-start">
                 <FromLeader focus={focus} />
                 <OneOnOnePanel />

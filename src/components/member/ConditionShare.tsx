@@ -23,8 +23,8 @@ export function useMyConditions() {
 
 type Cur = { condition: number | null; moods: string[]; note: string };
 
-/** stack: 좁은 칸(매니징 보드 '소통 및 피드백' 안) — 제목 · 영향 요인 한 줄, 아래 5단계 */
-export function ConditionShare({ stack }: { stack?: boolean } = {}) {
+/** stack: 좁은 칸 — 제목 · 영향 요인 한 줄, 아래 5단계 / inline: 페이지 머리(1on1 요청 버튼 옆) — 한 줄 5칸, 영향 요인 · 메모는 아래로 펼침 */
+export function ConditionShare({ stack, inline }: { stack?: boolean; inline?: boolean } = {}) {
   const { team, uid } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -38,6 +38,13 @@ export function ConditionShare({ stack }: { stack?: boolean } = {}) {
   const [more, setMore] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const dirty = useRef(false);
+  const box = useRef<HTMLDivElement>(null);
+  // inline: 펼친 칸 바깥을 누르면 닫는다
+  useEffect(() => {
+    if (!inline || !more) return;
+    const h = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setMore(false); };
+    window.addEventListener('mousedown', h); return () => window.removeEventListener('mousedown', h);
+  }, [inline, more]);
   useEffect(() => {
     if (dirty.current) return;
     const c = { condition: mine?.condition ?? null, moods: mine?.moods ?? [], note: mine?.note ?? '' };
@@ -67,6 +74,66 @@ export function ConditionShare({ stack }: { stack?: boolean } = {}) {
 
   const extra = cur.moods.length + (cur.note ? 1 : 0);
   const summary = cur.moods.length ? `${moodLabel(cur.moods[0])}${cur.moods.length > 1 ? ` 외 ${cur.moods.length - 1}` : ''}` : cur.note ? '메모' : '';
+
+  if (inline) return (
+    <div ref={box} className="relative flex items-center gap-2">
+      <span className="text-[11.5px] font-bold text-slate-500 whitespace-nowrap">이번 주 컨디션</span>
+      <div className="grid grid-cols-5 rounded-lg ring-1 ring-slate-200 overflow-hidden divide-x divide-slate-200 bg-white" role="radiogroup" aria-label="이번 주 컨디션">
+        {CONDITIONS.map((o) => {
+          const on = cur.condition === o.n;
+          return (
+            <button key={o.n} type="button" role="radio" aria-checked={on} title={o.label} onClick={() => push({ ...cur, condition: on ? null : o.n })}
+              className={cx('w-8 py-1.5 text-xs font-mono num transition-colors', on ? 'bg-slate-800 text-white font-bold' : 'text-slate-600 font-semibold hover:bg-slate-50')}>{o.n}</button>
+          );
+        })}
+      </div>
+      <button type="button" onClick={() => setMore((x) => !x)} aria-expanded={more}
+        className={cx('inline-flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 ring-1 ring-slate-200 bg-white hover:bg-slate-50 whitespace-nowrap', extra ? 'text-slate-700' : 'text-slate-500')}>
+        {summary || '요인 · 메모'}<ChevronDown size={13} className={cx('transition-transform', more && 'rotate-180')} />
+      </button>
+      {more && (
+        <div className="absolute right-0 top-full mt-2 z-30 w-[min(440px,calc(100vw-2rem))] rounded-xl bg-white ring-1 ring-slate-200 shadow-lg p-3.5">
+          <div className="text-[11px] text-slate-400 mb-2">{weekRangeLabel(week)} · 팀장님만 봅니다</div>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {MOODS.map((m) => {
+              const on = cur.moods.includes(m.key);
+              return (
+                <button key={m.key} type="button" aria-pressed={on} onClick={() => toggle(m.key)}
+                  className={cx('rounded-md px-2.5 py-1 text-xs ring-1 transition-colors inline-flex items-center gap-1',
+                    on ? 'bg-slate-800 text-white ring-slate-800' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50')}>
+                  {on && <Check size={11} />}{m.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            {!noteOpen && !cur.note ? (
+              <button type="button" onClick={() => setNoteOpen(true)} className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"><Plus size={12} />메모 추가 (선택)</button>
+            ) : (
+              <input autoFocus={noteOpen && !cur.note} value={noteDraft} maxLength={80} onChange={(e) => setNoteDraft(e.target.value)} onBlur={saveNote}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                placeholder="예) 이번 주 이사 일정으로 오후 시간이 유동적입니다"
+                className="flex-1 min-w-[12rem] text-sm border-0 border-b border-slate-200 px-0 py-1 placeholder:text-slate-300 focus:outline-none focus:ring-0 focus:border-slate-500 bg-transparent" />
+            )}
+            {past.length > 0 && (
+              <div className="ml-auto flex items-center gap-2.5">
+                <span className="text-[11px] text-slate-400">최근</span>
+                {past.map((c) => (
+                  <span key={c.id} className="flex flex-col items-center gap-0.5"
+                    title={[conditionLabel(c.condition) ?? '컨디션 미입력', ...(c.moods ?? []).map(moodLabel), c.note].filter(Boolean).join(' · ')}>
+                    <span className={cx('w-2 h-2 rounded-full', condDot(c.condition))} />
+                    <span className="font-mono text-[9px] text-slate-400">{weekLabel(c.week_start)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Card className="px-4 py-3">

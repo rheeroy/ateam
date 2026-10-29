@@ -2,7 +2,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, FileText, History, Pencil, Repeat, Sparkles, Target } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileSpreadsheet, FileText, History, Pencil, Repeat, Sparkles, Target } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import { buildTree, STATUS_META, useItems, useLevelNames, type Node } from '../lib/items';
@@ -15,6 +15,9 @@ import { MissionBand } from '../components/goals/MissionBand';
 import { PlanBar } from '../components/goals/PlanBar';
 import { ItemDetail } from '../components/goals/ItemDetail';
 import { PlanDraftModal } from '../components/goals/PlanAI';
+import { FileExtract } from '../components/checkin/FileExtract';
+import { checkinTypeFor } from '../lib/checkin';
+import { Modal } from '../components/ui';
 import { STATUS as SUB_STATUS } from './MySubmissions';
 import { AiIcon, aiText } from '../components/Brand';
 
@@ -34,6 +37,7 @@ export default function TeamGoals() {
   const year = Number(params.get('year') ?? nowYear);
   const setParam = (k: string, v: string | null) => { const p = new URLSearchParams(params); if (v) p.set(k, v); else p.delete(k); setParams(p, { replace: true }); };
   const [draft, setDraft] = useState<{ open: boolean; parent: string | null }>({ open: false, parent: null });
+  const [fileFill, setFileFill] = useState(false);
 
   const { roots, byId } = useMemo(() => buildTree((items.data ?? []).filter((x) => x.status !== 'dropped')), [items.data]);
   // 연도별 묶음 (최상위 목표의 연도를 하위가 따른다)
@@ -81,6 +85,7 @@ export default function TeamGoals() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {!past && <button onClick={() => setFileFill(true)} title="실적 파일을 올리면 목표 항목과 맞는 숫자를 찾아 한 번에 채웁니다 (확인한 것만 반영)" className="text-sm rounded-xl px-3 py-2 bg-white ring-1 ring-slate-200 hover:ring-slate-300 inline-flex items-center gap-1.5"><FileSpreadsheet size={15} className="text-emerald-600" />파일로 실적 채우기</button>}
           {!past && <button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-violet-50 text-violet-800 ring-1 ring-violet-200 hover:bg-violet-100 inline-flex items-center gap-1.5"><Sparkles size={15} /><span className="inline-flex items-center"><AiIcon size={16} />로 만들기</span></button>}
           <Link to={`/goals/edit?${new URLSearchParams({ ...(proposed && !past ? { filter: 'proposed' } : {}), ...(cur.y !== nowYear ? { year: String(cur.y) } : {}) }).toString()}`} className="text-sm rounded-xl px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 inline-flex items-center gap-1.5"><Pencil size={14} />목표 수정{proposed > 0 && !past && <span className="ml-1 text-[10px] font-bold rounded-full bg-violet-500 px-1.5 py-0.5" title="팀원이 올린 계획 검토 대기">검토 {proposed}</span>}</Link>
         </div>
@@ -119,6 +124,10 @@ export default function TeamGoals() {
       </Card>
 
       {open && <ItemDetail key={open.id} item={open} byId={byId} mode="leader" onClose={() => setParam('item', null)} onAiPlan={(pid) => setDraft({ open: true, parent: pid })} />}
+      {fileFill && <Modal open onClose={() => setFileFill(false)} wide title={<span className="inline-flex items-center gap-2"><FileSpreadsheet size={16} className="text-emerald-600" />파일로 실적 채우기</span>}>
+        <p className="text-sm text-slate-600 mb-3">실적 파일을 올리면 Core AI가 목표 항목과 맞는 숫자를 찾아 보여 줍니다. 확인한 것만 팀목표에 바로 반영됩니다. 처음 시작할 때 지난 분기 실적을 한 번에 채울 때도 씁니다.</p>
+        <FileExtract mode="leader" items={all.filter((n) => n.status !== 'done' && !n.metric_id && n.depth <= 1 && checkinTypeFor(n) !== 'note' && !(n.depth === 0 && n.measure === 'children'))} onDone={() => setFileFill(false)} />
+      </Modal>}
       <PlanDraftModal open={draft.open} onClose={() => setDraft({ open: false, parent: null })} byId={byId} parentId={draft.parent} year={cur.y} />
     </div>
   );

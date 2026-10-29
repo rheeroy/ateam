@@ -1,7 +1,7 @@
-// 팀원 업무플랫폼 — 내 스페이스(나↔팀장) · 그룹방 탭. 각 탭은 채팅형 업무 스페이스(components/space/Space)
+// 팀원 업무플랫폼 — [📌 팀 방향](고정) · [Sim.Box](나만 보는 시뮬레이션) · 내 스페이스(나↔팀장) · 그룹방 탭. 스페이스 탭은 채팅형 업무 스페이스(components/space/Space)
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Settings2, Target, Users } from 'lucide-react';
+import { Pin, Plus, Settings2, Target, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useGroups, type WorkGroup } from '../lib/groups';
 import { useItems } from '../lib/items';
@@ -11,6 +11,8 @@ import { Avatar } from '../components/ui';
 import { GuideButton } from '../components/LeaderGuide';
 import { GroupModal } from '../components/work/GroupModal';
 import { Space } from '../components/space/Space';
+import { TeamDirection, useDirectionBadge } from '../components/direction/TeamDirection';
+import { SimBox } from '../components/simbox/SimBox';
 
 export const STATUS = {
   in_review: { label: '리뷰 중', tone: 'indigo' as const },
@@ -23,11 +25,14 @@ export default function MySubmissions() {
   const { team, uid } = useTeam();
   const [params, setParams] = useSearchParams();
   const tab = params.get('g') ?? 'me';
-  const setTab = (g: string) => { const p = new URLSearchParams(params); if (g === 'me') p.delete('g'); else p.set('g', g); p.delete('open'); setParams(p, { replace: true }); };
+  const top = params.get('t');   // 'direction' | 'sim' | null(스페이스)
+  const setTab = (g: string) => { const p = new URLSearchParams(params); p.delete('t'); if (g === 'me') p.delete('g'); else p.set('g', g); p.delete('open'); setParams(p, { replace: true }); };
+  const setTop = (t: 'direction' | 'sim') => { const p = new URLSearchParams(params); p.set('t', t); p.delete('g'); p.delete('open'); setParams(p, { replace: true }); };
+  const dirBadge = useDirectionBadge();
   const groups = useGroups();
   const [groupModal, setGroupModal] = useState<{ group?: WorkGroup | null } | null>(null);
   const myGroups = (groups.data ?? []).filter((g) => g.work_group_members.some((m) => m.user_id === uid) || g.created_by === uid);
-  const group = tab !== 'me' ? myGroups.find((g) => g.id === tab) ?? null : null;
+  const group = !top && tab !== 'me' ? myGroups.find((g) => g.id === tab) ?? null : null;
   const refs: SpaceRef[] = [{ kind: 'user', id: uid }, ...myGroups.map((g) => ({ kind: 'group' as const, id: g.id }))];
   const unread = useSpaceUnread(refs);
   const n = (r: SpaceRef) => unread.data?.[spaceKey(r)] ?? 0;
@@ -40,24 +45,28 @@ export default function MySubmissions() {
       </div>
       <div className="flex items-end gap-2 border-b border-slate-200 mb-3">
         <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden min-w-0 flex-1 -mb-px pb-px">
-        <TabBtn on={!group} onClick={() => setTab('me')} n={group ? n({ kind: 'user', id: uid }) : 0}>내 스페이스</TabBtn>
-        {myGroups.map((g) => <TabBtn key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })} icon>{g.name}</TabBtn>)}
+        <TabBtn on={top === 'direction'} onClick={() => setTop('direction')} n={top === 'direction' ? 0 : dirBadge} badge="amber"><Pin size={13} className={top === 'direction' ? 'text-indigo-600' : 'text-slate-400'} />팀 방향</TabBtn>
+        <TabBtn on={top === 'sim'} onClick={() => setTop('sim')} n={0}><span className="ap-font text-[12.5px]">Sim.Box</span></TabBtn>
+        <TabBtn on={!top && !group} onClick={() => setTab('me')} n={top || group ? n({ kind: 'user', id: uid }) : 0}>내 스페이스</TabBtn>
+        {myGroups.map((g) => <TabBtn key={g.id} on={!top && group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })} icon>{g.name}</TabBtn>)}
         <button onClick={() => setGroupModal({})} className="px-3 py-2.5 text-sm text-slate-400 hover:text-indigo-700 inline-flex items-center gap-1 whitespace-nowrap"><Plus size={14} />그룹 만들기</button>
         </div>
         <span className="shrink-0 pb-1.5"><GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} /></span>
       </div>
+      {top === 'direction' ? <TeamDirection /> : top === 'sim' ? <SimBox /> : <>
       {group && <GroupBar g={group} onEdit={() => setGroupModal({ group })} />}
       <Space space={group ? { kind: 'group', id: group.id } : { kind: 'user', id: uid }} group={group} offset={group ? '16.5rem' : '12.5rem'} />
+      </>}
       {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={(id) => setTab(id)} />}
     </section>
   );
 }
 
-function TabBtn({ on, onClick, n, icon, children }: { on: boolean; onClick: () => void; n: number; icon?: boolean; children: React.ReactNode }) {
+function TabBtn({ on, onClick, n, icon, badge, children }: { on: boolean; onClick: () => void; n: number; icon?: boolean; badge?: 'amber'; children: React.ReactNode }) {
   return (
     <button onClick={onClick} className={cx('px-3.5 py-2.5 text-sm -mb-px border-b-2 inline-flex items-center gap-1.5 whitespace-nowrap', on ? 'border-indigo-600 text-indigo-700 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800')}>
       {icon && <Users size={14} />}{children}
-      {n > 0 && <span className="text-[10px] font-bold text-white bg-rose-500 rounded-full px-1.5 num">{n}</span>}
+      {n > 0 && <span className={cx('text-[10px] font-bold rounded-full px-1.5 num', badge === 'amber' ? 'text-amber-800 bg-amber-100' : 'text-white bg-rose-500')}>{n}</span>}
     </button>
   );
 }

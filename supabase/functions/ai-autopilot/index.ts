@@ -219,6 +219,11 @@ async function build(teamId: string, leaderId: string, runId: string) {
   book.add('leader', null, '팀장 본인 대기', `리뷰 대기 ${waitSubs?.length ?? 0}건${oldest != null ? ` (가장 오래 ${oldest}일)` : ''} · 팀장이 답할 요청 ${openReq?.length ?? 0}건 · 검토 중 결정 ${board?.length ?? 0}건`);
   if (raw.goals?.length) book.add('goals', null, '목표 진척 · 달성 가능성(모델)', raw.goals.slice(0, 6).map((g) => `${g.title} 진척 ${g.progress}% · 달성 가능성 ${g.probability ?? '-'}% · 막힘 ${g.blocked}`).join(' / '));
   await addLeaderNotes(book, teamId, leaderId, { limit: 10, nameOf: (n) => (n.anchor_type === 'member' && n.anchor_id ? nameOf.get(n.anchor_id) : undefined) });
+  // 팀원들이 Sim.Box에서 많이 다듬는 주제 — 이름 없는 팀 전체 합계만 (팀원 5명 이상 · 3명 이상이 쓴 분류)
+  const { data: sbt } = await admin.rpc('simbox_trends', { p_team: teamId, p_days: 30 });
+  const sb = sbt as { available?: boolean; rows?: { category: string; share: number }[] } | null;
+  const SB: Record<string, string> = { evidence: '근거·숫자', structure: '구조·결론 위치', clarity: '문장·전달력', priority: '우선순위·방향 확인', reporting: '보고 방법·타이밍', stakeholder: '유관부서·대외 소통', planning: '일정·계획', idea: '아이디어 구상', data: '데이터 분석' };
+  if (sb?.available && sb.rows?.length) book.add('simbox_trend', null, '팀원들이 Sim.Box에서 많이 다듬는 것 (팀 전체 합계 · 개인 구분 없음)', sb.rows.map((r) => `${SB[r.category] ?? r.category} ${r.share}%`).join(' · '));
   await addKnowhow(book, teamId, 'briefing', 1800);
   await setRun(runId, { step: 3 });
 

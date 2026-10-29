@@ -25,7 +25,7 @@ const KIND = {
 } as const;
 const reqType = (r: TeamRequest): 'grow' | 'push' | 'cheer' => (r.kind === 'grow' ? 'grow' : r.kind === 'cheer' ? 'cheer' : 'push');
 
-export function SentActions() {
+export function SentActions({ bare = false }: { bare?: boolean } = {}) {
   const { team, uid, nameOf } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -69,8 +69,8 @@ export function SentActions() {
 
   return (
     <div ref={box} className="space-y-2.5 scroll-mt-20">
-      <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">보낸 액션</span>
-        <span className="text-xs text-slate-400">최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · 코칭과 답</span></div>
+      {!bare && <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">보낸 액션</span>
+        <span className="text-xs text-slate-400">최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · 코칭과 답</span></div>}
       <Card>
         <div className="px-4 py-3 border-b border-slate-100 flex gap-1 flex-wrap">
           {TABS.filter(([k]) => k === 'all' || pick(k).length > 0).map(([k, l]) => (

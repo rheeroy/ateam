@@ -1,5 +1,5 @@
 // 팀원관리 — 이번 주 AI 액션 추천(가로) + 팀원 보드(표준 지표) + 보낸 액션(상태 · 답 · 취소)
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, Award, CalendarPlus, StickyNote, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -8,6 +8,7 @@ import { cx } from '../lib/format';
 import { LEVEL_CLS, attnSkew, ruleActions, type Level, type MemberIndex, type MemberView, type PeopleAction } from '../lib/peopleActions';
 import { ActionsPanel, PraiseModal } from '../components/people/ActionsPanel';
 import { SentActions } from '../components/people/SentActions';
+import { TeamFlow } from '../components/people/TeamFlow';
 import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { Avatar, Card, Spinner } from '../components/ui';
 import { AiChip } from '../components/AiBar';
@@ -39,6 +40,9 @@ export default function People() {
   const over = lv('load').filter((x) => x === 'risk').length;
   const attnLow = lv('attn').filter((x) => x === 'risk' || x === 'watch').length;
   const skew = attnSkew(pi.attn);
+  const [low, setLow] = useState<'sent' | 'flow'>(params.get('view') === 'flow' ? 'flow' : 'sent');
+  const lowRef = useRef<HTMLElement>(null);
+  const toFlow = () => { setLow('flow'); requestAnimationFrame(() => lowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); };
   const fallback = useMemo(() => ruleActions(members, pi.idx, m.raw), [members, pi.idx, m.raw]);
 
   return (
@@ -63,12 +67,12 @@ export default function People() {
       {/* 팀 지표 */}
       <Card className="overflow-hidden">
         <div className="grid grid-cols-2 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-slate-100">
-          <Stat label="팀 컨디션 (5점)" value={k.cond} sub={`이번 주 공유 ${k.ciThis}/${k.nMem}명`} viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="teal" w={84} h={28} />} />
+          <Stat onClick={toFlow} label="팀 컨디션 (5점)" value={k.cond} sub={`이번 주 공유 ${k.ciThis}/${k.nMem}명`} viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="teal" w={84} h={28} />} />
           <Stat label="이탈 가능성" value={`${flightHigh} · ${flightMid}`} tone={flightHigh ? 'rose' : flightMid ? 'amber' : undefined} sub="높음 · 주의 (명)" />
           <Stat label="1on1 2주 넘게 없음" value={ooGap} tone={ooGap ? 'amber' : undefined} sub={`팀원 ${members.length}명 중`} />
           <Stat label="팀장 관심 부족" value={pi.attn.length ? attnLow : '—'} tone={attnLow ? 'amber' : undefined}
             sub={skew ? `접점 ${skew.top2}%가 2명에게 몰림` : '최근 4주 · 앱 기록 기준'} />
-          <Stat label="업무 과부하" value={over} tone={over ? 'amber' : undefined} sub="가용 시간 110% 초과" />
+          <Stat onClick={toFlow} label="업무 과부하" value={over} tone={over ? 'amber' : undefined} sub="가용 시간 110% 초과" />
           <Stat label="평가 근거 충분" value={k.evidenceAll ? `${k.evidenceOk}/${k.evidenceAll}` : '—'} sub="판단 근거 기준 충족" />
         </div>
       </Card>
@@ -80,7 +84,19 @@ export default function People() {
         : <MemberTable rows={members.map((mb) => ({ uid: mb.user_id, name: mb.profiles?.full_name ?? '팀원', job: mb.job_title, ix: pi.idx.get(mb.user_id), view: pi.views.get(mb.user_id),
             actions: (pi.actions.out?.content.actions ?? fallback).filter((a) => a.user_id === mb.user_id).length }))} onPraise={(uid, name) => setPraise({ uid, name })} />)}
       </section>
-      {!!members.length && <SentActions />}
+      {!!members.length && (
+        <section ref={lowRef} className="space-y-2.5 scroll-mt-20">
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
+              {([['sent', '보낸 액션'], ['flow', '8주 흐름']] as const).map(([k, l]) => (
+                <button key={k} onClick={() => setLow(k)} className={cx('text-sm rounded-md px-3 py-1', low === k ? 'bg-white shadow-sm font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800')}>{l}</button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-400">{low === 'sent' ? '최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · 코칭과 답' : '팀원별 업무 부하 · 컨디션 · 팀장 접점을 주 단위로 봅니다'}</span>
+          </div>
+          {low === 'sent' ? <SentActions bare /> : <TeamFlow />}
+        </section>
+      )}
       {praise && <PraiseModal a={{ user_id: praise.uid, type: 'praise' } as PeopleAction} name={praise.name} onClose={() => setPraise(null)} onSent={() => {}} />}
 
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
@@ -89,15 +105,16 @@ export default function People() {
   );
 }
 
-function Stat({ label, value, sub, tone, viz }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'amber' | 'rose'; viz?: ReactNode }) {
+function Stat({ label, value, sub, tone, viz, onClick }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'amber' | 'rose'; viz?: ReactNode; onClick?: () => void }) {
+  const Box = onClick ? 'button' : 'div';
   return (
-    <div className="px-5 py-4">
+    <Box {...(onClick ? { type: 'button' as const, onClick, title: '8주 흐름 보기' } : {})} className={cx('px-5 py-4 text-left w-full', onClick && 'hover:bg-slate-50 transition-colors group')}>
       <div className="text-[11px] text-slate-500">{label}</div>
       <div className="mt-0.5 flex items-end gap-3">
         <span className={cx('text-2xl font-bold num leading-none', tone === 'amber' && 'text-amber-600', tone === 'rose' && 'text-rose-600')}>{value}</span>{viz}
       </div>
-      {sub && <div className="mt-1 text-[11px] text-slate-400 truncate">{sub}</div>}
-    </div>
+      {sub && <div className="mt-1 text-[11px] text-slate-400 truncate">{sub}{onClick && <span className="ml-1 text-indigo-500 opacity-0 group-hover:opacity-100">· 8주 흐름 →</span>}</div>}
+    </Box>
   );
 }
 

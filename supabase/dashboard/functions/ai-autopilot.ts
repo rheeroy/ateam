@@ -257,7 +257,9 @@ var CORE = [
   "checkin_draft",
   "work_brief",
   "task_history",
-  "autopilot"
+  "autopilot",
+  "team_direction",
+  "perf_extract"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -278,6 +280,8 @@ var CREDITS = {
   work_brief: 0,
   task_history: 0,
   autopilot: 0,
+  team_direction: 0,
+  perf_extract: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -1669,6 +1673,10 @@ ${soon.map((x) => `${x.d} (D${ymdDiff(x.d, today) >= 0 ? "-" : "+"}${Math.abs(ym
   book.add("leader", null, "\uD300\uC7A5 \uBCF8\uC778 \uB300\uAE30", `\uB9AC\uBDF0 \uB300\uAE30 ${waitSubs?.length ?? 0}\uAC74${oldest != null ? ` (\uAC00\uC7A5 \uC624\uB798 ${oldest}\uC77C)` : ""} \xB7 \uD300\uC7A5\uC774 \uB2F5\uD560 \uC694\uCCAD ${openReq?.length ?? 0}\uAC74 \xB7 \uAC80\uD1A0 \uC911 \uACB0\uC815 ${board?.length ?? 0}\uAC74`);
   if (raw.goals?.length) book.add("goals", null, "\uBAA9\uD45C \uC9C4\uCC99 \xB7 \uB2EC\uC131 \uAC00\uB2A5\uC131(\uBAA8\uB378)", raw.goals.slice(0, 6).map((g) => `${g.title} \uC9C4\uCC99 ${g.progress}% \xB7 \uB2EC\uC131 \uAC00\uB2A5\uC131 ${g.probability ?? "-"}% \xB7 \uB9C9\uD798 ${g.blocked}`).join(" / "));
   await addLeaderNotes(book, teamId, leaderId, { limit: 10, nameOf: (n2) => n2.anchor_type === "member" && n2.anchor_id ? nameOf.get(n2.anchor_id) : void 0 });
+  const { data: sbt } = await admin.rpc("simbox_trends", { p_team: teamId, p_days: 30 });
+  const sb = sbt;
+  const SB = { evidence: "\uADFC\uAC70\xB7\uC22B\uC790", structure: "\uAD6C\uC870\xB7\uACB0\uB860 \uC704\uCE58", clarity: "\uBB38\uC7A5\xB7\uC804\uB2EC\uB825", priority: "\uC6B0\uC120\uC21C\uC704\xB7\uBC29\uD5A5 \uD655\uC778", reporting: "\uBCF4\uACE0 \uBC29\uBC95\xB7\uD0C0\uC774\uBC0D", stakeholder: "\uC720\uAD00\uBD80\uC11C\xB7\uB300\uC678 \uC18C\uD1B5", planning: "\uC77C\uC815\xB7\uACC4\uD68D", idea: "\uC544\uC774\uB514\uC5B4 \uAD6C\uC0C1", data: "\uB370\uC774\uD130 \uBD84\uC11D" };
+  if (sb?.available && sb.rows?.length) book.add("simbox_trend", null, "\uD300\uC6D0\uB4E4\uC774 Sim.Box\uC5D0\uC11C \uB9CE\uC774 \uB2E4\uB4EC\uB294 \uAC83 (\uD300 \uC804\uCCB4 \uD569\uACC4 \xB7 \uAC1C\uC778 \uAD6C\uBD84 \uC5C6\uC74C)", sb.rows.map((r) => `${SB[r.category] ?? r.category} ${r.share}%`).join(" \xB7 "));
   await addKnowhow(book, teamId, "briefing", 1800);
   await setRun(runId, { step: 3 });
   const itemBudget = Math.max(12, MAX_LINES - goals.length);

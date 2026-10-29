@@ -53,7 +53,7 @@ function Billing() {
   const { team } = useTeam();
   const seats = useQuery({ queryKey: ['seats', team.id], queryFn: () => q<{ members: number; pending: number; max_members: number }>(supabase.rpc('team_seat_usage', { p_team: team.id })) });
   const payments = useQuery({ queryKey: ['payments'], queryFn: () => q<{ id: string; order_name: string; amount_krw: number; status: string; paid_at: string | null; created_at: string; receipt_url: string | null }[]>(supabase.from('payments').select('*').order('created_at', { ascending: false }).limit(12)) });
-  const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').not('reason', 'in', '(core_usage,ai_error)').order('created_at', { ascending: false }).limit(15)) });
+  const ledger = useQuery({ queryKey: ['ledger'], queryFn: () => q<{ id: number; delta: number; reason: string; ai_kind: string | null; created_at: string }[]>(supabase.from('credit_ledger').select('id, delta, reason, ai_kind, created_at').not('reason', 'in', '(core_usage,ai_error,simbox)').order('created_at', { ascending: false }).limit(15)) });
 
   const done = () => { refresh(); qc.invalidateQueries({ queryKey: ['subscription'] }); qc.invalidateQueries({ queryKey: ['payments'] }); qc.invalidateQueries({ queryKey: ['ledger'] }); };
   const subscribe = useMutation({

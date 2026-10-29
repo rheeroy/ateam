@@ -53,7 +53,9 @@ export function errorText(e: unknown): string {
     : e && typeof e === 'object' && typeof (e as { message?: unknown }).message === 'string' ? (e as { message: string }).message
     : typeof e === 'string' ? e : '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
   for (const [k, v] of Object.entries(KNOWN)) if (msg.includes(k)) return v;
-  return msg;
+  // 서버가 'CODE: 사람이 읽을 문구'로 보낸 것은 문구만
+  const m = /^[A-Z][A-Z0-9_]+: (.+)$/s.exec(msg);
+  return m ? m[1] : msg;
 }
 
 /** Edge Function 호출 (오류 본문까지 읽어서 사람이 읽을 메시지로) */
