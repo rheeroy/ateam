@@ -14,11 +14,26 @@ import { cx } from '../../lib/format';
 import { Button, Spinner, useToast } from '../ui';
 
 type Row = { item_id: string; type: CheckinType; value: number | null; stage: number | null; period: string; location: string; issue: string; note: string; candidates: { value: number; location: string }[] };
+// 데모 팀 체험용 샘플 (public/demo) — 담당자 이름이 맞는 것만 보여 준다. leader = 팀장 화면
+const DEMO_SAMPLES: { file: string; name: string; who: string }[] = [
+  { file: 'preorder_weekly.xlsx', name: '런칭_사전예약_주간집계.xlsx', who: '김현정' },
+  { file: 'content_status.xlsx', name: '콘텐츠_제작현황_10월.xlsx', who: '최다은' },
+  { file: 'crm_report.xlsx', name: '제휴고객_CRM_리포트.xlsx', who: '이동욱' },
+  { file: 'team_monthly.xlsx', name: '마케팅기획팀_10월_실적.xlsx', who: 'leader' },
+];
 const ACCEPT = '.xlsx,.csv,.pdf,.docx,.pptx,.txt,.png,.jpg,.jpeg,.webp';
 const toB64 = (blob: Blob) => new Promise<string>((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => fail(new Error('파일을 읽지 못했습니다')); r.readAsDataURL(blob); });
 
 export function FileExtract({ items, mode, onDone }: { items: Node[]; mode: 'member' | 'leader'; onDone: () => void }) {
-  const { team } = useTeam();
+  const { team, uid, nameOf } = useTeam();
+  const samples = team.is_demo ? DEMO_SAMPLES.filter((x) => x.who === (mode === 'leader' ? 'leader' : nameOf(uid))) : [];
+  const trySample = async (x: { file: string; name: string }) => {
+    try {
+      const r = await fetch(`/demo/${x.file}`);
+      if (!r.ok) throw new Error('샘플 파일을 불러오지 못했습니다');
+      run(new File([await r.blob()], x.name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    } catch (e) { toast(errorText(e)); }
+  };
   const toast = useToast();
   const qc = useQueryClient();
   const create = useCreateCheckin();
@@ -82,7 +97,15 @@ export function FileExtract({ items, mode, onDone }: { items: Node[]; mode: 'mem
           <b className="block mt-2 text-sm text-slate-800">실적 파일을 올리거나 끌어다 놓으세요</b>
           <span className="block mt-1 text-xs text-slate-500">엑셀 · CSV · PDF · 문서 · 캡처 — {mode === 'member' ? '내가 맡은' : '팀'} 목표 항목 {items.length}개와 맞는 숫자를 찾아 드립니다</span>
         </button>
-      ) : (
+      ) : null}
+      {!file && samples.map((x) => (
+        <div key={x.file} className="flex items-center gap-2 rounded-lg bg-emerald-50/60 ring-1 ring-emerald-100 hover:ring-emerald-300 px-3 py-2">
+          <FileSpreadsheet size={15} className="text-emerald-600 shrink-0" />
+          <button onClick={() => trySample(x)} className="text-[12.5px] text-slate-700 min-w-0 truncate text-left flex-1"><b className="text-emerald-700">체험용 샘플로 해 보기</b> · {x.name}</button>
+          <a href={`/demo/${x.file}`} download={x.name} className="text-[11px] text-slate-400 hover:text-slate-700 shrink-0">내려받기</a>
+        </div>
+      ))}
+      {file && (
         <div className="flex items-center gap-3 rounded-xl bg-slate-50 ring-1 ring-slate-200 px-3.5 py-2.5">
           <FileSpreadsheet size={20} className="text-emerald-600 shrink-0" />
           <div className="min-w-0 flex-1"><b className="text-sm block truncate">{file.name}</b><span className="text-[11.5px] text-slate-500">{busy === 'read' ? '항목과 맞는 숫자를 찾는 중…' : rows ? `${rows.length}개 항목에서 값을 찾았습니다${rows.some((r) => r.issue) ? ` · ${rows.filter((r) => r.issue).length}개는 확인이 필요합니다` : ''}` : ''}</span></div>

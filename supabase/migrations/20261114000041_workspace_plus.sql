@@ -5,7 +5,7 @@
 --   · 위에서 온 것(org_notes)은 share_team 을 켠 것만 팀원에게 쓰인다 (팀 방향 · Sim.Box 근거)
 --   · Sim.Box: 팀원 혼자 쓰는 시뮬레이션 · 메모 공간 — 본인만 읽는다(팀장 포함 누구도 못 읽음) · 30일 지나면 지운다
 --     팀장에게는 정해진 분류의 '팀 전체 합계'만 (팀원 5명 이상 · 3명 이상이 쓴 분류만 · 민감한 대화는 집계 제외)
---     횟수: 팀원 1인당 체험 월 5 / Starter 20 / Pro 20 / Pro+ 30 (하루 3 / 5 / 5 / 8)
+--     횟수: 팀원 1인당 체험 월 5 / Starter 20 / Pro 20 / Pro+ 30 (하루 3 / 5 / 5 / 8) · 데모 팀 60 (하루 15)
 --     원가는 팀의 월 AI 원가 상한에 함께 센다 (credit_ledger.reason = 'simbox')
 -- 다시 Run 해도 안전합니다.
 -- =====================================================================
@@ -111,6 +111,8 @@ begin
   v_trial := v_sub.status = 'trialing' and coalesce(v_sub.trial_ends_at, now() + interval '1 day') > now();
   if v_trial then v_limit := 5; v_daily := 3;
   else v_limit := coalesce(v_plan.simbox_monthly, 0); v_daily := coalesce(v_plan.simbox_daily, 0); end if;
+  -- 데모 팀: 여러 사람이 같은 계정으로 체험하므로 넉넉하게 (원가는 팀 월 AI 원가 상한이 따로 막는다)
+  if exists (select 1 from teams where id = p_team and is_demo) then v_limit := 60; v_daily := 15; v_trial := false; end if;
   v_from := (date_trunc('month', now() at time zone 'Asia/Seoul')) at time zone 'Asia/Seoul';
   select count(*) filter (where created_at >= v_from),
          count(*) filter (where created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul')) at time zone 'Asia/Seoul')
