@@ -45,8 +45,11 @@ export default function MySubmissions() {
       </div>
       <div className="flex items-end gap-2 border-b border-slate-200 mb-3">
         <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden min-w-0 flex-1 -mb-px pb-px">
-        <TabBtn on={top === 'direction'} onClick={() => setTop('direction')} n={top === 'direction' ? 0 : dirBadge} badge="amber"><Pin size={13} className={top === 'direction' ? 'text-indigo-600' : 'text-slate-400'} />팀 방향</TabBtn>
-        <TabBtn on={top === 'sim'} onClick={() => setTop('sim')} n={0}><span className="ap-font text-[12.5px]">Sim.Box</span></TabBtn>
+        <div className="flex items-center gap-0.5 self-center rounded-lg bg-slate-100 p-0.5 mr-1 shrink-0">
+          <PinTab on={top === 'direction'} onClick={() => setTop('direction')} n={top === 'direction' ? 0 : dirBadge}><Pin size={11} className={top === 'direction' ? 'text-indigo-500' : 'text-slate-400'} />팀 방향</PinTab>
+          <PinTab on={top === 'sim'} onClick={() => setTop('sim')} n={0}><span className="ap-font text-[10px]">Sim.Box</span></PinTab>
+        </div>
+        <span className="w-px h-5 bg-slate-200 mr-1 self-center shrink-0" />
         <TabBtn on={!top && !group} onClick={() => setTab('me')} n={top || group ? n({ kind: 'user', id: uid }) : 0}>내 스페이스</TabBtn>
         {myGroups.map((g) => <TabBtn key={g.id} on={!top && group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })} icon>{g.name}</TabBtn>)}
         <button onClick={() => setGroupModal({})} className="px-3 py-2.5 text-sm text-slate-400 hover:text-indigo-700 inline-flex items-center gap-1 whitespace-nowrap"><Plus size={14} />그룹 만들기</button>
@@ -59,6 +62,16 @@ export default function MySubmissions() {
       </>}
       {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={(id) => setTab(id)} />}
     </section>
+  );
+}
+
+/** 팀 방향 · Sim.Box — 스페이스 탭(메인)보다 한 단계 낮은 회색 토글형 탭 */
+function PinTab({ on, onClick, n, children }: { on: boolean; onClick: () => void; n: number; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} className={cx('px-2.5 py-1 rounded-md text-[12.5px] inline-flex items-center gap-1 whitespace-nowrap transition-colors', on ? 'bg-white text-slate-800 font-semibold shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+      {children}
+      {n > 0 && <span className="text-[10px] font-bold rounded-full px-1.5 num text-amber-800 bg-amber-100">{n}</span>}
+    </button>
   );
 }
 

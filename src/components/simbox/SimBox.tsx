@@ -90,7 +90,7 @@ export function SimBox() {
       {/* 소개 — 한 줄 */}
       <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 bg-gradient-to-r from-indigo-50 via-violet-50 to-fuchsia-50 ring-1 ring-indigo-100 min-w-0">
         <FlaskConical size={16} className="text-indigo-600 shrink-0" />
-        <span className="ap-font text-[13px] text-indigo-800 shrink-0">Sim.Box</span>
+        <span className="ap-font text-[11.5px] text-indigo-800 shrink-0">Sim.Box</span>
         <b className="text-[13.5px] text-slate-800 shrink-0">자유롭게 시뮬레이션하고 메모하는 곳</b>
         <span className="text-[13px] text-slate-500 truncate hidden md:inline">· 초안 · 아이디어 · 보내기 전 메일, 뭐든 편하게 던져 보세요. 팀장님이라면 어떻게 볼지 바로 답해 드려요. 몇 번을 다시 해도 괜찮아요.</span>
       </div>
@@ -100,7 +100,7 @@ export function SimBox() {
           className={cx('rounded-2xl bg-white ring-1 flex flex-col h-[calc(100vh-16rem)] min-h-[460px]', drag ? 'ring-2 ring-indigo-400' : 'ring-slate-200')}>
           {!!list.length && (
             <div className="flex items-center gap-2 px-5 pt-3 pb-2 border-b border-slate-100">
-              <span className="ap-font text-[11px] text-indigo-700">Sim.Box</span>
+              <span className="ap-font text-[10px] text-indigo-700">Sim.Box</span>
               <span className="hidden sm:inline text-[11.5px] text-slate-400">새로 시작하면 지금 대화는 지워집니다</span>
               {sure ? (
                 <span className="ml-auto flex items-center gap-1.5 text-xs">
