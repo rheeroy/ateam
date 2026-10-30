@@ -6,6 +6,42 @@ import { useSession } from '../state/session';
 import { Button, ErrorBox, inputCls } from '../components/ui';
 import { LogoBlock } from '../components/Brand';
 
+const VALUES = [
+  { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['예상하지 못했던 업무 리스크', '컨디션이 꺾이는 팀원과 이탈 신호', '윗분이 조만간 지적할 문제들'] },
+  { t: '모르는 패턴을 찾아줘요', i: Sparkles, c: 'text-violet-300', d: ['생각 못 한 부분이 팀 성과를 끌어내리고 있을 때', '나도 모르게 몇몇 팀원에게만 시간을 쓰고 있을 때', '일이 밀리는 진짜 이유가 사람에게 있을 때'] },
+  { t: '팀의 미래를 예측해줘요', i: TrendingUp, c: 'text-sky-300', d: ['목표별 달성 가능성과 마감 시점 전망', '분기 실적 전망과 낙관 · 비관 범위', '무엇을 바꾸면 결과가 달라지는지'] },
+  { t: '놓친 것들을 알아서 챙겨줘요', i: ListChecks, c: 'text-emerald-300', d: ['시급히 의사결정 해줘야 하는 것', '위에서 내려온 요청 중 아직 답하지 않은 것', '차마 신경 쓰지 못한 팀원'] },
+];
+const DESC = '영혼까지 갈아넣어도 팀 운영은 너무나 벅찹니다.';
+const DESC2 = 'ATEAM은 성과관리 · 팀원관리 · 의사결정 모든 것을 한 단계 끌어올려주는 팀운영 슈퍼에이전트이자 마에스트로입니다.';
+
+/** 모바일 첫 화면 — 데스크톱 왼쪽 소개 패널을 줄여서 폼 위에 (가치 4개는 제목 + 대표 설명 한 줄) */
+function MobileIntro({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="lg:hidden bg-slate-950 text-white px-5 pt-6 pb-7 relative overflow-hidden">
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_90%_0%,rgba(99,102,241,0.3),transparent_55%)]" />
+      <div className="relative">
+        <div className="flex items-center gap-2"><LogoBlock size={26} /><span className="font-black tracking-tight">ATEAM</span></div>
+        <p className="mt-6 text-[11px] font-semibold tracking-wide text-indigo-300">팀장 Must-Have AI Solution</p>
+        <h1 className="mt-2 text-[26px] font-bold leading-[1.25] tracking-tight">팀 자율주행 엔진이<br />S급 팀장을 만들어줍니다</h1>
+        <p className="mt-2.5 text-[13.5px] text-slate-300 leading-relaxed">{DESC} {DESC2}</p>
+      </div>
+      <ul className="relative mt-5 rounded-xl bg-white/[0.05] ring-1 ring-white/10 divide-y divide-white/10">
+        {VALUES.map((x) => (
+          <li key={x.t} className="flex gap-3 px-3.5 py-3">
+            <x.i size={16} className={`${x.c} shrink-0 mt-0.5`} />
+            <div className="min-w-0"><b className="block text-[14px] leading-snug">{x.t}</b><span className="block mt-0.5 text-xs text-slate-400 leading-snug">{x.d[0]}</span></div>
+          </li>
+        ))}
+      </ul>
+      <div className="relative mt-5 flex items-center gap-3">
+        <button type="button" onClick={onStart} className="flex-1 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-bold py-3">14일 무료로 시작하기</button>
+      </div>
+      <p className="relative mt-2.5 text-[11px] text-slate-500 text-center">팀장 1명 구독 · 팀원은 무료 초대</p>
+    </div>
+  );
+}
+
 type Mode = 'login' | 'signup' | 'forgot' | 'magic';
 
 const TITLE: Record<Mode, { h: string; sub: string }> = {
@@ -88,14 +124,9 @@ export default function Login() {
         <div className="relative">
           <p className="text-xs font-semibold tracking-wide text-indigo-300">팀장 Must-Have AI Solution</p>
           <h1 className="mt-3 text-[36px] font-bold leading-[1.2] tracking-tight">팀 자율주행 엔진이<br />S급 팀장을 만들어줍니다</h1>
-          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">영혼까지 갈아넣어도 팀 운영은 너무나 벅찹니다.<br /> ATEAM은 성과관리 · 팀원관리 · 의사결정 모든 것을 한 단계 끌어올려주는 팀운영 슈퍼에이전트이자 마에스트로입니다.</p>
+          <p className="mt-3 text-slate-300 leading-relaxed max-w-lg">{DESC}<br /> {DESC2}</p>
           <div className="mt-6 grid grid-cols-2 gap-2.5 max-w-xl">
-            {[
-              { t: '조기에 경고해줘요', i: AlertTriangle, c: 'text-rose-300', d: ['예상하지 못했던 업무 리스크', '컨디션이 꺾이는 팀원과 이탈 신호', '윗분이 조만간 지적할 문제들'] },
-              { t: '모르는 패턴을 찾아줘요', i: Sparkles, c: 'text-violet-300', d: ['생각 못 한 부분이 팀 성과를 끌어내리고 있을 때', '나도 모르게 몇몇 팀원에게만 시간을 쓰고 있을 때', '일이 밀리는 진짜 이유가 사람에게 있을 때'] },
-              { t: '팀의 미래를 예측해줘요', i: TrendingUp, c: 'text-sky-300', d: ['목표별 달성 가능성과 마감 시점 전망', '분기 실적 전망과 낙관 · 비관 범위', '무엇을 바꾸면 결과가 달라지는지'] },
-              { t: '놓친 것들을 알아서 챙겨줘요', i: ListChecks, c: 'text-emerald-300', d: ['시급히 의사결정 해줘야 하는 것', '위에서 내려온 요청 중 아직 답하지 않은 것', '차마 신경 쓰지 못한 팀원'] },
-            ].map((x) => (
+            {VALUES.map((x) => (
               <div key={x.t} className="rounded-xl bg-white/[0.05] ring-1 ring-white/10 p-3.5">
                 <div className="flex items-center gap-1.5"><x.i size={15} className={x.c} /><span className="text-[15px] font-bold">{x.t}</span></div>
                 <ul className="mt-2 space-y-1">{x.d.map((y) => <li key={y} className="text-xs text-slate-400 leading-snug flex gap-1.5"><span className="text-slate-600">·</span>{y}</li>)}</ul>
@@ -113,8 +144,9 @@ export default function Login() {
         <p className="relative text-xs text-slate-500">팀장 1명 구독 · 팀원은 무료 초대 · 14일 무료 체험</p>
       </div>
 
-      <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
+      <div className="flex flex-col lg:items-center lg:justify-center">
+        {!inviteMail && <MobileIntro onStart={() => { go('signup'); requestAnimationFrame(() => document.getElementById('auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }} />}
+        <div id="auth-form" className="w-full max-w-sm mx-auto p-6 lg:p-0 scroll-mt-2">
           <h2 className="text-2xl font-bold">{t.h}</h2>
           <p className="text-sm text-slate-500 mt-1">{t.sub}</p>
           {sent ? (
