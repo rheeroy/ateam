@@ -16,7 +16,8 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- 첫 로딩: 흰 바탕에 로고 마크만 (React가 뜨면 바로 바뀜) -->
+    <div id="root"><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff"><svg viewBox="0 0 40 40" width="52" height="52" fill="none" stroke="#4f46e5" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 33 L34 7.8"/><path d="M23 17.7 V33"/></svg></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

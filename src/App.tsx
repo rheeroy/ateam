@@ -4,7 +4,10 @@ import { useSession } from './state/session';
 import { isConfigured, supabase } from './lib/supabase';
 import { onboardingPending } from './lib/onboarding';
 import Layout from './components/Layout';
-import { Spinner } from './components/ui';
+import { LogoMark } from './components/Brand';
+
+/** 첫 로딩 — index.html 의 흰 바탕 로고와 같은 모양 (스피너 깜빡임 없이 이어지게) */
+const Splash = () => <div className="fixed inset-0 bg-white flex items-center justify-center"><LogoMark size={52} weight={3.4} className="text-indigo-600 animate-pulse" /></div>;
 import Login from './pages/Login';
 import Invite from './pages/Invite';
 import Onboarding from './pages/Onboarding';
@@ -49,7 +52,7 @@ function NotConfigured() {
 function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useSession();
   const loc = useLocation();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Spinner /></div>;
+  if (loading) return <Splash />;
   if (!session) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   return <>{children}</>;
 }
@@ -107,7 +110,7 @@ export default function App() {
   if (!isConfigured) return <NotConfigured />;
   const L = (el: ReactNode) => <LeaderOnly>{el}</LeaderOnly>;
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner /></div>}>
+    <Suspense fallback={<Splash />}>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/invite/:token" element={<Invite />} />
