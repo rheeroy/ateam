@@ -47,6 +47,7 @@ export default function MySubmissions() {
         <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden min-w-0 flex-1 -mb-px pb-px">
         <div className="flex items-center gap-0.5 self-center rounded-lg bg-slate-100 p-0.5 mr-1 shrink-0">
           <PinTab on={top === 'direction'} onClick={() => setTop('direction')} n={top === 'direction' ? 0 : dirBadge}><Pin size={11} className={top === 'direction' ? 'text-indigo-500' : 'text-slate-400'} />팀 방향</PinTab>
+          <span className={cx('w-px h-3.5 bg-slate-300 shrink-0', top && 'opacity-0')} aria-hidden />
           <PinTab on={top === 'sim'} onClick={() => setTop('sim')} n={0}><span className="ap-font text-[10px]">Sim.Box</span></PinTab>
         </div>
         <span className="w-px h-5 bg-slate-200 mr-1 self-center shrink-0" />
