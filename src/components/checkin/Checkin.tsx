@@ -136,13 +136,18 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
           <p className="text-sm text-slate-600">{PERF_DEF}.</p>
           <PerfFlow className="mt-2" />
         </div>
-        {!resubmit && (!itemId || file) && (
+        {!resubmit && (
           <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
             <button onClick={() => setByFile(false)} className={cx('px-3 py-1 rounded-md', !byFile ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>직접 입력</button>
             <button onClick={() => setByFile(true)} className={cx('px-3 py-1 rounded-md', byFile ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>파일로 입력</button>
           </div>
         )}
-        {byFile ? <FileExtract mode="member" items={mine.filter((m) => !m.metric_id && checkinTypeFor(m) !== 'note')} onDone={onClose} initialFile={file} /> : <>
+        {byFile ? <FileExtract mode="member" items={(() => {
+          // 과제를 정해 두고 열었으면 그 과제만, 아니면 내 목표·과제 전부에서 맞는 숫자를 찾는다
+          const all = mine.filter((m) => !m.metric_id && checkinTypeFor(m) !== 'note');
+          const one = itemId ? all.filter((m) => m.id === itemId) : [];
+          return one.length ? one : all;
+        })()} onDone={onClose} initialFile={file} /> : <>
         <div>
           <div className="text-xs font-semibold text-slate-600 mb-1">어느 목표에</div>
           {resubmit && n ? <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"># {n.title}</div> : !mine.length ? (
