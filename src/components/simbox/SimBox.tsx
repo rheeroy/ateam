@@ -10,6 +10,7 @@ import { errorText } from '../../lib/supabase';
 import { extractText, shrinkImage, IMAGE_EXT, MAX_BYTES } from '../../lib/extract';
 import { cx } from '../../lib/format';
 import { Spinner, useToast } from '../ui';
+import { AteamAI, LogoBlock } from '../Brand';
 
 const EXAMPLES: [string, string][] = [
   ['💬', '우리 팀장님이라면 이 보고서에 뭐라고 하실까?'],
@@ -120,10 +121,10 @@ export function SimBox() {
                 {list.map((m) => <Bubble key={m.id} m={m} />)}
                 {pending && <>
                   <Bubble m={{ id: 'p', role: 'user', body: pending.text, created_at: '', attachment: pending.att ? { name: pending.att } : null, meta: null }} />
-                  <div className="self-start rounded-2xl rounded-bl-md bg-slate-50 ring-1 ring-slate-200 px-4 py-2.5 text-[13px] text-slate-500 inline-flex items-center gap-2"><span className="ap-rad w-3.5 h-3.5 rounded-full ring-1 ring-violet-300" />생각하는 중…</div>
+                  <AiRow><div className="rounded-2xl rounded-tl-md bg-slate-50 ring-1 ring-slate-200 px-4 py-2.5 text-[13px] text-slate-500 inline-flex items-center gap-2"><span className="ap-rad w-3.5 h-3.5 rounded-full ring-1 ring-violet-300" />생각하는 중…</div></AiRow>
                 </>}
                 {!pending && !!lastAi?.meta?.chips?.length && (
-                  <div className="flex flex-wrap gap-1.5 mt-1">
+                  <div className="flex flex-wrap gap-1.5 mt-1 ml-9">
                     {lastAi.meta.chips.map((c) => <button key={c} onClick={() => go(c)} disabled={out} className="text-xs font-semibold text-indigo-700 bg-white ring-1 ring-indigo-100 rounded-full px-3 py-1.5 hover:bg-indigo-50 disabled:opacity-50">{c}</button>)}
                   </div>
                 )}
@@ -185,7 +186,20 @@ function Bubble({ m }: { m: SimMessage }) {
       {m.body && <div>{m.body}</div>}
     </div>
   );
-  return <div className="self-start max-w-[84%] rounded-2xl rounded-bl-md bg-white ring-1 ring-slate-200 px-4 py-2.5 text-[13.5px] leading-relaxed text-slate-800"><Rich text={m.body} /></div>;
+  return <AiRow><div className="rounded-2xl rounded-tl-md bg-white ring-1 ring-slate-200 px-4 py-2.5 text-[13.5px] leading-relaxed text-slate-800"><Rich text={m.body} /></div></AiRow>;
+}
+
+/** AI 답 — 왼쪽에 ATEAM 로고, 말풍선 위에 'ATEAM AI' */
+function AiRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="self-start max-w-[88%] flex items-start gap-2">
+      <LogoBlock size={28} className="mt-0.5" />
+      <div className="min-w-0">
+        <AteamAI className="block mb-1 text-[11.5px] text-slate-700" />
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function PanelCard({ panel }: { panel: SimPanel | null }) {
