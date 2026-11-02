@@ -686,7 +686,8 @@ function SubPanel({ id, openAi, onClose, leaderView, canUploadFor, byId }: { id:
   return (
     <PanelShell onClose={onClose}
       title={<><span className={cx('shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5', isCheckin ? 'bg-indigo-600 text-white' : rq.cls)}>{isCheckin ? '성과입력' : rq.label}</span><span className="font-semibold text-sm truncate">{sub.title}</span>
-        <Link to={`/work/${sub.id}`} className="shrink-0 text-slate-400 hover:text-indigo-700" title="크게 보기" aria-label="크게 보기"><Maximize2 size={14} /></Link></>}
+        {/* 성과입력은 큰 화면이 따로 없다(여기로 돌아온다) — 업무 카드만 크게 보기 */}
+        {!isCheckin && <Link to={`/work/${sub.id}`} className="shrink-0 text-slate-400 hover:text-indigo-700" title="크게 보기" aria-label="크게 보기"><Maximize2 size={14} /></Link>}</>}
       sub={<>{tag && <span className="inline-flex items-center gap-0.5"><Hash size={11} />{tag}</span>}
         {sub.closed_at ? <span className="text-[10px] font-semibold rounded-full bg-slate-100 text-slate-500 px-2 py-0.5">정리됨</span> : <Pill tone={STATUS[sub.status].tone}>{isCheckin && sub.status === 'in_review' ? '승인 대기' : STATUS[sub.status].label}</Pill>}
         <span>{nameOf(sub.author_id)} · {fmtDate(sub.created_at)}</span></>}

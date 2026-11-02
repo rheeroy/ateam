@@ -23,6 +23,7 @@ import { useHistoryTodo, useUnreadShares } from '../lib/history';
 import { AutopilotFab } from './autopilot/Fab';
 import { HeaderToday } from '../pages/Home';
 import { DemoBar } from './demo/DemoBar';
+import { actionKey, useActionStatus, usePeopleActions } from '../lib/peopleActions';
 import { getDemo } from '../lib/demo';
 import { useIsAdmin } from '../pages/AdminDemo';
 
@@ -65,12 +66,17 @@ const Group = ({ label }: { label: string }) => (
 
 /** 메뉴 옆 숫자 = 팀장이 처리해야 할 것 (팀목표: 승인 대기 제안 · 업무플랫폼: 리뷰 대기 · 의사결정: 결정할 것 · 임원 브리핑: D-3 이내 위의 요청) */
 function useLeaderTodo() {
-  const { team } = useSession();
+  const { team, members } = useSession();
   const [period] = usePeriod();
   const m = useHomeModel(period);
   const pr = usePriorities(m);
   const subs = useSubmissionsAi(team!.id);
+  // 팀원관리: 이번 주 추천 액션 중 아직 하지 않은 것 (팀원관리 화면 '이번 주 팀원관리 액션'과 같은 기준)
+  const pa = usePeopleActions(team!.id, !!team!.is_demo);
+  const ast = useActionStatus(team!.id);
+  const people = (pa.out?.content.actions ?? []).filter((a) => a.type !== 'workload' && members.some((m) => m.user_id === a.user_id) && !ast.map.get(actionKey(pa.week, a))).length;
   return {
+    people,
     work: (subs.data ?? []).filter(isOpenSub).filter((x) => x.status === 'in_review').length,
     decide: m.loading ? 0 : pr.length,
     upward: m.orgSt.upcoming.filter((n) => n.kind === 'request' && dDay(n.event_date!) >= 0 && dDay(n.event_date!) <= 3).length,
@@ -86,7 +92,7 @@ function LeaderNav({ lvl, proposedN, demo }: { lvl?: string; proposedN: number; 
             <Group label="팀 워크스페이스" />
             <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/work" label="업무플랫폼" icon={LaptopMinimal} badge={todo.work ? `${todo.work}` : undefined} />
-            <NavItem to="/people" label="팀원관리" icon={Users} />
+            <NavItem to="/people" label="팀원관리" icon={Users} badge={todo.people ? `${todo.people}` : undefined} />
             <NavItem to="/decide" label="의사결정" icon={Gavel} badge={todo.decide ? `${todo.decide}` : undefined} />
             <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} locked={!hasFeature('history')} tip={!hasFeature('history') ? '히스토리 관리 · Pro부터' : undefined} />
             <Group label="상향 관리" />

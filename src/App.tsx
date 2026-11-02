@@ -28,6 +28,7 @@ const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Goals = lazy(() => import('./pages/Goals'));
+const GoalPage = lazy(() => import('./pages/GoalPage'));
 const Brief = lazy(() => import('./pages/Brief'));
 const People = lazy(() => import('./pages/People'));
 const PersonDetail = lazy(() => import('./pages/PersonDetail'));
@@ -133,6 +134,7 @@ export default function App() {
         <Route path="brief/:section" element={L(<Brief />)} />
         <Route path="goals" element={L(<TeamGoals />)} />
         <Route path="goals/edit" element={L(<Goals mode="leader" />)} />
+        <Route path="goals/:id" element={<GoalPage />} />
         <Route path="my/goals" element={<Goals mode="member" />} />
         <Route path="people" element={L(<People />)} />
         <Route path="decide" element={L(<Decide />)} />

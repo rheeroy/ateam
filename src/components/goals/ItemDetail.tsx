@@ -1,8 +1,8 @@
 // 항목 상세 패널: 편집 · 계획 대비 · 기록 · 대화/피드백 · 승인
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, GitPullRequestArrow, History, Lock, MessageSquare, Plus, Send, Trash2, X } from 'lucide-react';
+import { Check, GitPullRequestArrow, History, Lock, Maximize2, MessageSquare, Plus, Send, Trash2, X } from 'lucide-react';
 import { NotesBox } from '../notes/Notes';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
@@ -11,15 +11,16 @@ import { CheckinHistory, CheckinModal } from '../checkin/Checkin';
 import { MetricModal } from './GoalForms';
 import { MEASURE_META, STATUS_META, slipDays, useItemMutations, useLevelNames, usePlanRules, type Node } from '../../lib/items';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
+import { yearOf } from '../../lib/plan';
 import { Avatar, Bar, Button, Field, Modal, Pill, inputCls, useToast } from '../ui';
 import { RequestModal } from '../RequestModal';
 import { useLeaderId } from '../member/Member';
 import { AiIcon } from '../Brand';
 
-const EVENT_LABEL: Record<string, string> = {
+export const EVENT_LABEL: Record<string, string> = {
   created: '만듦', replan: '일정 변경', target: '목표값 변경', status: '상태 변경', owner: '담당 변경', approved: '승인', changes_requested: '수정 요청',
 };
-const evText = (e: WorkItemEvent, nameOf: (id: string) => string) => {
+export const evText = (e: WorkItemEvent, nameOf: (id: string) => string) => {
   const fmt = (v: unknown) => {
     if (v && typeof v === 'object') { const o = v as Record<string, string | null>; return `${o.start ? fmtShort(o.start) : '-'}~${o.due ? fmtShort(o.due) : '-'}`; }
     if (typeof v === 'string' && STATUS_META[v as ItemStatus]) return STATUS_META[v as ItemStatus].label;
@@ -75,6 +76,7 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const { team, uid, members, nameOf, isLeader, hasFeature } = useTeam();
   const [handover, setHandover] = useState<string | null>(null);
   const levelName = useLevelNames();
+  const loc = useLocation();
   const { update, remove } = useItemMutations(team.id);
   const toast = useToast();
   const qc = useQueryClient();
@@ -141,7 +143,22 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const setHypStatus = useMutation({ mutationFn: (h: { id: string; status: Hypothesis['status'] }) => q(supabase.from('hypotheses').update({ status: h.status }).eq('id', h.id)), onSuccess: () => qc.invalidateQueries({ queryKey: ['hyps', team.id, item.id] }) });
 
   const slip = slipDays(item);
-  const parentOptions = [...byId.values()].filter((n) => n.id !== item.id && !n.path.includes(item.id) && n.status !== 'dropped');
+  // 옮길 수 있는 상위 항목 — 화면의 트리 순서대로, 같은 연도 · 지표 아님 · 끝나지 않음 · 옮긴 뒤에도 3단계(목표 › 과제 › 할 일)를 넘지 않게
+  const parentOptions = useMemo(() => {
+    const height = (n: Node): number => n.children.length ? 1 + Math.max(...n.children.map(height)) : 0;
+    const h = height(item);
+    const rootOf = (n: Node) => (n.path.length ? byId.get(n.path[0]) ?? n : n);
+    const year = yearOf(rootOf(item));
+    const roots = [...byId.values()].filter((n) => n.depth === 0).sort((a, b) => a.sort - b.sort || a.created_at.localeCompare(b.created_at));
+    const out: Node[] = [];
+    const walk = (arr: Node[]) => { for (const n of arr) {
+      if (n.id === item.id || n.status === 'dropped' || n.status === 'done' || n.role === 'metric') continue;
+      if (n.depth + 1 + h <= 2) out.push(n);
+      if (n.depth < 1) walk(n.children);
+    } };
+    walk(roots.filter((r) => yearOf(r) === year));
+    return out;
+  }, [byId, item]);
   const ro = !canPlan;
   const pro = !canEdit;
   // 목표·과제의 성과 값(숫자·진척률·단계)은 팀원이 직접 못 바꾼다 — 성과입력 → 팀장 승인
@@ -156,7 +173,11 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
       <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
         <span className="text-xs text-slate-500">{levelName(item.depth)}</span>
         {item.path.length > 0 && <span className="text-xs text-slate-400 truncate">· {item.path.map((p) => byId.get(p)?.title).join(' › ')}</span>}
-        <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={18} /></button>
+        {/* 목표는 한 장짜리 화면으로 크게 볼 수 있다 */}
+        {item.depth === 0 && !loc.pathname.startsWith(`/goals/${item.id}`) && (
+          <Link to={`/goals/${item.id}`} className="ml-auto text-slate-400 hover:text-indigo-700" title="목표 화면으로 크게 보기" aria-label="크게 보기"><Maximize2 size={15} /></Link>
+        )}
+        <button onClick={onClose} className={cx('text-slate-400 hover:text-slate-700', !(item.depth === 0 && !loc.pathname.startsWith(`/goals/${item.id}`)) && 'ml-auto')} aria-label="닫기"><X size={18} /></button>
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
         {/* 담당이 바뀌면 — 히스토리도 넘길지 */}
