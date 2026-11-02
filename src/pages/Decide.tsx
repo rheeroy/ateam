@@ -205,7 +205,7 @@ function PrioDetail({ p, no, stage, onAct, onReview, onBack, onWatch, onDismiss,
       <div className="flex items-center gap-2 text-[11px]">
         <span className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center">{no || '·'}</span>
         <span className="font-semibold text-slate-600">{p.kind}</span>
-        {p.ai && <span className="text-violet-700 font-semibold inline-flex items-center gap-0.5"><span><CoreAI />가 엮은 판단</span></span>}
+        {p.ai && <span className="text-violet-700 font-semibold inline-flex items-center gap-0.5"><span><CoreAI />가 찾은 결정</span></span>}
         {stage === 'reviewing' && <span className="ml-auto rounded-full bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5">검토 중</span>}
         {stage === 'watching' && <span className="ml-auto rounded-full bg-slate-100 text-slate-600 font-semibold px-2 py-0.5">지켜보기</span>}
       </div>
