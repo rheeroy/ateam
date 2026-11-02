@@ -61,7 +61,7 @@ export default function Decide() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">의사결정
               {st && <span className={cx('text-xs font-semibold border rounded-full px-2 py-0.5', st.cls)}>{st.label}</span>}</h1>
-            <p className="text-sm text-slate-500">목표 · 팀원 · 상위 지시 · 결과물에서 팀장이 결정해야 할 것과 리스크를 한곳에 모아 보여줍니다</p>
+            <p className="text-sm text-slate-500">목표 · 팀원 대화 · 상위 지시 · 결과물에서 팀장이 결정해야 할 것과 리스크를 한곳에 모아 보여줍니다</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -211,7 +211,7 @@ function PrioDetail({ p, no, stage, onAct, onReview, onBack, onWatch, onDismiss,
       </div>
       <h3 className="mt-2 text-lg font-bold leading-snug tracking-tight">{p.title}</h3>
       {p.why && <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">{p.why}</p>}
-      {p.impact && <div className="mt-2.5 rounded-xl bg-indigo-50 ring-1 ring-indigo-100 px-3 py-2 text-sm"><span className="text-[11px] font-bold text-indigo-700 block">기대 효과 · 걸린 목표</span>{p.impact}</div>}
+      {p.impact && <div className="mt-2.5 rounded-xl bg-indigo-50 ring-1 ring-indigo-100 px-3 py-2 text-sm"><span className="text-[11px] font-bold text-indigo-700 block">{p.kind === '팀원 요청' ? '걸린 과제 · 기다린 기간' : '기대 효과 · 걸린 목표'}</span>{p.impact}</div>}
       {!!p.options?.length && (
         <ol className="mt-2.5 space-y-1.5">{p.options.slice(0, 3).map((o, i) => <li key={i} className="text-sm rounded-lg ring-1 ring-slate-200 px-2.5 py-1.5 flex gap-2"><b className="text-indigo-600">{String.fromCharCode(65 + i)}</b>{o}</li>)}</ol>
       )}

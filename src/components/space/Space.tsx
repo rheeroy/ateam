@@ -66,8 +66,10 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
   const unread = (e: Entry) => { const t = lastOther(e, uid, msgs); return t > seenAt && t > allReadAt && t > (opened[threadKey(e)] ?? ''); };
 
   const [filter, setFilter] = useState<Filter>('all');
-  const [sel, setSelState] = useState<Sel>(() => (params.get('open') ? { t: 'sub', id: params.get('open')! } : null));
-  const setSel = (s: Sel) => { setSelState(s); if (params.get('open')) { const p = new URLSearchParams(params); p.delete('open'); setParams(p, { replace: true }); } };
+  // ?open=업무카드 · ?msg=대화 스레드(의사결정 보드의 '팀원 요청'에서) 로 들어오면 그 패널을 연다
+  const initSel = (): Sel => (params.get('open') ? { t: 'sub', id: params.get('open')! } : params.get('msg') ? { t: 'msg', id: params.get('msg')! } : null);
+  const [sel, setSelState] = useState<Sel>(initSel);
+  const setSel = (s: Sel) => { setSelState(s); if (params.get('open') || params.get('msg')) { const p = new URLSearchParams(params); p.delete('open'); p.delete('msg'); setParams(p, { replace: true }); } };
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   // 승인된 내 결과물 → 성과입력 안내 (최근 21일 · 아직 근거로 쓰지 않은 것 · '다음에' 누르지 않은 것)
@@ -84,7 +86,7 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
     const k = `${sel.t === 'sub' ? 's' : sel.t === 'msg' ? 'm' : 'r'}:${sel.id}`;
     setOpened((o) => ({ ...o, [k]: new Date(Date.now() + 1000).toISOString() }));
   }, [sel, latest]);
-  useEffect(() => { setOpened({}); setAllReadAt(''); setFilter('all'); setSelState(params.get('open') ? { t: 'sub', id: params.get('open')! } : null); setFile(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [space.kind, space.id]);
+  useEffect(() => { setOpened({}); setAllReadAt(''); setFilter('all'); setSelState(initSel()); setFile(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [space.kind, space.id]);
 
   const inGroup = !!group?.work_group_members.some((m) => m.user_id === uid);
   const canUpload = (s: Pick<Submission, 'author_id'>) => s.author_id === uid || inGroup;

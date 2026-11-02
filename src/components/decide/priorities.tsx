@@ -8,6 +8,7 @@ import { cx } from '../../lib/format';
 import type { Signal } from '../../lib/insights';
 import { useToast } from '../ui';
 import { AI_LINKS, dDay, sectionHref, type HomeModel } from '../home/shared';
+import { askHref, useDecisionAsks } from '../../lib/decisionAsks';
 
 export interface Prio {
   key: string; score: number; kind: string; title: string; why?: string; impact?: string; options?: string[]; evidence: Signal[];
@@ -53,8 +54,9 @@ export function useBoard(teamId: string) {
 
 /** 결정할 것 (점수순). hidden = 보드에서 뺐거나 이미 결정한 카드도 포함 */
 export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Prio[] {
-  const { team, members } = useTeam();
+  const { team, members, isLeader, nameOf } = useTeam();
   const board = useBoard(team.id);
+  const asks = useDecisionAsks(team.id, isLeader);
   const names = members.map((x) => x.profiles?.full_name).filter(Boolean) as string[];
   const goals = m.raw?.goals ?? [];
   const items = m.raw?.items ?? [];
@@ -103,6 +105,19 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
   if (low) out.push({ key: `rule:${low.id}`, score: 125, kind: '우선순위 결정', title: '기여가 낮은 과제를 줄이고 핵심 목표에 시간을 돌릴지', why: low.title, evidence: [low], action: '시간 배분 보기', to: '/goals/edit?view=table', y: 0.55, x: 0.35 });
   const replan = m.visible.find((s) => s.id.startsWith('exec-replan-'));
   if (replan) out.push({ key: `rule:${replan.id}`, score: 110, kind: '계획 결정', title: '반복해서 밀리는 과제의 범위·일정을 다시 정할지', why: replan.detail ?? replan.title, evidence: [replan], action: '계획 대비 보기', to: '/goals', y: 0.5, x: 0.6 });
+  // 팀원이 대화에서 물은 결정 — 오래 기다릴수록 · 걸린 과제가 막혀 있을수록 위로
+  for (const a of asks) {
+    if (!a.ai?.title) continue;
+    const days = Math.max(0, Math.floor((Date.now() - Date.parse(a.created_at)) / 86400000));
+    const it = a.item_id ? items.find((i) => i.id === a.item_id) : undefined;
+    const blocked = it?.status === 'blocked';
+    const quote = a.body.replace(/\s+/g, ' ').trim();
+    out.push({ key: `ask:${a.id}`, score: 160 + Math.min(days, 10) * 3 + (blocked ? 10 : 0), kind: '팀원 요청',
+      title: `${nameOf(a.author_id) || '팀원'} 님 · ${a.ai.title}`, why: `「${quote.length > 160 ? `${quote.slice(0, 160)}…` : quote}」`,
+      options: a.ai.options?.length ? a.ai.options : undefined,
+      impact: [it ? `걸린 과제: ${it.title}${blocked ? ' (막힘)' : ''}` : null, days ? `${days}일째 답 기다림` : '오늘 받은 요청', a.ai.due ? `기한 ${a.ai.due}` : null].filter(Boolean).join(' · '),
+      evidence: [], action: '대화 보기', to: askHref(a), y: blocked ? 0.85 : 0.68, x: 0.45 + Math.min(days, 10) * 0.05 });
+  }
   // 리스크를 결정으로 올린 것
   for (const r of board.rows.filter((b) => !b.card_key.startsWith('advice:') && (b.stage === 'promoted' || (b.stage === 'reviewing' && b.card_key.startsWith('risk:'))))) {
     const s = m.riskList.find((x) => `risk:${x.id}` === r.card_key);

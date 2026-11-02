@@ -56,3 +56,4 @@ node ../scripts/build-playbook.mjs
 { echo "-- ATEAM 업무플랫폼 확장 (팀 방향 · Sim.Box · 파일 실적 추출) — 35_autopilot 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261114000041_workspace_plus.sql; } > dashboard/36_workspace_plus.sql
 { echo "-- ATEAM 데모 신청 · 승인 (7일 데모 링크 · 링크별 AI 한 번씩 · 데모 팀 보호) — 36_workspace_plus 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전). 맨 끝 관리자 이메일을 확인하세요"; echo; cat migrations/20261115000043_demo_access.sql; } > dashboard/37_demo_access.sql
 { echo "-- ATEAM 관리자 고객 화면 (고객 현황 · AI 원가 · 체험 연장 · 내부 계정) — 37_demo_access 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261116000044_admin_customers.sql; } > dashboard/38_admin_customers.sql
+{ echo "-- ATEAM 의사결정 보드 '팀원 요청' (대화 · 스레드에서 팀원이 물은 결정) — 38_admin_customers 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261117000045_decision_asks.sql; } > dashboard/39_decision_asks.sql
