@@ -23,6 +23,7 @@ import { useHistoryTodo, useUnreadShares } from '../lib/history';
 import { AutopilotFab } from './autopilot/Fab';
 import { HeaderToday } from '../pages/Home';
 import { DemoBar } from './demo/DemoBar';
+import { getDemo } from '../lib/demo';
 import { useIsAdmin } from '../pages/AdminDemo';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string; locked?: boolean };
@@ -75,7 +76,7 @@ function useLeaderTodo() {
     upward: m.orgSt.upcoming.filter((n) => n.kind === 'request' && dDay(n.event_date!) >= 0 && dDay(n.event_date!) <= 3).length,
   };
 }
-function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
+function LeaderNav({ lvl, proposedN, demo }: { lvl?: string; proposedN: number; demo?: boolean }) {
   const todo = useLeaderTodo();
   const { hasFeature } = useSession();
   const hTodo = useHistoryTodo(hasFeature('history'));
@@ -99,7 +100,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <NavItem to="/notes" label="내 메모 모아보기" icon={StickyNote} />
             <NavItem to="/knowhow" label="노하우 라이브러리" icon={Library} />
             <NavItem to="/insight" label={<><CoreAI /> 인사이트</>} tip="Core AI 인사이트" icon={Layers} badge={lvl} />
-            <NavItem to="/settings" label="설정" icon={Settings} />
+            {!demo && <NavItem to="/settings" label="설정" icon={Settings} />}
             <AdminNav />
     </>
   );
@@ -132,7 +133,9 @@ export default function Layout() {
   const proposedN = proposedQ.data ?? 0;
   // 체험·구독이 끝나면 잠금 (기록은 보관) — 팀장은 설정(요금제)만 열린다
   const locked = credits?.plan_id === 'free' && !team?.is_demo && !loc.pathname.startsWith('/settings');
-  const trialDays = credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
+  const demo = !!team?.is_demo;   // 데모 팀: 설정 · 새 팀 만들기 · 로그아웃 숨김 (나가기는 위 띠의 '내 팀으로 시작하기')
+  const demoLink = demo && !!getDemo();
+  const trialDays = !demo && credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
@@ -146,7 +149,7 @@ export default function Layout() {
         </Link>
         {isLeader ? (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <LeaderNav lvl={lvl} proposedN={proposedN} />
+            <LeaderNav lvl={lvl} proposedN={proposedN} demo={demo} />
           </nav>
         ) : (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
@@ -154,8 +157,8 @@ export default function Layout() {
             <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0) ? `${(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0)}` : undefined} />
             <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks}
               badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : undefined} />
-            <div className="hidden md:block h-px bg-slate-100 my-3" />
-            <NavItem to="/settings" label="설정" icon={Settings} />
+            {!demo && <div className="hidden md:block h-px bg-slate-100 my-3" />}
+            {!demo && <NavItem to="/settings" label="설정" icon={Settings} />}
           </nav>
         )}
       </aside>
@@ -181,7 +184,7 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* 'AI 표시' 토글은 뺐다 — AI 영역은 브랜드 표시(ATEAM AI·Core AI)와 근거 칩으로 이미 구분된다. 점선 표시 기능(ProvBlock·ProvLegend)은 남겨 둠 */}
-            {isLeader && credits && credits.plan_id !== 'free' && (
+            {isLeader && !demo && credits && credits.plan_id !== 'free' && (
               <NavLink to="/settings?tab=billing" className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500" title="평가 초안·계획서 초안 등 프리미엄 AI에 쓰는 크레딧 (기본 AI는 구독에 포함)">
                 프리미엄 <span className="font-mono font-semibold text-slate-800">{credits.monthly_remaining + credits.topup_remaining}</span>
               </NavLink>
@@ -202,9 +205,15 @@ export default function Layout() {
               {menu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1 text-sm z-30">
                   <div className="px-3 py-2 text-xs text-slate-500 truncate">{profile?.email}</div>
-                  {!isLeader && <NavLink to="/settings" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">설정</NavLink>}
-                  <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>
-                  <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
+                  {demo ? <>
+                    <p className="px-3 py-2 text-xs text-slate-500 leading-relaxed border-t border-slate-100">데모에서는 설정 · 새 팀 만들기 · 로그아웃을 쓰지 않습니다.</p>
+                    {/* 데모 링크 없이 데모 계정으로 직접 로그인한 경우(관리자 점검)만 로그아웃 */}
+                    {!demoLink && <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>}
+                  </> : <>
+                    {!isLeader && <NavLink to="/settings" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">설정</NavLink>}
+                    <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>
+                    <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
+                  </>}
                 </div>
               )}
             </div>
