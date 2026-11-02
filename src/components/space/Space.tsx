@@ -430,6 +430,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
   recent: { id: string; title: string }[];
 }) {
   const [ck, setCk] = useState(false);
+  const [ckFile, setCkFile] = useState<File | null>(null);   // 끌어다 놓은 파일로 성과입력
   const { team, uid, isLeader, hasFeature } = useTeam();
   const qc = useQueryClient();
   const toast = useToast();
@@ -517,7 +518,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
               <span className="text-[11px] text-slate-400 truncate flex-1">{file.name}</span>
               <button onClick={() => setFile(null)} className="text-slate-400 hover:text-slate-700" aria-label="올리기 취소"><X size={15} /></button>
             </div>
-            <div className="grid sm:grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {UPLOAD_TYPES.map((t) => (
                 <button key={t.r} onClick={() => chooseType(t.r)} className={cx('text-left rounded-lg ring-1 px-3 py-2.5 hover:ring-indigo-400 hover:bg-indigo-50/40', req === t.r ? 'ring-indigo-300' : 'ring-slate-200')}>
                   <span className="flex items-center gap-1.5"><b className={cx('text-sm', t.tone)}>{REQ_TAG[t.r].label}</b>
@@ -525,6 +526,11 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
                   <span className="block mt-0.5 text-[11px] text-slate-500 leading-snug">{t.sub}</span>
                 </button>
               ))}
+              {/* 실적 파일이면 바로 성과입력 — 이 파일을 넣은 채로 '파일로 입력'이 열린다 */}
+              <button onClick={() => { setCkFile(file); setFile(null); setCk(true); }} className="text-left rounded-lg ring-1 ring-slate-200 px-3 py-2.5 hover:ring-indigo-400 hover:bg-indigo-50/40">
+                <span className="flex items-center gap-1.5"><Crosshair size={13} className="text-indigo-600" /><b className="text-sm text-slate-800">성과입력</b></span>
+                <span className="block mt-0.5 text-[11px] text-slate-500 leading-snug">이 파일로 목표 실적 채우기</span>
+              </button>
             </div>
           </div>
         </div>
@@ -601,7 +607,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
           {work ? <><FileUp size={13} />올리기</> : reqOn ? <><Send size={13} />요청 보내기</> : <><Send size={13} />보내기</>}
         </Button>
       </div>
-      {ck && <CheckinModal open onClose={() => setCk(false)} itemId={tag || null} recent={recent}
+      {ck && <CheckinModal open onClose={() => { setCk(false); setCkFile(null); }} itemId={ckFile ? null : tag || null} recent={recent} file={ckFile}
         spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
     </div>
   );

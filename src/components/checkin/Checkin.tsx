@@ -91,11 +91,12 @@ export function PerfGuidePanel({ open, onClose, onStart }: { open: boolean; onCl
 // ---------------------------------------------------------------------
 // 입력 — 어느 목표에 · 지금 값(또는 성과) · 한 줄 · 근거
 // ---------------------------------------------------------------------
-export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId, groupId, resubmit }: {
+export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId, groupId, resubmit, file }: {
   open: boolean; onClose: () => void; itemId?: string | null; evidence?: Evidence | null;
   /** 근거로 고를 수 있는 최근 업무 카드 */ recent?: { id: string; title: string }[];
   spaceId?: string | null; groupId?: string | null;
   resubmit?: { id: string; version: number; payload: CheckinPayload | null; note: string } | null;
+  /** 대화창에 끌어다 놓은 실적 파일 — '파일로 입력'으로 바로 연다 */ file?: File | null;
 }) {
   const { team, uid } = useTeam();
   const items = useItems(team.id);
@@ -116,7 +117,7 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
   const [stage, setStage] = useState<number | null>(resubmit?.payload?.stage ?? null);
   const [note, setNote] = useState(resubmit?.note ?? '');
   const [ev, setEv] = useState<Evidence[]>(resubmit?.payload?.evidence ?? (evidence ? [evidence] : []));
-  const [byFile, setByFile] = useState(false);
+  const [byFile, setByFile] = useState(!!file);
   const create = useCreateCheckin();
 
   const payload: CheckinPayload | null = !n ? null
@@ -135,13 +136,13 @@ export function CheckinModal({ open, onClose, itemId, evidence, recent, spaceId,
           <p className="text-sm text-slate-600">{PERF_DEF}.</p>
           <PerfFlow className="mt-2" />
         </div>
-        {!resubmit && !itemId && (
+        {!resubmit && (!itemId || file) && (
           <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-xs w-fit">
             <button onClick={() => setByFile(false)} className={cx('px-3 py-1 rounded-md', !byFile ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>직접 입력</button>
             <button onClick={() => setByFile(true)} className={cx('px-3 py-1 rounded-md', byFile ? 'bg-white shadow-sm font-semibold' : 'text-slate-600')}>파일로 입력</button>
           </div>
         )}
-        {byFile ? <FileExtract mode="member" items={mine.filter((m) => !m.metric_id && checkinTypeFor(m) !== 'note')} onDone={onClose} /> : <>
+        {byFile ? <FileExtract mode="member" items={mine.filter((m) => !m.metric_id && checkinTypeFor(m) !== 'note')} onDone={onClose} initialFile={file} /> : <>
         <div>
           <div className="text-xs font-semibold text-slate-600 mb-1">어느 목표에</div>
           {resubmit && n ? <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"># {n.title}</div> : !mine.length ? (

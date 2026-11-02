@@ -1,7 +1,7 @@
 // 파일로 실적 입력 — 파일을 올리면 Core AI가 항목별 값을 찾아 '이렇게 등록할까요?'로 보여 준다
 //   팀원(성과입력 창): 확인한 것만 성과입력으로 올린다 → 팀장 승인 흐름 그대로
 //   팀장(팀목표 › 파일로 실적 채우기): 확인한 것만 바로 반영한다 (첫 가입 때 지난 실적 채우기에도)
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Crosshair, FileSpreadsheet, Upload } from 'lucide-react';
 import { useTeam } from '../../state/session';
@@ -24,7 +24,7 @@ const DEMO_SAMPLES: { file: string; name: string; who: string }[] = [
 const ACCEPT = '.xlsx,.csv,.pdf,.docx,.pptx,.txt,.png,.jpg,.jpeg,.webp';
 const toB64 = (blob: Blob) => new Promise<string>((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => fail(new Error('파일을 읽지 못했습니다')); r.readAsDataURL(blob); });
 
-export function FileExtract({ items, mode, onDone }: { items: Node[]; mode: 'member' | 'leader'; onDone: () => void }) {
+export function FileExtract({ items, mode, onDone, initialFile }: { items: Node[]; mode: 'member' | 'leader'; onDone: () => void; /** 대화창에 끌어다 놓은 파일 — 열자마자 읽는다 */ initialFile?: File | null }) {
   const { team, uid, nameOf } = useTeam();
   const samples = team.is_demo ? DEMO_SAMPLES.filter((x) => x.who === (mode === 'leader' ? 'leader' : nameOf(uid))) : [];
   const trySample = async (x: { file: string; name: string }) => {
@@ -58,6 +58,8 @@ export function FileExtract({ items, mode, onDone }: { items: Node[]; mode: 'mem
     } catch (e) { toast(errorText(e)); setFile(null); }
     finally { setBusy(null); }
   };
+  const started = useRef(false);
+  useEffect(() => { if (initialFile && items.length && !started.current) { started.current = true; run(initialFile); } }, [initialFile, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const setVal = (id: string, v: string) => setRows((rs) => (rs ?? []).map((r) => (r.item_id === id ? { ...r, value: v === '' ? null : Number(v), issue: '' } : r)));
   const picked = (rows ?? []).filter((r) => on[r.item_id] && (r.type === 'stage' ? r.stage : r.type === 'done' ? true : r.value != null && Number.isFinite(r.value)));
 

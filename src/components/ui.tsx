@@ -151,8 +151,11 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   }, [open]);
   if (!open) return null;
   // body 로 띄워서, 어두운 띠(AI 밴드·TOP PRIORITY) 안에서 열어도 글자색·정렬을 물려받지 않게
+  // 끌어다 놓기는 창 안에서 끝낸다 — 포털이라도 React 이벤트는 부모로 올라가서, 뒤 화면(업무플랫폼 대화창)이 파일을 또 받는 일을 막는다
+  const keepDrag = (e: React.DragEvent) => { e.stopPropagation(); if (e.type === 'dragover' || e.type === 'drop') e.preventDefault(); };
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-slate-900/40 text-slate-900 text-left font-normal flex items-start sm:items-center justify-center p-4 overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 bg-slate-900/40 text-slate-900 text-left font-normal flex items-start sm:items-center justify-center p-4 overflow-y-auto" onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      onDragEnter={keepDrag} onDragOver={keepDrag} onDragLeave={keepDrag} onDrop={keepDrag}>
       <div ref={ref} role="dialog" aria-modal="true" className={cx('bg-white rounded-2xl shadow-xl w-full my-8', wide ? 'max-w-2xl' : 'max-w-md')}>
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="font-semibold">{title}</div>
