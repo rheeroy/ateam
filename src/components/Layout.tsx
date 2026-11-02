@@ -164,8 +164,10 @@ export default function Layout() {
       </aside>
 
       <main className="flex-1 min-w-0">
+        {/* 데모 띠 + 상단 바를 함께 위에 고정 */}
+        <div className="sticky top-0 z-20">
         <DemoBar />
-        <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 md:px-8 py-3 flex items-center justify-between gap-3">
+        <div className="bg-white/90 backdrop-blur border-b border-slate-200 px-4 md:px-8 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-slate-500 min-w-0">
             {memberships.length > 1 ? (
               <select aria-label="팀 선택" value={team?.id} onChange={(e) => { setTeamId(e.target.value); nav('/'); }}
@@ -218,6 +220,7 @@ export default function Layout() {
               )}
             </div>
           </div>
+        </div>
         </div>
         <div ref={mainRef} className={cx('px-4 md:px-8 py-6 md:py-8 max-w-[1240px]', !isLeader && 'pb-24 md:pb-8')}>
           {locked ? <Locked leader={isLeader} trial={!!credits?.was_trial} /> : <Suspense fallback={<Spinner />}><Outlet /></Suspense>}
