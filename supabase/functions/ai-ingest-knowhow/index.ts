@@ -1,7 +1,7 @@
 // 팀장 노하우 정리 — 던져 넣은 원본을 읽고 '노하우 카드'로 나눠 저장한다 (2 크레딧)
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
-import { assertCredits, BASE_RULES } from '../_shared/gateway.ts';
+import { assertCredits, BASE_RULES, demoGate } from '../_shared/gateway.ts';
 import { callClaude, parseJson, toBase64, MODEL_SMART, type Block } from '../_shared/anthropic.ts';
 import { INGEST } from '../_shared/prompts/index.ts';
 
@@ -34,6 +34,7 @@ serve(async (req) => {
     if ((count ?? 0) < FREE_ONBOARDING) credits = 0;
   }
   await assertCredits(src.team_id, credits);
+  await demoGate(src.team_id, 'knowhow_ingest');
 
   await admin.from('knowhow_sources').update({ status: 'processing', error: null }).eq('id', src.id);
   try {

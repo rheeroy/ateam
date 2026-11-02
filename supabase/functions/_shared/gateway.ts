@@ -1,6 +1,6 @@
 // ⑨ AI 게이트웨이: 크레딧 확인 → Claude 호출 → 출처와 함께 저장 → 크레딧 차감
 import { admin } from './supabase.ts';
-import { HttpError } from './http.ts';
+import { HttpError, reqCtx } from './http.ts';
 import { callClaude, parseJson, type Block } from './anthropic.ts';
 
 export type AiKind =
@@ -257,6 +257,27 @@ async function recent(job: AiJob) {
   return data;
 }
 
+// ---------- 데모 링크: AI 기능은 종류별로 한 번씩 ----------
+//   데모 팀(teams.is_demo)에 사용자가 직접 부른 AI만 센다. 예약 작업 · 서버 호출(서비스 키)은 그대로
+//   x-demo-token 헤더(승인된 7일 링크)가 없거나, 그 링크로 이미 쓴 기능이면 막는다
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const demoTeams = new Map<string, boolean>();
+export async function demoGate(teamId: string, kind: string): Promise<(() => Promise<void>) | null> {
+  const ctx = reqCtx.getStore();
+  if (!ctx || !ctx.auth || ctx.auth.replace(/^Bearer\s+/i, '') === SERVICE_KEY) return null;
+  if (!demoTeams.has(teamId)) {
+    const { data } = await admin.from('teams').select('is_demo').eq('id', teamId).maybeSingle();
+    demoTeams.set(teamId, !!data?.is_demo);
+  }
+  if (!demoTeams.get(teamId)) return null;
+  const token = ctx.demoToken;
+  if (!token || !/^[0-9a-f-]{36}$/i.test(token)) throw new HttpError(403, 'DEMO_LINK', '데모 링크로 들어온 경우에만 AI를 체험할 수 있습니다.');
+  const { data: ok, error } = await admin.rpc('demo_ai_take', { p_token: token, p_kind: kind });
+  if (error) throw error;
+  if (!ok) throw new HttpError(429, 'DEMO_AI_LIMIT', '데모에서는 AI 기능마다 한 번씩 체험할 수 있어요. 내 팀으로 시작하면 마음껏 쓸 수 있습니다.');
+  return async () => { await admin.rpc('demo_ai_refund', { p_token: token, p_kind: kind }); };
+}
+
 export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unknown>; parsed: T; reused?: boolean }> {
   const credits = job.credits ?? CREDITS[job.kind];
   const core = CORE.includes(job.kind) && !credits;
@@ -264,7 +285,10 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
 
   const again = await recent(job);
   if (again) return { output: again, parsed: again.content as T, reused: true };
-  await guard(job);
+  const demoRefund = await demoGate(job.teamId, job.kind);
+  try {
+    await guard(job);
+  } catch (e) { await demoRefund?.(); throw e; }
 
   const res = await callClaude({
     model: job.model,
@@ -274,11 +298,12 @@ export async function runAi<T>(job: AiJob): Promise<{ output: Record<string, unk
     timeoutMs: job.timeoutMs,
     thinking: job.thinking,
     effort: job.effort,
-  });
+  }).catch(async (e) => { await demoRefund?.(); throw e; });
   let parsed: T;
   try {
     parsed = parseJson<T>(res.text);
   } catch (e) {
+    await demoRefund?.();
     // 실패한 호출도 원가는 남긴다 (횟수 한도엔 안 셈)
     await admin.rpc('log_ai_error', { p_team: job.teamId, p_kind: job.kind, p_model: res.model, p_in: res.inputTokens, p_out: res.outputTokens, p_cost: res.costUsd });
     throw e;

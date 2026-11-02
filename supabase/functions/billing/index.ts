@@ -100,6 +100,9 @@ serve(async (req) => {
   }
 
   if (caller.isService || !caller.userId) throw new HttpError(403, 'forbidden');
+  // 데모 계정은 결제 · 요금제 변경 불가 (여러 사람이 같은 계정을 쓴다)
+  const { data: demoM } = await admin.from('team_members').select('team_id, teams!inner(is_demo)').eq('user_id', caller.userId).eq('teams.is_demo', true).limit(1);
+  if (demoM?.length) throw new HttpError(403, 'DEMO_READONLY', '데모에서는 결제할 수 없습니다. 내 팀으로 시작해 주세요.');
   const sub = await getSub(caller.userId);
 
   // ---------- 고객 키 (결제창 호출용) ----------

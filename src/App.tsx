@@ -37,6 +37,8 @@ const WorkSpace = lazy(() => import('./pages/WorkSpace'));
 const GroupSpace = lazy(() => import('./pages/GroupSpace'));
 const Notes = lazy(() => import('./pages/Notes'));
 const HistoryPage = lazy(() => import('./pages/History'));
+const Demo = lazy(() => import('./pages/Demo'));
+const AdminDemo = lazy(() => import('./pages/AdminDemo'));
 
 function NotConfigured() {
   return (
@@ -113,6 +115,7 @@ export default function App() {
     <Suspense fallback={<Splash />}>
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/demo" element={<Demo />} />
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
@@ -148,6 +151,7 @@ export default function App() {
         <Route path="history" element={L(<HistoryPage />)} />
         <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="admin/demo" element={<AdminDemo />} />
         <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />

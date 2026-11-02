@@ -1,7 +1,9 @@
 // functions/_shared/http.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+var reqCtx = new AsyncLocalStorage();
 var corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 var HttpError = class extends Error {
@@ -18,19 +20,19 @@ function json(body, status = 200) {
   });
 }
 function serve(handler) {
-  Deno.serve(async (req) => {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
     try {
       return await handler(req);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
-      if (known) return json({ error: known[1], message: msg }, known[1] === "forbidden" ? 403 : 402);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|DEMO_READONLY|forbidden)/);
+      if (known) return json({ error: known[1], message: known[1] === "DEMO_READONLY" ? "\uB370\uBAA8\uC5D0\uC11C\uB294 \uD560 \uC218 \uC5C6\uB294 \uC791\uC5C5\uC785\uB2C8\uB2E4" : msg }, known[1] === "forbidden" || known[1] === "DEMO_READONLY" ? 403 : 402);
       console.error(e);
       return json({ error: "INTERNAL", message: msg }, 500);
     }
-  });
+  }));
 }
 async function readJson(req) {
   try {
@@ -164,6 +166,8 @@ serve(async (req) => {
     return json(out);
   }
   if (caller.isService || !caller.userId) throw new HttpError(403, "forbidden");
+  const { data: demoM } = await admin.from("team_members").select("team_id, teams!inner(is_demo)").eq("user_id", caller.userId).eq("teams.is_demo", true).limit(1);
+  if (demoM?.length) throw new HttpError(403, "DEMO_READONLY", "\uB370\uBAA8\uC5D0\uC11C\uB294 \uACB0\uC81C\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB0B4 \uD300\uC73C\uB85C \uC2DC\uC791\uD574 \uC8FC\uC138\uC694.");
   const sub = await getSub(caller.userId);
   if (b.action === "customer_key") return json({ customerKey: sub.customer_key });
   if (b.action === "subscribe" || b.action === "change") {

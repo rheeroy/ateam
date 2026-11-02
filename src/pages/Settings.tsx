@@ -319,6 +319,8 @@ function AppInstall() {
 
 function PasswordSettings() {
   const toast = useToast();
+  const { team } = useTeam();
+  if (team?.is_demo) return <Card className="p-5 max-w-lg text-sm text-slate-500">데모 계정은 비밀번호를 바꿀 수 없습니다.</Card>;
   return (
     <Card className="p-5 max-w-lg space-y-4">
       <div>

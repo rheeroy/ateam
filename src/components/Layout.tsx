@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardCheck, History as HistoryIcon, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
-  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Lock } from 'lucide-react';
+  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Lock, Inbox } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -22,10 +22,23 @@ import { useMemberBadges } from './member/Member';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
 import { AutopilotFab } from './autopilot/Fab';
 import { HeaderToday } from '../pages/Home';
+import { DemoBar } from './demo/DemoBar';
+import { useIsAdmin } from '../pages/AdminDemo';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string; locked?: boolean };
 
 /** 창이 좁으면(md~xl) 아이콘만 — 이름은 마우스를 올리면 */
+/** 관리자(app_admins)에게만 — 데모 신청 승인 */
+function AdminNav() {
+  const admin = useIsAdmin();
+  const pending = useQuery({
+    queryKey: ['admin-demo-pending'], enabled: !!admin.data, refetchInterval: 300_000,
+    queryFn: async () => ((await q<{ status: string }[]>(supabase.rpc('admin_demo_list'))) ?? []).filter((r) => r.status === 'pending').length,
+  });
+  if (!admin.data) return null;
+  return <NavItem to="/admin/demo" label="데모 신청" icon={Inbox} badge={pending.data ? `${pending.data}` : undefined} />;
+}
+
 function NavItem({ to, label, icon: Icon, badge, tip, locked }: Item) {
   return (
     <NavLink to={to} end={to === '/'} title={tip ?? (typeof label === 'string' ? label : undefined)}
@@ -83,6 +96,7 @@ function LeaderNav({ lvl, proposedN }: { lvl?: string; proposedN: number }) {
             <NavItem to="/knowhow" label="노하우 라이브러리" icon={Library} />
             <NavItem to="/insight" label={<><CoreAI /> 인사이트</>} tip="Core AI 인사이트" icon={Layers} badge={lvl} />
             <NavItem to="/settings" label="설정" icon={Settings} />
+            <AdminNav />
     </>
   );
 }
@@ -143,6 +157,7 @@ export default function Layout() {
       </aside>
 
       <main className="flex-1 min-w-0">
+        <DemoBar />
         <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 md:px-8 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-slate-500 min-w-0">
             {memberships.length > 1 ? (

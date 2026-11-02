@@ -1,7 +1,9 @@
 // functions/_shared/http.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+var reqCtx = new AsyncLocalStorage();
 var corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 var HttpError = class extends Error {
@@ -18,19 +20,19 @@ function json(body, status = 200) {
   });
 }
 function serve(handler) {
-  Deno.serve(async (req) => {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
     try {
       return await handler(req);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
-      if (known) return json({ error: known[1], message: msg }, known[1] === "forbidden" ? 403 : 402);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|DEMO_READONLY|forbidden)/);
+      if (known) return json({ error: known[1], message: known[1] === "DEMO_READONLY" ? "\uB370\uBAA8\uC5D0\uC11C\uB294 \uD560 \uC218 \uC5C6\uB294 \uC791\uC5C5\uC785\uB2C8\uB2E4" : msg }, known[1] === "forbidden" || known[1] === "DEMO_READONLY" ? 403 : 402);
       console.error(e);
       return json({ error: "INTERNAL", message: msg }, 500);
     }
-  });
+  }));
 }
 async function readJson(req) {
   try {
@@ -233,6 +235,27 @@ function closeTruncated(s) {
   return s.slice(0, good) + goodStack.reverse().join("");
 }
 
+// functions/_shared/gateway.ts
+var SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+var demoTeams = /* @__PURE__ */ new Map();
+async function demoGate(teamId, kind) {
+  const ctx = reqCtx.getStore();
+  if (!ctx || !ctx.auth || ctx.auth.replace(/^Bearer\s+/i, "") === SERVICE_KEY) return null;
+  if (!demoTeams.has(teamId)) {
+    const { data } = await admin.from("teams").select("is_demo").eq("id", teamId).maybeSingle();
+    demoTeams.set(teamId, !!data?.is_demo);
+  }
+  if (!demoTeams.get(teamId)) return null;
+  const token = ctx.demoToken;
+  if (!token || !/^[0-9a-f-]{36}$/i.test(token)) throw new HttpError(403, "DEMO_LINK", "\uB370\uBAA8 \uB9C1\uD06C\uB85C \uB4E4\uC5B4\uC628 \uACBD\uC6B0\uC5D0\uB9CC AI\uB97C \uCCB4\uD5D8\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+  const { data: ok, error } = await admin.rpc("demo_ai_take", { p_token: token, p_kind: kind });
+  if (error) throw error;
+  if (!ok) throw new HttpError(429, "DEMO_AI_LIMIT", "\uB370\uBAA8\uC5D0\uC11C\uB294 AI \uAE30\uB2A5\uB9C8\uB2E4 \uD55C \uBC88\uC529 \uCCB4\uD5D8\uD560 \uC218 \uC788\uC5B4\uC694. \uB0B4 \uD300\uC73C\uB85C \uC2DC\uC791\uD558\uBA74 \uB9C8\uC74C\uAECF \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+  return async () => {
+    await admin.rpc("demo_ai_refund", { p_token: token, p_kind: kind });
+  };
+}
+
 // functions/_shared/teampublic.ts
 async function teamPeople(teamId) {
   const { data } = await admin.from("team_members").select("user_id, role, profiles(full_name)").eq("team_id", teamId).eq("status", "active");
@@ -352,8 +375,10 @@ serve(async (req) => {
   const { data: bud } = await admin.rpc("ai_budget", { p_team: teamId });
   const b = bud;
   if (b && Number(b.cap_usd) > 0 && Number(b.cost_usd) >= Number(b.cap_usd)) throw new HttpError(429, "AI_COST_CAP", "\uC774\uBC88 \uB2EC \uD300\uC758 AI \uC0AC\uC6A9\uB7C9\uC744 \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C \uACB0\uC81C \uC8FC\uAE30\uC5D0 \uB2E4\uC2DC \uC5F4\uB9BD\uB2C8\uB2E4.");
+  const demoRefund = await demoGate(teamId, "simbox");
   const { data: take, error: te } = await admin.rpc("simbox_take", { p_team: teamId, p_user: uid });
   if (te) {
+    await demoRefund?.();
     if (/SIMBOX_LIMIT/.test(te.message)) throw new HttpError(429, "SIMBOX_LIMIT", /day/.test(`${te.hint ?? ""}`) ? "\uC624\uB298 Sim.Box \uD69F\uC218\uB97C \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4. \uB0B4\uC77C \uB2E4\uC2DC \uC4F8 \uC218 \uC788\uC5B4\uC694." : "\uC774\uBC88 \uB2EC Sim.Box \uD69F\uC218\uB97C \uBAA8\uB450 \uC37C\uC2B5\uB2C8\uB2E4. \uB2E4\uC74C \uB2EC 1\uC77C\uC5D0 \uB2E4\uC2DC \uCC44\uC6CC\uC9D1\uB2C8\uB2E4.");
     throw te;
   }
@@ -429,6 +454,7 @@ ${mask(text) || "(\uD30C\uC77C\uB9CC \uC62C\uB9BC \u2014 \uC774 \uC790\uB8CC\uB9
     return json({ ok: true });
   } catch (e) {
     await admin.rpc("simbox_refund", { p_id: usageId });
+    await demoRefund?.();
     throw e;
   }
 });

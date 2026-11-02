@@ -8,6 +8,7 @@
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller } from '../_shared/supabase.ts';
 import { callClaude, parseJson, MODEL_SMART, type Block } from '../_shared/anthropic.ts';
+import { demoGate } from '../_shared/gateway.ts';
 import { teamPeople, maskNames, publicBasics, directionText, myFeedback, quotes, type DirectionContent } from '../_shared/teampublic.ts';
 
 const CATS = ['evidence', 'structure', 'clarity', 'priority', 'reporting', 'stakeholder', 'planning', 'idea', 'data'];
@@ -63,9 +64,13 @@ serve(async (req) => {
   const b = bud as { cost_usd: number; cap_usd: number } | null;
   if (b && Number(b.cap_usd) > 0 && Number(b.cost_usd) >= Number(b.cap_usd)) throw new HttpError(429, 'AI_COST_CAP', '이번 달 팀의 AI 사용량을 모두 썼습니다. 다음 결제 주기에 다시 열립니다.');
 
+  // 데모 링크: 한 번만
+  const demoRefund = await demoGate(teamId, 'simbox');
+
   // 횟수 (잠금 안에서 확인 후 기록)
   const { data: take, error: te } = await admin.rpc('simbox_take', { p_team: teamId, p_user: uid });
   if (te) {
+    await demoRefund?.();
     if (/SIMBOX_LIMIT/.test(te.message)) throw new HttpError(429, 'SIMBOX_LIMIT', /day/.test(`${te.hint ?? ''}`) ? '오늘 Sim.Box 횟수를 모두 썼습니다. 내일 다시 쓸 수 있어요.' : '이번 달 Sim.Box 횟수를 모두 썼습니다. 다음 달 1일에 다시 채워집니다.');
     throw te;
   }
@@ -142,6 +147,7 @@ serve(async (req) => {
     return json({ ok: true });
   } catch (e) {
     await admin.rpc('simbox_refund', { p_id: usageId });
+    await demoRefund?.();
     throw e;
   }
 });

@@ -6,7 +6,7 @@ mkdir -p dashboard/functions
 for d in functions/*/; do
   f=$(basename "$d"); [ "$f" = "_shared" ] && continue
   npx -y esbuild@0.25.10 "functions/$f/index.ts" --bundle --format=esm --platform=neutral --target=es2022 \
-    --external:'npm:*' --log-level=error --outfile="dashboard/functions/$f.ts"
+    --external:'npm:*' --external:'node:*' --log-level=error --outfile="dashboard/functions/$f.ts"
 done
 # 01: 스케줄(0006)을 뺀 전체 스키마 합본 — 새 프로젝트에서 한 번
 { echo "-- ATEAM · 대시보드용 스키마 합본 (migrations, 스케줄 제외) — 새 프로젝트의 SQL Editor 에서 한 번 Run"; \
@@ -54,3 +54,4 @@ node ../scripts/build-playbook.mjs
 { echo "-- ATEAM 초대 메모(강점·보완할 점 → 합류하면 팀장 개인 메모, AI 참고) — 33_plans_price 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261112000039_invite_note.sql; } > dashboard/34_invite_note.sql
 { echo "-- ATEAM AUTOPILOT(자율주행) — 34_invite_note 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261113000040_autopilot.sql; } > dashboard/35_autopilot.sql
 { echo "-- ATEAM 업무플랫폼 확장 (팀 방향 · Sim.Box · 파일 실적 추출) — 35_autopilot 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261114000041_workspace_plus.sql; } > dashboard/36_workspace_plus.sql
+{ echo "-- ATEAM 데모 신청 · 승인 (7일 데모 링크 · 링크별 AI 한 번씩 · 데모 팀 보호) — 36_workspace_plus 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전). 맨 끝 관리자 이메일을 확인하세요"; echo; cat migrations/20261115000043_demo_access.sql; } > dashboard/37_demo_access.sql

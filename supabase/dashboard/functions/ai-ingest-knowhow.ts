@@ -1,7 +1,9 @@
 // functions/_shared/http.ts
+import { AsyncLocalStorage } from "node:async_hooks";
+var reqCtx = new AsyncLocalStorage();
 var corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 var HttpError = class extends Error {
@@ -18,19 +20,19 @@ function json(body, status = 200) {
   });
 }
 function serve(handler) {
-  Deno.serve(async (req) => {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
     try {
       return await handler(req);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.code, message: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|forbidden)/);
-      if (known) return json({ error: known[1], message: msg }, known[1] === "forbidden" ? 403 : 402);
+      const known = msg.match(/(INSUFFICIENT_CREDITS|CORE_LIMIT|PLAN_FEATURE|PLAN_LIMIT_\w+|DEMO_READONLY|forbidden)/);
+      if (known) return json({ error: known[1], message: known[1] === "DEMO_READONLY" ? "\uB370\uBAA8\uC5D0\uC11C\uB294 \uD560 \uC218 \uC5C6\uB294 \uC791\uC5C5\uC785\uB2C8\uB2E4" : msg }, known[1] === "forbidden" || known[1] === "DEMO_READONLY" ? 403 : 402);
       console.error(e);
       return json({ error: "INTERNAL", message: msg }, 500);
     }
-  });
+  }));
 }
 async function readJson(req) {
   try {
@@ -266,6 +268,25 @@ async function assertCredits(teamId, need) {
   const left = (data?.monthly_remaining ?? 0) + (data?.topup_remaining ?? 0);
   if (left < need) throw new HttpError(402, "INSUFFICIENT_CREDITS", `\uD06C\uB808\uB527\uC774 \uBD80\uC871\uD569\uB2C8\uB2E4 (\uD544\uC694 ${need}, \uB0A8\uC74C ${left})`);
 }
+var SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+var demoTeams = /* @__PURE__ */ new Map();
+async function demoGate(teamId, kind) {
+  const ctx = reqCtx.getStore();
+  if (!ctx || !ctx.auth || ctx.auth.replace(/^Bearer\s+/i, "") === SERVICE_KEY) return null;
+  if (!demoTeams.has(teamId)) {
+    const { data } = await admin.from("teams").select("is_demo").eq("id", teamId).maybeSingle();
+    demoTeams.set(teamId, !!data?.is_demo);
+  }
+  if (!demoTeams.get(teamId)) return null;
+  const token = ctx.demoToken;
+  if (!token || !/^[0-9a-f-]{36}$/i.test(token)) throw new HttpError(403, "DEMO_LINK", "\uB370\uBAA8 \uB9C1\uD06C\uB85C \uB4E4\uC5B4\uC628 \uACBD\uC6B0\uC5D0\uB9CC AI\uB97C \uCCB4\uD5D8\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+  const { data: ok, error } = await admin.rpc("demo_ai_take", { p_token: token, p_kind: kind });
+  if (error) throw error;
+  if (!ok) throw new HttpError(429, "DEMO_AI_LIMIT", "\uB370\uBAA8\uC5D0\uC11C\uB294 AI \uAE30\uB2A5\uB9C8\uB2E4 \uD55C \uBC88\uC529 \uCCB4\uD5D8\uD560 \uC218 \uC788\uC5B4\uC694. \uB0B4 \uD300\uC73C\uB85C \uC2DC\uC791\uD558\uBA74 \uB9C8\uC74C\uAECF \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+  return async () => {
+    await admin.rpc("demo_ai_refund", { p_token: token, p_kind: kind });
+  };
+}
 
 // functions/_shared/prompts/index.ts
 var INGEST = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uB358\uC838 \uB123\uC740 \uC790\uB8CC(\uBA54\uBAA8, \uBB38\uC11C, \uD504\uB808\uC784\uC6CC\uD06C, \uD3C9\uAC00 \uAE30\uC900, \uC0AC\uC5C5 \uD604\uD669 \uB4F1)\uB97C \uC77D\uACE0,
@@ -321,6 +342,7 @@ serve(async (req) => {
     if ((count ?? 0) < FREE_ONBOARDING) credits = 0;
   }
   await assertCredits(src.team_id, credits);
+  await demoGate(src.team_id, "knowhow_ingest");
   await admin.from("knowhow_sources").update({ status: "processing", error: null }).eq("id", src.id);
   try {
     const content = [];

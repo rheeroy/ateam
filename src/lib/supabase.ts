@@ -23,6 +23,7 @@ export class AppError extends Error {
 }
 
 const KNOWN: Record<string, string> = {
+  DEMO_READONLY: '데모에서는 할 수 없는 작업입니다. 내 팀으로 시작하면 바로 쓸 수 있어요.',
   INSUFFICIENT_CREDITS: '프리미엄 크레딧이 부족합니다. 설정 > 요금제에서 추가할 수 있습니다.',
   AI_LOCKED: '지금은 AI를 쓸 수 없습니다. 설정 > 요금제에서 요금제를 시작하세요.',
   CORE_LIMIT: '이번 달 기본 AI 사용량을 모두 썼습니다. 다음 달에 다시 채워집니다.',
@@ -60,7 +61,10 @@ export function errorText(e: unknown): string {
 
 /** Edge Function 호출 (오류 본문까지 읽어서 사람이 읽을 메시지로) */
 export async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(name, { body });
+  // 데모 링크로 들어온 경우: 링크 값을 함께 보낸다 (데모 AI는 링크마다 기능별 한 번)
+  let demo: string | null = null;
+  try { demo = (JSON.parse(localStorage.getItem('ateam.demo') ?? 'null') as { token?: string } | null)?.token ?? null; } catch { /* 저장소 없음 */ }
+  const { data, error } = await supabase.functions.invoke(name, { body, headers: demo ? { 'x-demo-token': demo } : undefined });
   if (error) {
     // 함수에 아예 닿지 못함 (배포 안 됨·이름 다름·APP_ORIGIN 불일치로 CORS 차단·시간 초과)
     if ((error as { name?: string }).name === 'FunctionsFetchError') {
