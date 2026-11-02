@@ -352,7 +352,7 @@ export function SectionAiCard({ teamId, period, section, out, loading }: { teamI
       {!ai ? (
         <div className="mt-3 text-sm">
           <div className="font-semibold flex items-center gap-1.5"><Lock size={14} className="text-violet-600" /><span><CoreAI /> 해석은 요금제를 시작하면 열립니다</span></div>
-          <p className="mt-1 text-slate-600">{credits?.trial_expired ? '무료 체험이 끝났습니다. 기록은 그대로 보관돼 있고, ' : ''}<CoreAI />가 신호를 엮어 원인과 순서, 할 일을 정리합니다.</p>
+          <p className="mt-1 text-slate-600">{credits?.trial_expired ? '무료 체험이 끝났습니다. 기록은 그대로 보관돼 있고, ' : ''}<CoreAI />가 신호를 모아 원인과 순서, 할 일을 정리합니다.</p>
           <Link to="/settings?tab=billing"><Button size="sm" className="mt-2">요금제 고르기</Button></Link>
         </div>
       ) : loading ? <Spinner /> : !out ? (
@@ -1067,4 +1067,3 @@ export function MemoModal({ teamId, open, preset, onClose, onSaved, initialBody 
     </Modal>
   );
 }
-
