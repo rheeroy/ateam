@@ -583,7 +583,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
           onPaste={(e) => { const f = e.clipboardData.files?.[0]; if (f) { e.preventDefault(); setFile(namedPaste(f)); } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (ready && !post.isPending) post.mutate(); } }}
           className="flex-1 min-w-0 resize-none text-sm px-1.5 py-1.5 leading-6 focus:outline-none placeholder:text-slate-400 bg-transparent"
-          placeholder={work ? '덧붙일 말 (선택) — Enter로 올리기' : reqOn ? '요청할 내용 — 첫 줄이 제목이 됩니다 (Shift+Enter 줄바꿈)' : '메시지 — Enter 보내기 · 파일은 끌어다 놓아도 됩니다'} />
+          placeholder={work ? '덧붙일 말 (선택)' : reqOn ? '요청할 내용 (첫 줄이 제목)' : '메시지를 입력하세요'} />
         {tagName ? (
           <span className="shrink-0 mb-1 inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 pl-2 pr-1 py-0.5 text-xs font-semibold max-w-[40%]">
             <Hash size={11} className="shrink-0" /><span className="truncate">{tagName}</span>
