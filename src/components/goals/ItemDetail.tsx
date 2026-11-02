@@ -143,21 +143,16 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
   const setHypStatus = useMutation({ mutationFn: (h: { id: string; status: Hypothesis['status'] }) => q(supabase.from('hypotheses').update({ status: h.status }).eq('id', h.id)), onSuccess: () => qc.invalidateQueries({ queryKey: ['hyps', team.id, item.id] }) });
 
   const slip = slipDays(item);
-  // 옮길 수 있는 상위 항목 — 화면의 트리 순서대로, 같은 연도 · 지표 아님 · 끝나지 않음 · 옮긴 뒤에도 3단계(목표 › 과제 › 할 일)를 넘지 않게
-  const parentOptions = useMemo(() => {
-    const height = (n: Node): number => n.children.length ? 1 + Math.max(...n.children.map(height)) : 0;
-    const h = height(item);
+  // 옮길 수 있는 상위 항목 — 단계는 그대로 두고 상위만 바꾼다 (과제 → 다른 목표 아래 · 할 일 → 다른 과제 아래)
+  //   같은 연도 · 지표 아님 · 끝나지 않음, 화면의 트리 순서대로. 할 일은 목표별로 묶어 보여 준다
+  const parentGroups = useMemo(() => {
+    if (item.depth === 0) return [];
+    const ok = (n: Node) => n.id === item.parent_id || (n.id !== item.id && n.status !== 'dropped' && n.status !== 'done' && n.role !== 'metric');   // 지금 상위는 늘 보이게
     const rootOf = (n: Node) => (n.path.length ? byId.get(n.path[0]) ?? n : n);
     const year = yearOf(rootOf(item));
-    const roots = [...byId.values()].filter((n) => n.depth === 0).sort((a, b) => a.sort - b.sort || a.created_at.localeCompare(b.created_at));
-    const out: Node[] = [];
-    const walk = (arr: Node[]) => { for (const n of arr) {
-      if (n.id === item.id || n.status === 'dropped' || n.status === 'done' || n.role === 'metric') continue;
-      if (n.depth + 1 + h <= 2) out.push(n);
-      if (n.depth < 1) walk(n.children);
-    } };
-    walk(roots.filter((r) => yearOf(r) === year));
-    return out;
+    const roots = [...byId.values()].filter((n) => n.depth === 0 && (yearOf(n) === year || n.id === item.path[0]) && (ok(n) || n.id === item.path[0])).sort((a, b) => a.sort - b.sort || a.created_at.localeCompare(b.created_at));
+    if (item.depth === 1) return [{ label: null as string | null, opts: roots }];
+    return roots.map((r) => ({ label: r.title as string | null, opts: r.children.filter(ok) })).filter((g) => g.opts.length);
   }, [byId, item]);
   const ro = !canPlan;
   const pro = !canEdit;
@@ -327,12 +322,13 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
             </div>
           </details>
         )}
-        {/* 최상위 목표는 옮기지 않는다 — 다른 목표 밑으로 가면 과제로 내려가고, 걸어 둔 지표가 과제 밑에 붙어 버린다 */}
+        {/* 위치 바꾸기는 같은 단계 안에서만 — 최상위 목표는 옮기지 않는다 */}
         {canStructure && item.depth > 0 && (
-          <Field label="위치 (상위 항목)">
-            <select className={inputCls} value={f.parent_id ?? ''} onChange={(e) => S('parent_id')(e.target.value || null)}>
-              <option value="">최상위 ({levelName(0)})</option>
-              {parentOptions.map((n) => <option key={n.id} value={n.id}>{'— '.repeat(n.depth)}{n.title}</option>)}
+          <Field label={`어느 ${levelName(item.depth - 1)} 아래에`}>
+            <select className={inputCls} value={f.parent_id ?? ''} onChange={(e) => e.target.value && S('parent_id')(e.target.value)}>
+              {parentGroups.map((g, i) => g.label
+                ? <optgroup key={i} label={g.label}>{g.opts.map((n) => <option key={n.id} value={n.id}>{n.title}</option>)}</optgroup>
+                : g.opts.map((n) => <option key={n.id} value={n.id}>{n.title}</option>))}
             </select>
           </Field>
         )}
