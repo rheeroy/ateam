@@ -59,7 +59,7 @@ export default function PersonDetail() {
             <button onClick={() => setCoach(true)} title="말하기 껄끄러운 개선점을 ATEAM AI 코치가 대신 전달합니다"
               className="rounded-xl pl-2.5 pr-3.5 py-1.5 bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm hover:brightness-110 inline-flex items-center gap-2 text-left">
               <span className="w-7 h-7 rounded-lg bg-white/15 ring-1 ring-white/25 flex items-center justify-center"><LogoMark size={14} /></span>
-              <span className="leading-[1.1]"><span className="block text-[13px] font-extrabold tracking-tight">ATEAM<AiSup className="text-indigo-100" /></span><span className="block text-[12px] font-semibold text-indigo-50">코칭하기</span></span>
+              <span className="leading-[1.1]"><span className="block text-[13px] font-extrabold tracking-tight">ATEAM<AiSup className="text-indigo-100" /></span><span className="block text-[12px] font-semibold text-indigo-50">업무 피드백</span></span>
             </button>
           </div>
         </div>

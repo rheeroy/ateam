@@ -58,7 +58,7 @@ function SendModal({ open, onClose, item, hist, request }: { open: boolean; onCl
         </div>
         <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1.5">
           <div>전달되는 것: 현황 · 진행 흐름 · 관계자 · 확정/미결 사항 · 리스크 · 이전 시도 · 확인 필요 <span className="text-slate-400">(숨긴 항목 제외, 지금 화면 그대로)</span></div>
-          <div className="inline-flex items-center gap-1"><Lock size={12} className="text-slate-400" />전달되지 않는 것: 1on1 · 컨디션 · 팀장 메모 · 평가 · 코칭</div>
+          <div className="inline-flex items-center gap-1"><Lock size={12} className="text-slate-400" />전달되지 않는 것: 1on1 · 컨디션 · 팀장 메모 · 평가 · ATEAM 업무 피드백</div>
         </div>
         {canOwner && (
           <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={owner} onChange={(e) => setOwner(e.target.checked)} className="rounded border-slate-300 text-violet-600" />
@@ -161,7 +161,7 @@ export default function HistoryPage() {
         <Card><Empty icon={<HistoryIcon size={18} />} title="과제 히스토리를 만들어 볼까요?"
           action={<Button loading={!!batch} disabled={!targets.length} onClick={() => createAll(targets.map((i) => i.id))}><Sparkles size={14} />{batch ? `만드는 중 ${batch.done}/${batch.total}` : `히스토리 만들기 · 과제 ${targets.length}개`}</Button>}>
           지금까지 쌓인 결과물 · 피드백 · 대화 · 요청 · 변경 이력으로 과제마다 히스토리를 한 장씩 만듭니다. 처음 한 번만 전체를 읽고, 그다음부터는 매주 월요일 아침 새 기록만 합쳐 업데이트합니다.
-          1on1 · 컨디션 · 평가 · 코칭은 읽지 않습니다.
+          1on1 · 컨디션 · 평가 · ATEAM 업무 피드백은 읽지 않습니다.
         </Empty></Card>
       ) : (
         <div className="grid lg:grid-cols-[260px_minmax(0,1fr)] gap-4 items-start">

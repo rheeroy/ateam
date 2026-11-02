@@ -77,14 +77,14 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
       const { error } = await supabase.from('coaching_notes').insert({ team_id: team.id, member_id: memberId, title: f.title.trim(), body: f.body.trim() });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['coaching', team.id] }); toast(`${name} 님에게 코칭을 보냈습니다. ${name} 님에게는 'ATEAM 업무 피드백'으로 보입니다.`); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['coaching', team.id] }); toast(`${name} 님에게 ATEAM 업무 피드백을 보냈습니다. 보낸 내용은 팀원관리 › 보낸 액션에서 다시 볼 수 있습니다.`); onClose(); },
     onError: (e) => toast(missing(e) ? '코칭 테이블이 아직 없습니다. 13_coaching.sql 을 실행해 주세요.' : /COACHING_LIMIT/.test(errorText(e)) ? '한 팀원에게는 7일 동안 2건까지 보낼 수 있습니다.' : errorText(e)),
   });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { gen.mutate(); }, []);
   const last = sent.data?.[0];
   return (
-    <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><AiSup className="opacity-80" /> 코칭하기 · {name}</span></span>}>
+    <Modal open onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><span className="w-6 h-6 rounded-md bg-indigo-600 text-white flex items-center justify-center"><LogoMark size={13} /></span><span><span className="font-extrabold">ATEAM</span><AiSup className="opacity-80" /> 업무 피드백 보내기 · {name}</span></span>}>
       <p className="text-sm text-slate-600 leading-relaxed rounded-lg bg-indigo-50/70 px-3 py-2">
         직접 말하기 껄끄러운 개선점을 <b>ATEAM<AiSup className="opacity-80" /> 코치</b>를 통해 전달하는 기능입니다. 보내면 {name} 님 매니징 보드 › Feedback에 <b>'ATEAM<AiSup className="opacity-80" /> 업무 피드백'</b>으로 도착합니다. 자유롭게 수정해보세요.
       </p>
@@ -101,7 +101,7 @@ export function CoachModal({ memberId, name, onClose }: { memberId: string; name
             <button onClick={() => setPreview(true)} className="font-semibold text-indigo-700 hover:underline inline-flex items-center gap-1"><Eye size={13} />{name} 님에게 이렇게 보여요</button>
             <button onClick={() => gen.mutate()} className="text-slate-500 hover:text-slate-900 inline-flex items-center gap-1"><RefreshCw size={12} />다시 만들기</button>
             {methods.length > 0 && <span className="inline-flex items-center gap-1 text-[#7D5414]" title="ATEAM Method™에서 이 팀원의 보완점에 맞는 방법론을 골라 녹였습니다"><Library size={12} />{methods.join(', ')}</span>}
-            {last && <span className="ml-auto text-slate-400">최근 보낸 코칭 {fmtDate(last.created_at)} · {last.seen_at ? '읽음' : '안 읽음'}</span>}
+            {last && <span className="ml-auto text-slate-400">최근 보낸 피드백 {fmtDate(last.created_at)} · {last.seen_at ? '읽음' : '안 읽음'}</span>}
           </div>
         </div>
       )}

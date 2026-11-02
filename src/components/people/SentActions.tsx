@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HeartHandshake, Send, Sprout } from 'lucide-react';
+import { ChevronDown, HeartHandshake, Send, Sprout } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText } from '../../lib/supabase';
 import type { TeamRequest } from '../../lib/types';
@@ -11,7 +11,7 @@ import { cx, fmtShort } from '../../lib/format';
 import { Card, useToast } from '../ui';
 import { LogoMark } from '../Brand';
 
-type Coach = { id: string; member_id: string; title: string; created_at: string; seen_at: string | null; acked_at: string | null; helpful: boolean | null };
+type Coach = { id: string; member_id: string; title: string; body: string; created_at: string; seen_at: string | null };
 type Row =
   | { t: 'req'; id: string; at: string; to: string; r: TeamRequest }
   | { t: 'coach'; id: string; at: string; to: string; c: Coach };
@@ -33,6 +33,7 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
   const box = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [limit, setLimit] = useState(8);
+  const [openCoach, setOpenCoach] = useState<string | null>(null);   // 펼친 ATEAM 업무 피드백
   const since = new Date(Date.now() - 90 * DAY).toISOString();
 
   const reqs = useQuery({
@@ -44,7 +45,7 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
   const coach = useQuery({
     queryKey: ['coaching', team.id, 'sent'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('coaching_notes').select('id, member_id, title, created_at, seen_at, acked_at, helpful').eq('team_id', team.id).gte('created_at', since).order('created_at', { ascending: false }).limit(40);
+      const { data, error } = await supabase.from('coaching_notes').select('id, member_id, title, body, created_at, seen_at').eq('team_id', team.id).gte('created_at', since).order('created_at', { ascending: false }).limit(40);
       return error ? [] : (data as Coach[]);
     },
   });
@@ -61,7 +62,7 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
   const isOpen = (x: Row) => x.t === 'req' && x.r.status === 'open';   // 코칭은 답을 기다리지 않는다
   const pick = (f: Filter) => (f === 'all' ? rows : f === 'open' ? rows.filter(isOpen) : f === 'coach' ? rows.filter((x) => x.t === 'coach') : rows.filter((x) => x.t === 'req' && reqType(x.r) === f));
   const shown = pick(filter);
-  const TABS: [Filter, string][] = [['all', '전체'], ['open', '답 기다림'], ['grow', '육성'], ['push', '업무 독려'], ['cheer', '지원·격려'], ['coach', '코칭']];
+  const TABS: [Filter, string][] = [['all', '전체'], ['open', '답 기다림'], ['grow', '육성'], ['push', '업무 독려'], ['cheer', '지원·격려'], ['coach', 'ATEAM 업무 피드백']];
 
   // 알림(답이 왔어요)에서 들어오면 여기로
   useEffect(() => { if (params.get('sent')) setTimeout(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); }, [params]);
@@ -70,7 +71,7 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
   return (
     <div ref={box} className="space-y-2.5 scroll-mt-20">
       {!bare && <div className="flex items-end gap-2 flex-wrap"><span className="text-sm font-bold text-slate-900">보낸 액션</span>
-        <span className="text-xs text-slate-400">최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · 코칭과 답</span></div>}
+        <span className="text-xs text-slate-400">최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · ATEAM 업무 피드백과 답</span></div>}
       <Card>
         <div className="px-4 py-3 border-b border-slate-100 flex gap-1 flex-wrap">
           {TABS.filter(([k]) => k === 'all' || pick(k).length > 0).map(([k, l]) => (
@@ -86,12 +87,16 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
             {shown.slice(0, limit).map((x) => {
               if (x.t === 'coach') {
                 const c = x.c;
+                const on = openCoach === c.id;
                 return (
-                  <li key={x.id} className="px-5 py-3 flex items-start gap-3">
+                  <li key={x.id} className="px-5 py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/60" onClick={() => setOpenCoach(on ? null : c.id)}>
                     <span className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0"><LogoMark size={15} weight={4} /></span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[11px] text-slate-400"><b className="font-semibold text-slate-500">코칭</b> · {nameOf(c.member_id)} · {fmtShort(c.created_at)}</div>
-                      <div className="text-sm font-semibold text-slate-800 truncate">{c.title}</div>
+                      <div className="text-[11px] text-slate-400"><b className="font-semibold text-slate-500">ATEAM 업무 피드백</b> · {nameOf(c.member_id)} · {fmtShort(c.created_at)}</div>
+                      <div className={cx('text-sm font-semibold text-slate-800', !on && 'truncate')}>{c.title}</div>
+                      {/* 누르면 보낸 본문 그대로 — 팀원이 받은 내용과 같다 */}
+                      {on ? <div className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 leading-relaxed whitespace-pre-line">{c.body.replace(/\s*\[E\d+\]/g, '')}</div>
+                        : <div className="text-xs text-slate-400 mt-0.5 inline-flex items-center gap-0.5">보낸 내용 보기<ChevronDown size={12} /></div>}
                     </div>
                     <span className={cx('shrink-0 text-[11px] rounded-full px-2 py-0.5 mt-1', c.seen_at ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700')}>
                       {c.seen_at ? '읽음' : '안 읽음'}</span>

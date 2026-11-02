@@ -92,7 +92,7 @@ export default function People() {
                 <button key={k} onClick={() => setLow(k)} className={cx('text-sm rounded-md px-3 py-1', low === k ? 'bg-white shadow-sm font-bold text-slate-900' : 'text-slate-500 hover:text-slate-800')}>{l}</button>
               ))}
             </div>
-            <span className="text-xs text-slate-400">{low === 'sent' ? '최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · 코칭과 답' : '팀원별 업무 부하 · 컨디션 · 팀장 접점을 주 단위로 봅니다'}</span>
+            <span className="text-xs text-slate-400">{low === 'sent' ? '최근 90일 · 팀원에게 보낸 육성 · 지원·격려 · 업무 독려 · ATEAM 업무 피드백과 답' : '팀원별 업무 부하 · 컨디션 · 팀장 접점을 주 단위로 봅니다'}</span>
           </div>
           {low === 'sent' ? <SentActions bare /> : <TeamFlow />}
         </section>

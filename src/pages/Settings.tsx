@@ -20,7 +20,7 @@ const KIND_LABEL: Record<string, string> = {
 /** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리 · 크레딧 (요금제 카드에 표시) */
 const INCLUDED: { title: string; sub: string; items: string[] }[] = [
   { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제', '업무플랫폼', '컨디션 공유 · 1on1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '노하우 라이브러리 · 내 메모'] },
-  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트', 'ATEAM의 제안', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM의 코칭', '임원 브리핑'] },
+  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트', 'ATEAM의 제안', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM 업무 피드백', '임원 브리핑'] },
   { title: '프리미엄', sub: '월 크레딧으로 · 1회 차감', items: ['AI 목표 초안 2', '노하우 자료 정리 2', '성과 해석 1'] },
 ];
 
