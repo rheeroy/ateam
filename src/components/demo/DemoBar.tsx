@@ -7,12 +7,9 @@ import { cx } from '../../lib/format';
 import { useToast } from '../ui';
 
 const CHECKED = 'ateam.demo.checked';
-// 팀원 고르기 — 이름 옆에 이 계정에서 볼 수 있는 것
-const HINT: Record<string, string> = {
-  최다은: 'Sim.Box 파일 검토 예시 · 파일 성과입력 샘플',
-  김현정: 'Sim.Box 보고 상담 예시 · 사전예약 샘플',
-  한수진: '신규 팀원 · Sim.Box 질문 예시',
-  이동욱: 'CRM 리포트 샘플',
+// 팀원 고르기 — 이름 옆 직급 (데모 팀 전용)
+const RANK: Record<string, string> = {
+  김현정: '차장', 박서연: '과장', 정우성: '과장', 최다은: '대리', 이동욱: '대리', 한수진: '사원',
 };
 
 export function DemoBar() {
@@ -59,8 +56,8 @@ export function DemoBar() {
           <label className="inline-flex items-center gap-1.5 text-slate-300">
             <span className="hidden sm:inline">지금 보는 팀원</span>
             <select value={d.name ?? ''} disabled={!!busy} onChange={(e) => go('member', e.target.value)}
-              className="bg-white/10 text-white rounded-md px-2 py-1 text-[13px] font-semibold border-0 focus:ring-1 focus:ring-indigo-400 max-w-[260px]">
-              {mates.map((n) => <option key={n} value={n} className="text-slate-900">{n}{HINT[n] ? ` — ${HINT[n]}` : ''}</option>)}
+              className="bg-white/10 text-white rounded-md px-2 py-1 text-[13px] font-semibold border-0 focus:ring-1 focus:ring-indigo-400 max-w-[160px]">
+              {mates.map((n) => <option key={n} value={n} className="text-slate-900">{n}{RANK[n] ? ` ${RANK[n]}` : ''}</option>)}
             </select>
             {busy && busy !== 'leader' && busy !== 'member' && <span className="text-xs">전환 중…</span>}
           </label>
