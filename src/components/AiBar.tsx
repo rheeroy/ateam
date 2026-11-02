@@ -118,7 +118,7 @@ export function AiBar({ section, label, filter, emptyHint, n = 3, extra }: {
         <div className="text-sm flex items-center gap-2 flex-wrap"><Lock size={14} /><span><CoreAI /> 해석은 Pro에서 열립니다.</span>
           <Link to="/settings?tab=billing" className="text-xs font-semibold rounded-lg bg-indigo-600 text-white px-2.5 py-1">Pro 시작하기</Link></div>
       ) : s.loading ? <p className="text-sm text-slate-500">불러오는 중…</p> : !out ? (
-        <p className="text-sm text-slate-600">{emptyHint ?? '아직 해석이 없습니다.'} '지금 만들기'를 누르면 30초 안에 팀 기록을 엮어 정리합니다.</p>
+        <p className="text-sm text-slate-600">{emptyHint ?? '아직 해석이 없습니다.'} '지금 만들기'를 누르면 30초 안에 팀 기록을 모아 정리합니다.</p>
       ) : (
         <>
           {sec?.summary && !filter && <p className="text-[15px] font-semibold leading-snug">{strip(sec.summary)}</p>}
