@@ -2,8 +2,8 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ClipboardCheck, History as HistoryIcon, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
-  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Lock, Inbox, Contact } from 'lucide-react';
+  ClipboardCheck, FolderClock, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
+  ScatterChart, Settings, StickyNote, Target, Users, Split, Lock, Inbox, Contact } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -17,7 +17,7 @@ import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { QuickNote } from './notes/Notes';
 import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
-import { ATeam, ATeamAdvice, CoreAI, LogoBlock, LogoMark } from './Brand';
+import { ATeam, ATeamAdvice, CoreAI, ExecIcon, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
 import { AutopilotFab } from './autopilot/Fab';
@@ -93,10 +93,10 @@ function LeaderNav({ lvl, proposedN, demo }: { lvl?: string; proposedN: number; 
             <NavItem to="/goals" label="팀목표" icon={Target} badge={proposedN ? `${proposedN}` : undefined} />
             <NavItem to="/work" label="업무플랫폼" icon={LaptopMinimal} badge={todo.work ? `${todo.work}` : undefined} />
             <NavItem to="/people" label="팀원관리" icon={Users} badge={todo.people ? `${todo.people}` : undefined} />
-            <NavItem to="/decide" label="의사결정" icon={Gavel} badge={todo.decide ? `${todo.decide}` : undefined} />
-            <NavItem to="/history" label="히스토리 관리" icon={HistoryIcon} badge={hTodo.data ? `${hTodo.data}` : undefined} locked={!hasFeature('history')} tip={!hasFeature('history') ? '히스토리 관리 · Pro부터' : undefined} />
+            <NavItem to="/decide" label="의사결정" icon={Split} badge={todo.decide ? `${todo.decide}` : undefined} />
+            <NavItem to="/history" label="히스토리 관리" icon={FolderClock} badge={hTodo.data ? `${hTodo.data}` : undefined} locked={!hasFeature('history')} tip={!hasFeature('history') ? '히스토리 관리 · Pro부터' : undefined} />
             <Group label="상향 관리" />
-            <NavItem to="/upward" label="임원 브리핑" icon={UserRound} badge={todo.upward ? `${todo.upward}` : undefined} />
+            <NavItem to="/upward" label="임원 브리핑" icon={ExecIcon as unknown as typeof Home} badge={todo.upward ? `${todo.upward}` : undefined} />
             <Group label="판단" />
             <NavItem to="/perf" label="팀 성과" icon={ScatterChart} />
             <NavItem to="/advisor" label={<ATeamAdvice />} tip="ATEAM AI의 제안" icon={((p: { size?: number; className?: string }) => <LogoMark {...p} weight={4} />) as unknown as typeof Home} />

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, ChevronRight, Circle, FileText, Gavel, Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Briefcase, Building2, CalendarCheck, ChevronRight, Circle, FileText, Split, Inbox, ListTree, MessagesSquare, ScatterChart, Sparkles, StickyNote, Target, UserRound, Users, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { OrgNote } from '../lib/types';
@@ -15,7 +15,7 @@ import { usePeopleIndex } from '../components/people/usePeopleIndex';
 import { useBoard, usePriorities } from '../components/decide/priorities';
 import { useApRuns } from '../lib/autopilot';
 import { useLatestAi } from '../lib/hooks';
-import { AiIcon, aiText, AteamAI, LogoMark } from '../components/Brand';
+import { AiIcon, aiText, AteamAI, ExecIcon, LogoMark } from '../components/Brand';
 import { onboardingOf } from '../lib/onboarding';
 import { useNotes } from '../lib/notes';
 import {
@@ -103,17 +103,17 @@ function useBriefing(m: HomeModel): BLine[] {
   if (m.lowGoals.length) out.push({ key: 'low', tone: 'rose', icon: ScatterChart, text: <>달성이 어려워 보이는 목표가 {n(m.lowGoals.length, '개')} 있어요.</>, go: '팀 성과를', to: '/perf' });
   if (k.blocked + k.delayed) out.push({ key: 'late', tone: k.blocked ? 'rose' : 'amber', icon: Target, text: <>업무가 늦어지고 있다는 신호가 {n(k.blocked + k.delayed, '건')} 발생했어요.</>, go: '팀목표를', to: '/goals' });
   if (high + mid) out.push({ key: 'flight', tone: high ? 'rose' : 'amber', icon: Users, text: <>이탈 신호가 보이는 팀원이 {n(high + mid, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
-  if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Gavel, text: <><AteamAI />가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
+  if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Split, text: <><AteamAI />가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
   // 최근 7일 안에 마친 AUTOPILOT 결과가 있으면 바로 가기
   const apLast = apRuns.data?.find((r) => r.status === 'done' && Date.now() - Date.parse(r.created_at) < 7 * 86400000);
   if (apLast) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <>AUTOPILOT 결과를 확인해 보세요 · 보낸 액션 {n(Object.values(apLast.actions ?? {}).filter((a) => a.status === 'sent').length, '건')}</>, go: 'ATEAM AI의 제안을', to: `/advisor?run=${apLast.id}` });
   if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <><AteamAI />가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
   if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <><AteamAI />가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
   else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });
-  if (briefFresh) out.push({ key: 'brief', tone: 'agent', icon: UserRound, text: <><AteamAI />가 이번 주 임원 브리핑을 업데이트했어요{nearest != null && nearest <= 7 ? <> · 가장 가까운 기한 {n(nearest, '')}일 남음</> : null}.</>, go: '임원 브리핑을', to: '/upward' });
-  else if (m.orgSt.feed.length) out.push({ key: 'org', tone: nearest != null && nearest <= 3 ? 'amber' : 'slate', icon: UserRound, text: <>위에서 내려온 소식 {n(m.orgSt.feed.length, '건')}이 열려 있어요.</>, go: '임원 브리핑을', to: '/upward' });
+  if (briefFresh) out.push({ key: 'brief', tone: 'agent', icon: ExecIcon as unknown as typeof UserRound, text: <><AteamAI />가 이번 주 임원 브리핑을 업데이트했어요{nearest != null && nearest <= 7 ? <> · 가장 가까운 기한 {n(nearest, '')}일 남음</> : null}.</>, go: '임원 브리핑을', to: '/upward' });
+  else if (m.orgSt.feed.length) out.push({ key: 'org', tone: nearest != null && nearest <= 3 ? 'amber' : 'slate', icon: ExecIcon as unknown as typeof UserRound, text: <>위에서 내려온 소식 {n(m.orgSt.feed.length, '건')}이 열려 있어요.</>, go: '임원 브리핑을', to: '/upward' });
   if (ooGap) out.push({ key: 'oo', tone: 'amber', icon: Users, text: <>2주 넘게 1on1을 못 한 팀원이 {n(ooGap, '명')} 있어요.</>, go: '팀원관리를', to: '/people' });
-  if (k.decisionsDue) out.push({ key: 'due', tone: 'slate', icon: Gavel, text: <>결과를 기록할 결정이 {n(k.decisionsDue, '건')} 있어요.</>, go: '의사결정을', to: '/decide' });
+  if (k.decisionsDue) out.push({ key: 'due', tone: 'slate', icon: Split, text: <>결과를 기록할 결정이 {n(k.decisionsDue, '건')} 있어요.</>, go: '의사결정을', to: '/decide' });
   // 내 메모 — 남은 할 일, 한 사람에게 쌓인 메모
   const live = (notes.data ?? []).filter((x) => !(x.kind === 'todo' && x.done));
   const todos = live.filter((x) => x.kind === 'todo').length;
@@ -378,7 +378,7 @@ function Tiles({ m }: { m: HomeModel }) {
           { label: '막힘 · 지연', value: `${k.blocked}·${k.delayed}`, sub: '건', tone: k.blocked + k.delayed ? 'amber' : undefined },
         ]}
         ai={topAi('perf')} fallback={sig('perf') ? `자동 감지 · ${sig('perf')}` : null} />
-      <Tile icon={Gavel} title="의사결정" status={st('decide')} to="/decide"
+      <Tile icon={Split} title="의사결정" status={st('decide')} to="/decide"
         facts={fDecide} empty="기록한 결정이 아직 없습니다"
         kpis={[
           { label: '결정할 것', value: pr.length, sub: '성과에 걸린 것' },

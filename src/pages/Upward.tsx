@@ -3,7 +3,7 @@
 //   오른쪽: 입력 (상위 관리자 프로필 · 위에서 온 것)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarClock, ClipboardCopy, Lock, MessageCircleQuestion, Pencil, Plus, RefreshCw, Send, Trash2, UserRound } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ClipboardCopy, Lock, MessageCircleQuestion, Pencil, Plus, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { NotesToggle } from '../components/notes/Notes';
 import { useTeam } from '../state/session';
 import { useGenerate } from '../lib/hooks';
@@ -12,7 +12,7 @@ import { STYLE_PRESETS, useExecBrief, useExecutives, type ExecBriefOut, type Exe
 import { Button, Card, Field, Modal, Spinner, inputCls, useToast } from '../components/ui';
 import { periodRange } from '../components/AiBar';
 import { ORG_KIND, OrgNoteModal, OrgNoteRow, dDay, orgStats, useOrgNotes } from '../components/home/shared';
-import { AiIcon } from '../components/Brand';
+import { AiIcon, ExecIcon } from '../components/Brand';
 
 const strip = (t?: string) => (t ?? '').replace(/\s*\[E\d+\]/g, '');
 
@@ -27,7 +27,7 @@ export default function Upward() {
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm"><UserRound size={20} /></span>
+          <span className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm"><ExecIcon size={20} /></span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight leading-tight">임원 브리핑</h1>
             <p className="text-sm text-slate-500">실장 · 본부장 등 상위 관리자가 요구할 것 · 챌린지 할 것 등을 미리 예측하고 챙깁니다</p>
@@ -101,7 +101,7 @@ function Brief({ c, at, start, stale, execs }: { c: ExecBriefOut; at: string; st
         <Card className="overflow-hidden">
           <div className="px-4 pt-4 pb-1">
             <div className="flex items-center gap-1.5 flex-wrap">{(prof?.style_tags ?? []).map((t) => <span key={t} className="text-[10px] rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">{t}</span>)}</div>
-            {e.lens && <p className="mt-1 text-sm text-slate-600"><b className="text-slate-800 mr-1">이번 주 이분의 렌즈</b>{strip(e.lens)}</p>}
+            {e.lens && <p className="mt-1 text-sm text-slate-600"><b className="text-slate-800 mr-1">이번 주 관심사</b>{strip(e.lens)}</p>}
             {e.opener && <p className="mt-2 text-sm rounded-lg bg-indigo-50 text-indigo-900 px-3 py-2"><b className="mr-1">먼저 꺼낼 말</b>“{strip(e.opener)}”</p>}
           </div>
           <div className="grid md:grid-cols-2 gap-0 md:divide-x divide-slate-100 border-t border-slate-100 mt-3">

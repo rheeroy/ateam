@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, Check, ChevronRight, Eye, Gavel, RotateCcw, X } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronRight, Eye, Split, RotateCcw, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { Decision } from '../lib/types';
@@ -57,7 +57,7 @@ export default function Decide() {
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shadow-sm"><Gavel size={20} /></span>
+          <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shadow-sm"><Split size={20} /></span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">의사결정
               {st && <span className={cx('text-xs font-semibold border rounded-full px-2 py-0.5', st.cls)}>{st.label}</span>}</h1>

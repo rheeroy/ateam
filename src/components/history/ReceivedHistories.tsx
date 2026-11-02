@@ -2,7 +2,7 @@
 //   박스 없이 보라 계열 카드 (소통 및 피드백 묶음과 구분) · 안 읽은 것은 NEW + 보라 테두리 + '미열람 · 읽기' 띠 · 카드를 누르면 오른쪽 넓은 창에서 자세히 (?history=<id>) · 확인했어요 · 질문 · 히스토리 요청
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BookOpen, CheckCircle2, CircleHelp, Flag, History as HistoryIcon, Inbox, MessageSquare, Send, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, CircleHelp, Flag, FolderClock, Inbox, MessageSquare, Send, X } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { useItems } from '../../lib/items';
 import { historyItems, useHistoryActions, useHistoryMessages, useShares, type HistoryShare } from '../../lib/history';
@@ -74,7 +74,7 @@ function Drawer({ s, title, onClose }: { s: HistoryShare; title: string; onClose
       <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
       <aside className="absolute inset-y-0 right-0 w-full lg:w-[min(1080px,92vw)] bg-[#F6F7F9] shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 bg-[#F6F7F9]/95 backdrop-blur px-5 md:px-7 py-3 border-b border-slate-200 flex items-center gap-2">
-          <HistoryIcon size={15} className="text-slate-400" /><span className="text-xs text-slate-500">받은 히스토리</span>
+          <FolderClock size={15} className="text-slate-400" /><span className="text-xs text-slate-500">받은 히스토리</span>
           <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700" aria-label="닫기"><X size={18} /></button>
         </div>
         <div className="px-5 md:px-7 py-5 space-y-3">
@@ -110,7 +110,7 @@ export function ReceivedHistories() {
   return (
     <section className="min-w-0">
       <div className="flex items-start gap-3 px-1 mb-5">
-        <span className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0"><HistoryIcon size={17} /></span>
+        <span className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0"><FolderClock size={17} /></span>
         <div className="min-w-0">
           <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-1.5">받은 히스토리</h2>
           <p className="text-xs text-slate-500 mt-0.5">업무 히스토리를 파악할 수 있게 팀장님이 전달한 내용입니다</p>

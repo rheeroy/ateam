@@ -76,3 +76,14 @@ export function aiText(s: string, mode: 'core' | 'mark' = 'core'): ReactNode {
     return <Fragment key={i}>{mode === 'mark' && parts[i - 1] === 'AI' ? p.replace(/^ /, '') : p}</Fragment>;
   });
 }
+
+/** 임원 브리핑 아이콘 — 넥타이 맨 사람 (lucide 아이콘과 같은 선 굵기 · 크기 규칙). lucide 아이콘 자리에 그대로 넣는다 */
+export function ExecIcon({ size = 24, className, strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <circle cx="12" cy="6.5" r="3.5" />
+      <path d="M4 21v-.5A6.5 6.5 0 0 1 10.5 14M13.5 14A6.5 6.5 0 0 1 20 20.5v.5" />
+      <path d="M11 14h2l-.3 1.5 1.1 3.8L12 21l-1.8-1.7 1.1-3.8z" fill="currentColor" strokeWidth={1.2} />
+    </svg>
+  );
+}

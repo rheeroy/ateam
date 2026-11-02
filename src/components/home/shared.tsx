@@ -6,7 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, Building2, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronRight,
-  EyeOff, Gavel, Layers, Lock, Plus, RefreshCw, ShieldAlert, Sparkles, StickyNote, Target, ThumbsUp, Users, X,
+  EyeOff, Split, Layers, Lock, Plus, RefreshCw, ShieldAlert, Sparkles, StickyNote, Target, ThumbsUp, Users, X,
 } from 'lucide-react';
 import { useTeam } from '../../state/session';
 import { supabase, q, errorText, invoke } from '../../lib/supabase';
@@ -107,7 +107,7 @@ const RANK: Record<Status, number> = { unknown: 0, good: 1, watch: 2, risk: 3 };
 export const worst = (xs: Status[]): Status => xs.filter((x) => x !== 'unknown').sort((a, b) => RANK[b] - RANK[a])[0] ?? 'unknown';
 export const SECTION_META: Record<MainSection, { name: string; icon: typeof Target; question: string }> = {
   risk: { name: '리스크', icon: ShieldAlert, question: '무엇이 커지고 있고, 원인은 어디서 오나' },
-  decide: { name: '의사결정', icon: Gavel, question: '무엇을 결정해야 하고, 지난 결정은 맞았나' },
+  decide: { name: '의사결정', icon: Split, question: '무엇을 결정해야 하고, 지난 결정은 맞았나' },
   perf: { name: '팀 성과', icon: Target, question: '목표가 달성되나, 일이 굴러가나' },
   people: { name: '팀원관리', icon: Users, question: '다들 괜찮고, 크고 있나' },
   org: { name: '조직·전사', icon: Building2, question: '위에서 무엇이 바뀌었고, 위로 무엇을 올려야 하나' },
@@ -1067,3 +1067,4 @@ export function MemoModal({ teamId, open, preset, onClose, onSaved, initialBody 
     </Modal>
   );
 }
+

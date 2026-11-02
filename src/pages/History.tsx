@@ -2,7 +2,7 @@
 //   왼쪽: 받은 요청 · 이번 주 업데이트 · 변동 없음 · 아직 없음 / 오른쪽: 과제 히스토리 (그림·문서) + 전달 기록(확인 · 질문/답)
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, ChevronDown, Hash, History as HistoryIcon, Inbox, Lock, MessageSquare, RefreshCw, Search, Send, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Hash, FolderClock, Inbox, Lock, MessageSquare, RefreshCw, Search, Send, Sparkles, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useItems } from '../lib/items';
 import type { WorkItem } from '../lib/types';
@@ -158,7 +158,7 @@ export default function HistoryPage() {
     <section>
       <PageHeader title="히스토리 관리" sub="과제별 히스토리를 쌓아 두고, 맥락 전달이 필요할 때 팀원에게 한 번에 보냅니다." />
       {!hists.data?.length && !requests.length && !sel ? (
-        <Card><Empty icon={<HistoryIcon size={18} />} title="과제 히스토리를 만들어 볼까요?"
+        <Card><Empty icon={<FolderClock size={18} />} title="과제 히스토리를 만들어 볼까요?"
           action={<Button loading={!!batch} disabled={!targets.length} onClick={() => createAll(targets.map((i) => i.id))}><Sparkles size={14} />{batch ? `만드는 중 ${batch.done}/${batch.total}` : `히스토리 만들기 · 과제 ${targets.length}개`}</Button>}>
           지금까지 쌓인 결과물 · 피드백 · 대화 · 요청 · 변경 이력으로 과제마다 히스토리를 한 장씩 만듭니다. 처음 한 번만 전체를 읽고, 그다음부터는 매주 월요일 아침 새 기록만 합쳐 업데이트합니다.
           1on1 · 컨디션 · 평가 · ATEAM 업무 피드백은 읽지 않습니다.
@@ -190,7 +190,7 @@ export default function HistoryPage() {
 
           <div className="min-w-0 space-y-3">
             {!item ? <Card><Empty title="왼쪽에서 과제를 고르세요" /></Card> : !hist ? (
-              <Card><Empty icon={<HistoryIcon size={18} />} title={item.title} action={<Button loading={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id] })}><Sparkles size={14} />히스토리 만들기</Button>}>
+              <Card><Empty icon={<FolderClock size={18} />} title={item.title} action={<Button loading={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id] })}><Sparkles size={14} />히스토리 만들기</Button>}>
                 이 과제의 기록으로 히스토리를 만듭니다. 처음에는 30초~1분쯤 걸립니다.</Empty></Card>
             ) : (
               <>
