@@ -12,7 +12,7 @@ type Body = {
 };
 const s = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MEMBER_NAME = '최다은';   // 팀원 화면 기본 (Sim.Box 예시 대화가 있는 계정) — member 로 다른 팀원 이름을 주면 그 사람
+const MEMBER_NAME = '정우성';   // 팀원 화면 기본 — member 로 다른 팀원 이름을 주면 그 사람
 
 serve(async (req) => {
   const b = await readJson<Body>(req);
