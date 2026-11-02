@@ -6,6 +6,8 @@
 --   팀원  demo_p1@ateam.com ~ demo_p6@ateam.com
 --   비밀번호 demo123 (모든 계정 같음 · 아래 pw 값) — 공개 주소이니 바꿔서 쓰세요
 -- 메일은 보내지 않습니다 (이메일 확인 완료 상태로 생성)
+-- 데모 계정 7개가 이미 있으면 계정 · 팀 ID는 그대로 두고 기록만 지우고 다시 넣는다
+--   → 지금 데모를 보고 있는 사람도 로그아웃되지 않는다 (화면이 새 기록으로 바뀔 뿐)
 -- =====================================================================
 
 -- 데모 계정과 그 계정이 남긴 기록을 지운다 (다시 Run할 때 초기화용)
@@ -42,10 +44,38 @@ declare
   T    uuid;
   col  text;
   i    int;
+  keep_ boolean := false;
+  pass int;
+  r    record;
 begin
   perform set_config('search_path', 'public, extensions', true);
 
-  -- 0) 이전 데모 정리 (이 스크립트로 만든 계정 + 예전 '데모 팀 만들기' 기능으로 만든 것)
+  -- 0-a) 계정 7개가 다 있으면: 계정은 두고 기록만 지운다 (데모 팀 ID도 다시 쓴다)
+  select count(*) = array_length(cast_, 1) into keep_ from generate_series(1, array_length(cast_, 1)) g join auth.users u on u.email = cast_[g][1] || '@' || dom;
+  if keep_ then
+    select array_agg(u.id order by g) into ids from generate_series(1, array_length(cast_, 1)) g join auth.users u on u.email = cast_[g][1] || '@' || dom;
+    L := ids[1];
+    select id into T from public.teams where owner_id = L and is_demo order by created_at limit 1;
+    delete from public.teams where owner_id = any(ids) or (is_demo and id in (select team_id from public.team_members where user_id = any(ids)));
+    -- 팀에 묶이지 않은 개인 기록도 지운다 (구독 · 결제 · 원가 기록 · 관리자 등록은 둔다)
+    for pass in 1..4 loop
+      for r in
+        select c.conrelid::regclass as tbl, a.attname as col_
+        from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+        where c.contype = 'f' and c.confrelid = 'public.profiles'::regclass
+          and c.conrelid::regclass::text not in ('subscriptions', 'credit_balances', 'credit_ledger', 'payments', 'app_admins', 'public.subscriptions', 'public.credit_balances', 'public.credit_ledger', 'public.payments', 'public.app_admins')
+      loop
+        begin
+          execute format('delete from %s where %I = any($1)', r.tbl, r.col_) using ids;
+        exception when foreign_key_violation then null;
+        end;
+      end loop;
+    end loop;
+    delete from public.subscriptions where owner_id = L;
+  end if;
+
+  -- 0) 이전 데모 정리 (이 스크립트로 만든 계정 + 예전 '데모 팀 만들기' 기능으로 만든 것) — 계정을 새로 만들 때만
+  if not keep_ then
   --    데모 주소만 정확히 고른다 (같은 도메인의 실제 사용자는 건드리지 않음) + 예전 @demo.ateam 계정
   select coalesce(array_agg(id), '{}') into ids from auth.users
     where email = 'demo@' || dom or email ~ ('^demo_p[0-9]+@' || replace(dom, '.', '\.') || '$') or email like '%@demo.ateam';
@@ -56,8 +86,18 @@ begin
   end if;
   perform pg_temp.purge_demo_users(ids);
   drop table if exists public.demo_accounts;
+  ids := '{}'; L := null; T := null;
+  end if;
 
-  -- 1) 계정 (이메일 확인 완료, 비밀번호 로그인)
+  -- 1) 계정 (이메일 확인 완료, 비밀번호 로그인) — 이미 다 있으면 그대로 쓴다 (위 0)에서 지우지 않았다)
+  if L is not null then
+    for i in 1..array_length(cast_, 1) loop
+      select id into uid from auth.users where email = cast_[i][1] || '@' || dom;
+      update auth.users set encrypted_password = crypt(pw, gen_salt('bf')), raw_user_meta_data = jsonb_build_object('full_name', cast_[i][2]), updated_at = now() where id = uid;
+      update public.profiles set full_name = cast_[i][2] where id = uid;
+      if i > 1 then members := members || uid; end if;
+    end loop;
+  else
   for i in 1..array_length(cast_, 1) loop
     insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
                             raw_app_meta_data, raw_user_meta_data,
@@ -75,6 +115,7 @@ begin
     update public.profiles set full_name = cast_[i][2] where id = uid;
     if i = 1 then L := uid; else members := members || uid; end if;
   end loop;
+  end if;
   -- 로그인 서버는 토큰 칸이 NULL이면 오류를 내므로 빈 문자열로 (버전에 따라 있는 칸만)
   for col in select column_name from information_schema.columns
              where table_schema = 'auth' and table_name = 'users' and is_nullable = 'YES'
@@ -86,7 +127,8 @@ begin
   -- 2) 팀장 구독 (Pro, 1년) + 데모 팀 + 기록
   insert into public.subscriptions (owner_id, plan_id, status, trial_ends_at, current_period_start, current_period_end)
     values (L, 'pro', 'active', null, now(), now() + interval '1 year');
-  insert into public.teams (name, owner_id, is_demo) values ('마케팅기획팀 (데모)', L, true) returning id into T;
+  -- 팀 ID는 예전 것을 다시 쓴다 (보고 있던 화면의 팀 선택이 그대로 맞도록)
+  insert into public.teams (id, name, owner_id, is_demo) values (coalesce(T, gen_random_uuid()), '마케팅기획팀 (데모)', L, true) returning id into T;
   perform public.seed_demo_team(T, L, members);
 end $$;
 
