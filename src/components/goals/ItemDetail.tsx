@@ -327,7 +327,8 @@ export function ItemDetail({ item, byId, onClose, onAiPlan, mode }: {
             </div>
           </details>
         )}
-        {canStructure && (
+        {/* 최상위 목표는 옮기지 않는다 — 다른 목표 밑으로 가면 과제로 내려가고, 걸어 둔 지표가 과제 밑에 붙어 버린다 */}
+        {canStructure && item.depth > 0 && (
           <Field label="위치 (상위 항목)">
             <select className={inputCls} value={f.parent_id ?? ''} onChange={(e) => S('parent_id')(e.target.value || null)}>
               <option value="">최상위 ({levelName(0)})</option>
