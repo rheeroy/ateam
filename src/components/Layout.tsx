@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardCheck, History as HistoryIcon, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
-  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Lock, Inbox } from 'lucide-react';
+  ScatterChart, Settings, StickyNote, Target, UserRound, Users, Gavel, Lock, Inbox, Contact } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -36,7 +36,11 @@ function AdminNav() {
     queryFn: async () => ((await q<{ status: string }[]>(supabase.rpc('admin_demo_list'))) ?? []).filter((r) => r.status === 'pending').length,
   });
   if (!admin.data) return null;
-  return <NavItem to="/admin/demo" label="데모 신청" icon={Inbox} badge={pending.data ? `${pending.data}` : undefined} />;
+  return <>
+    <div className="hidden md:block px-3 pt-3 text-[10.5px] font-bold tracking-wider text-slate-400">관리자</div>
+    <NavItem to="/admin/customers" label="고객" icon={Contact} />
+    <NavItem to="/admin/demo" label="데모 신청" icon={Inbox} badge={pending.data ? `${pending.data}` : undefined} />
+  </>;
 }
 
 function NavItem({ to, label, icon: Icon, badge, tip, locked }: Item) {

@@ -39,6 +39,7 @@ const Notes = lazy(() => import('./pages/Notes'));
 const HistoryPage = lazy(() => import('./pages/History'));
 const Demo = lazy(() => import('./pages/Demo'));
 const AdminDemo = lazy(() => import('./pages/AdminDemo'));
+const AdminCustomers = lazy(() => import('./pages/AdminCustomers'));
 
 function NotConfigured() {
   return (
@@ -152,6 +153,7 @@ export default function App() {
         <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="admin/demo" element={<AdminDemo />} />
+        <Route path="admin/customers" element={<AdminCustomers />} />
         <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
