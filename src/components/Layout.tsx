@@ -230,7 +230,7 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
       <h1 className="mt-4 text-xl font-bold">{leader ? (trial ? '무료 체험이 끝났습니다' : '구독이 끝났습니다') : '지금은 ATEAM을 쓸 수 없습니다'}</h1>
       <p className="mt-2 text-sm text-slate-600 leading-relaxed">
         {leader
-          ? <>그동안 쌓인 목표 · 업무 · 1on1 · 컨디션 기록은 그대로 보관돼 있습니다.<br />팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</>
+          ? <>그동안 쌓인 목표 · 업무 · 1on1 · 컨디션 기록은 그대로 보관돼 있습니다.<br />요금제를 고르면 바로 이어서 씁니다.</>
           : <>팀장님의 구독이 끝나 잠시 멈췄습니다. 내 기록은 그대로 보관되고,<br />팀장님이 다시 시작하면 바로 이어집니다.</>}
       </p>
       {leader && <Link to="/settings?tab=billing" className="mt-5 inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700">요금제 고르기</Link>}

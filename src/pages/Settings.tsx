@@ -107,7 +107,8 @@ function Billing() {
   const active = !expired && !trialing;
   const members = seats.data?.members ?? 0;
   const list = plans.data ?? [];
-  const fit = list.find((p) => p.max_members >= members)?.id;
+  // 추천: 기본은 Pro (기능 전체 · 팀원 10명). 팀원이 그보다 많으면 맞는 큰 요금제
+  const fit = (members <= (list.find((p) => p.id === 'pro')?.max_members ?? 10) ? list.find((p) => p.id === 'pro') : list.find((p) => p.max_members >= members))?.id;
   const trialLeft = credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
@@ -119,7 +120,7 @@ function Billing() {
               <div className="text-xs text-slate-500">현재 요금제</div>
               {expired ? <>
                 <div className="mt-1 text-2xl font-bold">{credits.was_trial ? '체험이 끝났습니다' : '구독이 끝났습니다'}</div>
-                <p className="mt-1 text-sm text-slate-600">그동안의 기록은 그대로 보관돼 있습니다. 아래에서 팀 크기에 맞는 요금제를 고르면 바로 이어서 씁니다.</p>
+                <p className="mt-1 text-sm text-slate-600">그동안의 기록은 그대로 보관돼 있습니다. 아래에서 요금제를 고르면 바로 이어서 씁니다.</p>
               </> : trialing ? <>
                 <div className="mt-1 text-2xl font-bold flex items-center gap-2 flex-wrap">무료 체험 <Pill tone="amber">{trialLeft != null ? `D-${trialLeft}` : ''} · {fmtDate(credits.trial_ends_at)}까지</Pill></div>
                 <p className="mt-1 text-sm text-slate-600">체험 중에는 Pro+ 전체를 씁니다. 끝나기 전에 요금제를 고르면 끊김 없이 이어집니다.</p>
@@ -174,8 +175,8 @@ function Billing() {
       <section id="plans">
         <div className="flex items-end justify-between flex-wrap gap-3">
           <div>
-            <h2 className="text-lg font-bold tracking-tight">팀 크기에 맞게 고르세요</h2>
-            <p className="text-sm text-slate-500">팀원 수와 일부 기능이 다릅니다 (평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리는 Pro부터) · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
+            <h2 className="text-lg font-bold tracking-tight">요금제를 고르세요</h2>
+            <p className="text-sm text-slate-500">Pro부터 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리까지 ATEAM의 모든 기능을 씁니다 · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
           </div>
           <div className="flex bg-slate-100 rounded-lg p-0.5 text-[13px]">
             <button onClick={() => setCycle('month')} className={cx('px-3 py-1 rounded-md', cycle === 'month' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>월간</button>
@@ -194,7 +195,7 @@ function Billing() {
             const histOn = p.features.includes('history');
             return (
               <Card key={p.id} className={cx('p-5 flex flex-col relative', best && 'ring-2 ring-indigo-500', current && 'ring-2 ring-slate-900', small && 'opacity-60')}>
-                {(best || current) && <span className={cx('absolute -top-2.5 left-5 text-[11px] font-bold rounded-full px-2 py-0.5 text-white', current ? 'bg-slate-900' : 'bg-indigo-600')}>{current ? '현재 요금제' : '우리 팀에 맞음'}</span>}
+                {(best || current) && <span className={cx('absolute -top-2.5 left-5 text-[11px] font-bold rounded-full px-2 py-0.5 text-white', current ? 'bg-slate-900' : 'bg-indigo-600')}>{current ? '현재 요금제' : '추천'}</span>}
                 <div className="font-bold text-lg">{p.name}</div>
                 <div className="mt-0.5 text-sm font-semibold text-indigo-700 flex items-center gap-1.5"><Users size={14} />팀원 {p.max_members}명까지</div>
                 <div className="mt-3"><span className="text-[28px] font-bold tracking-tight num">{won(price)}</span><span className="text-sm text-slate-500"> / {cycle === 'year' ? '년' : '월'}</span></div>
