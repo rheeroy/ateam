@@ -129,7 +129,7 @@ export function useMemberBadges(enabled: boolean) {
         supabase.from('action_items').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('owner_id', uid).is('done_at', null),
         supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').or('kind.in.(grow,cheer,meeting),and(kind.eq.progress,item_id.is.null)'),
         supabase.from('checkins').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('user_id', uid).eq('week_start', mondayOf()),
-        supabase.from('coaching_notes').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('member_id', uid).is('acked_at', null),
+        supabase.from('coaching_notes').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('member_id', uid).is('seen_at', null),   // 아직 안 본 ATEAM 피드백
         // 업무플랫폼에서 답할 요청 (계획 · 자료 올리기 · 기타 · 과제에 붙은 성과입력)
         supabase.from('team_requests').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('to_id', uid).eq('status', 'open').or('kind.in.(plan,share,other),and(kind.eq.progress,item_id.not.is.null)'),
       ]);

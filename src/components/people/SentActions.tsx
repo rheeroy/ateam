@@ -58,7 +58,7 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
     ...(reqs.data ?? []).map((r) => ({ t: 'req' as const, id: r.id, at: r.created_at, to: r.to_id, r })),
     ...(coach.data ?? []).map((c) => ({ t: 'coach' as const, id: c.id, at: c.created_at, to: c.member_id, c })),
   ].sort((a, b) => b.at.localeCompare(a.at)), [reqs.data, coach.data]);
-  const isOpen = (x: Row) => (x.t === 'req' ? x.r.status === 'open' : !x.c.acked_at);
+  const isOpen = (x: Row) => x.t === 'req' && x.r.status === 'open';   // 코칭은 답을 기다리지 않는다
   const pick = (f: Filter) => (f === 'all' ? rows : f === 'open' ? rows.filter(isOpen) : f === 'coach' ? rows.filter((x) => x.t === 'coach') : rows.filter((x) => x.t === 'req' && reqType(x.r) === f));
   const shown = pick(filter);
   const TABS: [Filter, string][] = [['all', '전체'], ['open', '답 기다림'], ['grow', '육성'], ['push', '업무 독려'], ['cheer', '지원·격려'], ['coach', '코칭']];
@@ -93,8 +93,8 @@ export function SentActions({ bare = false }: { bare?: boolean } = {}) {
                       <div className="text-[11px] text-slate-400"><b className="font-semibold text-slate-500">코칭</b> · {nameOf(c.member_id)} · {fmtShort(c.created_at)}</div>
                       <div className="text-sm font-semibold text-slate-800 truncate">{c.title}</div>
                     </div>
-                    <span className={cx('shrink-0 text-[11px] rounded-full px-2 py-0.5 mt-1', c.acked_at ? 'bg-emerald-50 text-emerald-700' : c.seen_at ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700')}>
-                      {c.acked_at ? `확인함${c.helpful ? ' · 도움됨' : ''}` : c.seen_at ? '읽음' : '안 읽음'}</span>
+                    <span className={cx('shrink-0 text-[11px] rounded-full px-2 py-0.5 mt-1', c.seen_at ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700')}>
+                      {c.seen_at ? '읽음' : '안 읽음'}</span>
                   </li>
                 );
               }

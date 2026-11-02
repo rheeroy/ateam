@@ -54,7 +54,8 @@ export function useFromLeader() {
   });
   const items = useMemo<Item[]>(() => [
     ...(reqs.data ?? []).map((r) => ({ t: 'req' as const, id: r.id, at: r.created_at, open: r.status === 'open', r })),
-    ...(coach.data ?? []).map((c) => ({ t: 'coach' as const, id: c.id, at: c.created_at, open: !c.acked_at, c })),
+    // ATEAM 업무 피드백은 답할 것이 아니다 — 읽으면 끝 (확인 · 도움됨 버튼 없음)
+    ...(coach.data ?? []).map((c) => ({ t: 'coach' as const, id: c.id, at: c.created_at, open: false, c })),
     ...(praise.data ?? []).map((p) => ({ t: 'praise' as const, id: p.id, at: p.occurred_at, open: false as const, p })),
   ].sort((a, b) => b.at.localeCompare(a.at)), [reqs.data, coach.data, praise.data]);
   return { items, loading: reqs.isLoading || coach.isLoading || praise.isLoading };
@@ -91,11 +92,12 @@ export function FromLeader({ focus }: { focus?: string | null }) {
     onError: (e) => toast(errorText(e)),
   });
   const mark = useMutation({
-    mutationFn: async (p: { id: string; ack?: boolean; helpful?: boolean }) => { await supabase.rpc('coaching_mark', { p_id: p.id, p_ack: !!p.ack, p_helpful: p.helpful ?? null }); },
+    mutationFn: async (p: { id: string }) => { await supabase.rpc('coaching_mark', { p_id: p.id }); },
     onSuccess: () => { ['my-coaching', 'member-badges'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); },
   });
-  // 보이면 코칭 '읽음'
-  useEffect(() => { for (const it of items) if (it.t === 'coach' && !it.c.seen_at) mark.mutate({ id: it.id }); }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 보이면 코칭 '읽음' — 처음 본 것은 이번 화면에서만 '새 피드백'으로 표시
+  const fresh = useRef(new Set<string>());
+  useEffect(() => { for (const it of items) if (it.t === 'coach' && !it.c.seen_at) { fresh.current.add(it.id); mark.mutate({ id: it.id }); } }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const todo = items.filter((i) => i.open);
   const count: Record<Filter, number> = {
@@ -161,15 +163,11 @@ export function FromLeader({ focus }: { focus?: string | null }) {
               const c = it.c; const body = strip(c.body);
               return (
                 <li key={it.id} ref={focused ? focusRef : undefined} className={cx('px-5 py-3.5', focused && 'bg-violet-50/40')}>
-                  <Row icon={null} cls="bg-violet-50 text-violet-600" type={<><AteamAI /> 업무 피드백<CoachHelp /></>} at={c.created_at} title={c.title} muted={!it.open}
-                    right={!it.open ? <span className="text-[11px] text-slate-400">확인함</span> : null}>
+                  <Row icon={null} cls="bg-violet-50 text-violet-600" type={<><AteamAI /> 업무 피드백<CoachHelp /></>} at={c.created_at} title={c.title}
+                    right={fresh.current.has(c.id) ? <span className="text-[10px] font-bold text-violet-700 bg-violet-50 rounded-full px-2 py-0.5">새 피드백</span> : null}>
                     <div className={cx('text-sm text-slate-600 mt-0.5 whitespace-pre-line', !expanded && 'line-clamp-2')}>{body}</div>
-                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <div className="mt-2">
                       <button onClick={() => setOpenId(expanded ? null : it.id)} className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-0.5">{expanded ? '접기' : '전체 보기'}<ChevronDown size={12} className={cx(expanded && 'rotate-180')} /></button>
-                      <span className="ml-auto flex gap-1.5">
-                        <Button size="sm" variant="ghost" disabled={c.helpful === true} onClick={() => mark.mutate({ id: c.id, helpful: true })}>{c.helpful ? '도움됨' : '도움됐어요'}</Button>
-                        {it.open && <Button size="sm" variant="secondary" onClick={() => mark.mutate({ id: c.id, ack: true })}><CheckCircle2 size={13} />확인</Button>}
-                      </span>
                     </div>
                   </Row>
                 </li>
@@ -237,7 +235,7 @@ function Row({ icon: I, cls, type, from, at, title, right, muted, children }: {
   );
 }
 
-/** 메뉴 배지용: 답할 것 수 (열린 요청 · 확인 안 한 코칭) */
+/** 메뉴 배지용: 답할 것 수 (열린 요청) */
 export function useFromLeaderOpenCount() {
   const { items } = useFromLeader();
   return items.filter((i) => i.open).length;
