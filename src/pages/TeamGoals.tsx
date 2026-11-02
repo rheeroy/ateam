@@ -66,6 +66,13 @@ export default function TeamGoals() {
   const prob = new Map((outlook.data ?? []).map((o) => [o.goal_id, o.probability]));
   const minProb = cur.roots.map((r) => prob.get(r.id)).filter((x): x is number => x != null).sort((a, b) => a - b)[0] ?? null;
   const open = params.get('item') ? byId.get(params.get('item')!) : null;
+  // 담당자 필터 — 이 해 항목을 맡은 사람만, 많이 맡은 순
+  const owner = params.get('owner');
+  const owners = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const n of all) if (n.owner_id) m.set(n.owner_id, (m.get(n.owner_id) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0]))).map(([id, n]) => ({ id, n }));
+  }, [all, nameOf]);
 
   return (
     <div className="space-y-5">
@@ -114,13 +121,26 @@ export default function TeamGoals() {
           {!past && <span className="inline-flex items-center gap-1"><span className="w-0.5 h-3 bg-rose-400" />오늘</span>}
           <span className="ml-auto">항목을 누르면 상세 · <FileText size={11} className="inline" /> 결과물을 펼치면 업무플랫폼으로</span>
         </div>
+        {owners.length > 1 && (
+          <div className="px-5 py-2 border-b border-slate-100 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-slate-500 mr-1">담당자</span>
+            <button onClick={() => setParam('owner', null)} className={cx('text-xs rounded-full px-2.5 py-1 ring-1', !owner ? 'bg-slate-900 text-white ring-slate-900 font-semibold' : 'bg-white text-slate-600 ring-slate-200 hover:ring-slate-300')}>전체</button>
+            {owners.map((o) => (
+              <button key={o.id} onClick={() => setParam('owner', owner === o.id ? null : o.id)}
+                className={cx('text-xs rounded-full pl-1 pr-2.5 py-0.5 ring-1 inline-flex items-center gap-1.5', owner === o.id ? 'bg-indigo-600 text-white ring-indigo-600 font-semibold' : 'bg-white text-slate-700 ring-slate-200 hover:ring-slate-300')}>
+                <Avatar name={nameOf(o.id)} size={7} />{nameOf(o.id)}<span className={cx('num', owner === o.id ? 'text-indigo-200' : 'text-slate-400')}>{o.n}</span>
+              </button>
+            ))}
+            {owner && <span className="ml-auto text-[11px] text-slate-400">흐린 줄은 위치를 보여 주는 상위 항목입니다</span>}
+          </div>
+        )}
         {items.isLoading ? <Spinner /> : !cur.roots.length ? (
           <Empty title={past ? `${cur.y}년 목표가 없습니다` : '올해 목표를 세워 보세요'}
             action={!past ? <div className="flex gap-2 justify-center"><button onClick={() => setDraft({ open: true, parent: null })} className="text-sm rounded-xl px-3 py-2 bg-indigo-600 text-white inline-flex items-center gap-1.5"><AiIcon size={15} />계획서로 초안 만들기</button>
               <Link to="/goals/edit" className="text-sm rounded-xl px-3 py-2 ring-1 ring-slate-200">직접 쓰기</Link></div> : undefined}>
             {past ? '연도는 목표의 시작일(없으면 마감일) 기준입니다.' : aiText('계획서나 업무 분장표를 넣으면 AI가 목표 › 과제 › 할 일 초안을 만듭니다.')}
           </Empty>
-        ) : <Board year={cur.y} roots={cur.roots} subs={subs.data ?? []} prob={prob} nameOf={nameOf} onOpen={(id) => setParam('item', id)} />}
+        ) : <Board key={owner ?? 'all'} year={cur.y} roots={cur.roots} subs={subs.data ?? []} prob={prob} nameOf={nameOf} owner={owner} onOpen={(id) => setParam('item', id)} />}
       </Card>
 
       {open && <ItemDetail key={open.id} item={open} byId={byId} mode="leader" onClose={() => setParam('item', null)} onAiPlan={(pid) => setDraft({ open: true, parent: pid })} />}
@@ -146,8 +166,8 @@ function Num({ label, value, sub, tone }: { label: string; value: string; sub?: 
 // ---------------------------------------------------------------------
 // 표 + 간트 한 몸
 // ---------------------------------------------------------------------
-function Board({ year, roots, subs, prob, nameOf, onOpen }: {
-  year: number; roots: Node[]; subs: SubRow[]; prob: Map<string, number | null>; nameOf: (id: string | null | undefined) => string; onOpen: (id: string) => void;
+function Board({ year, roots, subs, prob, nameOf, owner, onOpen }: {
+  year: number; roots: Node[]; subs: SubRow[]; prob: Map<string, number | null>; nameOf: (id: string | null | undefined) => string; owner?: string | null; onOpen: (id: string) => void;
 }) {
   // 기본: 목표와 과제까지 펼침, 할 일은 접힘
   const [collapsed, setCollapsed] = useState<Set<string>>(() => { const s = new Set<string>(); const walk = (a: Node[]) => a.forEach((n) => { if (n.depth >= 1 && n.children.length) s.add(n.id); walk(n.children); }); walk(roots); return s; });
@@ -156,8 +176,14 @@ function Board({ year, roots, subs, prob, nameOf, onOpen }: {
   const subsOf = useMemo(() => { const m = new Map<string, SubRow[]>(); for (const s of subs) if (s.item_id) m.set(s.item_id, [...(m.get(s.item_id) ?? []), s]); return m; }, [subs]);
   const deepSubs = (n: Node): SubRow[] => [...(subsOf.get(n.id) ?? []), ...n.children.flatMap(deepSubs)];
   const rows: Node[] = [];
-  const walk = (a: Node[]) => a.forEach((n) => { rows.push(n); if (!collapsed.has(n.id)) walk(n.children); });
+  // 담당자 필터: 그 사람이 맡은 항목과, 위치를 보여 주는 상위 항목만 (접힘과 상관없이 펼쳐서)
+  const has = (n: Node): boolean => n.owner_id === owner || n.children.some(has);
+  const walk = (a: Node[]) => a.forEach((n) => {
+    if (owner) { if (!has(n)) return; rows.push(n); walk(n.children); return; }
+    rows.push(n); if (!collapsed.has(n.id)) walk(n.children);
+  });
   walk(roots);
+  const dim = (n: Node) => !!owner && n.owner_id !== owner;
 
   const y0 = Date.UTC(year, 0, 1), y1 = Date.UTC(year + 1, 0, 1);
   const pct = (t: number) => Math.max(0, Math.min(100, ((t - y0) / (y1 - y0)) * 100));
@@ -182,7 +208,7 @@ function Board({ year, roots, subs, prob, nameOf, onOpen }: {
           const tone = n.status === 'done' ? 'bg-emerald-500' : n.status === 'blocked' ? 'bg-rose-500' : GAP_TONE[g.tone].bar;
           return (
             <Fragment key={n.id}>
-              <div className={cx('grid border-b border-slate-100 items-center hover:bg-slate-50/60', COLS, n.depth === 0 && 'bg-indigo-50/30')}>
+              <div className={cx('grid border-b border-slate-100 items-center hover:bg-slate-50/60', COLS, n.depth === 0 && 'bg-indigo-50/30', dim(n) && 'opacity-45')}>
                 <div className="px-2 py-2 flex items-center gap-1 min-w-0" style={{ paddingLeft: 8 + n.depth * 18 }}>
                   <button className={cx('text-slate-400 hover:text-slate-700 shrink-0', !n.children.length && 'invisible')} onClick={() => tog(collapsed, setCollapsed, n.id)} aria-label="펼치기/접기">
                     {collapsed.has(n.id) ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>
