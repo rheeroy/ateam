@@ -103,6 +103,12 @@ function HistoryLink() {
   return <Navigate to={`/my/one-on-ones${id ? `?history=${id}` : ''}`} replace />;
 }
 
+/** 데모 팀에서는 설정 · 새 팀 만들기를 열지 않는다 (여러 사람이 같은 계정을 쓰므로) */
+function NoDemo({ children }: { children: ReactNode }) {
+  const { team } = useSession();
+  return team?.is_demo ? <Navigate to="/" replace /> : <>{children}</>;
+}
+
 function LeaderOnly({ children }: { children: ReactNode }) {
   const { isLeader } = useSession();
   return isLeader ? <>{children}</> : <Navigate to="/" replace />;
@@ -119,7 +125,7 @@ export default function App() {
       <Route path="/demo" element={<Demo />} />
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
+      <Route path="/onboarding" element={<RequireAuth><NoDemo><Onboarding /></NoDemo></RequireAuth>} />
       <Route path="/setup" element={<Navigate to="/" replace />} />
       <Route element={<RequireAuth><RequireTeam><Layout /></RequireTeam></RequireAuth>}>
         <Route index element={isLeader ? <Home /> : <MemberIndex />} />
@@ -151,7 +157,7 @@ export default function App() {
         <Route path="notes" element={L(<Notes />)} />
         <Route path="history" element={L(<HistoryPage />)} />
         <Route path="team" element={<Moved to="/settings" extra={{ tab: 'members' }} />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings" element={<NoDemo><SettingsPage /></NoDemo>} />
         <Route path="admin/demo" element={<AdminDemo />} />
         <Route path="admin/customers" element={<AdminCustomers />} />
         <Route path="checkin" element={<Navigate to="/my/goals" replace />} />
