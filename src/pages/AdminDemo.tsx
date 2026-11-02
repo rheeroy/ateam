@@ -2,8 +2,8 @@
 //   승인하면 7일짜리 개인 링크가 생긴다. 링크 · 메일 문구를 복사해 직접 메일로 보낸다
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Mail } from 'lucide-react';
-import { supabase, q, errorText } from '../lib/supabase';
+import { Copy, Mail, RotateCcw } from 'lucide-react';
+import { supabase, q, errorText, invoke } from '../lib/supabase';
 import { cx, fmtDate } from '../lib/format';
 import { Card, Spinner, useToast } from '../components/ui';
 
@@ -49,6 +49,7 @@ export default function AdminDemo() {
           ))}
         </div>
       </div>
+      <ResetCard />
       {list.isLoading ? <Spinner /> : !rows.length ? <Card className="p-6 text-sm text-slate-500">신청이 없습니다.</Card> : (
         <div className="space-y-3">
           {rows.map((r) => {
@@ -89,5 +90,32 @@ export default function AdminDemo() {
         </div>
       )}
     </div>
+  );
+}
+
+/** 데모 데이터 초기화 — SQL Editor에서 06_demo_accounts.sql 을 Run 하는 것과 같다 */
+function ResetCard() {
+  const toast = useToast();
+  const [done, setDone] = useState<string | null>(null);
+  const reset = useMutation({
+    mutationFn: () => invoke<{ ms: number }>('admin-demo-reset', {}),
+    onSuccess: (r) => { const t = new Date().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); setDone(t); toast(`데모 데이터를 처음 상태로 되돌렸습니다 (${Math.max(1, Math.round((r?.ms ?? 0) / 1000))}초)`); },
+    onError: (e) => toast(errorText(e)),
+  });
+  const go = () => {
+    if (!window.confirm('데모 데이터를 처음 상태로 되돌릴까요?\n\n· 데모 팀의 모든 기록(체험하는 분들이 쓴 것 포함)이 지워지고 6개월치 기록이 다시 들어갑니다.\n· 지금 데모를 보고 있는 분은 로그아웃되며, 받은 링크로 다시 들어오면 됩니다.\n· 데모 신청 · 승인 링크 · 링크별 AI 체험 기록은 그대로 남습니다.')) return;
+    reset.mutate();
+  };
+  return (
+    <Card className="p-4 flex items-center gap-3 flex-wrap">
+      <span className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><RotateCcw size={16} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold">데모 데이터 초기화</div>
+        <p className="text-xs text-slate-500">데모 팀을 6개월치 기록이 있는 처음 상태로 되돌립니다. 신청 · 링크는 그대로입니다.{done ? ` · 마지막 초기화 ${done}` : ''}</p>
+      </div>
+      <button onClick={go} disabled={reset.isPending}
+        className="text-sm font-semibold rounded-lg px-3.5 py-2 bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 inline-flex items-center gap-1.5">
+        <RotateCcw size={14} className={reset.isPending ? 'animate-spin' : ''} />{reset.isPending ? '초기화하는 중… (1분 안쪽)' : '초기화'}</button>
+    </Card>
   );
 }

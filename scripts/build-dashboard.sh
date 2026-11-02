@@ -57,3 +57,5 @@ node ../scripts/build-playbook.mjs
 { echo "-- ATEAM 데모 신청 · 승인 (7일 데모 링크 · 링크별 AI 한 번씩 · 데모 팀 보호) — 36_workspace_plus 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전). 맨 끝 관리자 이메일을 확인하세요"; echo; cat migrations/20261115000043_demo_access.sql; } > dashboard/37_demo_access.sql
 { echo "-- ATEAM 관리자 고객 화면 (고객 현황 · AI 원가 · 체험 연장 · 내부 계정) — 37_demo_access 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261116000044_admin_customers.sql; } > dashboard/38_admin_customers.sql
 { echo "-- ATEAM 의사결정 보드 '팀원 요청' (대화 · 스레드에서 팀원이 물은 결정) — 38_admin_customers 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261117000045_decision_asks.sql; } > dashboard/39_decision_asks.sql
+# 관리자 '데모 데이터 초기화' 버튼이 돌리는 SQL — 06 과 같은 내용 (함수에 문자열로 싣는다)
+node -e 'const fs=require("fs");const t=fs.readFileSync("dashboard/06_demo_accounts.sql","utf8");fs.writeFileSync("functions/admin-demo-reset/reset_sql.ts","// 자동 생성 (scripts/build-dashboard.sh) — 손으로 고치지 않는다. 원본: supabase/dashboard/06_demo_accounts.sql\nexport const RESET_SQL = "+JSON.stringify(t)+";\n")'
