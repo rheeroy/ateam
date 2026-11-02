@@ -91,7 +91,7 @@ serve(async (req) => {
     if (!team) throw new HttpError(503, "NO_DEMO", "\uB370\uBAA8 \uD300\uC774 \uC900\uBE44\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.");
     const { data: mem } = await admin.from("team_members").select("user_id, role, profiles(full_name)").eq("team_id", team.id).eq("status", "active");
     const list = mem ?? [];
-    const pick = b.as === "member" ? list.find((m) => m.role === "member" && m.profiles?.full_name === MEMBER_NAME) ?? list.find((m) => m.role === "member") : list.find((m) => m.role === "leader");
+    const pick = b.as === "member" ? list.find((m) => m.role === "member" && m.profiles?.full_name === s(b.member || MEMBER_NAME, 40)) ?? list.find((m) => m.role === "member" && m.profiles?.full_name === MEMBER_NAME) ?? list.find((m) => m.role === "member") : list.find((m) => m.role === "leader");
     if (!pick) throw new HttpError(503, "NO_DEMO", "\uB370\uBAA8 \uACC4\uC815\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
     const { data: u } = await admin.auth.admin.getUserById(pick.user_id);
     const email = u?.user?.email;

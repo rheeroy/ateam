@@ -2,7 +2,7 @@
 //   localStorage 'ateam.demo' = { token, expires_at, as } · invoke 가 x-demo-token 헤더로 보낸다
 import { supabase, invoke } from './supabase';
 
-export interface DemoState { token: string; expires_at: string; as: 'leader' | 'member' }
+export interface DemoState { token: string; expires_at: string; as: 'leader' | 'member'; name?: string }
 const KEY = 'ateam.demo';
 
 export function getDemo(): DemoState | null {
@@ -13,14 +13,14 @@ function setDemo(d: DemoState | null) {
 }
 
 /** 링크로 데모 팀장(또는 팀원) 계정에 들어간다 — 비밀번호 없이 일회용 로그인 값으로 */
-export async function enterDemo(token: string, as: 'leader' | 'member' = 'leader') {
-  const r = await invoke<{ token_hash: string; expires_at: string; as: 'leader' | 'member' }>('demo-access', { action: 'enter', token, as });
+export async function enterDemo(token: string, as: 'leader' | 'member' = 'leader', member?: string) {
+  const r = await invoke<{ token_hash: string; expires_at: string; as: 'leader' | 'member'; name: string }>('demo-access', { action: 'enter', token, as, member });
   await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
   const { error } = await supabase.auth.verifyOtp({ token_hash: r.token_hash, type: 'magiclink' });
   if (error) throw error;
-  setDemo({ token, expires_at: r.expires_at, as: r.as });
+  setDemo({ token, expires_at: r.expires_at, as: r.as, name: r.name });
   try { localStorage.removeItem('ateam.team'); } catch { /* 저장소 없음 */ }
-  window.location.replace('/');
+  window.location.replace(r.as === 'member' ? '/my/submissions' : '/');
 }
 
 /** 데모를 끝내고 나간다 (가입하러 가거나 링크가 만료됐을 때) */

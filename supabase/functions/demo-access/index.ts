@@ -8,11 +8,11 @@ import { admin } from '../_shared/supabase.ts';
 type Body = {
   action?: 'request' | 'enter' | 'check';
   name?: string; company?: string; job_title?: string; team_size?: string; email?: string; phone?: string; note?: string; consent?: boolean; website?: string;
-  token?: string; as?: 'leader' | 'member';
+  token?: string; as?: 'leader' | 'member'; member?: string;
 };
 const s = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MEMBER_NAME = '최다은';   // 팀원 화면으로 보여 줄 데모 팀원 (Sim.Box 예시 대화가 있는 계정)
+const MEMBER_NAME = '최다은';   // 팀원 화면 기본 (Sim.Box 예시 대화가 있는 계정) — member 로 다른 팀원 이름을 주면 그 사람
 
 serve(async (req) => {
   const b = await readJson<Body>(req);
@@ -48,7 +48,7 @@ serve(async (req) => {
     const { data: mem } = await admin.from('team_members').select('user_id, role, profiles(full_name)').eq('team_id', team.id).eq('status', 'active');
     const list = (mem ?? []) as unknown as { user_id: string; role: string; profiles: { full_name: string } | null }[];
     const pick = b.as === 'member'
-      ? list.find((m) => m.role === 'member' && m.profiles?.full_name === MEMBER_NAME) ?? list.find((m) => m.role === 'member')
+      ? list.find((m) => m.role === 'member' && m.profiles?.full_name === s(b.member || MEMBER_NAME, 40)) ?? list.find((m) => m.role === 'member' && m.profiles?.full_name === MEMBER_NAME) ?? list.find((m) => m.role === 'member')
       : list.find((m) => m.role === 'leader');
     if (!pick) throw new HttpError(503, 'NO_DEMO', '데모 계정을 찾지 못했습니다.');
     const { data: u } = await admin.auth.admin.getUserById(pick.user_id);

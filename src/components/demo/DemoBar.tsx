@@ -7,12 +7,19 @@ import { cx } from '../../lib/format';
 import { useToast } from '../ui';
 
 const CHECKED = 'ateam.demo.checked';
+// 팀원 고르기 — 이름 옆에 이 계정에서 볼 수 있는 것
+const HINT: Record<string, string> = {
+  최다은: 'Sim.Box 파일 검토 예시 · 파일 성과입력 샘플',
+  김현정: 'Sim.Box 보고 상담 예시 · 사전예약 샘플',
+  한수진: '신규 팀원 · Sim.Box 질문 예시',
+  이동욱: 'CRM 리포트 샘플',
+};
 
 export function DemoBar() {
-  const { team } = useTeam();
+  const { team, members } = useTeam();
   const toast = useToast();
   const d = getDemo();
-  const [busy, setBusy] = useState<'leader' | 'member' | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   // 앱을 열 때 한 번: 링크가 끝났으면 나간다
   useEffect(() => {
@@ -29,11 +36,12 @@ export function DemoBar() {
 
   if (!d || !team?.is_demo) return null;
   const left = Math.max(0, Math.ceil((Date.parse(d.expires_at) - Date.now()) / 86400000));
-  const go = async (as: 'leader' | 'member') => {
-    if (as === d.as || busy) return;
-    setBusy(as);
-    try { await enterDemo(d.token, as); } catch (e) { toast(errorText(e)); setBusy(null); }
+  const go = async (as: 'leader' | 'member', member?: string) => {
+    if (busy || (as === d.as && (as === 'leader' || !member || member === d.name))) return;
+    setBusy(member ?? as);
+    try { await enterDemo(d.token, as, member); } catch (e) { toast(errorText(e)); setBusy(null); }
   };
+  const mates = members.filter((m) => m.role === 'member').map((m) => m.profiles?.full_name ?? '').filter(Boolean);
   return (
     <div className="bg-slate-900 text-white text-[13px]">
       <div className="px-4 md:px-8 py-2 flex items-center gap-x-3 gap-y-1.5 flex-wrap">
@@ -47,6 +55,16 @@ export function DemoBar() {
             </button>
           ))}
         </div>
+        {d.as === 'member' && mates.length > 1 && (
+          <label className="inline-flex items-center gap-1.5 text-slate-300">
+            <span className="hidden sm:inline">지금 보는 팀원</span>
+            <select value={d.name ?? ''} disabled={!!busy} onChange={(e) => go('member', e.target.value)}
+              className="bg-white/10 text-white rounded-md px-2 py-1 text-[13px] font-semibold border-0 focus:ring-1 focus:ring-indigo-400 max-w-[260px]">
+              {mates.map((n) => <option key={n} value={n} className="text-slate-900">{n}{HINT[n] ? ` — ${HINT[n]}` : ''}</option>)}
+            </select>
+            {busy && busy !== 'leader' && busy !== 'member' && <span className="text-xs">전환 중…</span>}
+          </label>
+        )}
         <button onClick={() => leaveDemo()} className="ml-auto rounded-lg bg-indigo-500 hover:bg-indigo-400 px-3 py-1.5 font-bold">내 팀으로 시작하기 →</button>
       </div>
     </div>
