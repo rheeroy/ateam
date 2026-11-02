@@ -202,7 +202,7 @@ function Billing() {
                 <div className="text-xs text-slate-500">VAT 별도{cycle === 'year' ? ` · 월 ${won(monthly)} 꼴` : ''} · 팀원 1인당 월 {won(Math.round(monthly / p.max_members / 100) * 100)}</div>
                 <ul className="mt-4 space-y-2 text-sm flex-1">
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />기록·협업 · AI 참모 전체</li>
-                  <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
+                  <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /><span>프리미엄 크레딧 월 {p.monthly_credits}<span className="block text-[11px] text-slate-400">매달 새로 채워짐 · 남은 크레딧은 이월되지 않음</span></span></li>
                   <li className={cx('flex gap-2', !evalOn && 'text-slate-400')}>{evalOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}평가 시뮬레이션{evalOn ? '' : ' 없음'}</li>
                   <li className={cx('flex gap-2', !conOn && 'text-slate-400')}>{conOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}ATEAM Method™{conOn ? '' : ' 없음'}</li>
                   <li className={cx('flex gap-2', !histOn && 'text-slate-400')}>{histOn ? <Check size={15} className="text-emerald-600 mt-0.5 shrink-0" /> : <Minus size={15} className="mt-0.5 shrink-0" />}히스토리 관리{histOn ? '' : ' 없음'}</li>
