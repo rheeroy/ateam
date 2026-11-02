@@ -474,7 +474,7 @@ export function Composer({ sub, latest, canUpload, file, setFile }: { sub: Submi
           onPaste={(e) => { const f = e.clipboardData.files?.[0]; if (f) { e.preventDefault(); setFile(namedPaste(f)); } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (ready && !send.isPending) send.mutate(); } }}
           className="w-full resize-none text-sm px-3.5 pt-2.5 leading-6 focus:outline-none placeholder:text-slate-400 rounded-t-xl"
-          placeholder={newVersion ? '이번에 바꾼 점 (선택) — Enter로 올리기' : '메시지 — Enter 보내기 · Shift+Enter 줄바꿈'} />
+          placeholder={newVersion ? '이번에 바꾼 점 (선택)' : '메시지를 입력하세요'} />
         <div className="flex items-center gap-1 px-2 pb-2">
           <button onClick={() => fileRef.current?.click()} className="p-1.5 rounded text-slate-500 hover:bg-slate-100" title="파일 첨부" aria-label="파일 첨부"><Paperclip size={16} /></button>
           <span className="text-[11px] text-slate-400 ml-1 truncate">{canUpload ? `파일을 끌어다 놓거나 캡처를 붙여 넣으면 새 버전(v${nextV})으로 올라갑니다` : '파일을 끌어다 놓거나 캡처를 붙여 넣으면 첨부됩니다'}</span>
