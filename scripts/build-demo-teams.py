@@ -33,7 +33,7 @@ def template():
     parts = [seed, (ROOT / 'demo_accounts.sql').read_text()]
     for f in ['20261020000016_leader_notes.sql', '20261021000017_coaching.sql', '20261112000039_invite_note.sql']:
         parts += do_blocks(MIG / f)
-    parts += [(MIG / '20261114000042_demo_workspace_plus.sql').read_text(), (MIG / '20261118000047_demo_core_works.sql').read_text()]
+    parts += [(MIG / '20261114000042_demo_workspace_plus.sql').read_text(), (MIG / '20261118000047_demo_core_works.sql').read_text(), (MIG / '20261119000049_demo_board_plus.sql').read_text()]
     return strip_comments('\n\n'.join(parts))
 
 
