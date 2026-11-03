@@ -74,7 +74,7 @@ begin
 
   -- 목표·과제 (자유 계층)
   update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb
-    || '{"plan_open": true}'::jsonb where id = T;   -- 정우성 계획 요청 중이라 팀원 수정 켜 둠
+    || '{"plan_open": false}'::jsonb where id = T;   -- 팀원 목표 수정은 잠금이 기본 (데모 끝에서 한 번 더 잠근다)
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
     values (T, L, '하반기 신제품 런칭 캠페인 성공', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
@@ -2129,6 +2129,8 @@ where btrim(coalesce(o.shared_notes, '')) <> '' and not exists (select 1 from pu
 --   팀원  demo_p1@ateam.com ~ demo_p6@ateam.com
 --   비밀번호 demo123 (모든 계정 같음 · 아래 pw 값) — 공개 주소이니 바꿔서 쓰세요
 -- 메일은 보내지 않습니다 (이메일 확인 완료 상태로 생성)
+-- 데모 계정 7개가 이미 있으면 계정 · 팀 ID는 그대로 두고 기록만 지우고 다시 넣는다
+--   → 지금 데모를 보고 있는 사람도 로그아웃되지 않는다 (화면이 새 기록으로 바뀔 뿐)
 -- =====================================================================
 
 -- 데모 계정과 그 계정이 남긴 기록을 지운다 (다시 Run할 때 초기화용)
@@ -2165,10 +2167,38 @@ declare
   T    uuid;
   col  text;
   i    int;
+  keep_ boolean := false;
+  pass int;
+  r    record;
 begin
   perform set_config('search_path', 'public, extensions', true);
 
-  -- 0) 이전 데모 정리 (이 스크립트로 만든 계정 + 예전 '데모 팀 만들기' 기능으로 만든 것)
+  -- 0-a) 계정 7개가 다 있으면: 계정은 두고 기록만 지운다 (데모 팀 ID도 다시 쓴다)
+  select count(*) = array_length(cast_, 1) into keep_ from generate_series(1, array_length(cast_, 1)) g join auth.users u on u.email = cast_[g][1] || '@' || dom;
+  if keep_ then
+    select array_agg(u.id order by g) into ids from generate_series(1, array_length(cast_, 1)) g join auth.users u on u.email = cast_[g][1] || '@' || dom;
+    L := ids[1];
+    select id into T from public.teams where owner_id = L and is_demo order by created_at limit 1;
+    delete from public.teams where owner_id = any(ids) or (is_demo and id in (select team_id from public.team_members where user_id = any(ids)));
+    -- 팀에 묶이지 않은 개인 기록도 지운다 (구독 · 결제 · 원가 기록 · 관리자 등록은 둔다)
+    for pass in 1..4 loop
+      for r in
+        select c.conrelid::regclass as tbl, a.attname as col_
+        from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+        where c.contype = 'f' and c.confrelid = 'public.profiles'::regclass
+          and c.conrelid::regclass::text not in ('subscriptions', 'credit_balances', 'credit_ledger', 'payments', 'app_admins', 'public.subscriptions', 'public.credit_balances', 'public.credit_ledger', 'public.payments', 'public.app_admins')
+      loop
+        begin
+          execute format('delete from %s where %I = any($1)', r.tbl, r.col_) using ids;
+        exception when foreign_key_violation then null;
+        end;
+      end loop;
+    end loop;
+    delete from public.subscriptions where owner_id = L;
+  end if;
+
+  -- 0) 이전 데모 정리 (이 스크립트로 만든 계정 + 예전 '데모 팀 만들기' 기능으로 만든 것) — 계정을 새로 만들 때만
+  if not keep_ then
   --    데모 주소만 정확히 고른다 (같은 도메인의 실제 사용자는 건드리지 않음) + 예전 @demo.ateam 계정
   select coalesce(array_agg(id), '{}') into ids from auth.users
     where email = 'demo@' || dom or email ~ ('^demo_p[0-9]+@' || replace(dom, '.', '\.') || '$') or email like '%@demo.ateam';
@@ -2179,8 +2209,18 @@ begin
   end if;
   perform pg_temp.purge_demo_users(ids);
   drop table if exists public.demo_accounts;
+  ids := '{}'; L := null; T := null;
+  end if;
 
-  -- 1) 계정 (이메일 확인 완료, 비밀번호 로그인)
+  -- 1) 계정 (이메일 확인 완료, 비밀번호 로그인) — 이미 다 있으면 그대로 쓴다 (위 0)에서 지우지 않았다)
+  if L is not null then
+    for i in 1..array_length(cast_, 1) loop
+      select id into uid from auth.users where email = cast_[i][1] || '@' || dom;
+      update auth.users set encrypted_password = crypt(pw, gen_salt('bf')), raw_user_meta_data = jsonb_build_object('full_name', cast_[i][2]), updated_at = now() where id = uid;
+      update public.profiles set full_name = cast_[i][2] where id = uid;
+      if i > 1 then members := members || uid; end if;
+    end loop;
+  else
   for i in 1..array_length(cast_, 1) loop
     insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
                             raw_app_meta_data, raw_user_meta_data,
@@ -2198,6 +2238,7 @@ begin
     update public.profiles set full_name = cast_[i][2] where id = uid;
     if i = 1 then L := uid; else members := members || uid; end if;
   end loop;
+  end if;
   -- 로그인 서버는 토큰 칸이 NULL이면 오류를 내므로 빈 문자열로 (버전에 따라 있는 칸만)
   for col in select column_name from information_schema.columns
              where table_schema = 'auth' and table_name = 'users' and is_nullable = 'YES'
@@ -2209,7 +2250,8 @@ begin
   -- 2) 팀장 구독 (Pro, 1년) + 데모 팀 + 기록
   insert into public.subscriptions (owner_id, plan_id, status, trial_ends_at, current_period_start, current_period_end)
     values (L, 'pro', 'active', null, now(), now() + interval '1 year');
-  insert into public.teams (name, owner_id, is_demo) values ('마케팅기획팀 (데모)', L, true) returning id into T;
+  -- 팀 ID는 예전 것을 다시 쓴다 (보고 있던 화면의 팀 선택이 그대로 맞도록)
+  insert into public.teams (id, name, owner_id, is_demo) values (coalesce(T, gen_random_uuid()), '마케팅기획팀 (데모)', L, true) returning id into T;
   perform public.seed_demo_team(T, L, members);
 end $$;
 
@@ -2624,15 +2666,19 @@ end $$;
 --   팀장 화면: 8주 흐름 옆 'Sim.Box 팀 경향'(분류 집계) · 팀목표 '파일로 실적 채우기'(샘플 파일은 앱 public/demo)
 --   팀원 화면:
 --     · 매니징 보드 '팀장님 주요 지침' · 업무플랫폼 [팀 방향] — 미리 정리 (NEW 1건 → 탭 배지)
---     · Sim.Box 예시 대화 — 최다은(결과물 검토) · 김현정(보고 방법) · 한수진(신규 · 팀장님 관심사)
---       나머지(박서연 · 정우성 · 이동욱)는 빈 화면에서 시작해 직접 써 보게
+--     · Sim.Box 예시 대화 — 정우성(막힌 일 도움 요청 · 팀원 화면 기본) · 최다은(결과물 검토) · 김현정(보고 방법) · 한수진(신규 · 팀장님 관심사)
+--       나머지(박서연 · 이동욱)는 빈 화면에서 시작해 직접 써 보게
 --     · 성과입력 '파일로 입력' — 김현정 · 최다은 · 이동욱은 체험용 샘플 파일 버튼이 보인다 (앱 쪽)
+--   의사결정 보드 '팀원 요청': 정우성(제휴 제안서 2개사 안) · 김현정(프로모션 예산 이동) 이 대화로 물은 결정 2건
 --   다시 Run 하면 이 블록이 넣은 것만 지우고 새로 넣는다 (지금 있는 데모에 이 부분만 Run 해도 됨)
 -- =====================================================================
 do $$
 declare
   r record; v_users uuid[]; s record; n int; v_quarter jsonb; v_ways jsonb; v_kh text := '보고서 한 장 요약 양식';
-  v_kim uuid; v_choi uuid; v_han uuid; t0 timestamptz;
+  v_kim uuid; v_choi uuid; v_han uuid; v_jung uuid; t0 timestamptz; v_msg uuid; v_item uuid;
+  asks text[] := array[
+    '팀장님, 제휴 제안서 B사 데이터가 계속 안 와서요. B사를 빼고 A·C 2개사 안으로 먼저 낼지, 데이터 올 때까지 일주일 더 기다릴지 정해 주시면 그에 맞춰 일정 다시 잡겠습니다.',
+    '런칭 사전 예약이 목표 대비 37%라서 프로모션 예산 일부를 퍼포먼스 광고로 옮기면 어떨까 싶어요. 300만 원 정도 옮겨도 될지 금요일까지 컨펌 부탁드려요.'];
   fb text[] := array[
     '내용은 충실한데 결론이 3페이지에 있어서 찾느라 시간이 걸렸어요. 첫 문단에 결론부터 써 주세요.',
     '전환율 수치가 언제 기준인지 빠져 있어요. 출처랑 기준일을 같이 적어 주세요.',
@@ -2643,6 +2689,7 @@ begin
   for r in select t.id team_id, t.name, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
     select tm.user_id into v_kim  from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '김현정' limit 1;
     select tm.user_id into v_choi from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '최다은' limit 1;
+    select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
     select tm.user_id into v_han  from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '한수진' limit 1;
 
     -- 0) 이 블록이 전에 넣은 것 지우기
@@ -2652,6 +2699,8 @@ begin
     delete from simbox_messages where team_id = r.team_id;
     delete from simbox_usage where team_id = r.team_id;
     delete from simbox_tags where team_id = r.team_id;
+    delete from space_messages where team_id = r.team_id and body = any(asks);
+    if to_regclass('public.decision_asks') is not null then execute 'delete from decision_asks where team_id = $1' using r.team_id; end if;
 
     -- 1) 팀장 결과물 의견 4건 (서로 다른 결과물) → '팀장님이 일하는 방식'이 실제 데이터로도 2번 이상
     n := 0;
@@ -2699,6 +2748,27 @@ begin
           jsonb_build_object('text', v_kh, 'why', '팀 노하우로 공유됐습니다', 'source', '팀 노하우', 'date', to_char(current_date - 3, 'YYYY-MM-DD'), 'repeat', 1, 'new', true))))));
 
     -- 4) Sim.Box 예시 대화 (각자 본인만 보임 · 사람 이름 없음)
+    if v_jung is not null then   -- 막힌 일 도움 요청 (팀원 화면 기본 계정)
+      t0 := now() - interval '3 hours';
+      insert into simbox_messages (team_id, user_id, role, body, attachment, meta, created_at) values
+      (r.team_id, v_jung, 'user', '파트너사 데이터가 2주째 안 들어와서 제휴 제안서가 멈춰 있어요. 혼자 더 붙잡고 있어야 할지, 팀장님께 도움을 요청해야 할지 모르겠어요. 요청한다면 어떻게 말씀드리면 좋을까요?', null, null, t0),
+      (r.team_id, v_jung, 'assistant',
+       '2주째 같은 이유로 막혀 있다면 지금 요청하는 게 맞아요. 팀 방향의 일하는 방식에도 막히면 일찍 공유하라는 기준이 있어요. 외부 데이터 문제는 혼자 풀기 어려운 일이라, 늦게 꺼낼수록 일정만 더 밀려요. 말씀드릴 때는 지금 상태와 영향, 이미 해 본 것, 팀장님께 바라는 것 한 가지 순서로 짧게 정리해 보세요. 데이터 없이 먼저 진행할 수 있는 부분이 있는지도 함께 제안하면, 도움 요청이 아니라 해결안 보고로 받아들여져요.',
+       null,
+       jsonb_build_object('chips', jsonb_build_array('요청 메시지 초안 써 줘', '데이터 없이 먼저 할 수 있는 일 정리해 줘'),
+         'panel', jsonb_build_object('title', '도움 요청 — 제휴 제안서 막힘',
+           'questions', jsonb_build_array(
+             jsonb_build_object('q', '언제부터, 무엇 때문에 멈춰 있나요?', 'tip', '요청한 날짜 · 받기로 한 날짜 · 지금까지 연락한 횟수'),
+             jsonb_build_object('q', '이대로면 목표에 어떤 영향이 있나요?', 'tip', '제안서 일정이 밀릴 때 신규 고객 목표에 생기는 차이'),
+             jsonb_build_object('q', '팀장님이 무엇을 해 주시면 풀리나요?', 'tip', '윗선 협조 요청 · 일정 조정 · 대체 데이터 중 하나로')),
+           'fixes', jsonb_build_array(
+             jsonb_build_object('t', '바라는 것을 하나로', 'd', '여러 가지를 늘어놓기보다 가장 필요한 한 가지를 먼저'),
+             jsonb_build_object('t', '먼저 할 수 있는 일 함께', 'd', '데이터 없이 진행 가능한 부분과 그 일정')),
+           'good', jsonb_build_array(jsonb_build_object('t', '막힌 이유가 분명함', 'd', '본인 일정 문제가 아니라 외부 의존이라는 점이 드러남')))),
+       t0 + interval '18 seconds');
+      insert into simbox_usage (team_id, user_id, created_at) values (r.team_id, v_jung, t0);
+    end if;
+
     if v_choi is not null then   -- 결과물 검토 (파일 + 오른쪽 짚어 볼 포인트)
       t0 := now() - interval '2 days 3 hours';
       insert into simbox_messages (team_id, user_id, role, body, attachment, meta, created_at) values
@@ -2754,6 +2824,32 @@ begin
       insert into simbox_usage (team_id, user_id, created_at) values (r.team_id, v_han, t0);
     end if;
 
+    -- 6) 의사결정 보드 '팀원 요청' — 팀원이 대화에서 물은 결정 (45_decision_asks 이후에만 카드가 된다)
+    if v_jung is not null then
+      select id into v_item from work_items where team_id = r.team_id and title = '제휴 프로모션 제안서' limit 1;
+      insert into space_messages (team_id, space_user, author_id, item_id, body, created_at)
+        values (r.team_id, v_jung, v_jung, v_item, asks[1], now() - interval '2 days 2 hours') returning id into v_msg;
+      if to_regclass('public.decision_asks') is not null then
+        execute $q$update decision_asks set status = 'ask', classified_at = now(),
+          ai = '{"title": "제휴 제안서를 B사 빼고 2개사 안으로 먼저 낼지", "options": ["B사 빼고 A·C 2개사 안으로 먼저 제출", "B사 데이터 올 때까지 일주일 더 기다림"], "due": null}'::jsonb
+          where src_id = $1$q$ using v_msg;
+      end if;
+    end if;
+    if v_kim is not null then
+      select id into v_item from work_items where team_id = r.team_id and title = '런칭 프로모션 정책 확정' limit 1;
+      insert into space_messages (team_id, space_user, author_id, item_id, body, created_at)
+        values (r.team_id, v_kim, v_kim, v_item, asks[2], now() - interval '20 hours') returning id into v_msg;
+      if to_regclass('public.decision_asks') is not null then
+        execute $q$update decision_asks set status = 'ask', classified_at = now(),
+          ai = '{"title": "프로모션 예산 300만 원을 퍼포먼스 광고로 옮길지", "options": ["300만 원을 퍼포먼스 광고로 이동", "옮기지 않고 지금 계획 유지"], "due": "금요일까지"}'::jsonb
+          where src_id = $1$q$ using v_msg;
+      end if;
+    end if;
+    -- 다른 데모 대화에서 표현만 걸린 후보는 판별 없이 '아님'으로 (데모에서 AI를 부르지 않게)
+    if to_regclass('public.decision_asks') is not null then
+      execute $q$update decision_asks set status = 'not', classified_at = now() where team_id = $1 and status = 'candidate'$q$ using r.team_id;
+    end if;
+
     -- 5) 팀장 화면 'Sim.Box 팀 경향' — 이름 · 내용 없이 분류만 (팀원 5명, 분류마다 3명 이상)
     select array_agg(user_id order by joined_at) into v_users
       from (select tm.user_id, tm.joined_at from team_members tm where tm.team_id = r.team_id and tm.role = 'member' and tm.status = 'active' order by tm.joined_at limit 5) x;
@@ -2767,4 +2863,6 @@ begin
       select r.team_id, v_users[u], 'evidence', now() - make_interval(days => u + 10) from generate_series(1, 3) u;
     end if;
   end loop;
+  -- 팀원 목표 수정 잠금이 기본 — 계획 요청 시드가 자동으로 열어 둔 것을 다시 잠근다
+  update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": false}'::jsonb where is_demo;
 end $$;

@@ -2606,7 +2606,7 @@ begin
 
   -- 목표·과제 (자유 계층)
   update teams set settings = settings || '{"level_names":["목표","과제","할 일"],"member_free_edit":false}'::jsonb
-    || '{"plan_open": true}'::jsonb where id = T;   -- 정우성 계획 요청 중이라 팀원 수정 켜 둠
+    || '{"plan_open": false}'::jsonb where id = T;   -- 팀원 목표 수정은 잠금이 기본 (데모 끝에서 한 번 더 잠근다)
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
     values (T, L, '하반기 신제품 런칭 캠페인 성공', 'children', 1, current_date - 60, current_date + 80, 5, now() - interval '60 days') returning id into g1;
   insert into work_items (team_id, owner_id, title, measure, sort, start_date, due_date, contribution, created_at)
@@ -6608,3 +6608,799 @@ grant execute on function public.autopilot_mark(uuid, text, text) to authenticat
 
 -- 매주 자동으로 만들던 'ATEAM AI의 제안'은 끈다 (자율주행은 팀장이 직접 실행)
 do $$ begin perform cron.unschedule('advisor-weekly'); exception when others then null; end $$;
+
+-- >>>>>>>>>> 20261114000041_workspace_plus.sql
+-- =====================================================================
+-- 업무플랫폼 확장 — 팀 방향 · Sim.Box · 파일 실적 추출
+--   · 팀 방향(team_directions): 팀장이 쓰지 않는다. ATEAM이 팀 목표 · 팀장 요청 · 결과물 피드백 · 공유한 위·조직 소식 ·
+--     공유 노하우에서 '팀 전체에 해당하는 것'만 정리한다 (사람 이름 · 개인 사정 없음). 일주일마다 새로 정리
+--   · 위에서 온 것(org_notes)은 share_team 을 켠 것만 팀원에게 쓰인다 (팀 방향 · Sim.Box 근거)
+--   · Sim.Box: 팀원 혼자 쓰는 시뮬레이션 · 메모 공간 — 본인만 읽는다(팀장 포함 누구도 못 읽음) · 30일 지나면 지운다
+--     팀장에게는 정해진 분류의 '팀 전체 합계'만 (팀원 5명 이상 · 3명 이상이 쓴 분류만 · 민감한 대화는 집계 제외)
+--     횟수: 팀원 1인당 체험 월 5 / Starter 20 / Pro 20 / Pro+ 30 (하루 3 / 5 / 5 / 8) · 데모 팀 60 (하루 15)
+--     원가는 팀의 월 AI 원가 상한에 함께 센다 (credit_ledger.reason = 'simbox')
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'team_direction';
+alter type public.ai_kind add value if not exists 'perf_extract';
+
+-- ---------- 팀 방향 ----------
+create table if not exists public.team_directions (
+  team_id     uuid primary key references public.teams(id) on delete cascade,
+  content     jsonb not null default '{}'::jsonb,   -- { title, sections:[{ key, title, sub, items:[{ text, why, source, date, repeat, new }] }] }
+  status      text not null default 'ready' check (status in ('ready', 'running', 'failed')),
+  started_at  timestamptz,
+  updated_at  timestamptz not null default now()
+);
+alter table public.team_directions enable row level security;
+drop policy if exists team_directions_read on public.team_directions;
+create policy team_directions_read on public.team_directions for select using (public.is_team_member(team_id));
+
+-- 정리 시작 (서비스 전용) — 팀 단위 잠금: 진행 중이면 기다리고, 새로 정리할 때가 아니면 그대로
+create or replace function public.team_direction_claim(p_team uuid, p_force boolean default false) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare r team_directions;
+begin
+  if auth.uid() is not null then raise exception 'forbidden' using errcode = '42501'; end if;
+  perform pg_advisory_xact_lock(hashtext('direction:' || p_team::text));
+  select * into r from team_directions where team_id = p_team;
+  if r.team_id is not null and r.status = 'running' and r.started_at > now() - interval '5 minutes' then return false; end if;
+  -- 실패했으면 한 시간 뒤에 다시 (열 때마다 다시 부르지 않게)
+  if r.team_id is not null and r.status = 'failed' and r.started_at > now() - interval '1 hour' then return false; end if;
+  if r.team_id is not null and r.status = 'ready' and r.content <> '{}'::jsonb
+     and r.updated_at > now() - (case when p_force then interval '1 hour' else interval '7 days' end) then return false; end if;
+  insert into team_directions (team_id, status, started_at) values (p_team, 'running', now())
+    on conflict (team_id) do update set status = 'running', started_at = now();
+  return true;
+end $$;
+revoke all on function public.team_direction_claim(uuid, boolean) from public, anon, authenticated;
+
+-- ---------- 위에서 온 것: 팀원에게 공유 ----------
+alter table public.org_notes add column if not exists share_team boolean not null default false;
+
+-- ---------- Sim.Box ----------
+alter table public.plans add column if not exists simbox_monthly int not null default 0;
+alter table public.plans add column if not exists simbox_daily int not null default 0;
+update public.plans set simbox_monthly = 20, simbox_daily = 5 where id = 'starter';
+update public.plans set simbox_monthly = 20, simbox_daily = 5 where id = 'pro';
+update public.plans set simbox_monthly = 30, simbox_daily = 8 where id = 'pro_plus';
+update public.plans set simbox_monthly = 0,  simbox_daily = 0 where id = 'free';
+
+create table if not exists public.simbox_messages (
+  id          uuid primary key default gen_random_uuid(),
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  role        text not null check (role in ('user', 'assistant')),
+  body        text not null default '',
+  attachment  jsonb,          -- { name, kind, text?(본문 일부), digest?(AI가 정리한 요지) }
+  meta        jsonb,          -- 답: { panel:{ title, questions[], fixes[], good[] }, chips[] }
+  created_at  timestamptz not null default now()
+);
+create index if not exists simbox_messages_user_idx on public.simbox_messages (user_id, team_id, created_at);
+alter table public.simbox_messages enable row level security;
+-- 본인만 읽고 지운다 (팀장 · 다른 팀원 · 관리자 화면 모두 못 읽음). 쓰기는 서버(ai-simbox)만
+drop policy if exists simbox_messages_own_read on public.simbox_messages;
+create policy simbox_messages_own_read on public.simbox_messages for select using (user_id = auth.uid());
+drop policy if exists simbox_messages_own_delete on public.simbox_messages;
+create policy simbox_messages_own_delete on public.simbox_messages for delete using (user_id = auth.uid());
+
+-- 횟수 기록 (대화 내용 없음)
+create table if not exists public.simbox_usage (
+  id          bigserial primary key,
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  cost_usd    numeric not null default 0,
+  created_at  timestamptz not null default now()
+);
+create index if not exists simbox_usage_user_idx on public.simbox_usage (user_id, team_id, created_at desc);
+alter table public.simbox_usage enable row level security;   -- 정책 없음 = 서버 · 아래 함수로만
+
+-- 팀장용 가공: 정해진 분류만 (문장 · 단어 없음)
+create table if not exists public.simbox_tags (
+  id          bigserial primary key,
+  team_id     uuid not null references public.teams(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  category    text not null check (category in ('evidence', 'structure', 'clarity', 'priority', 'reporting', 'stakeholder', 'planning', 'idea', 'data')),
+  created_at  timestamptz not null default now()
+);
+create index if not exists simbox_tags_team_idx on public.simbox_tags (team_id, created_at desc);
+alter table public.simbox_tags enable row level security;    -- 정책 없음 = 서버 · simbox_trends 로만
+
+-- 내 남은 횟수
+create or replace function public.simbox_quota(p_team uuid, p_user uuid default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := coalesce(auth.uid(), p_user);
+  v_owner uuid; v_plan plans; v_sub subscriptions; v_trial boolean;
+  v_limit int; v_daily int; v_from timestamptz; v_used int; v_day int;
+begin
+  if auth.uid() is not null and not public.is_team_member(p_team) then raise exception 'forbidden' using errcode = '42501'; end if;
+  if v_user is null then return null; end if;
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then return null; end if;
+  v_plan := public.effective_plan_for_owner(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+  v_trial := v_sub.status = 'trialing' and coalesce(v_sub.trial_ends_at, now() + interval '1 day') > now();
+  if v_trial then v_limit := 5; v_daily := 3;
+  else v_limit := coalesce(v_plan.simbox_monthly, 0); v_daily := coalesce(v_plan.simbox_daily, 0); end if;
+  -- 데모 팀: 여러 사람이 같은 계정으로 체험하므로 넉넉하게 (원가는 팀 월 AI 원가 상한이 따로 막는다)
+  if exists (select 1 from teams where id = p_team and is_demo) then v_limit := 60; v_daily := 15; v_trial := false; end if;
+  v_from := (date_trunc('month', now() at time zone 'Asia/Seoul')) at time zone 'Asia/Seoul';
+  select count(*) filter (where created_at >= v_from),
+         count(*) filter (where created_at >= (date_trunc('day', now() at time zone 'Asia/Seoul')) at time zone 'Asia/Seoul')
+    into v_used, v_day
+    from simbox_usage where user_id = v_user and team_id = p_team and created_at >= least(v_from, now() - interval '1 day');
+  return jsonb_build_object('limit', v_limit, 'used', v_used, 'remaining', greatest(0, v_limit - v_used),
+    'daily_limit', v_daily, 'day_used', v_day, 'day_remaining', greatest(0, v_daily - v_day), 'trial', v_trial);
+end $$;
+revoke all on function public.simbox_quota(uuid, uuid) from public, anon;
+grant execute on function public.simbox_quota(uuid, uuid) to authenticated;
+
+-- 한 번 쓰기 (서비스 전용) — 잠금 안에서 횟수 확인 후 기록. 남은 게 없으면 SIMBOX_LIMIT
+create or replace function public.simbox_take(p_team uuid, p_user uuid) returns bigint
+language plpgsql security definer set search_path = public as $$
+declare v_q jsonb; v_id bigint;
+begin
+  if auth.uid() is not null then raise exception 'forbidden' using errcode = '42501'; end if;
+  perform pg_advisory_xact_lock(hashtext('simbox:' || p_user::text));
+  v_q := public.simbox_quota(p_team, p_user);
+  if coalesce((v_q ->> 'remaining')::int, 0) <= 0 then raise exception 'SIMBOX_LIMIT' using errcode = 'P0001', hint = 'month'; end if;
+  if coalesce((v_q ->> 'day_remaining')::int, 0) <= 0 then raise exception 'SIMBOX_LIMIT' using errcode = 'P0001', hint = 'day'; end if;
+  insert into simbox_usage (team_id, user_id) values (p_team, p_user) returning id into v_id;
+  return v_id;
+end $$;
+revoke all on function public.simbox_take(uuid, uuid) from public, anon, authenticated;
+
+-- 실패하면 횟수를 돌려준다 (서비스 전용)
+create or replace function public.simbox_refund(p_id bigint) returns void
+language sql security definer set search_path = public as $$ delete from simbox_usage where id = p_id and auth.uid() is null $$;
+revoke all on function public.simbox_refund(bigint) from public, anon, authenticated;
+
+-- 원가 기록 (서비스 전용) — 팀 소유자의 월 AI 원가 상한에 함께 센다
+create or replace function public.simbox_cost(p_id bigint, p_model text, p_in int, p_out int, p_cost numeric) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_team uuid; v_owner uuid;
+begin
+  if auth.uid() is not null then raise exception 'forbidden' using errcode = '42501'; end if;
+  update simbox_usage set cost_usd = coalesce(p_cost, 0) where id = p_id returning team_id into v_team;
+  select owner_id into v_owner from teams where id = v_team;
+  if v_owner is null then return; end if;
+  insert into credit_ledger (owner_id, team_id, delta, reason, ai_kind, model, input_tokens, output_tokens, cost_usd)
+    values (v_owner, v_team, 0, 'simbox', 'simbox', p_model, p_in, p_out, p_cost);
+end $$;
+revoke all on function public.simbox_cost(bigint, text, int, int, numeric) from public, anon, authenticated;
+
+-- 팀장용: 이름 없이 팀 전체 합계만. 팀원 5명 이상 팀에서, 3명 이상이 쓴 분류만
+create or replace function public.simbox_trends(p_team uuid, p_days int default 30) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_members int; v_users int; v_total int; v_rows jsonb;
+begin
+  if auth.uid() is not null and not public.is_team_leader(p_team) then raise exception 'forbidden' using errcode = '42501'; end if;
+  select count(*) into v_members from team_members where team_id = p_team and status = 'active' and role = 'member';
+  if v_members < 5 then return jsonb_build_object('available', false, 'reason', 'small_team', 'members', v_members); end if;
+  select count(distinct user_id), count(*) into v_users, v_total from simbox_tags
+   where team_id = p_team and created_at > now() - make_interval(days => greatest(7, least(p_days, 120)));
+  if v_users < 3 then return jsonb_build_object('available', false, 'reason', 'few_users'); end if;
+  select coalesce(jsonb_agg(jsonb_build_object('category', category, 'share', round(100.0 * n / v_total)) order by n desc), '[]'::jsonb)
+    into v_rows
+    from (select category, count(*) n, count(distinct user_id) u from simbox_tags
+           where team_id = p_team and created_at > now() - make_interval(days => greatest(7, least(p_days, 120)))
+           group by category) t
+   where u >= 3;
+  return jsonb_build_object('available', true, 'days', p_days, 'users_band', case when v_users >= 10 then '10명 이상' else '여러 명' end, 'rows', v_rows);
+end $$;
+revoke all on function public.simbox_trends(uuid, int) from public, anon;
+grant execute on function public.simbox_trends(uuid, int) to authenticated;
+
+-- 30일 지난 대화 지우기 (예약 작업 · 서버에서도 부른다)
+create or replace function public.simbox_purge() returns void
+language sql security definer set search_path = public as $$
+  delete from simbox_messages where created_at < now() - interval '30 days';
+  delete from simbox_tags where created_at < now() - interval '180 days';
+  delete from simbox_usage where created_at < now() - interval '400 days';
+$$;
+revoke all on function public.simbox_purge() from public, anon, authenticated;
+do $$ begin
+  if exists (select 1 from pg_namespace where nspname = 'cron') then
+    perform cron.unschedule('simbox-purge') where exists (select 1 from cron.job where jobname = 'simbox-purge');
+    perform cron.schedule('simbox-purge', '30 18 * * *', 'select public.simbox_purge()');
+  end if;
+exception when others then raise notice 'simbox-purge 예약을 건너뜁니다: %', sqlerrm;
+end $$;
+
+-- ---------- AI 원가: Sim.Box 도 월 원가 상한에 센다 (시간당 · 하루 횟수 한도에는 넣지 않는다 — 팀원 사용이 팀장 AI를 막지 않게) ----------
+alter table public.credit_ledger drop constraint if exists credit_ledger_reason_check;
+alter table public.credit_ledger add constraint credit_ledger_reason_check
+  check (reason in ('monthly_grant','topup','usage','refund','adjust','core_usage','ai_error','simbox'));
+
+create or replace function public.ai_guard(p_team uuid, p_kind text, p_ref uuid default null,
+  p_period date default null, p_subject uuid default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_owner uuid; v_plan plans; v_bal credit_balances; v_sub subscriptions;
+  v_hour int; v_day int; v_cost numeric; v_cap numeric; v_same int;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then raise exception 'TEAM_NOT_FOUND' using errcode = 'P0001'; end if;
+  v_plan := public.effective_plan_for_owner(v_owner);
+  v_bal := public._ensure_credit_period(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+
+  select count(*) filter (where created_at > now() - interval '1 hour'),
+         count(*) filter (where created_at > now() - interval '24 hours')
+    into v_hour, v_day
+    from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'usage', 'ai_error') and created_at > now() - interval '24 hours';
+  if v_hour >= v_plan.ai_hourly_cap then
+    raise exception 'AI_RATE_HOUR' using errcode = 'P0001', hint = v_plan.ai_hourly_cap::text;
+  end if;
+  if v_day >= v_plan.ai_daily_cap then
+    raise exception 'AI_RATE_DAY' using errcode = 'P0001', hint = v_plan.ai_daily_cap::text;
+  end if;
+
+  v_cap := public.ai_cost_cap(v_owner);
+  select coalesce(sum(cost_usd), 0) into v_cost from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'ai_error', 'simbox') and created_at >= v_bal.period_start;
+  if v_cost >= v_cap then
+    raise exception 'AI_COST_CAP' using errcode = 'P0001';
+  end if;
+
+  if p_ref is not null or p_period is not null then
+    select count(*) into v_same from ai_outputs
+     where team_id = p_team and kind::text = p_kind
+       and ref_id is not distinct from p_ref and period_start is not distinct from p_period
+       and subject_user_id is not distinct from p_subject
+       and created_at > now() - interval '24 hours';
+    if v_same >= 3 then raise exception 'AI_REPEAT' using errcode = 'P0001'; end if;
+  end if;
+
+  return jsonb_build_object('hour', v_hour, 'day', v_day, 'cost_usd', v_cost, 'cost_cap_usd', v_cap);
+end $$;
+revoke all on function public.ai_guard(uuid, text, uuid, date, uuid) from public, anon, authenticated;
+
+create or replace function public.ai_budget(p_team uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_owner uuid; v_plan plans; v_bal credit_balances; v_sub subscriptions; v_cost numeric; v_cap numeric;
+begin
+  select owner_id into v_owner from teams where id = p_team;
+  if v_owner is null then return null; end if;
+  v_plan := public.effective_plan_for_owner(v_owner);
+  v_bal := public._ensure_credit_period(v_owner);
+  select * into v_sub from subscriptions where owner_id = v_owner;
+  v_cap := public.ai_cost_cap(v_owner);
+  select coalesce(sum(cost_usd), 0) into v_cost from credit_ledger
+   where owner_id = v_owner and reason in ('core_usage', 'ai_error', 'simbox') and created_at >= v_bal.period_start;
+  return jsonb_build_object('cost_usd', v_cost, 'cap_usd', v_cap);
+end $$;
+revoke all on function public.ai_budget(uuid) from public, anon, authenticated;
+
+-- >>>>>>>>>> 20261114000042_demo_workspace_plus.sql
+-- =====================================================================
+-- 데모 팀: 업무플랫폼 확장(팀 방향 · Sim.Box · 파일 실적 · 8주 흐름) 체험용 기록 — 36_workspace_plus 다음 (06_demo_accounts 끝에 포함)
+--   팀장 화면: 8주 흐름 옆 'Sim.Box 팀 경향'(분류 집계) · 팀목표 '파일로 실적 채우기'(샘플 파일은 앱 public/demo)
+--   팀원 화면:
+--     · 매니징 보드 '팀장님 주요 지침' · 업무플랫폼 [팀 방향] — 미리 정리 (NEW 1건 → 탭 배지)
+--     · Sim.Box 예시 대화 — 정우성(막힌 일 도움 요청 · 팀원 화면 기본) · 최다은(결과물 검토) · 김현정(보고 방법) · 한수진(신규 · 팀장님 관심사)
+--       나머지(박서연 · 이동욱)는 빈 화면에서 시작해 직접 써 보게
+--     · 성과입력 '파일로 입력' — 김현정 · 최다은 · 이동욱은 체험용 샘플 파일 버튼이 보인다 (앱 쪽)
+--   의사결정 보드 '팀원 요청': 정우성(제휴 제안서 2개사 안) · 김현정(프로모션 예산 이동) 이 대화로 물은 결정 2건
+--   다시 Run 하면 이 블록이 넣은 것만 지우고 새로 넣는다 (지금 있는 데모에 이 부분만 Run 해도 됨)
+-- =====================================================================
+do $$
+declare
+  r record; v_users uuid[]; s record; n int; v_quarter jsonb; v_ways jsonb; v_kh text := '보고서 한 장 요약 양식';
+  v_kim uuid; v_choi uuid; v_han uuid; v_jung uuid; t0 timestamptz; v_msg uuid; v_item uuid;
+  asks text[] := array[
+    '팀장님, 제휴 제안서 B사 데이터가 계속 안 와서요. B사를 빼고 A·C 2개사 안으로 먼저 낼지, 데이터 올 때까지 일주일 더 기다릴지 정해 주시면 그에 맞춰 일정 다시 잡겠습니다.',
+    '런칭 사전 예약이 목표 대비 37%라서 프로모션 예산 일부를 퍼포먼스 광고로 옮기면 어떨까 싶어요. 300만 원 정도 옮겨도 될지 금요일까지 컨펌 부탁드려요.'];
+  fb text[] := array[
+    '내용은 충실한데 결론이 3페이지에 있어서 찾느라 시간이 걸렸어요. 첫 문단에 결론부터 써 주세요.',
+    '전환율 수치가 언제 기준인지 빠져 있어요. 출처랑 기준일을 같이 적어 주세요.',
+    '방향은 동의해요. 다만 왜 이 채널인지 근거 데이터를 한 장 붙여 주면 위에 올리기 쉬워요.',
+    '이건 영업팀 일정이랑 겹칠 수 있어요. 올리기 전에 영업팀과 먼저 맞춰 주세요.'];
+begin
+  if to_regclass('public.simbox_messages') is null then raise notice '36_workspace_plus 를 먼저 Run 하세요 — 데모 확장 기록은 건너뜁니다'; return; end if;
+  for r in select t.id team_id, t.name, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+    select tm.user_id into v_kim  from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '김현정' limit 1;
+    select tm.user_id into v_choi from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '최다은' limit 1;
+    select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
+    select tm.user_id into v_han  from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '한수진' limit 1;
+
+    -- 0) 이 블록이 전에 넣은 것 지우기
+    delete from review_comments where team_id = r.team_id and author_id = r.leader_id and body = any(fb);
+    delete from knowhow_cards where team_id = r.team_id and title = v_kh;
+    delete from team_directions where team_id = r.team_id;
+    delete from simbox_messages where team_id = r.team_id;
+    delete from simbox_usage where team_id = r.team_id;
+    delete from simbox_tags where team_id = r.team_id;
+    delete from space_messages where team_id = r.team_id and body = any(asks);
+    if to_regclass('public.decision_asks') is not null then execute 'delete from decision_asks where team_id = $1' using r.team_id; end if;
+
+    -- 1) 팀장 결과물 의견 4건 (서로 다른 결과물) → '팀장님이 일하는 방식'이 실제 데이터로도 2번 이상
+    n := 0;
+    for s in
+      select sb.id, (select v.id from submission_versions v where v.submission_id = sb.id order by v.version desc limit 1) ver
+        from submissions sb
+       where sb.team_id = r.team_id and sb.author_id <> r.leader_id
+         and not exists (select 1 from review_comments c where c.submission_id = sb.id and c.author_id = r.leader_id)
+       order by sb.created_at desc limit 4
+    loop
+      n := n + 1;
+      insert into review_comments (submission_id, version_id, team_id, author_id, body, created_at)
+      values (s.id, s.ver, r.team_id, r.leader_id, fb[n], now() - make_interval(days => 6 + n * 9));
+    end loop;
+
+    -- 2) 새로 공유된 팀 노하우 (3일 전) → 팀 방향 '최근 바뀐 것' · NEW
+    insert into knowhow_cards (team_id, owner_id, kind, title, body, rules, applies_to, keywords, pinned, shared, provenance, use_count, created_at)
+    values (r.team_id, r.leader_id, 'framework', v_kh,
+      '팀장님께 올리는 보고서는 첫 장을 한 장 요약으로 시작한다. 요약에는 결론 · 숫자 3개(기준일 포함) · 정해 줬으면 하는 것 · 다음 단계를 넣는다.',
+      '["결론 한 줄", "핵심 숫자 3개와 기준일", "정해 줬으면 하는 것", "다음 단계와 날짜"]'::jsonb, '{report,review}', '{보고,요약,한장}', false, true, 'human', 0, now() - interval '3 days');
+
+    -- 3) 팀 방향 (허용 목록 방식과 같은 모양)
+    select coalesce(jsonb_agg(jsonb_build_object('text', g.title, 'why', coalesce(g.sub, ''), 'source', '팀 목표',
+             'date', to_char(g.updated_at, 'YYYY-MM-DD'), 'repeat', 1, 'new', false) order by g.pr, g.sort), '[]'::jsonb)
+      into v_quarter
+      from (select w.title, w.updated_at, w.sort, coalesce(w.priority, 9) pr,
+                   (select string_agg(m.title || coalesce(' ' || to_char(m.num_target, 'FM999,999,990.##') || coalesce(m.unit, ''), ''), ' · ')
+                      from (select * from work_items k where k.parent_id = w.id and k.role = 'metric' and k.status <> 'dropped' order by k.sort limit 3) m) sub
+              from work_items w
+             where w.team_id = r.team_id and w.parent_id is null and w.status not in ('done', 'dropped', 'proposed')
+             order by coalesce(w.priority, 9), w.sort limit 4) g;
+    v_ways := jsonb_build_array(
+      jsonb_build_object('text', '주장에는 근거 자료를 붙여 주세요', 'why', '왜 그렇게 판단했는지 바로 확인할 수 있게', 'source', '보고 · 문서', 'date', to_char(current_date - 15, 'YYYY-MM-DD'), 'repeat', 3, 'new', false),
+      jsonb_build_object('text', '결론을 첫 문단에 써 주세요', 'why', '읽는 사람이 가장 먼저 알아야 할 것부터 보이게', 'source', '보고 · 문서', 'date', to_char(current_date - 15, 'YYYY-MM-DD'), 'repeat', 2, 'new', false),
+      jsonb_build_object('text', '숫자에는 출처와 기준일을 함께 적어 주세요', 'why', '숫자를 믿고 바로 쓸 수 있게', 'source', '보고 · 문서', 'date', to_char(current_date - 24, 'YYYY-MM-DD'), 'repeat', 2, 'new', false),
+      jsonb_build_object('text', '유관부서와 미리 맞춰 주세요', 'why', '마지막에 뒤집히는 일을 줄이려고', 'source', '소통', 'date', to_char(current_date - 6, 'YYYY-MM-DD'), 'repeat', 2, 'new', false));
+    insert into team_directions (team_id, status, updated_at, content)
+    values (r.team_id, 'ready', now(), jsonb_build_object(
+      'title', replace(r.name, ' (데모)', '') || ' — 지금 중요하게 보는 것',
+      'generated_at', now(),
+      'sections', jsonb_build_array(
+        jsonb_build_object('key', 'quarter', 'title', '이번 분기 방향', 'sub', '팀 목표', 'items', v_quarter),
+        jsonb_build_object('key', 'ways', 'title', '팀장님이 일하는 방식', 'sub', '결과물 의견 · 요청에서 2번 이상 나온 기준', 'items', v_ways),
+        jsonb_build_object('key', 'changes', 'title', '최근 바뀐 것', 'sub', '2주 안에 새로 생긴 목표 · 노하우', 'items', jsonb_build_array(
+          jsonb_build_object('text', v_kh, 'why', '팀 노하우로 공유됐습니다', 'source', '팀 노하우', 'date', to_char(current_date - 3, 'YYYY-MM-DD'), 'repeat', 1, 'new', true))))));
+
+    -- 4) Sim.Box 예시 대화 (각자 본인만 보임 · 사람 이름 없음)
+    if v_jung is not null then   -- 막힌 일 도움 요청 (팀원 화면 기본 계정)
+      t0 := now() - interval '3 hours';
+      insert into simbox_messages (team_id, user_id, role, body, attachment, meta, created_at) values
+      (r.team_id, v_jung, 'user', '파트너사 데이터가 2주째 안 들어와서 제휴 제안서가 멈춰 있어요. 혼자 더 붙잡고 있어야 할지, 팀장님께 도움을 요청해야 할지 모르겠어요. 요청한다면 어떻게 말씀드리면 좋을까요?', null, null, t0),
+      (r.team_id, v_jung, 'assistant',
+       '2주째 같은 이유로 막혀 있다면 지금 요청하는 게 맞아요. 팀 방향의 일하는 방식에도 막히면 일찍 공유하라는 기준이 있어요. 외부 데이터 문제는 혼자 풀기 어려운 일이라, 늦게 꺼낼수록 일정만 더 밀려요. 말씀드릴 때는 지금 상태와 영향, 이미 해 본 것, 팀장님께 바라는 것 한 가지 순서로 짧게 정리해 보세요. 데이터 없이 먼저 진행할 수 있는 부분이 있는지도 함께 제안하면, 도움 요청이 아니라 해결안 보고로 받아들여져요.',
+       null,
+       jsonb_build_object('chips', jsonb_build_array('요청 메시지 초안 써 줘', '데이터 없이 먼저 할 수 있는 일 정리해 줘'),
+         'panel', jsonb_build_object('title', '도움 요청 — 제휴 제안서 막힘',
+           'questions', jsonb_build_array(
+             jsonb_build_object('q', '언제부터, 무엇 때문에 멈춰 있나요?', 'tip', '요청한 날짜 · 받기로 한 날짜 · 지금까지 연락한 횟수'),
+             jsonb_build_object('q', '이대로면 목표에 어떤 영향이 있나요?', 'tip', '제안서 일정이 밀릴 때 신규 고객 목표에 생기는 차이'),
+             jsonb_build_object('q', '팀장님이 무엇을 해 주시면 풀리나요?', 'tip', '윗선 협조 요청 · 일정 조정 · 대체 데이터 중 하나로')),
+           'fixes', jsonb_build_array(
+             jsonb_build_object('t', '바라는 것을 하나로', 'd', '여러 가지를 늘어놓기보다 가장 필요한 한 가지를 먼저'),
+             jsonb_build_object('t', '먼저 할 수 있는 일 함께', 'd', '데이터 없이 진행 가능한 부분과 그 일정')),
+           'good', jsonb_build_array(jsonb_build_object('t', '막힌 이유가 분명함', 'd', '본인 일정 문제가 아니라 외부 의존이라는 점이 드러남')))),
+       t0 + interval '18 seconds');
+      insert into simbox_usage (team_id, user_id, created_at) values (r.team_id, v_jung, t0);
+    end if;
+
+    if v_choi is not null then   -- 결과물 검토 (파일 + 오른쪽 짚어 볼 포인트)
+      t0 := now() - interval '2 days 3 hours';
+      insert into simbox_messages (team_id, user_id, role, body, attachment, meta, created_at) values
+      (r.team_id, v_choi, 'user', '11월 콘텐츠 캘린더 초안이에요. 팀장님께 올리기 전에 한번 봐 주세요.',
+       jsonb_build_object('name', '11월_콘텐츠캘린더_v2.xlsx', 'kind', 'text',
+         'digest', '11월 콘텐츠 12편 일정. 런칭 주간(3주차)에 6편 집중. 편당 담당 · 채널 · 목표 지표(저장 · 공유) 표기. 디자인팀 슬롯 표시 없음. 지난달 성과 비교 없음.'),
+       null, t0),
+      (r.team_id, v_choi, 'assistant',
+       '전체 구성은 탄탄해요. 다만 런칭 주간에 6편이 몰려 있는데 디자인 작업이 가능한지 표시가 없어서, 일정 질문이 먼저 나올 가능성이 높아요. 팀 방향의 일하는 방식에 유관부서와 미리 맞추라는 기준이 있으니 디자인팀 확인 여부를 한 줄 넣어 두면 좋겠어요. 목표 지표를 왜 저장 · 공유로 잡았는지도 지난달 숫자와 함께 짧게 붙이면 판단이 쉬워져요.',
+       null,
+       jsonb_build_object('chips', jsonb_build_array('일정 분산안 같이 짜 줘', '지표 근거 한 줄로 써 줘'),
+         'panel', jsonb_build_object('title', '11월 콘텐츠 캘린더 v2',
+           'questions', jsonb_build_array(
+             jsonb_build_object('q', '런칭 주간 6편, 디자인 작업 가능한가요?', 'tip', '디자인팀 슬롯 확인 결과나 앞 주로 당길 편 표시'),
+             jsonb_build_object('q', '저장 · 공유를 목표 지표로 잡은 이유는요?', 'tip', '지난달 편당 저장 · 공유 수와 비교')),
+           'fixes', jsonb_build_array(
+             jsonb_build_object('t', '맨 위에 한 줄 요약', 'd', '몇 편 · 언제 집중 · 기대 효과를 첫 줄에'),
+             jsonb_build_object('t', '지난달 성과 열 추가', 'd', '같은 채널 지난달 숫자와 기준일')),
+           'good', jsonb_build_array(jsonb_build_object('t', '편마다 담당 · 채널이 분명함', 'd', '바로 실행할 수 있는 수준')))),
+       t0 + interval '20 seconds');
+      insert into simbox_usage (team_id, user_id, created_at) values (r.team_id, v_choi, t0);
+    end if;
+
+    if v_kim is not null then    -- 보고 방법 · 타이밍
+      t0 := now() - interval '1 day 5 hours';
+      insert into simbox_messages (team_id, user_id, role, body, attachment, meta, created_at) values
+      (r.team_id, v_kim, 'user', '사전 예약이 목표 대비 많이 밀려 있어요. 이번 주 주간 보고에서 어떻게 꺼내면 좋을까요?', null, null, t0),
+      (r.team_id, v_kim, 'assistant',
+       '밀린 상황은 숨기기보다 먼저 꺼내는 게 좋아요. 팀 방향의 일하는 방식에 막히면 일찍 공유하고, 숫자에는 기준일을 붙이라는 기준이 있어서 그 순서로 짜 보면 자연스러워요. 첫 줄에 현재 누적과 목표 대비 비율, 다음 줄에 밀린 이유 한두 가지, 마지막에 만회 방안과 팀장님이 정해 주셨으면 하는 것을 두세요. 만회 방안은 하나보다 두 가지를 놓고 고르게 하면 대화가 빨라져요.',
+       null,
+       jsonb_build_object('chips', jsonb_build_array('보고 첫 문단 같이 써 줘', '만회 방안 두 가지 정리해 줘'),
+         'panel', jsonb_build_object('title', '주간 보고 — 사전 예약 현황',
+           'questions', jsonb_build_array(
+             jsonb_build_object('q', '언제까지 얼마나 따라잡을 수 있나요?', 'tip', '주차별 만회 계획 숫자'),
+             jsonb_build_object('q', '채널별로 어디가 제일 약한가요?', 'tip', '자사몰 · 제휴 비중과 지난주 대비')),
+           'fixes', jsonb_build_array(
+             jsonb_build_object('t', '결론 먼저', 'd', '누적 · 목표 대비 비율 · 만회 가능 여부를 첫 줄에'),
+             jsonb_build_object('t', '정해 줬으면 하는 것 명시', 'd', '예산 추가 · 일정 조정 중 무엇이 필요한지')),
+           'good', jsonb_build_array())),
+       t0 + interval '15 seconds');
+      insert into simbox_usage (team_id, user_id, created_at) values (r.team_id, v_kim, t0);
+    end if;
+
+    if v_han is not null then    -- 신규 팀원 · 팀장님 관심사 (자료로 말할 수 있는 만큼만)
+      t0 := now() - interval '5 hours';
+      insert into simbox_messages (team_id, user_id, role, body, attachment, meta, created_at) values
+      (r.team_id, v_han, 'user', '최근 팀장님의 주 관심사는 뭔가요? 합류한 지 얼마 안 돼서 감을 잡고 싶어요.', null, null, t0),
+      (r.team_id, v_han, 'assistant',
+       '팀 방향과 팀 목표로 보면 지금은 신제품 런칭이 가장 앞에 있고, 제휴 채널 신규 고객 확대와 운영 효율화가 뒤를 잇고 있어요. 일하는 방식에서는 근거 자료를 붙이는 것과 결론을 먼저 쓰는 것이 여러 번 강조됐어요. 다만 팀장님 개인의 생각까지는 자료로 알 수 없어서, 확실하지 않은 부분은 1on1에서 직접 여쭤보는 걸 권해요. 최근에 공유된 보고서 한 장 요약 양식을 먼저 익혀 두면 첫 보고가 한결 수월할 거예요.',
+       null,
+       jsonb_build_object('chips', jsonb_build_array('1on1에서 물어볼 질문 추려 줘', '한 장 요약 양식으로 연습해 볼래'), 'panel', null),
+       t0 + interval '12 seconds');
+      insert into simbox_usage (team_id, user_id, created_at) values (r.team_id, v_han, t0);
+    end if;
+
+    -- 6) 의사결정 보드 '팀원 요청' — 팀원이 대화에서 물은 결정 (45_decision_asks 이후에만 카드가 된다)
+    if v_jung is not null then
+      select id into v_item from work_items where team_id = r.team_id and title = '제휴 프로모션 제안서' limit 1;
+      insert into space_messages (team_id, space_user, author_id, item_id, body, created_at)
+        values (r.team_id, v_jung, v_jung, v_item, asks[1], now() - interval '2 days 2 hours') returning id into v_msg;
+      if to_regclass('public.decision_asks') is not null then
+        execute $q$update decision_asks set status = 'ask', classified_at = now(),
+          ai = '{"title": "제휴 제안서를 B사 빼고 2개사 안으로 먼저 낼지", "options": ["B사 빼고 A·C 2개사 안으로 먼저 제출", "B사 데이터 올 때까지 일주일 더 기다림"], "due": null}'::jsonb
+          where src_id = $1$q$ using v_msg;
+      end if;
+    end if;
+    if v_kim is not null then
+      select id into v_item from work_items where team_id = r.team_id and title = '런칭 프로모션 정책 확정' limit 1;
+      insert into space_messages (team_id, space_user, author_id, item_id, body, created_at)
+        values (r.team_id, v_kim, v_kim, v_item, asks[2], now() - interval '20 hours') returning id into v_msg;
+      if to_regclass('public.decision_asks') is not null then
+        execute $q$update decision_asks set status = 'ask', classified_at = now(),
+          ai = '{"title": "프로모션 예산 300만 원을 퍼포먼스 광고로 옮길지", "options": ["300만 원을 퍼포먼스 광고로 이동", "옮기지 않고 지금 계획 유지"], "due": "금요일까지"}'::jsonb
+          where src_id = $1$q$ using v_msg;
+      end if;
+    end if;
+    -- 다른 데모 대화에서 표현만 걸린 후보는 판별 없이 '아님'으로 (데모에서 AI를 부르지 않게)
+    if to_regclass('public.decision_asks') is not null then
+      execute $q$update decision_asks set status = 'not', classified_at = now() where team_id = $1 and status = 'candidate'$q$ using r.team_id;
+    end if;
+
+    -- 5) 팀장 화면 'Sim.Box 팀 경향' — 이름 · 내용 없이 분류만 (팀원 5명, 분류마다 3명 이상)
+    select array_agg(user_id order by joined_at) into v_users
+      from (select tm.user_id, tm.joined_at from team_members tm where tm.team_id = r.team_id and tm.role = 'member' and tm.status = 'active' order by tm.joined_at limit 5) x;
+    if coalesce(array_length(v_users, 1), 0) >= 5 then
+      insert into simbox_tags (team_id, user_id, category, created_at)
+      select r.team_id, v_users[u], c.cat, now() - make_interval(days => (u * 3 + c.k * 2) % 27 + 1)
+        from (values ('evidence', 1, 5), ('structure', 2, 4), ('reporting', 3, 4), ('stakeholder', 4, 3), ('priority', 5, 3)) c(cat, k, users)
+        cross join generate_series(1, 5) u
+       where u <= c.users;
+      insert into simbox_tags (team_id, user_id, category, created_at)
+      select r.team_id, v_users[u], 'evidence', now() - make_interval(days => u + 10) from generate_series(1, 3) u;
+    end if;
+  end loop;
+  -- 팀원 목표 수정 잠금이 기본 — 계획 요청 시드가 자동으로 열어 둔 것을 다시 잠근다
+  update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": false}'::jsonb where is_demo;
+end $$;
+
+-- >>>>>>>>>> 20261115000043_demo_access.sql
+-- =====================================================================
+-- 데모 신청 · 승인 — 랜딩의 '데모 신청하기' → 관리자 승인 → 7일짜리 개인 데모 링크
+--   · demo_requests: 신청서 + 승인 링크(token) + 링크별 AI 체험 기록 (데모 초기화와 무관하게 남는다)
+--   · app_admins: 승인할 수 있는 사람 (아래 맨 끝에서 내 이메일로 한 번 등록)
+--   · 데모 링크마다 AI 기능은 종류별로 한 번씩 (demo_ai_take, ai 함수가 부른다)
+--   · 데모 팀에서는 초대 · 팀원 내보내기 · 역할 변경을 막는다 (여러 사람이 같은 계정을 쓰므로)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+-- ---------- 관리자 ----------
+create table if not exists public.app_admins (
+  user_id    uuid primary key references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.app_admins enable row level security;   -- 정책 없음 = 아래 함수로만
+
+create or replace function public.is_app_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from app_admins where user_id = auth.uid());
+$$;
+grant execute on function public.is_app_admin() to authenticated;
+
+-- ---------- 데모 신청 ----------
+create table if not exists public.demo_requests (
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,
+  company      text not null,
+  job_title    text not null default '',
+  team_size    text not null default '',
+  email        text not null,
+  phone        text not null default '',
+  note         text not null default '',
+  consent      boolean not null default false,
+  status       text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  token        uuid unique,
+  approved_at  timestamptz,
+  expires_at   timestamptz,
+  first_used_at timestamptz,
+  last_used_at  timestamptz,
+  ai_used      jsonb not null default '{}'::jsonb,     -- { "<kind>": "<사용 시각>" }
+  created_at   timestamptz not null default now()
+);
+create index if not exists demo_requests_created_idx on public.demo_requests (created_at desc);
+create index if not exists demo_requests_email_idx on public.demo_requests (lower(email));
+alter table public.demo_requests enable row level security;   -- 정책 없음 = 서버(demo-access) · 관리자 함수로만
+
+-- 관리자: 목록
+create or replace function public.admin_demo_list() returns setof public.demo_requests
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_app_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  return query select * from demo_requests order by (status = 'pending') desc, created_at desc limit 300;
+end $$;
+grant execute on function public.admin_demo_list() to authenticated;
+
+-- 관리자: 승인(7일 링크) · 거절 · 연장
+create or replace function public.admin_demo_decide(p_id uuid, p_action text) returns public.demo_requests
+language plpgsql security definer set search_path = public as $$
+declare r demo_requests;
+begin
+  if not public.is_app_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  if p_action = 'approve' then
+    update demo_requests set status = 'approved', token = coalesce(token, gen_random_uuid()), approved_at = coalesce(approved_at, now()),
+      expires_at = case when expires_at > now() then expires_at else now() + interval '7 days' end
+      where id = p_id returning * into r;
+  elsif p_action = 'extend' then
+    update demo_requests set expires_at = greatest(coalesce(expires_at, now()), now()) + interval '7 days', status = 'approved',
+      token = coalesce(token, gen_random_uuid()) where id = p_id returning * into r;
+  elsif p_action = 'reject' then
+    update demo_requests set status = 'rejected', expires_at = least(coalesce(expires_at, now()), now()) where id = p_id returning * into r;
+  else raise exception 'BAD_ACTION';
+  end if;
+  return r;
+end $$;
+grant execute on function public.admin_demo_decide(uuid, text) to authenticated;
+
+-- 링크 확인 (서비스 전용) — 유효하면 행을 돌려주고 사용 시각을 남긴다
+create or replace function public.demo_token_use(p_token uuid) returns public.demo_requests
+language plpgsql security definer set search_path = public as $$
+declare r demo_requests;
+begin
+  if auth.uid() is not null then raise exception 'forbidden' using errcode = '42501'; end if;
+  update demo_requests set first_used_at = coalesce(first_used_at, now()), last_used_at = now()
+   where token = p_token and status = 'approved' and expires_at > now() returning * into r;
+  return r;
+end $$;
+revoke all on function public.demo_token_use(uuid) from public, anon, authenticated;
+
+-- AI 한 번 쓰기 (서비스 전용) — 링크마다 기능 종류별 한 번. 쓸 수 있으면 true
+create or replace function public.demo_ai_take(p_token uuid, p_kind text) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare v_ok boolean;
+begin
+  if auth.uid() is not null then raise exception 'forbidden' using errcode = '42501'; end if;
+  update demo_requests set ai_used = ai_used || jsonb_build_object(p_kind, now())
+   where token = p_token and status = 'approved' and expires_at > now() and not (ai_used ? p_kind)
+   returning true into v_ok;
+  return coalesce(v_ok, false);
+end $$;
+revoke all on function public.demo_ai_take(uuid, text) from public, anon, authenticated;
+
+-- AI 호출이 실패하면 그 기능 기록을 되돌린다 (서비스 전용)
+create or replace function public.demo_ai_refund(p_token uuid, p_kind text) returns void
+language sql security definer set search_path = public as $$
+  update demo_requests set ai_used = ai_used - p_kind where token = p_token and auth.uid() is null;
+$$;
+revoke all on function public.demo_ai_refund(uuid, text) from public, anon, authenticated;
+
+-- ---------- 데모 팀 보호: 초대 · 팀원 내보내기 · 역할 변경 막기 (앱 사용자만, 시드 SQL은 통과) ----------
+create or replace function public.trg_demo_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_team uuid := coalesce(new.team_id, old.team_id);
+begin
+  if auth.uid() is null then return coalesce(new, old); end if;
+  if not exists (select 1 from teams where id = v_team and is_demo) then return coalesce(new, old); end if;
+  if tg_table_name = 'invitations' then
+    raise exception 'DEMO_READONLY' using errcode = 'P0001', hint = '데모에서는 팀원을 초대할 수 없습니다';
+  end if;
+  if tg_table_name = 'team_members' and (tg_op = 'DELETE' or new.status is distinct from old.status or new.role is distinct from old.role) then
+    raise exception 'DEMO_READONLY' using errcode = 'P0001', hint = '데모에서는 팀 구성을 바꿀 수 없습니다';
+  end if;
+  return coalesce(new, old);
+end $$;
+drop trigger if exists t_demo_guard on public.invitations;
+create trigger t_demo_guard before insert on public.invitations for each row execute function public.trg_demo_guard();
+drop trigger if exists t_demo_guard on public.team_members;
+create trigger t_demo_guard before update or delete on public.team_members for each row execute function public.trg_demo_guard();
+
+-- ---------- 관리자 등록 (한 번) — 내 로그인 이메일로 바꿔서 Run ----------
+do $$
+declare v_email text := 'hcgkhlee@gmail.com';   -- ← 승인할 계정의 이메일
+begin
+  insert into public.app_admins (user_id)
+  select id from auth.users where lower(email) = lower(v_email)
+  on conflict do nothing;
+  if not exists (select 1 from auth.users where lower(email) = lower(v_email)) then raise notice '관리자 이메일 % 로 가입된 계정이 없습니다 — 가입 후 이 블록만 다시 Run 하세요', v_email; end if;
+end $$;
+
+-- >>>>>>>>>> 20261116000044_admin_customers.sql
+-- =====================================================================
+-- 관리자 '고객' 화면 — 팀장(구독 주인)별 요금제 상태 · 팀 · 팀원 수 · 최근 활동 · 이번 달 AI 원가
+--   · admin_customers(): 고객 목록 + 맨 위 합계 (app_admins 만)
+--   · admin_customer_action(): 체험 7일 연장 · 내부 계정 지정(결제 없이 Pro+) · 내부 계정 해제
+--   데모 팀 주인은 is_demo 로 표시만 하고 합계에서 뺀다
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+
+create or replace function public.admin_customers() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v_rows jsonb; v_sum jsonb;
+begin
+  if not public.is_app_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+
+  with subs as (
+    select s.*, p.name plan_name, p.max_members,
+           coalesce((select b.period_start from credit_balances b where b.owner_id = s.owner_id), date_trunc('month', now())) period_from
+      from subscriptions s join plans p on p.id = s.plan_id
+  ), teams_of as (
+    select t.owner_id,
+           jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'is_demo', t.is_demo,
+             'members', (select count(*) from team_members m where m.team_id = t.id and m.role = 'member' and m.status = 'active'))
+             order by t.created_at) teams,
+           bool_or(t.is_demo) is_demo,
+           sum((select count(*) from team_members m where m.team_id = t.id and m.role = 'member' and m.status = 'active')) members,
+           max((select max(e.created_at) from events e where e.team_id = t.id and e.created_at > now() - interval '90 days')) last_activity
+      from teams t group by t.owner_id
+  ), rows as (
+    select s.owner_id, u.email::text email, coalesce(pr.full_name, '') name, u.created_at signed_up_at, u.last_sign_in_at,
+           s.plan_id, s.plan_name, s.status::text status, s.trial_ends_at, s.current_period_end, s.billing_cycle, s.cancel_at_period_end,
+           s.card_last4 is not null has_card,
+           (s.current_period_end > '2090-01-01'::timestamptz) internal,
+           (s.status = 'trialing' and s.trial_ends_at < now()) trial_expired,
+           coalesce(tf.teams, '[]'::jsonb) teams, coalesce(tf.members, 0) members, s.max_members, coalesce(tf.is_demo, false) is_demo,
+           tf.last_activity,
+           (select coalesce(sum(l.cost_usd), 0) from credit_ledger l where l.owner_id = s.owner_id
+              and l.reason in ('core_usage', 'ai_error', 'simbox') and l.created_at >= s.period_from) cost_usd,
+           public.ai_cost_cap(s.owner_id) cap_usd
+      from subs s
+      join auth.users u on u.id = s.owner_id
+      left join profiles pr on pr.id = s.owner_id
+      left join teams_of tf on tf.owner_id = s.owner_id
+  )
+  select coalesce(jsonb_agg(to_jsonb(r) order by r.is_demo, r.signed_up_at desc), '[]'::jsonb) into v_rows from rows r;
+
+  select jsonb_build_object(
+    'customers', count(*) filter (where not (r->>'is_demo')::boolean and not (r->>'internal')::boolean),
+    'trialing',  count(*) filter (where not (r->>'is_demo')::boolean and r->>'status' = 'trialing' and not (r->>'trial_expired')::boolean),
+    'paying',    count(*) filter (where not (r->>'is_demo')::boolean and r->>'status' in ('active', 'past_due') and not (r->>'internal')::boolean),
+    'expired',   count(*) filter (where not (r->>'is_demo')::boolean and ((r->>'trial_expired')::boolean or r->>'status' in ('canceled', 'expired'))),
+    'cost_usd',  coalesce(sum((r->>'cost_usd')::numeric) filter (where not (r->>'is_demo')::boolean), 0),
+    'demo_cost_usd', coalesce(sum((r->>'cost_usd')::numeric) filter (where (r->>'is_demo')::boolean), 0),
+    'by_plan', (select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) from (
+        select r2->>'plan_id' k, jsonb_build_object('n', count(*), 'avg_cost', round(avg((r2->>'cost_usd')::numeric), 2)) v
+          from jsonb_array_elements(v_rows) r2
+         where not (r2->>'is_demo')::boolean and not (r2->>'internal')::boolean
+         group by r2->>'plan_id') x)
+  ) into v_sum
+  from jsonb_array_elements(v_rows) r;
+
+  return jsonb_build_object('rows', v_rows, 'summary', v_sum);
+end $$;
+grant execute on function public.admin_customers() to authenticated;
+
+create or replace function public.admin_customer_action(p_owner uuid, p_action text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v subscriptions;
+begin
+  if not public.is_app_admin() then raise exception 'forbidden' using errcode = '42501'; end if;
+  select * into v from subscriptions where owner_id = p_owner for update;
+  if not found then raise exception 'NO_SUBSCRIPTION'; end if;
+  if p_action = 'extend_trial' then
+    if v.status <> 'trialing' then raise exception 'NOT_TRIAL' using errcode = 'P0001', hint = '체험 중인 고객만 연장할 수 있습니다'; end if;
+    update subscriptions set trial_ends_at = greatest(coalesce(trial_ends_at, now()), now()) + interval '7 days',
+           current_period_end = greatest(coalesce(trial_ends_at, now()), now()) + interval '7 days', updated_at = now()
+     where owner_id = p_owner;
+  elsif p_action = 'internal' then
+    update subscriptions set plan_id = 'pro_plus', status = 'active', current_period_start = now(), current_period_end = '2099-12-31',
+           trial_ends_at = null, cancel_at_period_end = false, updated_at = now()
+     where owner_id = p_owner;
+  elsif p_action = 'uninternal' then
+    -- 내부 계정 해제: 체험 종료 상태로 (요금제를 골라야 다시 쓴다)
+    update subscriptions set plan_id = 'pro_plus', status = 'trialing', trial_ends_at = now(), current_period_end = now(), updated_at = now()
+     where owner_id = p_owner and current_period_end > '2090-01-01';
+  else raise exception 'BAD_ACTION';
+  end if;
+  return (select to_jsonb(s) from subscriptions s where owner_id = p_owner);
+end $$;
+grant execute on function public.admin_customer_action(uuid, text) to authenticated;
+
+-- >>>>>>>>>> 20261117000045_decision_asks.sql
+-- =====================================================================
+-- 팀원이 대화에서 물은 결정 — 의사결정 보드에 '팀원 요청' 카드로
+--   · 업무스페이스 대화 · 스레드(space_messages)와 업무 카드 스레드 댓글(review_comments)에서
+--     팀원이 쓴 글 중 '결정 · 정해 · 컨펌 · 골라 · 어느 쪽 · A안/B안 · 어떻게 할까요' 같은 표현이 있는 것만 후보로 표시한다 (DB, 무료)
+--   · 후보는 의사결정 화면을 열 때 ai-decision-asks 가 모아서 진짜 결정 요청인지 판별한다 (무엇을 정할지 · 선택지 · 기한)
+--   · 팀장이 그 스레드나 대화에 답하면 '답함'으로 보드에서 내려간다
+--   · 빼는 것: 팀장이 쓴 글 · 컨펌 요청 중인 업무 카드의 댓글(업무플랫폼 '결론 대기'에서 처리) · 14일 지난 것
+--   · 팀장만 읽는다 (팀원 화면에는 나오지 않음)
+-- 다시 Run 해도 안전합니다.
+-- =====================================================================
+alter type public.ai_kind add value if not exists 'decision_asks';
+
+create table if not exists public.decision_asks (
+  id            uuid primary key default gen_random_uuid(),
+  team_id       uuid not null references public.teams(id) on delete cascade,
+  src_table     text not null check (src_table in ('space_messages', 'review_comments')),
+  src_id        uuid not null unique,
+  author_id     uuid not null references public.profiles(id) on delete cascade,
+  space_user    uuid,                 -- 개인 스페이스 주인 (대화)
+  group_id      uuid,                 -- 그룹 스페이스 (대화)
+  root_id       uuid,                 -- 스레드 답글이면 그 스레드의 첫 글
+  submission_id uuid,                 -- 업무 카드 댓글이면 그 카드
+  item_id       uuid,                 -- 걸린 과제
+  body          text not null,
+  status        text not null default 'candidate' check (status in ('candidate', 'ask', 'not', 'answered')),
+  ai            jsonb,                -- { title, options:[], due }
+  classified_at timestamptz,
+  answered_at   timestamptz,
+  created_at    timestamptz not null default now()
+);
+create index if not exists decision_asks_team_idx on public.decision_asks (team_id, status, created_at desc);
+alter table public.decision_asks enable row level security;
+drop policy if exists decision_asks_leader on public.decision_asks;
+create policy decision_asks_leader on public.decision_asks for select to authenticated using (public.is_team_leader(team_id));
+
+-- 결정을 묻는 표현 (넓게 잡고, 진짜인지는 AI가 가린다)
+create or replace function public._looks_like_ask(p_body text) returns boolean
+language sql immutable as $$
+  select coalesce(p_body, '') ~ '(결정|정해|정하면|정할까|골라|고르면|선택해|컨펌|승인해|재가|판단해|어느\s?쪽|어떤\s?(안|걸|게|방향)|[A-Da-d1-3]\s?안|할까요|갈까요|해도\s?될까|해도\s?되나|해도\s?괜찮|진행할까|진행해도|어떻게\s?할까|어떻게\s?하면\s?좋|의견\s?(주세요|부탁)|방향\s?(주세요|잡아))'
+     and length(trim(coalesce(p_body, ''))) >= 8;
+$$;
+
+-- 후보 표시 + 팀장 답이면 '답함'
+create or replace function public.trg_decision_ask_msg() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_lead uuid := public._team_leader(new.team_id);
+begin
+  if new.author_id = v_lead then
+    update decision_asks set status = 'answered', answered_at = now()
+     where team_id = new.team_id and src_table = 'space_messages' and status in ('candidate', 'ask') and created_at <= new.created_at
+       and ((new.parent_id is not null and (src_id = new.parent_id or root_id = new.parent_id))
+         or (new.parent_id is null and root_id is null and space_user is not distinct from new.space_user and group_id is not distinct from new.group_id));
+  elsif public._looks_like_ask(new.body) then
+    insert into decision_asks (team_id, src_table, src_id, author_id, space_user, group_id, root_id, item_id, body, created_at)
+    values (new.team_id, 'space_messages', new.id, new.author_id, new.space_user, new.group_id, new.parent_id, new.item_id, left(new.body, 1500), new.created_at)
+    on conflict (src_id) do nothing;
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_decision_ask_msg on public.space_messages;
+create trigger t_decision_ask_msg after insert on public.space_messages for each row execute function public.trg_decision_ask_msg();
+
+create or replace function public.trg_decision_ask_comment() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_lead uuid := public._team_leader(new.team_id); v_sub submissions;
+begin
+  select * into v_sub from submissions where id = new.submission_id;
+  if v_sub.id is null then return new; end if;
+  if new.author_id = v_lead then
+    update decision_asks set status = 'answered', answered_at = now()
+     where team_id = new.team_id and src_table = 'review_comments' and submission_id = new.submission_id
+       and status in ('candidate', 'ask') and created_at <= new.created_at;
+  elsif coalesce(new.via_autopilot, false) = false and public._looks_like_ask(new.body)
+        -- 컨펌 요청 중인 카드는 '결론 대기'에서 처리되니 빼고
+        and not (v_sub.request_type = 'approval' and v_sub.status = 'in_review') then
+    insert into decision_asks (team_id, src_table, src_id, author_id, root_id, submission_id, item_id, body, created_at)
+    values (new.team_id, 'review_comments', new.id, new.author_id, new.parent_id, new.submission_id, v_sub.item_id, left(new.body, 1500), new.created_at)
+    on conflict (src_id) do nothing;
+  end if;
+  return new;
+end $$;
+drop trigger if exists t_decision_ask_comment on public.review_comments;
+create trigger t_decision_ask_comment after insert on public.review_comments for each row execute function public.trg_decision_ask_comment();
+
+-- 판별 대기 수 (팀장 화면이 AI를 부를지 정할 때)
+create or replace function public.decision_ask_pending(p_team uuid) returns int
+language sql stable security definer set search_path = public as $$
+  select case when public.is_team_leader(p_team)
+    then (select count(*)::int from decision_asks where team_id = p_team and status = 'candidate' and created_at > now() - interval '14 days')
+    else 0 end;
+$$;
+grant execute on function public.decision_ask_pending(uuid) to authenticated;
