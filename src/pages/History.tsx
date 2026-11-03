@@ -156,7 +156,7 @@ export default function HistoryPage() {
 
   return (
     <section>
-      <PageHeader title="히스토리 관리" sub="과제별 히스토리를 쌓아 두고, 맥락 전달이 필요할 때 팀원에게 한 번에 보냅니다." />
+      <PageHeader title="히스토리 관리" sub="과제의 히스토리, 유관 부서, 담당자 등 맥락을 평소 쌓아놓다 필요 시 보내주어 팀원이 빠르게 파악할 수 있게 합니다." />
       {!hists.data?.length && !requests.length && !sel ? (
         <Card><Empty icon={<FolderClock size={18} />} title="과제 히스토리를 만들어 볼까요?"
           action={<Button loading={!!batch} disabled={!targets.length} onClick={() => createAll(targets.map((i) => i.id))}><Sparkles size={14} />{batch ? `만드는 중 ${batch.done}/${batch.total}` : `히스토리 만들기 · 과제 ${targets.length}개`}</Button>}>
