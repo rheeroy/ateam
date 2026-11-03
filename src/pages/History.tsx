@@ -188,7 +188,7 @@ export default function HistoryPage() {
             {!!requests.length && (<>
               <div className="text-[10px] font-semibold text-violet-700 px-1.5 mt-1 mb-1 inline-flex items-center gap-1"><Inbox size={11} />받은 요청 {requests.length}</div>
               {requests.map((r) => { const it = (items.data ?? []).find((i) => i.id === r.item_id); return (
-                <button key={r.id} onClick={() => { const p = new URLSearchParams(params); p.set('item', r.item_id); p.set('request', r.id); setParams(p, { replace: true }); }}
+                <button key={r.id} onClick={() => { const p = new URLSearchParams(params); p.set('item', r.item_id ?? ''); p.set('request', r.id); setParams(p, { replace: true }); }}
                   className="w-full text-left rounded-lg px-2.5 py-2 mb-0.5 bg-violet-50 ring-1 ring-violet-100 hover:ring-violet-300">
                   <div className="text-[13px] font-semibold text-violet-900 truncate">{it?.title ?? '과제'}</div>
                   <div className="text-[11px] text-violet-700 truncate">{nameOf(r.to_id)} · {fmtShort(r.created_at)}{r.note && ` · ${r.note}`}</div>
