@@ -2,12 +2,14 @@
 //   왼쪽: 받은 요청 · 이번 주 업데이트 · 변동 없음 · 아직 없음 / 오른쪽: 과제 히스토리 (그림·문서) + 전달 기록(확인 · 질문/답)
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, ChevronDown, Hash, FolderClock, Inbox, Lock, MessageSquare, RefreshCw, Search, Send, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Hash, FolderClock, Inbox, Lock, MessageSquare, RefreshCw, Search, Send, Sparkles, Waypoints, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useItems } from '../lib/items';
 import type { WorkItem } from '../lib/types';
 import { applyEdits, historyItems, useHistories, useHistoryActions, useHistoryMessages, useShares, type HistoryShare, type TaskHistory } from '../lib/history';
 import { HistoryView } from '../components/history/HistoryView';
+import { CoreWorkView, eraChain } from '../components/history/CoreWorkView';
+import { coreTasks, useCoreWorks, type CoreSnapshot } from '../lib/coreWorks';
 import { Avatar, Button, Card, Empty, Modal, PageHeader, Spinner, inputCls } from '../components/ui';
 import { Upsell } from './Perf';
 import { cx, fmtDate, fmtShort } from '../lib/format';
@@ -20,7 +22,7 @@ function StatusPill({ s }: { s: HistoryShare['status'] }) {
 }
 
 /** 전달 창 */
-function SendModal({ open, onClose, item, hist, request }: { open: boolean; onClose: () => void; item: WorkItem; hist: TaskHistory; request?: HistoryShare | null }) {
+function SendModal({ open, onClose, item, hist, core, request }: { open: boolean; onClose: () => void; item?: WorkItem | null; hist?: TaskHistory | null; core?: { id: string; snapshot: CoreSnapshot } | null; request?: HistoryShare | null }) {
   const { members, uid, nameOf } = useTeam();
   const [params] = useSearchParams();
   const a = useHistoryActions();
@@ -28,19 +30,20 @@ function SendModal({ open, onClose, item, hist, request }: { open: boolean; onCl
   const pre = request?.to_id ?? params.get('to') ?? '';
   const [to, setTo] = useState<string[]>(pre ? [pre] : []);
   const [note, setNote] = useState('');
-  const [owner, setOwner] = useState(!!params.get('to') && params.get('to') !== item.owner_id);
-  useEffect(() => { if (open) { setTo(pre ? [pre] : []); setNote(''); setOwner(!!params.get('to') && params.get('to') !== item.owner_id); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  const names = new Set((hist.content.people ?? []).map((p) => p.name));
-  const prev = hist.content.owner?.previous ?? [];
-  const tagOf = (id: string) => (id === item.owner_id ? '현 담당' : prev.includes(nameOf(id)) ? '전 담당' : names.has(nameOf(id)) ? '관계자' : '');
+  const [owner, setOwner] = useState(!!item && !!params.get('to') && params.get('to') !== item.owner_id);
+  useEffect(() => { if (open) { setTo(pre ? [pre] : []); setNote(''); setOwner(!!item && !!params.get('to') && params.get('to') !== item.owner_id); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const names = new Set((hist?.content.people ?? []).map((p) => p.name));
+  const prev = hist?.content.owner?.previous ?? (core?.snapshot.content.eras ?? []).map((e) => e.name);
+  const curOwner = item?.owner_id ?? null;
+  const tagOf = (id: string) => (id === curOwner ? '현 담당' : prev.includes(nameOf(id)) ? '전 담당' : names.has(nameOf(id)) ? '관계자' : '');
   const one = to.length === 1 ? to[0] : null;
-  const canOwner = !!one && one !== item.owner_id;
-  const go = () => a.send.mutate({ itemId: item.id, toIds: to, note: note.trim(), snapshot: applyEdits(hist.content, hist.edits), requestId: request?.id ?? null, requestTo: request?.to_id ?? null, newOwner: canOwner && owner ? one : null },
+  const canOwner = !!item && !!one && one !== item.owner_id;
+  const go = () => a.send.mutate({ itemId: item?.id ?? null, coreWorkId: core?.id ?? null, toIds: to, note: note.trim(), snapshot: core ? core.snapshot as unknown as Record<string, unknown> : applyEdits(hist!.content, hist!.edits), requestId: request?.id ?? null, requestTo: request?.to_id ?? null, newOwner: canOwner && owner ? one : null },
     { onSuccess: onClose });
   return (
     <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Send size={16} className="text-violet-600" />팀원에게 전달</span>}>
       <div className="space-y-4">
-        <div className="flex items-center gap-2 text-sm"><Hash size={14} className="text-slate-400" /><b>{item.title}</b><span className="text-xs text-slate-400">{fmtShort(hist.updated_at)} 업데이트 기준</span></div>
+        <div className="flex items-center gap-2 text-sm">{core ? <Waypoints size={14} className="text-slate-400" /> : <Hash size={14} className="text-slate-400" />}<b>{core ? core.snapshot.title : item?.title}</b>{hist && <span className="text-xs text-slate-400">{fmtShort(hist.updated_at)} 업데이트 기준</span>}{core && <span className="text-xs text-slate-400">핵심 업무 · 여러 해 흐름</span>}</div>
         {request && <div className="rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900"><b>{nameOf(request.to_id)}</b> 님이 요청했습니다{request.note && ` — ${request.note}`}</div>}
         <div>
           <div className="text-xs font-bold text-slate-700 mb-1.5">받는 사람</div>
@@ -54,15 +57,15 @@ function SendModal({ open, onClose, item, hist, request }: { open: boolean; onCl
         <div>
           <div className="text-xs font-bold text-slate-700 mb-1.5">팀장 한마디 <span className="font-normal text-slate-400">(선택)</span></div>
           <textarea rows={3} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="예) 예산은 재무팀 박과장과 먼저 맞춰 주세요. B사는 일단 빼고 가는 쪽입니다." />
-          <p className="mt-1 text-[11px] text-slate-400">한마디도 이 과제 히스토리에 남아 다음 업데이트에 반영됩니다.</p>
+          {!core && <p className="mt-1 text-[11px] text-slate-400">한마디도 이 과제 히스토리에 남아 다음 업데이트에 반영됩니다.</p>}
         </div>
         <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1.5">
-          <div>전달되는 것: 현황 · 진행 흐름 · 관계자 · 확정/미결 사항 · 리스크 · 이전 시도 · 확인 필요 <span className="text-slate-400">(숨긴 항목 제외, 지금 화면 그대로)</span></div>
+          <div>전달되는 것: {core ? '연도별 흐름 · 담당자 시기 · 지켜 온 원칙 · 반복되는 일 · 해 봤는데 안 된 것 · 관계자 · 열린 숙제 · 조심할 것 (지금 화면 그대로)' : <>현황 · 진행 흐름 · 관계자 · 확정/미결 사항 · 리스크 · 이전 시도 · 확인 필요 <span className="text-slate-400">(숨긴 항목 제외, 지금 화면 그대로)</span></>}</div>
           <div className="inline-flex items-center gap-1"><Lock size={12} className="text-slate-400" />전달되지 않는 것: 1on1 · 컨디션 · 팀장 메모 · 평가 · ATEAM 업무 피드백</div>
         </div>
         {canOwner && (
           <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={owner} onChange={(e) => setOwner(e.target.checked)} className="rounded border-slate-300 text-violet-600" />
-            담당자도 {nameOf(one)} 님으로 바꾸기 {item.owner_id && <span className="text-xs text-slate-400">(지금 {nameOf(item.owner_id)})</span>}</label>
+            담당자도 {nameOf(one)} 님으로 바꾸기 {item?.owner_id && <span className="text-xs text-slate-400">(지금 {nameOf(item.owner_id)})</span>}</label>
         )}
         <div className="flex items-center gap-2 pt-1">
           <span className="text-xs text-slate-400">받는 사람의 ‘받은 히스토리’로 가고 알림이 갑니다</span>
@@ -111,31 +114,45 @@ export default function HistoryPage() {
   const hists = useHistories();
   const shares = useShares();
   const a = useHistoryActions();
+  const cw = useCoreWorks();
   const [qtext, setQtext] = useState('');
   const [sendOpen, setSendOpen] = useState(false);
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
   const targets = useMemo(() => historyItems(items.data ?? []), [items.data]);
   const histOf = useMemo(() => new Map((hists.data ?? []).map((h) => [h.item_id, h])), [hists.data]);
   const sel = params.get('item') ?? '';
-  const setSel = (id: string) => { const p = new URLSearchParams(params); p.set('item', id); p.delete('request'); p.delete('send'); p.delete('to'); p.delete('share'); setParams(p, { replace: true }); };
+  const coreSel = params.get('core') ?? '';
+  const setSel = (id: string) => { const p = new URLSearchParams(params); p.set('item', id); p.delete('core'); p.delete('request'); p.delete('send'); p.delete('to'); p.delete('share'); setParams(p, { replace: true }); };
+  const setCore = (id: string) => { const p = new URLSearchParams(params); p.set('core', id); p.delete('item'); p.delete('request'); p.delete('send'); p.delete('to'); p.delete('share'); setParams(p, { replace: true }); };
   const requests = (shares.data ?? []).filter((s) => s.status === 'requested');
   const request = requests.find((r) => r.id === params.get('request')) ?? null;
   useEffect(() => { if (params.get('send') || params.get('request')) setSendOpen(true); }, [params]);
-  // 처음 들어오면 히스토리가 있는 첫 과제
-  useEffect(() => { if (!sel && hists.data?.length) setSel([...hists.data].sort((x, y) => y.updated_at.localeCompare(x.updated_at))[0].item_id); }, [hists.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 처음 들어오면 핵심 업무가 있으면 첫 핵심 업무, 없으면 히스토리가 있는 첫 과제
+  useEffect(() => {
+    if (sel || coreSel || cw.isLoading) return;
+    if (cw.data?.cores.length) setCore(cw.data.cores[0].id);
+    else if (hists.data?.length) setSel([...hists.data].sort((x, y) => y.updated_at.localeCompare(x.updated_at))[0].item_id);
+  }, [hists.data, cw.data, cw.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hasFeature('history')) return <section><Upsell feature="히스토리 관리" desc="조직 내 업무 관련 히스토리를 자동으로 쌓고 인수인계 필요 시 팀원에게 정리해서 전달하는 기능입니다. 담당자가 바뀌거나 새롭게 합류한 팀원에게 유용합니다." /></section>;
   if (items.isLoading || hists.isLoading) return <Spinner />;
 
   const match = (i: WorkItem) => !qtext.trim() || i.title.toLowerCase().includes(qtext.trim().toLowerCase());
   const withH = targets.filter((i) => histOf.has(i.id) && match(i));
-  const recent = withH.filter((i) => { const h = histOf.get(i.id)!; return h.new_count > 0 && Date.now() - Date.parse(h.updated_at) < WEEK; })
-    .sort((x, y) => histOf.get(y.id)!.updated_at.localeCompare(histOf.get(x.id)!.updated_at));
-  const quiet = withH.filter((i) => !recent.includes(i));
+  const isNew = (i: WorkItem) => { const h = histOf.get(i.id); return !!h && h.new_count > 0 && Date.now() - Date.parse(h.updated_at) < WEEK; };
+  // 핵심 업무별로 묶인 올해 과제 · 어디에도 안 묶인 단독 과제
+  const cores = cw.data?.cores ?? [];
+  const coreOfItem = new Map((cw.data?.links ?? []).map((l) => [l.item_id, l.core_work_id]));
+  const single = withH.filter((i) => !coreOfItem.has(i.id)).sort((x, y) => Number(isNew(y)) - Number(isNew(x)) || histOf.get(y.id)!.updated_at.localeCompare(histOf.get(x.id)!.updated_at));
+  const core = coreSel ? cores.find((c) => c.id === coreSel) ?? null : null;
+  const coreShares = (shares.data ?? []).filter((s) => !!core && s.core_work_id === core.id && s.status !== 'requested');
+  const tasksOf = (id: string) => coreTasks(id, cw.data?.chapters ?? [], cw.data?.links ?? [], items.data ?? []);
+  const lastRun = cw.data?.state?.finished_at;
+  const coreActs = (cw.data?.state?.actions ?? []).filter((x) => core && x.core_work_id === core.id).slice(0, 4);
   const none = targets.filter((i) => !histOf.has(i.id) && match(i));
   const item = targets.find((i) => i.id === sel) ?? (items.data ?? []).find((i) => i.id === sel) ?? null;
   const hist = item ? histOf.get(item.id) ?? null : null;
-  const itemShares = (shares.data ?? []).filter((s) => s.item_id === sel && s.status !== 'requested');
+  const itemShares = (shares.data ?? []).filter((s) => !!sel && s.item_id === sel && s.status !== 'requested');
 
   const createAll = async (ids: string[]) => {
     setBatch({ done: 0, total: ids.length });
@@ -167,7 +184,7 @@ export default function HistoryPage() {
         <div className="grid lg:grid-cols-[260px_minmax(0,1fr)] gap-4 items-start">
           <aside className="rounded-2xl bg-slate-100/70 p-2.5 lg:sticky lg:top-20">
             <label className="flex items-center gap-1.5 rounded-lg bg-white ring-1 ring-slate-200 px-2.5 py-1.5 mb-2"><Search size={13} className="text-slate-400" />
-              <input value={qtext} onChange={(e) => setQtext(e.target.value)} placeholder="과제 찾기" className="flex-1 text-xs bg-transparent focus:outline-none" /></label>
+              <input value={qtext} onChange={(e) => setQtext(e.target.value)} placeholder="핵심 업무 · 과제 찾기" className="flex-1 text-xs bg-transparent focus:outline-none" /></label>
             {!!requests.length && (<>
               <div className="text-[10px] font-semibold text-violet-700 px-1.5 mt-1 mb-1 inline-flex items-center gap-1"><Inbox size={11} />받은 요청 {requests.length}</div>
               {requests.map((r) => { const it = (items.data ?? []).find((i) => i.id === r.item_id); return (
@@ -177,10 +194,24 @@ export default function HistoryPage() {
                   <div className="text-[11px] text-violet-700 truncate">{nameOf(r.to_id)} · {fmtShort(r.created_at)}{r.note && ` · ${r.note}`}</div>
                 </button>); })}
             </>)}
-            {!!recent.length && <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1">이번 주 업데이트</div>}
-            {recent.map((i) => <Row key={i.id} i={i} n={histOf.get(i.id)!.new_count} />)}
-            {!!quiet.length && <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1">변동 없음</div>}
-            {quiet.map((i) => <Row key={i.id} i={i} />)}
+            {!!cores.length && <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1 inline-flex items-center gap-1"><Waypoints size={11} />핵심 업무</div>}
+            {cores.map((c) => {
+              const kids = withH.filter((i) => coreOfItem.get(i.id) === c.id);
+              if (qtext.trim() && !c.title.toLowerCase().includes(qtext.trim().toLowerCase()) && !kids.length) return null;
+              const ts = tasksOf(c.id);
+              const owners = (c.content.eras ?? []).length;
+              return (
+                <div key={c.id} className="mb-1">
+                  <button onClick={() => setCore(c.id)} className={cx('w-full text-left rounded-lg px-2.5 py-2', coreSel === c.id ? 'bg-white ring-1 ring-indigo-200 shadow-sm' : 'hover:bg-white/70')}>
+                    <div className={cx('text-[13px] truncate', coreSel === c.id ? 'font-semibold text-indigo-800' : 'font-semibold text-slate-800')}>{c.title}</div>
+                    <div className="text-[11px] text-slate-400 truncate">{c.since_year ? `${c.since_year}~ · ` : ''}과제 {ts.length}개{owners ? ` · 담당 ${owners}명` : ''}</div>
+                  </button>
+                  {!!kids.length && <div className="ml-3 pl-1.5 border-l border-slate-200">{kids.map((i) => <Row key={i.id} i={i} n={isNew(i) ? histOf.get(i.id)!.new_count : undefined} />)}</div>}
+                </div>
+              );
+            })}
+            {!!single.length && <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1">단독 과제{cores.length ? <span className="font-normal"> · 아직 어느 핵심 업무에도 안 묶임</span> : ''}</div>}
+            {single.map((i) => <Row key={i.id} i={i} n={isNew(i) ? histOf.get(i.id)!.new_count : undefined} />)}
             {!!none.length && (<>
               <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1 flex items-center">아직 히스토리 없음
                 <button className="ml-auto text-indigo-700 font-semibold disabled:opacity-50" disabled={!!batch} onClick={() => createAll(none.map((i) => i.id))}>{batch ? `${batch.done}/${batch.total}` : '모두 만들기'}</button></div>
@@ -189,14 +220,44 @@ export default function HistoryPage() {
           </aside>
 
           <div className="min-w-0 space-y-3">
-            {!item ? <Card><Empty title="왼쪽에서 과제를 고르세요" /></Card> : !hist ? (
+            {core ? (
+              <>
+                <div className="flex items-start gap-3 flex-wrap">
+                  <div className="flex-1 min-w-[280px]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold rounded px-1.5 py-0.5 bg-slate-900 text-white inline-flex items-center gap-1"><Waypoints size={11} />핵심 업무</span>
+                      <h2 className="text-xl font-bold">{core.title}</h2>
+                      <span className="text-xs text-slate-500">{core.since_year ? `${core.since_year}년부터` : ''}{eraChain(core.content) ? ` · 담당 ${eraChain(core.content)}` : ''}</span></div>
+                    <p className="text-[13.5px] text-slate-700 mt-1">{core.summary || '아직 정리 전입니다. 다음 정리 때 여러 해의 흐름이 채워집니다.'}</p>
+                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400 flex-wrap"><Sparkles size={11} className="text-violet-500" />
+                      {core.synced_at ? `${fmtShort(core.synced_at)} 정리` : '정리 전'} · 과제 {tasksOf(core.id).length}개 · AI가 과제를 묶고 매주 월요일 다시 정리합니다
+                      <button className="inline-flex items-center gap-1 text-indigo-600 font-semibold disabled:opacity-50" disabled={cw.running || cw.run.isPending} onClick={() => cw.run.mutate()}>
+                        <RefreshCw size={11} className={cx((cw.running || cw.run.isPending) && 'animate-spin')} />{cw.running ? '정리 중…' : '지금 정리'}</button></div>
+                  </div>
+                  <Button onClick={() => setSendOpen(true)}><Send size={14} />팀원에게 전달</Button>
+                </div>
+                <CoreWorkView content={core.content} tasks={tasksOf(core.id)} sinceYear={core.since_year} onOpenTask={(id) => { if (histOf.has(id)) setSel(id); }} />
+                {!!coreActs.length && (
+                  <Card className="px-4 py-3 text-[12px] text-slate-500 flex items-start gap-2"><FolderClock size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                    <span><b className="text-slate-700">AI가 한 일{lastRun ? ` · ${fmtShort(lastRun)}` : ''}</b> · {coreActs.map((x) => x.text).join(' · ')}</span></Card>
+                )}
+                <Card>
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm"><MessageSquare size={14} className="text-slate-400" /><b>전달 기록</b>
+                    <span className="text-xs text-slate-400">{coreShares.length}건 · 확인 {coreShares.filter((s) => s.status === 'read').length}</span></div>
+                  {!coreShares.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 전달하지 않았습니다. 이 일을 넘겨받는 사람에게 [팀원에게 전달]로 보내 보세요.</p>
+                    : <ul>{coreShares.map((s) => <ShareRow key={s.id} s={s} focus={params.get('share') === s.id} />)}</ul>}
+                </Card>
+                <SendModal open={sendOpen} onClose={() => { setSendOpen(false); const p = new URLSearchParams(params); p.delete('send'); p.delete('to'); p.delete('request'); setParams(p, { replace: true }); }}
+                  core={{ id: core.id, snapshot: { kind: 'core', title: core.title, summary: core.summary, since_year: core.since_year, content: { ...core.content, summary: core.summary }, tasks: tasksOf(core.id).map(({ item_id: _i, ...t }) => t) } }} request={request} />
+              </>
+            ) : !item ? <Card><Empty title="왼쪽에서 핵심 업무나 과제를 고르세요" /></Card> : !hist ? (
               <Card><Empty icon={<FolderClock size={18} />} title={item.title} action={<Button loading={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id] })}><Sparkles size={14} />히스토리 만들기</Button>}>
                 이 과제의 기록으로 히스토리를 만듭니다. 처음에는 30초~1분쯤 걸립니다.</Empty></Card>
             ) : (
               <>
                 <div className="flex items-start gap-3 flex-wrap">
                   <div className="flex-1 min-w-[280px]">
-                    <div className="flex items-center gap-2 flex-wrap"><h2 className="text-xl font-bold">{item.title}</h2>
+                    <div className="flex items-center gap-2 flex-wrap">{coreOfItem.get(item.id) && <button onClick={() => setCore(coreOfItem.get(item.id)!)} className="text-[10px] font-bold rounded px-1.5 py-0.5 bg-slate-100 text-slate-700 hover:bg-slate-200 inline-flex items-center gap-1" title="이 과제가 묶인 핵심 업무"><Waypoints size={11} />{cores.find((c) => c.id === coreOfItem.get(item.id))?.title}</button>}<h2 className="text-xl font-bold">{item.title}</h2>
                       <span className="text-xs text-slate-500">담당 {hist.content.owner?.previous?.length ? `${hist.content.owner.previous.join(' → ')} → ` : ''}{nameOf(item.owner_id) || '없음'}</span></div>
                     <p className="text-[13.5px] text-slate-700 mt-1">{applyEdits(hist.content, hist.edits).summary}</p>
                     <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400 flex-wrap"><Sparkles size={11} className="text-violet-500" />

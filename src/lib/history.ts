@@ -26,7 +26,7 @@ export interface HistoryContent {
 }
 export type HistoryEdits = { pinned?: string[]; hidden?: string[]; text?: Record<string, string> };
 export interface TaskHistory { item_id: string; team_id: string; content: HistoryContent; edits: HistoryEdits; synced_at: string | null; record_count: number; new_count: number; updated_at: string }
-export interface HistoryShare { id: string; team_id: string; item_id: string; from_id: string | null; to_id: string; note: string; snapshot: HistoryContent; status: 'requested' | 'sent' | 'read' | 'declined'; sent_at: string | null; read_at: string | null; created_at: string; updated_at: string }
+export interface HistoryShare { id: string; team_id: string; item_id: string | null; core_work_id?: string | null; from_id: string | null; to_id: string; note: string; snapshot: HistoryContent & { kind?: 'core'; title?: string }; status: 'requested' | 'sent' | 'read' | 'declined'; sent_at: string | null; read_at: string | null; created_at: string; updated_at: string }
 export interface HistoryMessage { id: string; share_id: string; author_id: string; body: string; created_at: string }
 
 const HIST_ERR: Record<string, string> = {
@@ -132,7 +132,7 @@ export function useHistoryActions() {
       onSuccess: () => qc.invalidateQueries({ queryKey: ['histories'] }), onError: fail,
     }),
     send: useMutation({
-      mutationFn: async (p: { itemId: string; toIds: string[]; note: string; snapshot: HistoryContent; requestId?: string | null; requestTo?: string | null; newOwner?: string | null }) => {
+      mutationFn: async (p: { itemId: string | null; coreWorkId?: string | null; toIds: string[]; note: string; snapshot: HistoryContent | Record<string, unknown>; requestId?: string | null; requestTo?: string | null; newOwner?: string | null }) => {
         const now = new Date().toISOString();
         // 요청에 답하는 전달이면 요청 행은 요청한 사람 몫으로만 쓴다. 요청한 사람을 빼고 보냈으면 요청은 보류로 닫는다
         const reqTo = p.requestId ? p.requestTo ?? null : null;
@@ -140,11 +140,11 @@ export function useHistoryActions() {
           if (p.requestId && to === reqTo) {
             await q(supabase.from('history_shares').update({ status: 'sent', from_id: uid, note: p.note, snapshot: p.snapshot, sent_at: now, updated_at: now }).eq('id', p.requestId));
           } else {
-            await q(supabase.from('history_shares').insert({ team_id: team.id, item_id: p.itemId, from_id: uid, to_id: to, note: p.note, snapshot: p.snapshot, status: 'sent', sent_at: now }));
+            await q(supabase.from('history_shares').insert({ team_id: team.id, item_id: p.itemId, core_work_id: p.coreWorkId ?? null, from_id: uid, to_id: to, note: p.note, snapshot: p.snapshot, status: 'sent', sent_at: now }));
           }
         }
         if (p.requestId && reqTo && !p.toIds.includes(reqTo)) await q(supabase.from('history_shares').update({ status: 'declined', updated_at: now }).eq('id', p.requestId));
-        if (p.newOwner) await q(supabase.from('work_items').update({ owner_id: p.newOwner }).eq('id', p.itemId));
+        if (p.newOwner && p.itemId) await q(supabase.from('work_items').update({ owner_id: p.newOwner }).eq('id', p.itemId));
       },
       onSuccess: (_d, p) => { inval(); if (p.newOwner) qc.invalidateQueries({ queryKey: ['items'] }); toast('전달했습니다. 확인하면 알려 드립니다.'); },
       onError: fail,

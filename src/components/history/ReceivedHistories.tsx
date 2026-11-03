@@ -7,6 +7,8 @@ import { useTeam } from '../../state/session';
 import { useItems } from '../../lib/items';
 import { historyItems, useHistoryActions, useHistoryMessages, useShares, type HistoryShare } from '../../lib/history';
 import { HistoryView } from './HistoryView';
+import { CoreWorkView } from './CoreWorkView';
+import type { CoreSnapshot } from '../../lib/coreWorks';
 import { Button, Card, Field, Modal, inputCls } from '../ui';
 import { cx, fmtDate, fmtShort } from '../../lib/format';
 
@@ -52,7 +54,7 @@ function Thread({ s }: { s: HistoryShare }) {
             {!me && <div className="text-[10px] text-slate-500">{nameOf(m.author_id)} 팀장님 · {fmtShort(m.created_at)}</div>}{m.body}</div></li>); })}</ul>
       )}
       <div className="flex gap-2 items-center">
-        <input className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="궁금한 점 묻기 — 팀장님께 바로 갑니다. 답은 이 과제 히스토리에 남습니다"
+        <input className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder={s.core_work_id ? "궁금한 점 묻기 — 팀장님께 바로 갑니다" : "궁금한 점 묻기 — 팀장님께 바로 갑니다. 답은 이 과제 히스토리에 남습니다"}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} />
         <Button size="sm" variant="secondary" disabled={!body.trim()} loading={a.ask.isPending} onClick={send}>묻기</Button>
         {s.status === 'sent' && <Button size="sm" loading={a.markRead.isPending} onClick={() => a.markRead.mutate(s.id)}><CheckCircle2 size={14} />확인했어요</Button>}
@@ -83,7 +85,9 @@ function Drawer({ s, title, onClose }: { s: HistoryShare; title: string; onClose
             <p className="text-[13.5px] text-slate-700 mt-1">{s.snapshot.summary}</p>
           </div>
           {s.note && <div className="rounded-xl bg-indigo-50 ring-1 ring-indigo-100 px-4 py-2.5"><div className="text-[11px] font-semibold text-indigo-700 mb-0.5">팀장 한마디</div><p className="text-[13px] text-slate-800 whitespace-pre-line">{s.note}</p></div>}
-          <HistoryView title={title} content={s.snapshot} />
+          {s.snapshot.kind === 'core'
+            ? <CoreWorkView content={(s.snapshot as unknown as CoreSnapshot).content} tasks={(s.snapshot as unknown as CoreSnapshot).tasks ?? []} sinceYear={(s.snapshot as unknown as CoreSnapshot).since_year} />
+            : <HistoryView title={title} content={s.snapshot} />}
           <Thread s={s} />
         </div>
       </aside>
@@ -98,7 +102,8 @@ export function ReceivedHistories() {
   const shares = useShares({ mine: true });
   const canRequest = hasFeature('history');   // 히스토리 기능이 없는 요금제에서는 요청해도 팀장이 답할 수 없다
   const [reqOpen, setReqOpen] = useState(false);
-  const titleOf = (id: string) => (items.data ?? []).find((i) => i.id === id)?.title ?? '과제';
+  // 핵심 업무는 사본에 이름이 있다 (팀원은 핵심 업무 표를 직접 못 읽는다)
+  const titleOf = (s: HistoryShare) => (s.core_work_id ? s.snapshot.title ?? '핵심 업무' : (items.data ?? []).find((i) => i.id === s.item_id)?.title ?? '과제');
   const got = (shares.data ?? []).filter((s) => s.status === 'sent' || s.status === 'read')
     .sort((a, b) => (a.status === b.status ? (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at) : a.status === 'sent' ? -1 : 1));
   const waiting = (shares.data ?? []).filter((s) => s.status === 'requested');
@@ -132,7 +137,8 @@ export function ReceivedHistories() {
                 className={cx('relative w-full text-left rounded-xl p-4 transition group', isNew ? 'bg-white ring-2 ring-violet-500 shadow-[0_4px_16px_-6px_rgba(124,58,237,0.35)] hover:ring-violet-600' : 'bg-white/60 ring-1 ring-slate-200 hover:ring-violet-300')}>
                 {isNew && <span className="absolute -top-2.5 left-4 text-[10px] font-bold tracking-wide text-white bg-violet-600 rounded-full px-2 py-0.5 inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />NEW</span>}
                 <div className="flex items-center gap-2">
-                  <b className={cx('text-sm block truncate', isNew ? 'text-slate-900' : 'text-slate-700')}>{titleOf(s.item_id)}</b>
+                  {s.core_work_id && <span className="shrink-0 text-[10px] font-bold rounded px-1.5 py-0.5 bg-slate-900 text-white">핵심 업무</span>}
+                  <b className={cx('text-sm block truncate', isNew ? 'text-slate-900' : 'text-slate-700')}>{titleOf(s)}</b>
                   {!isNew && <span className="ml-auto shrink-0 text-[11px] text-slate-400 inline-flex items-center gap-0.5"><CheckCircle2 size={11} />확인함</span>}
                 </div>
                 <div className="text-[11px] text-slate-400 mt-0.5"><span className="num">{fmtShort(s.sent_at ?? s.created_at)}</span> · {nameOf(s.from_id)} 팀장님</div>
@@ -142,6 +148,7 @@ export function ReceivedHistories() {
                   {!!c.fixed?.length && <span className="inline-flex items-center gap-1"><CheckCircle2 size={11} className="text-emerald-600" />확정 {c.fixed.length}</span>}
                   {!!c.open?.length && <span className="inline-flex items-center gap-1"><Flag size={11} className="text-violet-600" />미결 {c.open.length}</span>}
                   {!!c.gaps?.length && <span className="inline-flex items-center gap-1"><CircleHelp size={11} className="text-amber-600" />확인 필요 {c.gaps.length}</span>}
+                  {c.kind === 'core' && <span className="inline-flex items-center gap-1"><CheckCircle2 size={11} className="text-emerald-600" />{(c as unknown as CoreSnapshot).since_year ?? ''}년부터 · 과제 {(c as unknown as CoreSnapshot).tasks?.length ?? 0}개</span>}
                   {!isNew && <span className="ml-auto font-semibold text-violet-700">다시 보기 →</span>}
                 </div>
                 {isNew && (
@@ -154,20 +161,20 @@ export function ReceivedHistories() {
           })}
           {waiting.map((s) => (
             <div key={s.id} className="rounded-xl border border-dashed border-slate-300 px-4 py-3">
-              <div className="flex items-center gap-2"><b className="text-sm font-semibold text-slate-600 truncate">{titleOf(s.item_id)}</b><span className="ml-auto shrink-0 text-[11px] text-slate-400 num">{fmtShort(s.created_at)} 요청</span></div>
+              <div className="flex items-center gap-2"><b className="text-sm font-semibold text-slate-600 truncate">{titleOf(s)}</b><span className="ml-auto shrink-0 text-[11px] text-slate-400 num">{fmtShort(s.created_at)} 요청</span></div>
               <p className="text-xs text-slate-400 mt-0.5">팀장님이 정리 중입니다</p>
             </div>
           ))}
           {declined.map((s) => (
             <div key={s.id} className="rounded-xl border border-dashed border-slate-200 px-4 py-3">
-              <div className="flex items-center gap-2"><b className="text-sm font-semibold text-slate-500 truncate">{titleOf(s.item_id)}</b><span className="ml-auto shrink-0 text-[11px] text-slate-400">요청 보류</span></div>
+              <div className="flex items-center gap-2"><b className="text-sm font-semibold text-slate-500 truncate">{titleOf(s)}</b><span className="ml-auto shrink-0 text-[11px] text-slate-400">요청 보류</span></div>
               <p className="text-xs text-slate-400 mt-0.5">팀장님이 이번에는 보류했어요. 필요하면 1on1이나 업무플랫폼에서 직접 물어봐 주세요.</p>
             </div>
           ))}
           {canRequest && <button onClick={() => setReqOpen(true)} className="w-full rounded-xl border border-dashed border-violet-300 text-violet-700 text-xs font-semibold px-4 py-2.5 inline-flex items-center justify-center gap-1.5 hover:bg-violet-50"><Inbox size={13} />히스토리 요청하기</button>}
         </div>
       )}
-      {open && <Drawer s={open} title={titleOf(open.item_id)} onClose={() => setOpen(null)} />}
+      {open && <Drawer s={open} title={titleOf(open)} onClose={() => setOpen(null)} />}
       <RequestModal open={reqOpen} onClose={() => setReqOpen(false)} />
     </section>
   );
