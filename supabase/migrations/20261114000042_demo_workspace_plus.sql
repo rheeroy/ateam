@@ -23,7 +23,7 @@ declare
     '이건 영업팀 일정이랑 겹칠 수 있어요. 올리기 전에 영업팀과 먼저 맞춰 주세요.'];
 begin
   if to_regclass('public.simbox_messages') is null then raise notice '36_workspace_plus 를 먼저 Run 하세요 — 데모 확장 기록은 건너뜁니다'; return; end if;
-  for r in select t.id team_id, t.name, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, t.name, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     select tm.user_id into v_kim  from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '김현정' limit 1;
     select tm.user_id into v_choi from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '최다은' limit 1;
     select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
@@ -201,5 +201,5 @@ begin
     end if;
   end loop;
   -- 팀원 목표 수정 잠금이 기본 — 계획 요청 시드가 자동으로 열어 둔 것을 다시 잠근다
-  update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": false}'::jsonb where is_demo;
+  update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": false}'::jsonb where is_demo and name = '마케팅기획팀 (데모)';
 end $$;

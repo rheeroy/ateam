@@ -11,7 +11,7 @@ declare
   ch jsonb;
 begin
   if to_regclass('public.core_works') is null then raise notice '46_core_works 를 먼저 Run 하세요 — 데모 핵심 업무는 건너뜁니다'; return; end if;
-  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     delete from history_shares where team_id = r.team_id and core_work_id is not null;
     delete from core_work_chapters where team_id = r.team_id;
     delete from core_works where team_id = r.team_id;   -- core_work_items 는 함께 지워진다

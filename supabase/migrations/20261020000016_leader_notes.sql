@@ -40,7 +40,7 @@ create policy leader_notes_owner on public.leader_notes for all to authenticated
 do $$
 declare r record; v_jung uuid; v_lee uuid; v_goal uuid; v_exec uuid;
 begin
-  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     if exists (select 1 from leader_notes where team_id = r.team_id) then continue; end if;
     select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
     select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이동욱' limit 1;

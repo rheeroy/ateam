@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { invoke, errorText } from '../lib/supabase';
-import { enterDemo } from '../lib/demo';
+import { DEPTS, enterDemo } from '../lib/demo';
 import { LogoBlock } from '../components/Brand';
 import { Button, ErrorBox, Field, inputCls } from '../components/ui';
 
@@ -46,7 +46,7 @@ function Enter({ token }: { token: string }) {
 }
 
 function RequestForm({ expired }: { expired: boolean }) {
-  const [f, setF] = useState({ name: '', company: '', job_title: '', team_size: '', email: '', phone: '', note: '', website: '' });
+  const [f, setF] = useState({ name: '', company: '', job_title: '', team_size: '', dept: '', email: '', phone: '', note: '', website: '' });
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -87,6 +87,11 @@ function RequestForm({ expired }: { expired: boolean }) {
         <Field label="팀원 수">
           <select className={inputCls} value={f.team_size} onChange={S('team_size')}>
             <option value="">선택</option>{SIZES.map((x) => <option key={x}>{x}</option>)}
+          </select>
+        </Field>
+        <Field label="팀 직무 *">
+          <select required className={inputCls} value={f.dept} onChange={S('dept')}>
+            <option value="">선택 — 비슷한 팀으로 데모를 보여 드려요</option>{DEPTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </Field>
         <Field label="업무 이메일 *"><input required type="email" className={inputCls} value={f.email} onChange={S('email')} autoComplete="email" placeholder="name@company.com" /></Field>

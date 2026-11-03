@@ -65,7 +65,7 @@ create trigger t_coaching_notify after insert on public.coaching_notes for each 
 do $$
 declare r record; v_lee uuid;
 begin
-  for r in select t.id team_id from teams t where t.is_demo loop
+  for r in select t.id team_id from teams t where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이동욱' limit 1;
     if v_lee is null or exists (select 1 from coaching_notes where team_id = r.team_id) then continue; end if;
     alter table coaching_notes disable trigger t_coaching_notify;

@@ -26,7 +26,9 @@ const toB64 = (blob: Blob) => new Promise<string>((ok, fail) => { const r = new 
 
 export function FileExtract({ items, mode, onDone, initialFile }: { items: Node[]; mode: 'member' | 'leader'; onDone: () => void; /** 대화창에 끌어다 놓은 파일 — 열자마자 읽는다 */ initialFile?: File | null }) {
   const { team, uid, nameOf } = useTeam();
-  const samples = team.is_demo ? DEMO_SAMPLES.filter((x) => x.who === (mode === 'leader' ? 'leader' : nameOf(uid))) : [];
+  // 샘플 파일은 마케팅기획팀 데모용 (다른 팀 데모는 직접 파일을 올려 보게)
+  const mkt = ((team.settings as { demo_key?: string } | null)?.demo_key ?? 'marketing') === 'marketing';
+  const samples = team.is_demo && mkt ? DEMO_SAMPLES.filter((x) => x.who === (mode === 'leader' ? 'leader' : nameOf(uid))) : [];
   const trySample = async (x: { file: string; name: string }) => {
     try {
       const r = await fetch(`/demo/${x.file}`);

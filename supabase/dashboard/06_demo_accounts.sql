@@ -2301,7 +2301,7 @@ create policy leader_notes_owner on public.leader_notes for all to authenticated
 do $$
 declare r record; v_jung uuid; v_lee uuid; v_goal uuid; v_exec uuid;
 begin
-  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     if exists (select 1 from leader_notes where team_id = r.team_id) then continue; end if;
     select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
     select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이동욱' limit 1;
@@ -2388,7 +2388,7 @@ create trigger t_coaching_notify after insert on public.coaching_notes for each 
 do $$
 declare r record; v_lee uuid;
 begin
-  for r in select t.id team_id from teams t where t.is_demo loop
+  for r in select t.id team_id from teams t where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     select tm.user_id into v_lee from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '이동욱' limit 1;
     if v_lee is null or exists (select 1 from coaching_notes where team_id = r.team_id) then continue; end if;
     alter table coaching_notes disable trigger t_coaching_notify;
@@ -2652,7 +2652,7 @@ grant execute on function public.accept_invitation(uuid) to authenticated;
 do $$
 declare r record; v_choi uuid;
 begin
-  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     select tm.user_id into v_choi from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '최다은' limit 1;
     if v_choi is null or exists (select 1 from leader_notes where team_id = r.team_id and '초대 메모' = any(tags)) then continue; end if;
     insert into leader_notes (team_id, owner_id, body, anchor_type, anchor_id, anchor_label, ai_allowed, tags, created_at, updated_at)
@@ -2686,7 +2686,7 @@ declare
     '이건 영업팀 일정이랑 겹칠 수 있어요. 올리기 전에 영업팀과 먼저 맞춰 주세요.'];
 begin
   if to_regclass('public.simbox_messages') is null then raise notice '36_workspace_plus 를 먼저 Run 하세요 — 데모 확장 기록은 건너뜁니다'; return; end if;
-  for r in select t.id team_id, t.name, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, t.name, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     select tm.user_id into v_kim  from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '김현정' limit 1;
     select tm.user_id into v_choi from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '최다은' limit 1;
     select tm.user_id into v_jung from team_members tm join profiles p on p.id = tm.user_id where tm.team_id = r.team_id and p.full_name = '정우성' limit 1;
@@ -2864,7 +2864,7 @@ begin
     end if;
   end loop;
   -- 팀원 목표 수정 잠금이 기본 — 계획 요청 시드가 자동으로 열어 둔 것을 다시 잠근다
-  update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": false}'::jsonb where is_demo;
+  update teams set settings = coalesce(settings, '{}'::jsonb) || '{"plan_open": false}'::jsonb where is_demo and name = '마케팅기획팀 (데모)';
 end $$;
 
 -- =====================================================================
@@ -2880,7 +2880,7 @@ declare
   ch jsonb;
 begin
   if to_regclass('public.core_works') is null then raise notice '46_core_works 를 먼저 Run 하세요 — 데모 핵심 업무는 건너뜁니다'; return; end if;
-  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo loop
+  for r in select t.id team_id, tm.user_id leader_id from teams t join team_members tm on tm.team_id = t.id and tm.role = 'leader' where t.is_demo and t.name = '마케팅기획팀 (데모)' loop
     delete from history_shares where team_id = r.team_id and core_work_id is not null;
     delete from core_work_chapters where team_id = r.team_id;
     delete from core_works where team_id = r.team_id;   -- core_work_items 는 함께 지워진다
@@ -2977,3 +2977,8 @@ begin
     end if;
   end loop;
 end $$;
+
+-- 데모 팀 표시 (데모 띠의 팀 고르기 · 직급 · 팀원 화면 기본 계정)
+update public.teams set settings = coalesce(settings, '{}'::jsonb)
+  || '{"demo_key": "marketing", "demo_label": "마케팅", "demo_default_member": "정우성", "demo_ranks": {"김현정": "차장", "박서연": "과장", "정우성": "과장", "최다은": "대리", "이동욱": "대리", "한수진": "사원"}}'::jsonb
+ where is_demo and name = '마케팅기획팀 (데모)';
