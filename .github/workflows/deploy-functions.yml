@@ -26,4 +26,5 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase functions deploy --project-ref "$PROJECT_ID"
+      # 최신 CLI 는 여러 함수를 한 번에 배포할 때 확인을 묻는다 — 자동 배포라 --yes 로 바로 진행
+      - run: supabase functions deploy --project-ref "$PROJECT_ID" --yes
