@@ -186,6 +186,7 @@ export default function Login() {
               )}
               <ErrorBox error={err} />
               <Button type="submit" loading={busy} className="w-full">{mode === 'magic' && <Mail size={15} />}{submitLabel}</Button>
+              {mode === 'signup' && <p className="text-[11.5px] text-slate-500 text-center leading-relaxed">가입하면 <a href="https://leada.team/terms" target="_blank" rel="noreferrer" className="underline">이용약관</a>과 <a href="https://leada.team/privacy" target="_blank" rel="noreferrer" className="underline">개인정보처리방침</a>에 동의한 것으로 봅니다.</p>}
 
               {(mode === 'login' || mode === 'signup') && (
                 <>

@@ -216,6 +216,7 @@ function Billing() {
             );
           })}
         </div>
+        <p className="mt-3 text-xs text-slate-500 leading-relaxed">결제는 토스페이먼츠 결제창에서 카드를 등록해 진행합니다 · 월간은 1개월, 연간은 12개월 단위로 같은 날 자동 결제되며 설정에서 언제든 해지 예약할 수 있습니다 · 결제하면 <a href="https://leada.team/terms" target="_blank" rel="noreferrer" className="underline">이용약관</a>과 <a href="https://leada.team/refund" target="_blank" rel="noreferrer" className="underline">환불정책</a>에 동의한 것으로 봅니다</p>
         <Card className="mt-4 p-5">
           <div className="text-sm font-semibold">모든 요금제에 들어 있는 것</div>
           <div className="mt-3 grid md:grid-cols-3 gap-5">
