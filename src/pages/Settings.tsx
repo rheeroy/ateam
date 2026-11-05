@@ -9,7 +9,7 @@ import { cx, fmtDate, won } from '../lib/format';
 import { PasswordForm } from '../components/PasswordForm';
 import { InstallButton } from '../components/InstallPrompt';
 import TeamPage from './Team';
-import { Bar, Button, Card, CardHead, ErrorBox, Field, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
+import { Bar, Button, Card, CardHead, ErrorBox, Field, Modal, PageHeader, Pill, Spinner, Tabs, inputCls, useToast } from '../components/ui';
 
 const REASON_LABEL: Record<string, string> = { monthly_grant: '월 제공', topup: '추가 구매', refund: '환불', adjust: '조정' };
 const PAY_LABEL: Record<string, string> = { done: '완료', failed: '실패', pending: '진행 중', canceled: '취소' };
@@ -43,6 +43,7 @@ function Billing() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [cycle, setCycle] = useState<'month' | 'year'>('month');
+  const [checkout, setCheckout] = useState<Plan | null>(null);
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => q<Plan[]>(supabase.from('plans').select('*').eq('active', true).order('sort')) });
   const sub = useQuery({
     queryKey: ['subscription', profile?.id],
@@ -82,6 +83,10 @@ function Billing() {
       subscribe.mutate({ action: 'change', plan_id: plan.id, cycle });
       return;
     }
+    setCheckout(plan); // 주문 확인 → 동의 → 토스 결제창
+  }
+
+  async function pay(plan: Plan) {
     const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY as string | undefined;
     if (!clientKey) { toast('결제 키(VITE_TOSS_CLIENT_KEY)가 설정되지 않았습니다'); return; }
     try {
@@ -172,6 +177,7 @@ function Billing() {
         </Card>
       </div>
 
+      {checkout && <CheckoutModal plan={checkout} cycle={cycle} members={members} onClose={() => setCheckout(null)} onPay={() => { const p = checkout; setCheckout(null); void pay(p); }} />}
       <section id="plans">
         <div className="flex items-end justify-between flex-wrap gap-3">
           <div>
@@ -376,5 +382,47 @@ function MyDataGuide() {
         ))}
       </div>
     </Card>
+  );
+}
+
+/** 주문 확인 — 상품 · 제공기간 · 결제 금액(VAT 포함) · 자동결제 안내 · 동의 → 토스페이먼츠 결제창 (카드사 심사의 '결제 페이지') */
+function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; cycle: 'month' | 'year'; members: number; onClose: () => void; onPay: () => void }) {
+  const [agree, setAgree] = useState(false);
+  const supply = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
+  const vat = Math.round(supply * 0.1);
+  const start = new Date();
+  const end = new Date(start);
+  if (cycle === 'year') end.setFullYear(end.getFullYear() + 1); else end.setMonth(end.getMonth() + 1);
+  const ymd = (d: Date) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  const Row = ({ k, v, strong }: { k: string; v: React.ReactNode; strong?: boolean }) => (
+    <div className="flex justify-between gap-3 py-1.5 text-sm"><span className="text-slate-500">{k}</span><span className={cx('text-right', strong ? 'font-bold text-indigo-700 text-base' : 'text-slate-800')}>{v}</span></div>
+  );
+  return (
+    <Modal open onClose={onClose} title="주문 확인">
+      <div className="space-y-4">
+        <div className="rounded-xl ring-1 ring-slate-200 p-4">
+          <div className="text-xs text-slate-500">주문 상품</div>
+          <div className="mt-0.5 font-bold text-lg">ATEAM {plan.name} {cycle === 'year' ? '연간' : '월간'} 구독</div>
+          <div className="text-sm text-slate-600">팀원 {plan.max_members}명까지 · 프리미엄 AI 크레딧 월 {plan.monthly_credits} · 지금 팀원 {members}명</div>
+        </div>
+        <div className="rounded-xl bg-slate-50 px-4 py-2 divide-y divide-slate-200/70">
+          <Row k="서비스 제공기간" v={`${ymd(start)} ~ ${ymd(new Date(end.getTime() - 86400000))} (${cycle === 'year' ? '12개월' : '1개월'})`} />
+          <Row k="상품 금액" v={`${won(supply)}원`} />
+          <Row k="부가세(VAT)" v={`${won(vat)}원`} />
+          <Row k="결제 금액" v={`${won(supply + vat)}원`} strong />
+          <Row k="결제 수단" v="신용 · 체크카드 (토스페이먼츠 정기결제)" />
+          <Row k="다음 자동 결제" v={`${ymd(end)} · ${won(supply + vat)}원`} />
+        </div>
+        <ul className="text-xs text-slate-500 leading-relaxed list-disc pl-4 space-y-0.5">
+          <li>{cycle === 'year' ? '12개월' : '1개월'}마다 같은 날 등록한 카드로 자동 결제됩니다. 설정 &gt; 요금제에서 언제든 해지 예약할 수 있고, 남은 기간은 그대로 이용합니다.</li>
+          <li>결제 후 7일 이내이고 이용 기록이 없으면 전액 환불됩니다. 자세한 기준은 환불정책을 따릅니다.</li>
+        </ul>
+        <label className="flex items-start gap-2 text-sm cursor-pointer">
+          <input type="checkbox" className="mt-0.5" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+          <span>구매 조건(상품 · 금액 · 제공기간 · 자동 결제)을 확인했으며 <a href="https://leada.team/terms" target="_blank" rel="noreferrer" className="underline">이용약관</a> · <a href="https://leada.team/refund" target="_blank" rel="noreferrer" className="underline">환불정책</a> · <a href="https://leada.team/privacy" target="_blank" rel="noreferrer" className="underline">개인정보처리방침</a>에 동의합니다 (필수)</span>
+        </label>
+        <Button className="w-full" disabled={!agree} onClick={onPay}><CreditCard size={15} />카드 등록하고 {won(supply + vat)}원 결제하기</Button>
+      </div>
+    </Modal>
   );
 }
