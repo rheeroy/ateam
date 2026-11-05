@@ -79,7 +79,7 @@ function Billing() {
     // 이미 카드가 등록돼 구독 중이면 결제창 없이 그 카드로 바로 바꾼다
     if (active && s?.card_last4) {
       const price = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
-      if (!confirm(`${plan.name} ${cycle === 'year' ? '연간' : '월간'}으로 바꿉니다.\n등록된 카드(${s.card_company ?? '카드'} ****${s.card_last4})로 ${won(Math.round(price * 1.1))}(VAT 포함)이 결제되고, 오늘부터 새 주기가 시작됩니다.`)) return;
+      if (!confirm(`${plan.name} ${cycle === 'year' ? '연간' : '월간'}으로 바꿉니다.\n등록된 카드(${s.card_company ?? '카드'} ****${s.card_last4})로 ${won(price)}(VAT 포함)이 결제되고, 오늘부터 새 주기가 시작됩니다.`)) return;
       subscribe.mutate({ action: 'change', plan_id: plan.id, cycle });
       return;
     }
@@ -169,7 +169,7 @@ function Billing() {
             {[['100', 6900], ['300', 19900]].map(([n, p]) => (
               <Button key={n} variant="secondary" className="w-full justify-between" disabled={!active} loading={subscribe.isPending && subscribe.variables?.pack === n}
                 onClick={() => subscribe.mutate({ action: 'topup', pack: n })}>
-                <span>{n} 크레딧</span><span className="font-mono">{won(Number(p))} <span className="text-xs text-slate-400">+VAT</span></span>
+                <span>{n} 크레딧</span><span className="font-mono">{won(Number(p))} <span className="text-xs text-slate-400">VAT 포함</span></span>
               </Button>
             ))}
           </div>
@@ -205,7 +205,7 @@ function Billing() {
                 <div className="font-bold text-lg">{p.name}</div>
                 <div className="mt-0.5 text-sm font-semibold text-indigo-700 flex items-center gap-1.5"><Users size={14} />팀원 {p.max_members}명까지</div>
                 <div className="mt-3"><span className="text-[28px] font-bold tracking-tight num">{won(price)}</span><span className="text-sm text-slate-500"> / {cycle === 'year' ? '년' : '월'}</span></div>
-                <div className="text-xs text-slate-500">VAT 별도{cycle === 'year' ? ` · 월 ${won(monthly)} 꼴` : ''} · 팀원 1인당 월 {won(Math.round(monthly / p.max_members / 100) * 100)}</div>
+                <div className="text-xs text-slate-500">VAT 포함{cycle === 'year' ? ` · 월 ${won(monthly)} 꼴` : ''} · 팀원 1인당 월 {won(Math.round(monthly / p.max_members / 100) * 100)}</div>
                 <ul className="mt-4 space-y-2 text-sm flex-1">
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />기록·협업 · AI 참모 전체</li>
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
@@ -388,8 +388,9 @@ function MyDataGuide() {
 /** 주문 확인 — 상품 · 제공기간 · 결제 금액(VAT 포함) · 자동결제 안내 · 동의 → 토스페이먼츠 결제창 (카드사 심사의 '결제 페이지') */
 function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; cycle: 'month' | 'year'; members: number; onClose: () => void; onPay: () => void }) {
   const [agree, setAgree] = useState(false);
-  const supply = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
-  const vat = Math.round(supply * 0.1);
+  const total = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw; // VAT 포함 최종 결제금액
+  const supply = Math.round(total / 1.1);
+  const vat = total - supply;
   const start = new Date();
   const end = new Date(start);
   if (cycle === 'year') end.setFullYear(end.getFullYear() + 1); else end.setMonth(end.getMonth() + 1);
@@ -407,11 +408,11 @@ function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; c
         </div>
         <div className="rounded-xl bg-slate-50 px-4 py-2 divide-y divide-slate-200/70">
           <Row k="서비스 제공기간" v={`${ymd(start)} ~ ${ymd(new Date(end.getTime() - 86400000))} (${cycle === 'year' ? '12개월' : '1개월'})`} />
-          <Row k="상품 금액" v={`${won(supply)}원`} />
+          <Row k="공급가액" v={`${won(supply)}원`} />
           <Row k="부가세(VAT)" v={`${won(vat)}원`} />
-          <Row k="결제 금액" v={`${won(supply + vat)}원`} strong />
+          <Row k="결제 금액" v={`${won(total)}원`} strong />
           <Row k="결제 수단" v="신용 · 체크카드 (토스페이먼츠 정기결제)" />
-          <Row k="다음 자동 결제" v={`${ymd(end)} · ${won(supply + vat)}원`} />
+          <Row k="다음 자동 결제" v={`${ymd(end)} · ${won(total)}원`} />
         </div>
         <ul className="text-xs text-slate-500 leading-relaxed list-disc pl-4 space-y-0.5">
           <li>{cycle === 'year' ? '12개월' : '1개월'}마다 같은 날 등록한 카드로 자동 결제됩니다. 설정 &gt; 요금제에서 언제든 해지 예약할 수 있고, 남은 기간은 그대로 이용합니다.</li>
@@ -421,7 +422,7 @@ function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; c
           <input type="checkbox" className="mt-0.5" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
           <span>구매 조건(상품 · 금액 · 제공기간 · 자동 결제)을 확인했으며 <a href="https://leada.team/terms" target="_blank" rel="noreferrer" className="underline">이용약관</a> · <a href="https://leada.team/refund" target="_blank" rel="noreferrer" className="underline">환불정책</a> · <a href="https://leada.team/privacy" target="_blank" rel="noreferrer" className="underline">개인정보처리방침</a>에 동의합니다 (필수)</span>
         </label>
-        <Button className="w-full" disabled={!agree} onClick={onPay}><CreditCard size={15} />카드 등록하고 {won(supply + vat)}원 결제하기</Button>
+        <Button className="w-full" disabled={!agree} onClick={onPay}><CreditCard size={15} />카드 등록하고 {won(total)}원 결제하기</Button>
       </div>
     </Modal>
   );

@@ -6,7 +6,6 @@ import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller } from '../_shared/supabase.ts';
 
 const TOSS = 'https://api.tosspayments.com/v1';
-const VAT = 0.1;
 export const TOPUP_PACKS: Record<string, { credits: number; price: number }> = {
   '100': { credits: 100, price: 6900 },
   '300': { credits: 300, price: 19900 },
@@ -29,7 +28,7 @@ async function toss(path: string, body: unknown) {
   return data;
 }
 
-const withVat = (n: number) => Math.round(n * (1 + VAT));
+// 요금표 · 추가 크레딧 가격은 VAT 포함 최종 결제금액이다 (고객이 내는 금액 그대로 청구)
 const addPeriod = (from: Date, cycle: string) => {
   const d = new Date(from);
   if (cycle === 'year') d.setUTCFullYear(d.getUTCFullYear() + 1);
@@ -86,7 +85,7 @@ serve(async (req) => {
       const plan = s.plans as { name: string; price_month_krw: number; price_year_krw: number };
       const price = s.billing_cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
       try {
-        await charge(s, sec.billing_key, 'subscription', withVat(price), `ATEAM ${plan.name} ${s.billing_cycle === 'year' ? '연간' : '월간'}`);
+        await charge(s, sec.billing_key, 'subscription', price, `ATEAM ${plan.name} ${s.billing_cycle === 'year' ? '연간' : '월간'}`);
         await admin.from('subscriptions').update({
           status: 'active', current_period_start: s.current_period_end, current_period_end: addPeriod(new Date(s.current_period_end), s.billing_cycle),
         }).eq('id', s.id);
@@ -137,7 +136,7 @@ serve(async (req) => {
       billingKey = sec.billing_key;
     }
     const price = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
-    await charge(sub, billingKey, 'subscription', withVat(price), `ATEAM ${plan.name} ${cycle === 'year' ? '연간' : '월간'}`);
+    await charge(sub, billingKey, 'subscription', price, `ATEAM ${plan.name} ${cycle === 'year' ? '연간' : '월간'}`);
     const now = new Date();
     const { data: updated } = await admin.from('subscriptions').update({
       plan_id: plan.id, status: 'active', billing_cycle: cycle, trial_ends_at: null, cancel_at_period_end: false,
@@ -155,7 +154,7 @@ serve(async (req) => {
     if (!pack) throw new HttpError(400, 'BAD_PACK');
     const { data: sec } = await admin.from('billing_secrets').select('billing_key').eq('subscription_id', sub.id).maybeSingle();
     if (!sec) throw new HttpError(400, 'NO_CARD', '등록된 카드가 없습니다');
-    await charge(sub, sec.billing_key, 'topup', withVat(pack.price), `ATEAM 추가 크레딧 ${pack.credits}`);
+    await charge(sub, sec.billing_key, 'topup', pack.price, `ATEAM 추가 크레딧 ${pack.credits}`);
     await admin.rpc('grant_topup', { p_owner: caller.userId, p_credits: pack.credits });
     return json({ ok: true, credits: pack.credits });
   }
