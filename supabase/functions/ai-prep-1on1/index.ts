@@ -4,6 +4,7 @@ import { admin, getCaller, assertLeader, must } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, fmtDate, weekLabel, addKnowhow } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { PREP } from '../_shared/prompts/index.ts';
+import { activityLines } from '../_shared/activity.ts';
 import { conditionText } from '../_shared/condition.ts';
 import { NOTE_RULE, addLeaderNotes } from '../_shared/notes.ts';
 
@@ -78,6 +79,8 @@ serve(async (req) => {
   for (const it of its ?? []) {
     book.add('task', it.id, `담당 항목 · ${it.title}`, `${ST[it.status] ?? it.status}, 진척 ${it.progress}%, 마감 ${it.due_date ?? '-'}${it.base_due && it.due_date && it.base_due !== it.due_date ? ` (처음 계획 ${it.base_due}, 변경 ${it.replan_count}회)` : ''}${it.needs_plan ? ', 하위 계획 요청 중' : ''}`);
   }
+  const act = (await activityLines(oo.team_id).catch(() => new Map<string, string>())).get(oo.member_id);
+  if (act) book.add('member', oo.member_id, `${member.full_name} 업무 기록 흐름`, act);
   await addKnowhow(book, oo.team_id, 'prep');
   const prompt = `팀원: ${member.full_name}\n면담 일시: ${oo.scheduled_at}\n\n${book.knowhowText()}\n\n${book.text('기록')}`;
   const { output } = await runAi({

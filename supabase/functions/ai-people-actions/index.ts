@@ -5,6 +5,7 @@ import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
 import { runAi, SourceBook, depthOf, addKnowhow, weekLabel } from '../_shared/gateway.ts';
 import { MODEL_SMART } from '../_shared/anthropic.ts';
 import { PEOPLE_ACTIONS } from '../_shared/prompts/index.ts';
+import { activityLines } from '../_shared/activity.ts';
 import { conditionText } from '../_shared/condition.ts';
 import { kstToday, kstMonday, addDaysYmd, loadRaw, flagsFor } from '../_shared/signals.ts';
 import { NOTE_RULE, addNote, loadLeaderNotes } from '../_shared/notes.ts';
@@ -40,6 +41,7 @@ async function actionsFor(teamId: string, createdBy: string | null) {
   const myNotes = leaderId ? await loadLeaderNotes(teamId, leaderId, { types: ['member'], limit: 40 }) : [];
   // 팀원별 선행 신호 (인정 공백 · 의지는 있는데 막힘 · 성장 정체 · 팀장 약속 밀림 · 참여 위축) — 홈·팀원 지수와 같은 규칙
   const raw = leaderId ? await loadRaw(admin, teamId, leaderId, 8).catch(() => null) : null;
+  const acts = await activityLines(teamId).catch(() => new Map<string, string>());
   for (const m of members) {
     const uid = m.user_id;
     const name = (m.profiles as unknown as { full_name: string })?.full_name ?? '팀원';
@@ -76,6 +78,7 @@ async function actionsFor(teamId: string, createdBy: string | null) {
       `결과물 45일 ${sb.length}건 (리뷰 중 ${sb.filter((s) => s.status === 'in_review').length} · 보완 요청 ${sb.filter((s) => s.status === 'needs_work').length} · 승인 ${sb.filter((s) => s.status === 'approved').length})`,
       `요청 45일 ${rq.length}건 (기한 안 완료 ${rqOnTime.length} · 기한 지남 ${rqLate.length})`,
       ...(attn.get(uid) ? [(() => { const a = attn.get(uid)!; return `팀장 접점 28일 ${a.touch} (팀 중앙값 ${medTouch ?? '-'}; 1on1 ${a.oo} · 리뷰 코멘트 ${a.comments} · 관찰 ${a.obs} · 칭찬 ${a.praise} · 요청 ${a.reqs} · 과제 코멘트 ${a.item_comments}) · 리뷰 첫 반응 평균 ${a.resp_hours ?? '-'}시간 · 반응 기다리는 결과물 ${a.waiting}`; })()] : []),
+      ...(acts.get(uid) ? [acts.get(uid)!] : []),
       `입사 ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}일`,
       (() => { const f = raw ? flagsFor(raw, uid) : []; return `선행 신호 ${f.length ? f.map((x) => `${x.label}(${x.detail})`).join(' · ') : '없음'}`; })(),
     ].join(' / ');

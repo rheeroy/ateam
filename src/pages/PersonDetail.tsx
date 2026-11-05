@@ -24,6 +24,7 @@ import { ACTION_META, type Level, type MemberIndex, type PeopleAction } from '..
 import { ActionRequestModal, type ActionReqType } from '../components/RequestModal';
 import { MemoModal, Sparkline, useHomeModel } from '../components/home/shared';
 import { ScheduleModal } from './OneOnOnes';
+import { ActivityCard } from '../components/people/ActivityCard';
 
 interface Prep { last_time: string; watch: string; questions: string[]; recent_work: string }
 const strip = (t: string) => t.replace(/\s*\[E\d+\]/g, '');
@@ -86,6 +87,7 @@ export default function PersonDetail() {
       <div className="grid lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2 space-y-4">
           <PersonOverview uid={id} name={name} />
+          <PersonGuides uid={id} />
           <Condition teamId={team.id} uid={id} />
           <Observations teamId={team.id} uid={id} onNew={() => setMemo(true)} />
         </div>
@@ -131,6 +133,17 @@ function OORequestBanner({ from, name, onSchedule }: { from: string; name: strin
   );
 }
 
+/** 활동 · 부하 흐름 */
+function PersonGuides({ uid }: { uid: string }) {
+  const m = useHomeModel('weekly');
+  const pi = usePeopleIndex(m);
+  const ix = pi.idx.get(uid);
+  if (pi.loading) return null;
+  return (
+<ActivityCard uid={uid} ix={ix} rows={pi.act} />
+  );
+}
+
 /** 표준 지표 (신호등) — 상세에서는 Core Insight 액션을 따로 띄우지 않는다 */
 function PersonTop({ uid }: { uid: string }) {
   const m = useHomeModel('weekly');
@@ -173,7 +186,7 @@ function SignalCount({ ix }: { ix: MemberIndex }) {
 function SignalGrid({ ix }: { ix?: MemberIndex }) {
   if (!ix) return null;
   return (
-    <dl className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-y-3 lg:divide-x lg:divide-white/10">
+    <dl className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-y-3 lg:divide-x lg:divide-white/10">
       {ix.indices.map((i) => {
         const L = i.level === 'none' ? null : LAMP[i.level];
         return (

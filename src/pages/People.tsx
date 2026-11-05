@@ -37,9 +37,12 @@ export default function People() {
   const flightHigh = members.filter((mb) => pi.idx.get(mb.user_id)?.flight.level === 'risk').length;
   const flightMid = members.filter((mb) => pi.idx.get(mb.user_id)?.flight.level === 'watch').length;
   const ooGap = lv('oo').filter((x) => x === 'risk' || x === 'watch').length;
-  const over = lv('load').filter((x) => x === 'risk').length;
   const attnLow = lv('attn').filter((x) => x === 'risk' || x === 'watch').length;
   const skew = attnSkew(pi.attn);
+  const reads = members.map((mb) => pi.idx.get(mb.user_id)?.act?.read.key);
+  const actDown = reads.filter((x) => x === 'motivation' || x === 'drop').length;
+  const actSlack = reads.filter((x) => x === 'slack').length;
+  const overAll = members.filter((mb) => { const ix = pi.idx.get(mb.user_id); return ix?.indices.find((i) => i.key === 'load')?.level === 'risk' || ix?.act?.read.key === 'overload'; }).length;
   const [low, setLow] = useState<'sent' | 'flow'>(params.get('view') === 'flow' ? 'flow' : 'sent');
   const lowRef = useRef<HTMLElement>(null);
   const toFlow = () => { setLow('flow'); requestAnimationFrame(() => lowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); };
@@ -66,13 +69,14 @@ export default function People() {
 
       {/* 팀 지표 */}
       <Card className="overflow-hidden">
-        <div className="grid grid-cols-2 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-slate-100">
+        <div className="grid grid-cols-2 md:grid-cols-7 divide-x divide-y md:divide-y-0 divide-slate-100">
           <Stat onClick={toFlow} label="팀 컨디션 (5점)" value={k.cond} sub={`이번 주 공유 ${k.ciThis}/${k.nMem}명`} viz={<Sparkline points={k.condTrend} labels={k.condWeeks} tone="teal" w={84} h={28} />} />
           <Stat label="이탈 가능성" value={`${flightHigh} · ${flightMid}`} tone={flightHigh ? 'rose' : flightMid ? 'amber' : undefined} sub="높음 · 주의 (명)" />
           <Stat label="1on1 2주 넘게 없음" value={ooGap} tone={ooGap ? 'amber' : undefined} sub={`팀원 ${members.length}명 중`} />
           <Stat label="팀장 관심 부족" value={pi.attn.length ? attnLow : '—'} tone={attnLow ? 'amber' : undefined}
             sub={skew ? `접점 ${skew.top2}%가 2명에게 몰림` : '최근 4주 · 앱 기록 기준'} />
-          <Stat onClick={toFlow} label="업무 과부하" value={over} tone={over ? 'amber' : undefined} sub="가용 시간 110% 초과" />
+          <Stat label="활동 변화" value={pi.act.length ? actDown : '—'} tone={actDown ? 'amber' : undefined} sub={pi.act.length ? `평소보다 줄어듦${actSlack ? ` · 업무 여유 ${actSlack}명` : ''}` : '업무 기록 기준'} />
+          <Stat onClick={toFlow} label="업무 과부하" value={overAll} tone={overAll ? 'amber' : undefined} sub="부하 110% 초과 · 밤·주말 기록 많음" />
           <Stat label="평가 근거 충분" value={k.evidenceAll ? `${k.evidenceOk}/${k.evidenceAll}` : '—'} sub="판단 근거 기준 충족" />
         </div>
       </Card>
@@ -124,7 +128,7 @@ function Stat({ label, value, sub, tone, viz, onClick }: { label: string; value:
 export function IndexGrid({ ix, cols = 3 }: { ix?: MemberIndex; cols?: 3 | 6 | 7 }) {
   if (!ix) return null;
   return (
-    <dl className={cx('grid gap-1.5', cols === 3 ? 'grid-cols-4' : 'grid-cols-4 md:grid-cols-7')}>
+    <dl className={cx('grid gap-1.5', cols === 3 ? 'grid-cols-4' : 'grid-cols-4 md:grid-cols-8')}>
       {ix.indices.map((i) => {
         const c = LEVEL_CLS[i.level];
         return (
@@ -167,7 +171,7 @@ function MemberTable({ rows, onPraise }: { rows: Row[]; onPraise: (uid: string, 
   const groups = groups0.map((x, gi) => ({ ...x, from: groups0.slice(0, gi).reduce((n, y) => n + y.list.length, 0) }));
   return (
     <Card className="overflow-x-auto">
-      <table className="w-full min-w-[980px]">
+      <table className="w-full min-w-[1040px]">
         <thead>
           <tr className="text-[11px] text-slate-400 bg-slate-50/80">
             <th className="w-12 text-center font-semibold pl-3 py-2.5">#</th>
