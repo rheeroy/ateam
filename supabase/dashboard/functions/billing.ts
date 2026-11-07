@@ -1,11 +1,21 @@
 // functions/_shared/http.ts
 import { AsyncLocalStorage } from "node:async_hooks";
 var reqCtx = new AsyncLocalStorage();
-var corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
+var ORIGINS = (Deno.env.get("APP_ORIGIN") ?? "*").split(",").map((x) => x.trim().replace(/\/$/, "")).filter(Boolean);
+function allowOrigin(origin) {
+  if (!ORIGINS.length || ORIGINS.includes("*")) return "*";
+  if (origin && ORIGINS.includes(origin.replace(/\/$/, ""))) return origin;
+  return ORIGINS[0];
+}
+var BASE_CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+function cors(origin) {
+  const o = origin !== void 0 ? origin : reqCtx.getStore()?.origin ?? null;
+  return { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(o), Vary: "Origin" };
+}
+var corsHeaders = { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(null) };
 var HttpError = class extends Error {
   constructor(status, code, message) {
     super(message ?? code);
@@ -16,12 +26,12 @@ var HttpError = class extends Error {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" }
+    headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" }
   });
 }
 function serve(handler) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin") }, async () => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req.headers.get("Origin")) });
     try {
       return await handler(req);
     } catch (e) {
@@ -66,7 +76,6 @@ async function getCaller(req) {
 
 // functions/billing/index.ts
 var TOSS = "https://api.tosspayments.com/v1";
-var VAT = 0.1;
 var TOPUP_PACKS = {
   "100": { credits: 100, price: 6900 },
   "300": { credits: 300, price: 19900 }
@@ -86,7 +95,6 @@ async function toss(path, body) {
   if (!res.ok) throw new HttpError(402, "PAYMENT_FAILED", data?.message ?? `toss ${res.status}`);
   return data;
 }
-var withVat = (n) => Math.round(n * (1 + VAT));
 var addPeriod = (from, cycle) => {
   const d = new Date(from);
   if (cycle === "year") d.setUTCFullYear(d.getUTCFullYear() + 1);
@@ -151,7 +159,7 @@ serve(async (req) => {
       const plan = s.plans;
       const price = s.billing_cycle === "year" ? plan.price_year_krw : plan.price_month_krw;
       try {
-        await charge(s, sec.billing_key, "subscription", withVat(price), `ATEAM ${plan.name} ${s.billing_cycle === "year" ? "\uC5F0\uAC04" : "\uC6D4\uAC04"}`);
+        await charge(s, sec.billing_key, "subscription", price, `ATEAM ${plan.name} ${s.billing_cycle === "year" ? "\uC5F0\uAC04" : "\uC6D4\uAC04"}`);
         await admin.from("subscriptions").update({
           status: "active",
           current_period_start: s.current_period_end,
@@ -180,7 +188,7 @@ serve(async (req) => {
       const { count } = await admin.from("team_members").select("user_id", { count: "exact", head: true }).in("team_id", ids).eq("role", "member").eq("status", "active");
       if ((count ?? 0) > plan.max_members) throw new HttpError(400, "PLAN_TOO_SMALL", `\uC9C0\uAE08 \uD300\uC6D0\uC774 ${count}\uBA85\uC774\uB77C \uD300\uC6D0 ${plan.max_members}\uBA85\uAE4C\uC9C0\uC778 ${plan.name}\uC740(\uB294) \uACE0\uB97C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4`);
     }
-    const cycle = b.cycle === "year" ? "year" : "month";
+    const cycle = "month";
     let billingKey;
     let card = null;
     if (b.action === "subscribe") {
@@ -195,7 +203,7 @@ serve(async (req) => {
       billingKey = sec.billing_key;
     }
     const price = cycle === "year" ? plan.price_year_krw : plan.price_month_krw;
-    await charge(sub, billingKey, "subscription", withVat(price), `ATEAM ${plan.name} ${cycle === "year" ? "\uC5F0\uAC04" : "\uC6D4\uAC04"}`);
+    await charge(sub, billingKey, "subscription", price, `ATEAM ${plan.name} ${cycle === "year" ? "\uC5F0\uAC04" : "\uC6D4\uAC04"}`);
     const now = /* @__PURE__ */ new Date();
     const { data: updated } = await admin.from("subscriptions").update({
       plan_id: plan.id,
@@ -215,9 +223,20 @@ serve(async (req) => {
     if (!pack) throw new HttpError(400, "BAD_PACK");
     const { data: sec } = await admin.from("billing_secrets").select("billing_key").eq("subscription_id", sub.id).maybeSingle();
     if (!sec) throw new HttpError(400, "NO_CARD", "\uB4F1\uB85D\uB41C \uCE74\uB4DC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4");
-    await charge(sub, sec.billing_key, "topup", withVat(pack.price), `ATEAM \uCD94\uAC00 \uD06C\uB808\uB527 ${pack.credits}`);
+    await charge(sub, sec.billing_key, "topup", pack.price, `ATEAM \uCD94\uAC00 \uD06C\uB808\uB527 ${pack.credits}`);
     await admin.rpc("grant_topup", { p_owner: caller.userId, p_credits: pack.credits });
     return json({ ok: true, credits: pack.credits });
+  }
+  if (b.action === "card") {
+    if (!b.authKey) throw new HttpError(400, "MISSING_PARAMS");
+    const issued = await toss("/billing/authorizations/issue", { authKey: b.authKey, customerKey: sub.customer_key });
+    await admin.from("billing_secrets").upsert({ subscription_id: sub.id, billing_key: issued.billingKey, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
+    const cardNo = issued.cardNumber ?? issued.card?.number ?? "";
+    const { data } = await admin.from("subscriptions").update({
+      card_company: issued.cardCompany ?? issued.card?.issuerCode ?? null,
+      card_last4: cardNo.replace(/\D/g, "").slice(-4) || null
+    }).eq("id", sub.id).select().single();
+    return json(data);
   }
   if (b.action === "cancel" || b.action === "resume") {
     const { data } = await admin.from("subscriptions").update({ cancel_at_period_end: b.action === "cancel" }).eq("id", sub.id).select().single();

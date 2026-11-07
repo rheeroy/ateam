@@ -121,7 +121,8 @@ serve(async (req) => {
       const { count } = await admin.from('team_members').select('user_id', { count: 'exact', head: true }).in('team_id', ids).eq('role', 'member').eq('status', 'active');
       if ((count ?? 0) > plan.max_members) throw new HttpError(400, 'PLAN_TOO_SMALL', `지금 팀원이 ${count}명이라 팀원 ${plan.max_members}명까지인 ${plan.name}은(는) 고를 수 없습니다`);
     }
-    const cycle = b.cycle === 'year' ? 'year' : 'month';
+    // 정기결제는 월 단위만 (토스페이먼츠 빌링 심사 조건 · 연간 결제 없음)
+    const cycle = 'month';
     let billingKey: string;
     let card: { company: string | null; last4: string | null } | null = null;
     if (b.action === 'subscribe') {
@@ -143,7 +144,7 @@ serve(async (req) => {
       current_period_start: now.toISOString(), current_period_end: addPeriod(now, cycle),
       ...(card ? { card_company: card.company, card_last4: card.last4 } : {}),
     }).eq('id', sub.id).select().single();
-    // 새 주기 기준으로 월 크레딧을 다시 지급 — 추가 구매분(topup)은 그대로 둔다
+    // 새 주기 기준으로 월 크레딧을 다시 지급 — 요금제를 바꾼 날은 추가 구매분(topup)을 그대로 둔다 (1970 표시 → 소멸 없이 재지급)
     await admin.from('credit_balances').update({ period_start: '1970-01-01T00:00:00Z', updated_at: now.toISOString() }).eq('owner_id', caller.userId);
     return json(updated);
   }
@@ -157,6 +158,19 @@ serve(async (req) => {
     await charge(sub, sec.billing_key, 'topup', pack.price, `ATEAM 추가 크레딧 ${pack.credits}`);
     await admin.rpc('grant_topup', { p_owner: caller.userId, p_credits: pack.credits });
     return json({ ok: true, credits: pack.credits });
+  }
+
+  // ---------- 결제 카드 변경 ----------
+  //   결제창에서 새 카드 등록(authKey) → 빌링키만 바꾼다. 결제는 일어나지 않는다
+  if (b.action === 'card') {
+    if (!b.authKey) throw new HttpError(400, 'MISSING_PARAMS');
+    const issued = await toss('/billing/authorizations/issue', { authKey: b.authKey, customerKey: sub.customer_key });
+    await admin.from('billing_secrets').upsert({ subscription_id: sub.id, billing_key: issued.billingKey, updated_at: new Date().toISOString() });
+    const cardNo: string = issued.cardNumber ?? issued.card?.number ?? '';
+    const { data } = await admin.from('subscriptions').update({
+      card_company: issued.cardCompany ?? issued.card?.issuerCode ?? null, card_last4: cardNo.replace(/\D/g, '').slice(-4) || null,
+    }).eq('id', sub.id).select().single();
+    return json(data);
   }
 
   if (b.action === 'cancel' || b.action === 'resume') {

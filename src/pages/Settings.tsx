@@ -42,7 +42,8 @@ function Billing() {
   const qc = useQueryClient();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
-  const [cycle, setCycle] = useState<'month' | 'year'>('month');
+  // 정기결제는 월 단위만 (토스페이먼츠 빌링 심사 조건) — 연간 요금제는 팔지 않는다
+  const cycle = 'month' as const;
   const [checkout, setCheckout] = useState<Plan | null>(null);
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => q<Plan[]>(supabase.from('plans').select('*').eq('active', true).order('sort')) });
   const sub = useQuery({
@@ -59,7 +60,7 @@ function Billing() {
   const done = () => { refresh(); qc.invalidateQueries({ queryKey: ['subscription'] }); qc.invalidateQueries({ queryKey: ['payments'] }); qc.invalidateQueries({ queryKey: ['ledger'] }); };
   const subscribe = useMutation({
     mutationFn: (b: Record<string, unknown>) => invoke('billing', b),
-    onSuccess: () => { toast('결제가 완료됐습니다'); done(); },
+    onSuccess: (_r, v) => { toast(v.action === 'card' ? '결제 카드를 바꿨습니다' : '결제가 완료됐습니다'); done(); },
     onError: (e) => toast(errorText(e)),
   });
 
@@ -67,7 +68,8 @@ function Billing() {
   useEffect(() => {
     const authKey = params.get('authKey');
     if (params.get('billing') === 'success' && authKey) {
-      subscribe.mutate({ action: 'subscribe', authKey, plan_id: params.get('plan'), cycle: params.get('cycle') });
+      if (params.get('card') === '1') subscribe.mutate({ action: 'card', authKey });
+      else subscribe.mutate({ action: 'subscribe', authKey, plan_id: params.get('plan'), cycle: 'month' });
       setParams({ tab: 'billing' }, { replace: true });
     } else if (params.get('billing') === 'fail') {
       toast(params.get('message') ?? '카드 등록이 취소됐습니다');
@@ -78,15 +80,16 @@ function Billing() {
   async function start(plan: Plan) {
     // 이미 카드가 등록돼 구독 중이면 결제창 없이 그 카드로 바로 바꾼다
     if (active && s?.card_last4) {
-      const price = cycle === 'year' ? plan.price_year_krw : plan.price_month_krw;
-      if (!confirm(`${plan.name} ${cycle === 'year' ? '연간' : '월간'}으로 바꿉니다.\n등록된 카드(${s.card_company ?? '카드'} ****${s.card_last4})로 ${won(price)}(VAT 포함)이 결제되고, 오늘부터 새 주기가 시작됩니다.`)) return;
+      const price = plan.price_month_krw;
+      if (!confirm(`${plan.name} 월간으로 바꿉니다.\n등록된 카드(${cardName(s.card_company)} ****${s.card_last4})로 ${won(price)}(VAT 포함)이 결제되고, 오늘부터 새 주기가 시작됩니다.`)) return;
       subscribe.mutate({ action: 'change', plan_id: plan.id, cycle });
       return;
     }
     setCheckout(plan); // 주문 확인 → 동의 → 토스 결제창
   }
 
-  async function pay(plan: Plan) {
+  // plan 없이 부르면 결제 카드만 새로 등록한다 (결제 없음)
+  async function pay(plan: Plan | null) {
     const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY as string | undefined;
     if (!clientKey) { toast('결제 키(VITE_TOSS_CLIENT_KEY)가 설정되지 않았습니다'); return; }
     try {
@@ -95,7 +98,7 @@ function Billing() {
       const base = `${window.location.origin}/settings?tab=billing`;
       await Toss(clientKey).payment({ customerKey }).requestBillingAuth({
         method: 'CARD',
-        successUrl: `${base}&billing=success&plan=${plan.id}&cycle=${cycle}`,
+        successUrl: plan ? `${base}&billing=success&plan=${plan.id}&cycle=${cycle}` : `${base}&billing=success&card=1`,
         failUrl: `${base}&billing=fail`,
         customerEmail: profile?.email ?? undefined,
         customerName: profile?.full_name ?? undefined,
@@ -131,7 +134,8 @@ function Billing() {
                 <p className="mt-1 text-sm text-slate-600">체험 중에는 Pro+ 전체를 씁니다. 끝나기 전에 요금제를 고르면 끊김 없이 이어집니다.</p>
               </> : <>
                 <div className="mt-1 text-2xl font-bold">{credits.plan_name} <span className="text-base font-medium text-slate-400">팀원 {credits.max_members}명까지</span></div>
-                {s && <div className="text-sm text-slate-500 mt-1">{s.billing_cycle === 'year' ? '연간' : '월간'} · 다음 결제 {fmtDate(s.current_period_end)}{s.card_last4 && ` · ${s.card_company ?? '카드'} ****${s.card_last4}`}
+                {s && <div className="text-sm text-slate-500 mt-1">{s.billing_cycle === 'year' ? '연간' : '월간'} · 다음 결제 {fmtDate(s.current_period_end)}{s.card_last4 && ` · ${cardName(s.card_company)} ****${s.card_last4}`}
+                  <button onClick={() => void pay(null)} className="ml-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-2">결제 카드 변경</button>
                   {s.cancel_at_period_end && <Pill tone="rose" className="ml-2">기간 끝나면 해지</Pill>}</div>}
               </>}
             </div>
@@ -157,14 +161,14 @@ function Billing() {
               <div>
                 <div className="flex justify-between text-sm"><span>프리미엄 크레딧</span><span className="font-mono num"><b>{total}</b> 남음 · 월 {credits.monthly_credits}</span></div>
                 <div className="mt-2"><Bar value={(credits.monthly_remaining / Math.max(1, credits.monthly_credits)) * 100} tone="violet" h="h-2" /></div>
-                <div className="mt-1 text-xs text-slate-500">{fmtDate(credits.period_end)}에 월 제공량으로 다시 채워집니다 · 남은 크레딧은 이월되지 않습니다{credits.topup_remaining > 0 && ` · 추가 구매분 ${credits.topup_remaining}은 소멸하지 않습니다`}</div>
+                <div className="mt-1 text-xs text-slate-500">{fmtDate(credits.period_end)}에 월 제공량으로 다시 채워집니다 · 남은 크레딧은 이월되지 않습니다{credits.topup_remaining > 0 && ` · 추가 구매분 ${credits.topup_remaining}도 이번 주기가 끝나면 함께 소멸합니다`}</div>
               </div>
             </div>
           )}
         </Card>
         <Card className="p-5">
           <div className="font-semibold">프리미엄 크레딧 추가</div>
-          <p className="text-xs text-slate-500 mt-1">평가 시즌처럼 프리미엄 AI를 많이 쓰는 달에만 필요합니다. 등록된 카드로 바로 결제되고 소멸하지 않습니다.</p>
+          <p className="text-xs text-slate-500 mt-1">평가 시즌처럼 프리미엄 AI를 많이 쓰는 달에만 필요합니다. 등록된 카드로 바로 결제되고, 이번 결제 주기 안에서만 씁니다(다음 달로 이월되지 않음).</p>
           <div className="mt-4 space-y-2">
             {[['100', 6900], ['300', 19900]].map(([n, p]) => (
               <Button key={n} variant="secondary" className="w-full justify-between" disabled={!active} loading={subscribe.isPending && subscribe.variables?.pack === n}
@@ -184,18 +188,14 @@ function Billing() {
             <h2 className="text-lg font-bold tracking-tight">요금제를 고르세요</h2>
             <p className="text-sm text-slate-500">Pro부터 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리까지 ATEAM의 모든 기능을 씁니다 · 팀장 1명 구독, 팀원은 무료 초대 · 지금 팀원 <b className="text-slate-700">{members}명</b></p>
           </div>
-          <div className="flex bg-slate-100 rounded-lg p-0.5 text-[13px]">
-            <button onClick={() => setCycle('month')} className={cx('px-3 py-1 rounded-md', cycle === 'month' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>월간</button>
-            <button onClick={() => setCycle('year')} className={cx('px-3 py-1 rounded-md', cycle === 'year' ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>연간 <span className="text-emerald-600">2개월 무료</span></button>
-          </div>
         </div>
         <div className="mt-4 grid md:grid-cols-3 gap-4">
           {list.map((p) => {
             const current = active && credits.plan_id === p.id;
             const small = p.max_members < members;
             const best = p.id === fit && !current;
-            const price = cycle === 'year' ? p.price_year_krw : p.price_month_krw;
-            const monthly = cycle === 'year' ? Math.round(p.price_year_krw / 12) : p.price_month_krw;
+            const price = p.price_month_krw;
+            const monthly = p.price_month_krw;
             const evalOn = p.features.includes('evaluation');
             const conOn = p.features.includes('consulting_knowhow');
             const histOn = p.features.includes('history');
@@ -204,8 +204,8 @@ function Billing() {
                 {(best || current) && <span className={cx('absolute -top-2.5 left-5 text-[11px] font-bold rounded-full px-2 py-0.5 text-white', current ? 'bg-slate-900' : 'bg-indigo-600')}>{current ? '현재 요금제' : '추천'}</span>}
                 <div className="font-bold text-lg">{p.name}</div>
                 <div className="mt-0.5 text-sm font-semibold text-indigo-700 flex items-center gap-1.5"><Users size={14} />팀원 {p.max_members}명까지</div>
-                <div className="mt-3"><span className="text-[28px] font-bold tracking-tight num">{won(price)}</span><span className="text-sm text-slate-500"> / {cycle === 'year' ? '년' : '월'}</span></div>
-                <div className="text-xs text-slate-500">VAT 포함{cycle === 'year' ? ` · 월 ${won(monthly)} 꼴` : ''} · 팀원 1인당 월 {won(Math.round(monthly / p.max_members / 100) * 100)}</div>
+                <div className="mt-3"><span className="text-[28px] font-bold tracking-tight num">{won(price)}</span><span className="text-sm text-slate-500"> / 월</span></div>
+                <div className="text-xs text-slate-500">VAT 포함 · 팀원 1인당 월 {won(Math.round(monthly / p.max_members / 100) * 100)}</div>
                 <ul className="mt-4 space-y-2 text-sm flex-1">
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />기록·협업 · AI 참모 전체</li>
                   <li className="flex gap-2"><Check size={15} className="text-emerald-600 mt-0.5 shrink-0" />프리미엄 크레딧 월 {p.monthly_credits}</li>
@@ -222,7 +222,7 @@ function Billing() {
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-slate-500 leading-relaxed">결제는 토스페이먼츠 결제창에서 카드를 등록해 진행합니다 · 월간은 1개월, 연간은 12개월 단위로 같은 날 자동 결제되며 설정에서 언제든 해지 예약할 수 있습니다 · 결제하면 <a href="https://leada.team/terms" target="_blank" rel="noreferrer" className="underline">이용약관</a>과 <a href="https://leada.team/refund" target="_blank" rel="noreferrer" className="underline">환불정책</a>에 동의한 것으로 봅니다</p>
+        <p className="mt-3 text-xs text-slate-500 leading-relaxed">결제는 토스페이먼츠 결제창에서 카드를 등록해 진행합니다 · 매월 같은 날 자동 결제되며 설정에서 언제든 해지 예약할 수 있습니다 · 결제하면 <a href="https://leada.team/terms" target="_blank" rel="noreferrer" className="underline">이용약관</a>과 <a href="https://leada.team/refund" target="_blank" rel="noreferrer" className="underline">환불정책</a>에 동의한 것으로 봅니다</p>
         <Card className="mt-4 p-5">
           <div className="text-sm font-semibold">모든 요금제에 들어 있는 것</div>
           <div className="mt-3 grid md:grid-cols-3 gap-5">
@@ -416,6 +416,7 @@ function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; c
         </div>
         <ul className="text-xs text-slate-500 leading-relaxed list-disc pl-4 space-y-0.5">
           <li>{cycle === 'year' ? '12개월' : '1개월'}마다 같은 날 등록한 카드로 자동 결제됩니다. 설정 &gt; 요금제에서 언제든 해지 예약할 수 있고, 남은 기간은 그대로 이용합니다.</li>
+          <li>프리미엄 AI 크레딧(월 제공분 · 추가 구매분)은 그 결제 주기 안에서만 쓰며, 다음 달로 이월되지 않습니다.</li>
           <li>결제 후 7일 이내이고 이용 기록이 없으면 전액 환불됩니다. 자세한 기준은 환불정책을 따릅니다.</li>
         </ul>
         <label className="flex items-start gap-2 text-sm cursor-pointer">
@@ -427,3 +428,7 @@ function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; c
     </Modal>
   );
 }
+
+/** 토스페이먼츠 카드사 코드 → 이름 (빌링키 발급 응답의 cardCompany 가 코드로 올 때) */
+const CARD: Record<string, string> = { '3K': '기업BC', '46': '광주', '71': '롯데', '30': 'KDB산업', '31': 'BC', '51': '삼성', '38': '새마을', '41': '신한', '62': '신협', '36': '씨티', '33': '우리', W1: '우리', '37': '우체국', '39': '저축은행', '35': '전북', '42': '제주', '15': '카카오뱅크', '3A': '케이뱅크', '24': '토스뱅크', '21': '하나', '61': '현대', '11': '국민', '91': 'NH농협', '34': 'Sh수협' };
+const cardName = (c: string | null | undefined) => (c ? (CARD[c] ?? c) + (CARD[c] ? '카드' : '') : '카드');
