@@ -67,3 +67,4 @@ node -e 'const fs=require("fs");const m={marketing:fs.readFileSync("dashboard/06
 { echo "-- ATEAM 프리미엄 크레딧 이월 금지 (추가 구매분도 결제 주기가 끝나면 소멸) — 42_member_activity 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261121000052_credit_no_carryover.sql; } > dashboard/43_credit_no_carryover.sql
 { echo "-- ATEAM 가이드북 신청 (랜딩 /guidebook 폼 → guide-request 함수) — 43_credit_no_carryover 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261122000053_guide_requests.sql; } > dashboard/44_guide_requests.sql
 { echo "-- ATEAM 팀원 초대 메일 (invite-mail 함수가 발송 시각 · 횟수를 남긴다) — 44_guide_requests 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261122000054_invite_mail.sql; } > dashboard/45_invite_mail.sql
+{ echo "-- ATEAM 데모 링크 메일 (demo-mail 함수가 발송 시각 · 횟수를 남긴다) — 45_invite_mail 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261122000055_demo_mail.sql; } > dashboard/46_demo_mail.sql

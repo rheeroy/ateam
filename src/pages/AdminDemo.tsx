@@ -1,8 +1,8 @@
 // 관리자 — 데모 신청 승인 (app_admins 에 등록된 계정만)
-//   승인하면 7일짜리 개인 링크가 생긴다. 링크 · 메일 문구를 복사해 직접 메일로 보낸다
+//   승인하면 7일짜리 개인 링크가 생기고, demo-mail 함수(Resend)가 신청자에게 바로 메일로 보낸다. 실패하면 메일 문구를 복사해 둔다
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Mail, RotateCcw } from 'lucide-react';
+import { Copy, Mail, RotateCcw, Send } from 'lucide-react';
 import { supabase, q, errorText, invoke } from '../lib/supabase';
 import { cx, fmtDate } from '../lib/format';
 import { Card, Spinner, useToast } from '../components/ui';
@@ -11,7 +11,7 @@ import { DEPTS } from '../lib/demo';
 interface Req {
   id: string; name: string; company: string; job_title: string; team_size: string; dept?: string; email: string; phone: string; note: string;
   status: 'pending' | 'approved' | 'rejected'; token: string | null; approved_at: string | null; expires_at: string | null;
-  first_used_at: string | null; last_used_at: string | null; ai_used: Record<string, string>; created_at: string;
+  first_used_at: string | null; last_used_at: string | null; ai_used: Record<string, string>; created_at: string; mailed_at?: string | null; mail_count?: number;
 }
 const ST: Record<Req['status'], [string, string]> = { pending: ['대기', 'bg-amber-100 text-amber-800'], approved: ['승인', 'bg-emerald-100 text-emerald-800'], rejected: ['거절', 'bg-slate-100 text-slate-500'] };
 
@@ -27,7 +27,18 @@ export default function AdminDemo() {
   const list = useQuery({ queryKey: ['admin-demo'], enabled: !!admin.data, queryFn: () => q<Req[]>(supabase.rpc('admin_demo_list')) });
   const decide = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' | 'extend' }) => q<Req>(supabase.rpc('admin_demo_decide', { p_id: id, p_action: action })),
-    onSuccess: (r, v) => { qc.invalidateQueries({ queryKey: ['admin-demo'] }); if (v.action === 'approve' && r.token) { copy(mail(r), '승인했습니다 — 메일 문구를 복사했어요'); } },
+    onSuccess: async (r, v) => {
+      if (v.action === 'approve' && r.token) {
+        try { await invoke('demo-mail', { id: r.id }); toast(`승인하고 ${r.email}로 데모 링크 메일을 보냈습니다`); }
+        catch (e) { copy(mail(r), `승인했지만 메일은 보내지 못했습니다(${errorText(e)}) — 메일 문구를 복사했어요`); }
+      }
+      qc.invalidateQueries({ queryKey: ['admin-demo'] });
+    },
+    onError: (e) => toast(errorText(e)),
+  });
+  const resend = useMutation({
+    mutationFn: (r: Req) => invoke('demo-mail', { id: r.id }).then(() => r.email),
+    onSuccess: (to) => { toast(`${to}로 데모 링크 메일을 다시 보냈습니다`); qc.invalidateQueries({ queryKey: ['admin-demo'] }); },
     onError: (e) => toast(errorText(e)),
   });
   const link = (r: Req) => `${window.location.origin}/demo?t=${r.token}`;
@@ -42,7 +53,7 @@ export default function AdminDemo() {
     <div className="space-y-5">
       <div className="flex items-end gap-3 flex-wrap">
         <div><h1 className="text-2xl font-bold tracking-tight">데모 신청</h1>
-          <p className="text-sm text-slate-500">승인하면 7일짜리 개인 링크가 생기고, 보낼 메일 문구가 복사됩니다. 링크는 데모 데이터를 초기화해도 그대로 유지됩니다.</p></div>
+          <p className="text-sm text-slate-500">승인하면 7일짜리 개인 링크가 생기고, 신청자에게 메일이 자동으로 갑니다(demo@leada.team · 답장은 steve@starthalf.com). 링크는 데모 데이터를 초기화해도 그대로 유지됩니다.</p></div>
         <div className="ml-auto flex rounded-lg bg-slate-100 p-0.5 text-[13px]">
           {(['all', 'pending', 'approved', 'rejected'] as const).map((k) => (
             <button key={k} onClick={() => setFilter(k)} className={cx('px-3 py-1 rounded-md', filter === k ? 'bg-white shadow-sm font-semibold' : 'text-slate-500')}>
@@ -67,7 +78,7 @@ export default function AdminDemo() {
                     {r.note && <p className="mt-1.5 text-sm text-slate-700 bg-slate-50 rounded-lg px-3 py-2">{r.note}</p>}
                     {r.status === 'approved' && (
                       <div className="mt-1.5 text-xs text-slate-500">
-                        {r.expires_at && `${fmtDate(r.expires_at)}까지`}{r.first_used_at ? ` · 첫 입장 ${fmtDate(r.first_used_at)} · 최근 ${fmtDate(r.last_used_at)}` : ' · 아직 입장 안 함'} · AI 체험 {Object.keys(r.ai_used ?? {}).length}개
+                        {r.expires_at && `${fmtDate(r.expires_at)}까지`}{r.mailed_at ? ` · 메일 보냄 ${fmtDate(r.mailed_at)}` : ' · 메일 안 보냄'}{r.first_used_at ? ` · 첫 입장 ${fmtDate(r.first_used_at)} · 최근 ${fmtDate(r.last_used_at)}` : ' · 아직 입장 안 함'} · AI 체험 {Object.keys(r.ai_used ?? {}).length}개
                       </div>
                     )}
                   </div>
@@ -77,7 +88,8 @@ export default function AdminDemo() {
                       <button onClick={() => decide.mutate({ id: r.id, action: 'reject' })} className="text-sm rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50">거절</button>
                     </>}
                     {r.status === 'approved' && r.token && <>
-                      <button onClick={() => copy(mail(r), '메일 문구를 복사했습니다')} className="text-sm font-semibold rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50 inline-flex items-center gap-1"><Mail size={14} />메일 문구</button>
+                      {live && <button disabled={resend.isPending} onClick={() => resend.mutate(r)} className="text-sm font-semibold rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50 inline-flex items-center gap-1 disabled:opacity-50"><Send size={14} />{r.mailed_at ? '메일 다시 보내기' : '메일 보내기'}</button>}
+                      <button onClick={() => copy(mail(r), '메일 문구를 복사했습니다')} title="직접 보낼 때 쓰는 문구" className="text-sm rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50 inline-flex items-center gap-1"><Mail size={14} />문구</button>
                       <button onClick={() => copy(link(r), '링크를 복사했습니다')} className="text-sm rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50 inline-flex items-center gap-1"><Copy size={14} />링크</button>
                       <button onClick={() => decide.mutate({ id: r.id, action: 'extend' })} className="text-sm rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50">7일 연장</button>
                       {live && <button onClick={() => decide.mutate({ id: r.id, action: 'reject' })} className="text-sm text-slate-500 rounded-lg px-2 py-1.5 hover:text-rose-600">중지</button>}
