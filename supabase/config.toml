@@ -420,3 +420,6 @@ enabled = true
 verify_jwt = true
 [functions.billing]
 verify_jwt = true
+# 랜딩 /guidebook 폼이 로그인 없이 부른다 (숨은 칸 · 이메일당 하루 3번 제한)
+[functions.guide-request]
+verify_jwt = false
