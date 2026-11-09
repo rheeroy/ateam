@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CreditCard, Minus, Users } from 'lucide-react';
-import { useTeam } from '../state/session';
+import { Check, CreditCard, Lock, Minus, Users } from 'lucide-react';
+import { useSession, useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import type { Plan } from '../lib/types';
 import { cx, fmtDate, won } from '../lib/format';
@@ -341,16 +341,27 @@ function PasswordSettings() {
 
 type Tab = 'profile' | 'team' | 'members' | 'billing';
 export default function SettingsPage() {
-  const { isLeader } = useTeam();
+  const { isLeader, team } = useTeam();
+  const { credits } = useSession();
+  const toast = useToast();
   const [params, setParams] = useSearchParams();
-  const tab = (params.get('tab') as Tab) ?? (isLeader ? 'billing' : 'profile');
-  const items: { id: Tab; label: string }[] = isLeader
-    ? [{ id: 'billing', label: '요금제·크레딧' }, { id: 'members', label: '구성원·초대' }, { id: 'team', label: '팀 설정' }, { id: 'profile', label: '내 정보' }]
+  // 체험 · 구독이 끝난 팀(무료 상태)의 팀장은 요금제 탭만 연다 — 나머지 탭은 잠금 표시 (기록은 그대로 보관)
+  const locked = isLeader && credits?.plan_id === 'free' && !team.is_demo;
+  const asked = (params.get('tab') as Tab) ?? (isLeader ? 'billing' : 'profile');
+  const tab: Tab = locked ? 'billing' : asked;
+  const lockLabel = (t: string) => locked ? <span className="inline-flex items-center gap-1 text-slate-300"><Lock size={12} />{t}</span> : t;
+  const items: { id: Tab; label: ReactNode }[] = isLeader
+    ? [{ id: 'billing', label: '요금제·크레딧' }, { id: 'members', label: lockLabel('구성원·초대') }, { id: 'team', label: lockLabel('팀 설정') }, { id: 'profile', label: lockLabel('내 정보') }]
     : [{ id: 'profile', label: '내 정보' }];
+  const pick = (t: Tab) => {
+    if (locked && t !== 'billing') { toast(credits?.was_trial ? '무료 체험이 끝났습니다. 요금제를 시작하면 다시 열립니다' : '구독이 끝났습니다. 요금제를 시작하면 다시 열립니다'); return; }
+    setParams({ tab: t });
+  };
   return (
     <section>
       <PageHeader title="설정" />
-      <div className="mb-5"><Tabs value={tab} onChange={(t) => setParams({ tab: t })} items={items} /></div>
+      <div className="mb-5"><Tabs value={tab} onChange={pick} items={items} /></div>
+      {locked && <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 flex items-center gap-2"><Lock size={14} className="shrink-0" />{credits?.was_trial ? '무료 체험이 끝났습니다.' : '구독이 끝났습니다.'} 요금제를 시작하면 구성원·초대 · 팀 설정 · 내 정보와 모든 기능이 다시 열립니다. 쌓인 기록은 그대로 보관돼 있습니다.</div>}
       {tab === 'billing' && isLeader ? <Billing /> : tab === 'members' && isLeader ? <TeamPage embedded /> : tab === 'team' && isLeader ? <TeamSettings /> : <div className="space-y-5"><ProfileSettings />{!isLeader && <MyDataGuide />}<PasswordSettings /><AppInstall /></div>}
     </section>
   );
