@@ -83,7 +83,6 @@ async function assertLeader(caller, teamId) {
 
 // functions/_shared/mail.ts
 var MAIL_DOMAIN = Deno.env.get("MAIL_DOMAIN") ?? "leada.team";
-var COMPANY_LINE = "\uAC13\uC0DD\uB9F5(STARTHALF) \xB7 \uB300\uD45C \uC774\uACBD\uD6C8 \xB7 \uC0AC\uC5C5\uC790\uB4F1\uB85D\uBC88\uD638 553-65-00667 \xB7 \uC11C\uC6B8\uD2B9\uBCC4\uC2DC \uAD11\uC9C4\uAD6C \uBA74\uBAA9\uB85C 57 (\uC911\uACE1\uB3D9)";
 var esc = (v) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 async function sendMail(m) {
   const key = Deno.env.get("RESEND_API_KEY");
@@ -92,27 +91,27 @@ async function sendMail(m) {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: m.from, to: [m.to], subject: m.subject, html: m.html, ...m.replyTo ? { reply_to: m.replyTo } : {} })
+      body: JSON.stringify({ from: m.from, to: [m.to], subject: m.subject, html: m.html, ...m.text ? { text: m.text } : {}, ...m.replyTo ? { reply_to: m.replyTo } : {} })
     });
     return r.ok ? "" : `${r.status} ${(await r.text()).slice(0, 300)}`;
   } catch (e) {
     return String(e).slice(0, 300);
   }
 }
-function mailLayout(o) {
-  return `<!doctype html><html><body style="margin:0;word-break:keep-all;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#0f172a">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden">
-<tr><td style="background:#0B0F1E;padding:32px 32px 28px">
-  <div style="font-size:18px;font-weight:800;color:#ffffff">ATEAM</div>
-  <div style="margin-top:22px;font-size:14px;color:#c4b5fd;font-weight:700">${o.eyebrow}</div>
-  <div style="margin-top:8px;font-size:24px;line-height:1.35;font-weight:800;color:#ffffff">${o.title}</div>
-</td></tr>
-<tr><td style="padding:28px 32px 8px;font-size:15px;line-height:1.75;color:#334155">${o.body}</td></tr>
-${o.button ? `<tr><td align="center" style="padding:20px 32px 8px"><a href="${o.button.url}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;padding:14px 28px;border-radius:12px">${o.button.label}</a></td></tr>` : ""}
-${o.after ? `<tr><td style="padding:20px 32px 28px;font-size:14px;line-height:1.75;color:#475569">${o.after}</td></tr>` : '<tr><td style="padding:12px"></td></tr>'}
-<tr><td style="padding:18px 32px;background:#f8fafc;font-size:12px;line-height:1.7;color:#94a3b8">${o.foot ? `${o.foot}<br>` : ""}${COMPANY_LINE}</td></tr>
-</table></td></tr></table></body></html>`;
+function plainMail(o) {
+  const p = (t) => `<p style="margin:0 0 14px">${t}</p>`;
+  const html = `<!doctype html><html><body style="margin:0;padding:24px 16px;background:#ffffff;word-break:keep-all;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;font-size:15px;line-height:1.7;color:#1f2937">
+<div style="max-width:560px">
+${o.paras.map(p).join("\n")}
+${p(`<a href="${o.link.url}" style="color:#4f46e5;font-weight:600">${o.link.label}</a><br><span style="font-size:13px;color:#6b7280">${o.link.url}</span>`)}
+${(o.after ?? []).map(p).join("\n")}
+${p(o.sign ?? "Steve \uB4DC\uB9BC<br>ATEAM")}
+<p style="margin:24px 0 0;font-size:12px;color:#9ca3af">ATEAM \xB7 leada.team</p>
+</div></body></html>`;
+  const strip = (t) => t.replace(/<br\s*\/?>/g, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const text = [...o.paras, `${o.link.label}
+${o.link.url}`, ...o.after ?? [], o.sign ?? "Steve \uB4DC\uB9BC<br>ATEAM"].map(strip).join("\n\n") + "\n\n-- \nATEAM \xB7 leada.team\n";
+  return { html, text };
 }
 
 // functions/invite-mail/index.ts
@@ -140,23 +139,19 @@ serve(async (req) => {
   const inviter = (prof?.full_name || "\uD300\uC7A5").trim();
   const teamName = (team?.name ?? "").trim() || "\uC6B0\uB9AC \uD300";
   const link = `${APP_URL}/invite/${token}`;
-  const html = mailLayout({
-    eyebrow: `${esc(teamName)} \xB7 \uD300 \uCD08\uB300`,
-    title: `${esc(inviter)} \uD300\uC7A5\uB2D8\uC774<br>ATEAM\uC73C\uB85C \uCD08\uB300\uD588\uC2B5\uB2C8\uB2E4`,
-    body: `\uC548\uB155\uD558\uC138\uC694. <b>${esc(teamName)}</b>\uC758 ${esc(inviter)} \uD300\uC7A5\uB2D8\uC774 ATEAM\uC5D0\uC11C \uD568\uAED8 \uC77C\uD558\uC790\uACE0 \uCD08\uB300\uD588\uC2B5\uB2C8\uB2E4${inv.job_title ? ` (\uC9C1\uBB34: ${esc(inv.job_title)})` : ""}.<br><br>
-ATEAM\uC5D0\uC11C\uB294 \uD300 \uBAA9\uD45C\uC640 \uB0B4 \uACFC\uC81C\uB97C \uD55C\uB208\uC5D0 \uBCF4\uACE0, \uC131\uACFC\uB97C \uBC14\uB85C \uC785\uB825\uD558\uACE0, \uD300\uC758 \uAE30\uC900\uACFC 1on1 \uAE30\uB85D\uC744 \uD55C\uACF3\uC5D0\uC11C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uD300\uC6D0\uC740 \uBB34\uB8CC\uB85C \uC501\uB2C8\uB2E4.`,
-    button: { label: "\uCD08\uB300 \uC218\uB77D\uD558\uACE0 \uD569\uB958\uD558\uAE30", url: link },
-    after: `<b>${esc(inv.email)}</b> \uC8FC\uC18C\uB85C \uAC00\uC785\uD558\uAC70\uB098 \uB85C\uADF8\uC778\uD558\uBA74 \uBC14\uB85C \uD569\uB958\uD569\uB2C8\uB2E4. \uB2E4\uB978 \uC8FC\uC18C\uB85C\uB294 \uD569\uB958\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.<br>
-\uC774 \uB9C1\uD06C\uB294 <b>${fmt(inv.expires_at)}</b>\uAE4C\uC9C0 \uC720\uD6A8\uD569\uB2C8\uB2E4.<br><br>
-<span style="font-size:12px;color:#94a3b8">\uBC84\uD2BC\uC774 \uC5F4\uB9AC\uC9C0 \uC54A\uC73C\uBA74 \uC774 \uC8FC\uC18C\uB97C \uBCF5\uC0AC\uD574 \uBE0C\uB77C\uC6B0\uC800\uC5D0 \uBD99\uC5EC \uB123\uC73C\uC138\uC694.<br>${link}</span>`,
-    foot: `\uCD08\uB300\uB97C \uBC1B\uC740 \uC801\uC774 \uC5C6\uB2E4\uBA74 \uC774 \uBA54\uC77C\uC740 \uBB34\uC2DC\uD558\uC154\uB3C4 \uB429\uB2C8\uB2E4. \uC774 \uBA54\uC77C\uC5D0 \uB2F5\uC7A5\uD558\uBA74 ${esc(inviter)} \uD300\uC7A5\uB2D8\uAED8 \uC804\uB2EC\uB429\uB2C8\uB2E4.`
+  const m = plainMail({
+    paras: [`\uC548\uB155\uD558\uC138\uC694.`, `<b>${esc(teamName)}</b>\uC758 ${esc(inviter)} \uD300\uC7A5\uB2D8\uC774 ATEAM\uC5D0\uC11C \uD568\uAED8 \uC77C\uD558\uC790\uACE0 \uCD08\uB300\uD588\uC2B5\uB2C8\uB2E4${inv.job_title ? ` (\uC9C1\uBB34: ${esc(inv.job_title)})` : ""}. \uC544\uB798 \uB9C1\uD06C\uB85C \uB4E4\uC5B4\uC640 <b>${esc(inv.email)}</b> \uC8FC\uC18C\uB85C \uAC00\uC785\uD558\uAC70\uB098 \uB85C\uADF8\uC778\uD558\uBA74 \uBC14\uB85C \uD300\uC5D0 \uD569\uB958\uD569\uB2C8\uB2E4.`],
+    link: { label: "\uCD08\uB300 \uC218\uB77D\uD558\uACE0 \uD569\uB958\uD558\uAE30", url: link },
+    after: [`\uB9C1\uD06C\uB294 ${fmt(inv.expires_at)}\uAE4C\uC9C0 \uC720\uD6A8\uD558\uACE0, \uB2E4\uB978 \uBA54\uC77C \uC8FC\uC18C\uB85C\uB294 \uD569\uB958\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uCD08\uB300\uB97C \uBC1B\uC740 \uC801\uC774 \uC5C6\uB2E4\uBA74 \uC774 \uBA54\uC77C\uC740 \uBB34\uC2DC\uD558\uC154\uB3C4 \uB429\uB2C8\uB2E4.`],
+    sign: `${esc(inviter)} \uD300\uC7A5\uB2D8\uC744 \uB300\uC2E0\uD574 ATEAM\uC774 \uBCF4\uB0C8\uC2B5\uB2C8\uB2E4.<br>\uC774 \uBA54\uC77C\uC5D0 \uB2F5\uC7A5\uD558\uBA74 ${esc(inviter)} \uD300\uC7A5\uB2D8\uAED8 \uAC11\uB2C8\uB2E4.`
   });
   const err = await sendMail({
     from: `${inviter.replace(/[<>"]/g, "")} (ATEAM) <invite@${MAIL_DOMAIN}>`,
     to: inv.email,
     replyTo: au?.user?.email ?? void 0,
-    subject: `[ATEAM] ${inviter} \uD300\uC7A5\uB2D8\uC774 ${teamName}\uC5D0 \uCD08\uB300\uD588\uC2B5\uB2C8\uB2E4`,
-    html
+    subject: `${inviter} \uD300\uC7A5\uB2D8\uC774 ATEAM\uC758 ${teamName}\uC73C\uB85C \uCD08\uB300\uD588\uC2B5\uB2C8\uB2E4`,
+    html: m.html,
+    text: m.text
   });
   if (err) {
     console.error("invite-mail", err);

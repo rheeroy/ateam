@@ -74,7 +74,7 @@ async function sendMail(m) {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: m.from, to: [m.to], subject: m.subject, html: m.html, ...m.replyTo ? { reply_to: m.replyTo } : {} })
+      body: JSON.stringify({ from: m.from, to: [m.to], subject: m.subject, html: m.html, ...m.text ? { text: m.text } : {}, ...m.replyTo ? { reply_to: m.replyTo } : {} })
     });
     return r.ok ? "" : `${r.status} ${(await r.text()).slice(0, 300)}`;
   } catch (e) {

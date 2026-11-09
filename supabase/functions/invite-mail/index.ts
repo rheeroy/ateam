@@ -5,7 +5,7 @@
 //   Secrets: RESEND_API_KEY · APP_URL (기본 https://app.leada.team)
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller, assertLeader } from '../_shared/supabase.ts';
-import { sendMail, mailLayout, esc, MAIL_DOMAIN } from '../_shared/mail.ts';
+import { sendMail, plainMail, esc, MAIL_DOMAIN } from '../_shared/mail.ts';
 
 const APP_URL = (Deno.env.get('APP_URL') ?? 'https://app.leada.team').replace(/\/$/, '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,21 +37,17 @@ serve(async (req) => {
   const teamName = (team?.name ?? '').trim() || '우리 팀';
   const link = `${APP_URL}/invite/${token}`;
 
-  const html = mailLayout({
-    eyebrow: `${esc(teamName)} · 팀 초대`,
-    title: `${esc(inviter)} 팀장님이<br>ATEAM으로 초대했습니다`,
-    body: `안녕하세요. <b>${esc(teamName)}</b>의 ${esc(inviter)} 팀장님이 ATEAM에서 함께 일하자고 초대했습니다${inv.job_title ? ` (직무: ${esc(inv.job_title)})` : ''}.<br><br>
-ATEAM에서는 팀 목표와 내 과제를 한눈에 보고, 성과를 바로 입력하고, 팀의 기준과 1on1 기록을 한곳에서 볼 수 있습니다. 팀원은 무료로 씁니다.`,
-    button: { label: '초대 수락하고 합류하기', url: link },
-    after: `<b>${esc(inv.email)}</b> 주소로 가입하거나 로그인하면 바로 합류합니다. 다른 주소로는 합류할 수 없습니다.<br>
-이 링크는 <b>${fmt(inv.expires_at)}</b>까지 유효합니다.<br><br>
-<span style="font-size:12px;color:#94a3b8">버튼이 열리지 않으면 이 주소를 복사해 브라우저에 붙여 넣으세요.<br>${link}</span>`,
-    foot: `초대를 받은 적이 없다면 이 메일은 무시하셔도 됩니다. 이 메일에 답장하면 ${esc(inviter)} 팀장님께 전달됩니다.`,
+  // 사람이 쓴 안내 메일처럼 — 프로모션 탭으로 덜 가게 (배너 · 큰 버튼 · 홍보 문구 없음, 일반 텍스트 함께)
+  const m = plainMail({
+    paras: [`안녕하세요.`, `<b>${esc(teamName)}</b>의 ${esc(inviter)} 팀장님이 ATEAM에서 함께 일하자고 초대했습니다${inv.job_title ? ` (직무: ${esc(inv.job_title)})` : ''}. 아래 링크로 들어와 <b>${esc(inv.email)}</b> 주소로 가입하거나 로그인하면 바로 팀에 합류합니다.`],
+    link: { label: '초대 수락하고 합류하기', url: link },
+    after: [`링크는 ${fmt(inv.expires_at)}까지 유효하고, 다른 메일 주소로는 합류할 수 없습니다. 초대를 받은 적이 없다면 이 메일은 무시하셔도 됩니다.`],
+    sign: `${esc(inviter)} 팀장님을 대신해 ATEAM이 보냈습니다.<br>이 메일에 답장하면 ${esc(inviter)} 팀장님께 갑니다.`,
   });
   const err = await sendMail({
     from: `${inviter.replace(/[<>"]/g, '')} (ATEAM) <invite@${MAIL_DOMAIN}>`,
     to: inv.email, replyTo: au?.user?.email ?? undefined,
-    subject: `[ATEAM] ${inviter} 팀장님이 ${teamName}에 초대했습니다`, html,
+    subject: `${inviter} 팀장님이 ATEAM의 ${teamName}으로 초대했습니다`, html: m.html, text: m.text,
   });
   if (err) {
     console.error('invite-mail', err);

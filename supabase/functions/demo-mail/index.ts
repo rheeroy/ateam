@@ -3,7 +3,7 @@
 //   Secrets: RESEND_API_KEY · APP_URL (기본 https://app.leada.team) · DEMO_REPLY_TO (기본 steve@starthalf.com)
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin, getCaller } from '../_shared/supabase.ts';
-import { sendMail, mailLayout, esc, MAIL_DOMAIN } from '../_shared/mail.ts';
+import { sendMail, plainMail, esc, MAIL_DOMAIN } from '../_shared/mail.ts';
 
 const APP_URL = (Deno.env.get('APP_URL') ?? 'https://app.leada.team').replace(/\/$/, '');
 const REPLY_TO = Deno.env.get('DEMO_REPLY_TO') ?? 'steve@starthalf.com';
@@ -26,19 +26,13 @@ serve(async (req) => {
 
   const link = `${APP_URL}/demo?t=${r.token}`;
   const until = r.expires_at ? fmt(r.expires_at) : '7일 뒤';
-  const html = mailLayout({
-    eyebrow: '팀장님을 위한 개인용 AI Solution',
-    title: 'ATEAM 데모가<br>준비됐습니다',
-    body: `${esc(r.name)} 님, 데모를 신청해 주셔서 감사합니다.<br><br>
-아래 버튼을 누르면 <b>6개월치 기록이 쌓인 데모 팀</b>으로 바로 들어갑니다. 위쪽 띠에서 팀장 화면과 팀원 화면을 오가며 둘러보실 수 있어요.`,
-    button: { label: '데모 팀 들어가기', url: link },
-    after: `· 링크는 <b>${until}</b>까지 쓸 수 있습니다.<br>
-· AI 기능은 기능마다 한 번씩 직접 실행해 볼 수 있습니다.<br>
-· 내 팀으로 바로 시작하시면 14일 동안 모든 기능을 무료로 쓰실 수 있습니다.<br><br>
-<span style="font-size:12px;color:#94a3b8">버튼이 열리지 않으면 이 주소를 복사해 브라우저에 붙여 넣으세요.<br>${link}</span>`,
-    foot: '궁금한 점은 이 메일에 바로 답장해 주세요.',
+  // 사람이 쓴 안내 메일처럼 — 프로모션 탭으로 덜 가게 (배너 · 큰 버튼 · 홍보 문구 없음, 일반 텍스트 함께)
+  const m = plainMail({
+    paras: [`${esc(r.name)} 님, 안녕하세요.`, `신청하신 ATEAM 데모 링크를 보내 드립니다. 아래 링크를 누르면 6개월치 기록이 쌓인 데모 팀으로 바로 들어갑니다. 위쪽 띠에서 팀장 화면과 팀원 화면을 오가며 보실 수 있어요.`],
+    link: { label: '데모 팀 들어가기', url: link },
+    after: [`링크는 ${until}까지 쓸 수 있고, AI 기능은 기능마다 한 번씩 직접 실행해 보실 수 있습니다.`, '둘러보시다 궁금한 점이 있으면 이 메일에 편하게 답장 주세요.'],
   });
-  const err = await sendMail({ from: `ATEAM <demo@${MAIL_DOMAIN}>`, to: r.email, replyTo: REPLY_TO, subject: `[ATEAM] ${r.name} 님, 데모 링크를 보내 드립니다`, html });
+  const err = await sendMail({ from: `Steve (ATEAM) <steve@${MAIL_DOMAIN}>`, to: r.email, replyTo: REPLY_TO, subject: `${r.name} 님, 요청하신 ATEAM 데모 링크입니다`, html: m.html, text: m.text });
   if (err) {
     console.error('demo-mail', err);
     throw new HttpError(502, 'MAIL_FAILED', err === 'NO_KEY' ? '메일 발송이 아직 설정되지 않았습니다' : '메일을 보내지 못했습니다');
