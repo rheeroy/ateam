@@ -12,7 +12,9 @@ var BASE_CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 function cors(origin) {
-  const o = origin !== void 0 ? origin : reqCtx.getStore()?.origin ?? null;
+  const store = reqCtx.getStore();
+  if (store?.anyOrigin) return { ...BASE_CORS, "Access-Control-Allow-Origin": "*" };
+  const o = origin !== void 0 ? origin : store?.origin ?? null;
   return { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(o), Vary: "Origin" };
 }
 var corsHeaders = { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(null) };
@@ -29,8 +31,8 @@ function json(body, status = 200) {
     headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" }
   });
 }
-function serve(handler) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin") }, async () => {
+function serve(handler, opts = {}) {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin"), anyOrigin: opts.anyOrigin }, async () => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req.headers.get("Origin")) });
     try {
       return await handler(req);
@@ -97,7 +99,7 @@ ${o.after ? `<tr><td style="padding:20px 32px 28px;font-size:14px;line-height:1.
 
 // functions/guide-request/index.ts
 var s = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
-var GUIDE_URL = Deno.env.get("GUIDE_URL") ?? "https://leada.team/guide/ATEAM_guidebook.pdf";
+var GUIDE_URL = Deno.env.get("GUIDE_URL") ?? "https://leada.team/guide/ATEAM_guidebook_a0dc25536b75d6ba.pdf";
 var FROM = Deno.env.get("GUIDE_FROM") ?? `ATEAM <guide@${MAIL_DOMAIN}>`;
 var REPLY_TO = Deno.env.get("GUIDE_REPLY_TO") ?? "steve@starthalf.com";
 var SITE = "https://leada.team";
@@ -111,14 +113,14 @@ var guideMail = (name) => mailLayout({
 });
 serve(async (req) => {
   const b = await readJson(req);
-  if (b.website) return json({ ok: true, url: GUIDE_URL, emailed: false });
+  if (b.website) return json({ ok: true, emailed: true });
   const email = s(b.email, 160).toLowerCase();
   const name = s(b.name, 60), company = s(b.company, 100);
   if (!name || !company || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new HttpError(422, "INVALID", "\uC774\uB984 \xB7 \uD68C\uC0AC \xB7 \uC774\uBA54\uC77C\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.");
   if (!b.consent) throw new HttpError(422, "CONSENT", "\uAC1C\uC778\uC815\uBCF4 \uC218\uC9D1 \xB7 \uC774\uC6A9\uC5D0 \uB3D9\uC758\uD574 \uC8FC\uC138\uC694.");
   const since = new Date(Date.now() - 864e5).toISOString();
   const { count } = await admin.from("guide_requests").select("id", { count: "exact", head: true }).ilike("email", email).gte("created_at", since);
-  if ((count ?? 0) >= 3) return json({ ok: true, url: GUIDE_URL, emailed: false, repeat: true });
+  if ((count ?? 0) >= 3) return json({ ok: true, emailed: true, repeat: true });
   const { data, error } = await admin.from("guide_requests").insert({
     name,
     email,
@@ -133,5 +135,6 @@ serve(async (req) => {
   if (error) throw error;
   const err = await sendMail({ from: FROM, to: email, replyTo: REPLY_TO, subject: `[ATEAM] ${name} \uB2D8, \uC694\uCCAD\uD558\uC2E0 \uAC00\uC774\uB4DC\uBD81\uC785\uB2C8\uB2E4`, html: guideMail(name) });
   await admin.from("guide_requests").update(err ? { email_error: err } : { emailed_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", data.id);
-  return json({ ok: true, url: GUIDE_URL, emailed: !err });
-});
+  if (err) console.error("guide-request mail", err);
+  return json({ ok: true, emailed: !err });
+}, { anyOrigin: true });
