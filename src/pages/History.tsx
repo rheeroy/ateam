@@ -1,6 +1,6 @@
 // 팀장: 히스토리 관리 — 과제별 히스토리를 쌓아 두고, 맥락 전달이 필요할 때 팀원에게 한 번에 보낸다
 //   왼쪽: 받은 요청 · 이번 주 업데이트 · 변동 없음 · 아직 없음 / 오른쪽: 과제 히스토리 (그림·문서) + 전달 기록(확인 · 질문/답)
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, ChevronDown, Hash, FolderClock, Inbox, Lock, MessageSquare, RefreshCw, Search, Send, Sparkles, Waypoints, X } from 'lucide-react';
 import { useTeam } from '../state/session';
@@ -9,7 +9,7 @@ import type { WorkItem } from '../lib/types';
 import { applyEdits, historyItems, useHistories, useHistoryActions, useHistoryMessages, useShares, type HistoryShare, type TaskHistory } from '../lib/history';
 import { HistoryView } from '../components/history/HistoryView';
 import { CoreWorkView, eraChain } from '../components/history/CoreWorkView';
-import { coreTasks, useCoreWorks, type CoreSnapshot } from '../lib/coreWorks';
+import { coreTasks, useCoreWorks, type CoreSnapshot, type CoreTask } from '../lib/coreWorks';
 import { Avatar, Button, Card, Empty, Modal, PageHeader, Spinner, inputCls } from '../components/ui';
 import { Upsell } from './Perf';
 import { cx, fmtDate, fmtShort } from '../lib/format';
@@ -41,7 +41,7 @@ function SendModal({ open, onClose, item, hist, core, request }: { open: boolean
   const go = () => a.send.mutate({ itemId: item?.id ?? null, coreWorkId: core?.id ?? null, toIds: to, note: note.trim(), snapshot: core ? core.snapshot as unknown as Record<string, unknown> : applyEdits(hist!.content, hist!.edits), requestId: request?.id ?? null, requestTo: request?.to_id ?? null, newOwner: canOwner && owner ? one : null },
     { onSuccess: onClose });
   return (
-    <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Send size={16} className="text-violet-600" />팀원에게 전달</span>}>
+    <Modal open={open} onClose={onClose} title={<span className="inline-flex items-center gap-2"><Send size={16} className="text-violet-600" />{core ? '인수인계 보내기' : '이 과제만 공유'}</span>}>
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-sm">{core ? <Waypoints size={14} className="text-slate-400" /> : <Hash size={14} className="text-slate-400" />}<b>{core ? core.snapshot.title : item?.title}</b>{hist && <span className="text-xs text-slate-400">{fmtShort(hist.updated_at)} 업데이트 기준</span>}{core && <span className="text-xs text-slate-400">핵심 업무 · 여러 해 흐름</span>}</div>
         {request && <div className="rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-900"><b>{nameOf(request.to_id)}</b> 님이 요청했습니다{request.note && ` — ${request.note}`}</div>}
@@ -69,7 +69,7 @@ function SendModal({ open, onClose, item, hist, core, request }: { open: boolean
         )}
         <div className="flex items-center gap-2 pt-1">
           <span className="text-xs text-slate-400">받는 사람의 ‘받은 히스토리’로 가고 알림이 갑니다</span>
-          <Button className="ml-auto" disabled={!to.length} loading={a.send.isPending} onClick={go}><Send size={14} />전달하기</Button>
+          <Button className="ml-auto" disabled={!to.length} loading={a.send.isPending} onClick={go}><Send size={14} />{core ? '인수인계 보내기' : '공유하기'}</Button>
         </div>
       </div>
     </Modal>
@@ -122,16 +122,16 @@ export default function HistoryPage() {
   const histOf = useMemo(() => new Map((hists.data ?? []).map((h) => [h.item_id, h])), [hists.data]);
   const sel = params.get('item') ?? '';
   const coreSel = params.get('core') ?? '';
-  const setSel = (id: string) => { const p = new URLSearchParams(params); p.set('item', id); p.delete('core'); p.delete('request'); p.delete('send'); p.delete('to'); p.delete('share'); setParams(p, { replace: true }); };
+  const setSel = (id: string) => { const p = new URLSearchParams(params); p.set('item', id); p.delete('request'); p.delete('send'); p.delete('to'); p.delete('share'); setParams(p, { replace: true }); };
+  const closeItem = () => { const p = new URLSearchParams(params); ['item', 'request', 'send', 'to', 'share'].forEach((k) => p.delete(k)); setParams(p, { replace: true }); };
   const setCore = (id: string) => { const p = new URLSearchParams(params); p.set('core', id); p.delete('item'); p.delete('request'); p.delete('send'); p.delete('to'); p.delete('share'); setParams(p, { replace: true }); };
   const requests = (shares.data ?? []).filter((s) => s.status === 'requested');
   const request = requests.find((r) => r.id === params.get('request')) ?? null;
   useEffect(() => { if (params.get('send') || params.get('request')) setSendOpen(true); }, [params]);
   // 처음 들어오면 핵심 업무가 있으면 첫 핵심 업무, 없으면 히스토리가 있는 첫 과제
   useEffect(() => {
-    if (sel || coreSel || cw.isLoading) return;
+    if (coreSel || cw.isLoading) return;
     if (cw.data?.cores.length) setCore(cw.data.cores[0].id);
-    else if (hists.data?.length) setSel([...hists.data].sort((x, y) => y.updated_at.localeCompare(x.updated_at))[0].item_id);
   }, [hists.data, cw.data, cw.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hasFeature('history')) return <section><Upsell feature="히스토리 관리" desc="조직 내 업무 관련 히스토리를 자동으로 쌓고 인수인계 필요 시 팀원에게 정리해서 전달하는 기능입니다. 담당자가 바뀌거나 새롭게 합류한 팀원에게 유용합니다." /></section>;
@@ -204,13 +204,12 @@ export default function HistoryPage() {
                 <div key={c.id} className="mb-1">
                   <button onClick={() => setCore(c.id)} className={cx('w-full text-left rounded-lg px-2.5 py-2', coreSel === c.id ? 'bg-white ring-1 ring-indigo-200 shadow-sm' : 'hover:bg-white/70')}>
                     <div className={cx('text-[13px] truncate', coreSel === c.id ? 'font-semibold text-indigo-800' : 'font-semibold text-slate-800')}>{c.title}</div>
-                    <div className="text-[11px] text-slate-400 truncate">{c.since_year ? `${c.since_year}~ · ` : ''}과제 {ts.length}개{owners ? ` · 담당 ${owners}명` : ''}</div>
+                    <div className="text-[11px] text-slate-400 truncate">{c.since_year ? `${c.since_year}~ · ` : ''}과제 {ts.length}개{owners ? ` · 담당 ${owners}명` : ''}{kids.some(isNew) && <span className="ml-1 text-violet-700 font-semibold">· 새 기록</span>}</div>
                   </button>
-                  {!!kids.length && <div className="ml-3 pl-1.5 border-l border-slate-200">{kids.map((i) => <Row key={i.id} i={i} n={isNew(i) ? histOf.get(i.id)!.new_count : undefined} />)}</div>}
                 </div>
               );
             })}
-            {!!single.length && <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1">단독 과제{cores.length ? <span className="font-normal"> · 아직 어느 핵심 업무에도 안 묶임</span> : ''}</div>}
+            {!!single.length && <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-3 mb-1">단독 과제{cores.length ? <span className="font-normal"> · 다음 정리 때 핵심 업무로 묶입니다</span> : ''}</div>}
             {single.map((i) => <Row key={i.id} i={i} n={isNew(i) ? histOf.get(i.id)!.new_count : undefined} />)}
             {!!none.length && (<>
               <div className="text-[10px] font-semibold text-slate-400 px-1.5 mt-2 mb-1 flex items-center">아직 히스토리 없음
@@ -234,9 +233,10 @@ export default function HistoryPage() {
                       <button className="inline-flex items-center gap-1 text-indigo-600 font-semibold disabled:opacity-50" disabled={cw.running || cw.run.isPending} onClick={() => cw.run.mutate()}>
                         <RefreshCw size={11} className={cx((cw.running || cw.run.isPending) && 'animate-spin')} />{cw.running ? '정리 중…' : '지금 정리'}</button></div>
                   </div>
-                  <Button onClick={() => setSendOpen(true)}><Send size={14} />팀원에게 전달</Button>
+                  <Button onClick={() => setSendOpen(true)}><Send size={14} />인수인계 보내기</Button>
                 </div>
-                <CoreWorkView content={core.content} tasks={tasksOf(core.id)} sinceYear={core.since_year} onOpenTask={(id) => { if (histOf.has(id)) setSel(id); }} />
+                <CoreWorkView content={core.content} tasks={tasksOf(core.id)} sinceYear={core.since_year} onOpenTask={(id) => setSel(id)} />
+                <LinkedTasks tasks={tasksOf(core.id)} items={items.data ?? []} histOf={histOf} isNew={isNew} nameOf={nameOf} onOpen={setSel} sel={sel} />
                 {!!coreActs.length && (
                   <Card className="px-4 py-3 text-[12px] text-slate-500 flex items-start gap-2"><FolderClock size={14} className="text-slate-400 mt-0.5 shrink-0" />
                     <span><b className="text-slate-700">AI가 한 일{lastRun ? ` · ${fmtShort(lastRun)}` : ''}</b> · {coreActs.map((x) => x.text).join(' · ')}</span></Card>
@@ -244,51 +244,110 @@ export default function HistoryPage() {
                 <Card>
                   <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm"><MessageSquare size={14} className="text-slate-400" /><b>전달 기록</b>
                     <span className="text-xs text-slate-400">{coreShares.length}건 · 확인 {coreShares.filter((s) => s.status === 'read').length}</span></div>
-                  {!coreShares.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 전달하지 않았습니다. 이 일을 넘겨받는 사람에게 [팀원에게 전달]로 보내 보세요.</p>
+                  {!coreShares.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 전달하지 않았습니다. 이 일을 넘겨받는 사람에게 [인수인계 보내기]로 보내 보세요. 과제 하나만 넘길 때는 아래 과제를 열어 [이 과제만 공유]를 누르세요.</p>
                     : <ul>{coreShares.map((s) => <ShareRow key={s.id} s={s} focus={params.get('share') === s.id} />)}</ul>}
                 </Card>
-                <SendModal open={sendOpen} onClose={() => { setSendOpen(false); const p = new URLSearchParams(params); p.delete('send'); p.delete('to'); p.delete('request'); setParams(p, { replace: true }); }}
+                <SendModal open={sendOpen && !item} onClose={() => { setSendOpen(false); const p = new URLSearchParams(params); p.delete('send'); p.delete('to'); p.delete('request'); setParams(p, { replace: true }); }}
                   core={{ id: core.id, snapshot: { kind: 'core', title: core.title, summary: core.summary, since_year: core.since_year, content: { ...core.content, summary: core.summary }, tasks: tasksOf(core.id).map(({ item_id: _i, ...t }) => t) } }} request={request} />
               </>
-            ) : !item ? <Card><Empty title="왼쪽에서 핵심 업무나 과제를 고르세요" /></Card> : !hist ? (
-              <Card><Empty icon={<FolderClock size={18} />} title={item.title} action={<Button loading={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id] })}><Sparkles size={14} />히스토리 만들기</Button>}>
-                이 과제의 기록으로 히스토리를 만듭니다. 처음에는 30초~1분쯤 걸립니다.</Empty></Card>
             ) : (
-              <>
-                <div className="flex items-start gap-3 flex-wrap">
-                  <div className="flex-1 min-w-[280px]">
-                    <div className="flex items-center gap-2 flex-wrap">{coreOfItem.get(item.id) && <button onClick={() => setCore(coreOfItem.get(item.id)!)} className="text-[10px] font-bold rounded px-1.5 py-0.5 bg-slate-100 text-slate-700 hover:bg-slate-200 inline-flex items-center gap-1" title="이 과제가 묶인 핵심 업무"><Waypoints size={11} />{cores.find((c) => c.id === coreOfItem.get(item.id))?.title}</button>}<h2 className="text-xl font-bold">{item.title}</h2>
-                      <span className="text-xs text-slate-500">담당 {hist.content.owner?.previous?.length ? `${hist.content.owner.previous.join(' → ')} → ` : ''}{nameOf(item.owner_id) || '없음'}</span></div>
-                    <p className="text-[13.5px] text-slate-700 mt-1">{applyEdits(hist.content, hist.edits).summary}</p>
-                    <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400 flex-wrap"><Sparkles size={11} className="text-violet-500" />
-                      {fmtShort(hist.updated_at)} 업데이트 · 새 기록 {hist.new_count}건 반영 · 누적 기록 {hist.record_count}건 · 매주 월요일 자동
-                      <button className="inline-flex items-center gap-1 text-indigo-600 font-semibold disabled:opacity-50" disabled={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id], force: true })}>
-                        <RefreshCw size={11} className={cx(a.update.isPending && 'animate-spin')} />{a.update.isPending ? '업데이트 중…' : '지금 업데이트'}</button></div>
-                  </div>
-                  <Button onClick={() => setSendOpen(true)}><Send size={14} />팀원에게 전달</Button>
-                </div>
-                <HistoryView title={item.title} content={applyEdits(hist.content, hist.edits)} edits={hist.edits} editable onEdit={(e) => a.edit.mutate({ itemId: item.id, edits: e })} />
-                <Card>
-                  <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm"><MessageSquare size={14} className="text-slate-400" /><b>전달 기록</b>
-                    <span className="text-xs text-slate-400">{itemShares.length}건 · 확인 {itemShares.filter((s) => s.status === 'read').length}</span></div>
-                  {!itemShares.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 전달하지 않았습니다. 과제를 넘기거나 함께 일할 사람에게 [팀원에게 전달]로 보내 보세요.</p>
-                    : <ul>{itemShares.map((s) => <ShareRow key={s.id} s={s} focus={params.get('share') === s.id} />)}</ul>}
-                </Card>
-                <SendModal open={sendOpen} onClose={() => { setSendOpen(false); const p = new URLSearchParams(params); p.delete('send'); p.delete('to'); p.delete('request'); setParams(p, { replace: true }); }}
-                  item={item} hist={hist} request={request} />
-              </>
-            )}
-            {item && !hist && request && (
-              <Card className="px-4 py-3 text-sm flex items-center gap-2"><Inbox size={14} className="text-violet-600" /><b>{nameOf(request.to_id)}</b> 님의 요청 — 히스토리를 만든 뒤 전달할 수 있습니다.
-                <button className="ml-auto text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1" onClick={() => a.decline.mutate(request.id)}><X size={12} />요청 보류</button></Card>
-            )}
-            {item && hist && request && (
-              <div className="text-xs text-slate-500 flex items-center gap-2"><CheckCircle2 size={12} className="text-violet-600" />{nameOf(request.to_id)} 님 요청에 답하는 중
-                <button className="ml-auto hover:text-slate-800" onClick={() => a.decline.mutate(request.id)}>요청 보류</button></div>
+              <Card>{single.length
+                ? <><div className="px-4 py-3 border-b border-slate-100 text-sm"><b>과제 히스토리</b> <span className="text-xs text-slate-400">· 핵심 업무로 묶이기 전 과제 {single.length}개 · 눌러서 자세히 보기</span></div>
+                  <ul className="divide-y divide-slate-100">{single.map((i) => <li key={i.id}><button onClick={() => setSel(i.id)} className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2 text-sm"><Hash size={13} className="text-slate-400" /><span className="flex-1 truncate">{i.title}</span><span className="text-xs text-slate-400">{nameOf(i.owner_id) || '담당 없음'}</span>{isNew(i) && <span className="text-[10px] font-semibold text-violet-700">+{histOf.get(i.id)!.new_count}</span>}</button></li>)}</ul></>
+                : <Empty title="왼쪽에서 핵심 업무를 고르세요" />}</Card>
             )}
           </div>
         </div>
       )}
+      {sel && (
+        <TaskDrawer onClose={closeItem} back={core?.title}>
+          {!item ? <Empty title="과제를 찾을 수 없습니다" /> : !hist ? (
+            <Card><Empty icon={<FolderClock size={18} />} title={item.title} action={<Button loading={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id] })}><Sparkles size={14} />히스토리 만들기</Button>}>
+              이 과제의 기록으로 히스토리를 만듭니다. 처음에는 30초~1분쯤 걸립니다.</Empty></Card>
+          ) : (
+            <>
+              <div className="flex items-start gap-3 flex-wrap">
+                <div className="flex-1 min-w-[260px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold rounded px-1.5 py-0.5 bg-slate-100 text-slate-600 inline-flex items-center gap-1"><Hash size={11} />과제 상세</span>
+                    {coreOfItem.get(item.id) && <span className="text-[11px] text-slate-500 inline-flex items-center gap-1"><Waypoints size={11} />{cores.find((c) => c.id === coreOfItem.get(item.id))?.title}</span>}</div>
+                  <h2 className="mt-1 text-xl font-bold">{item.title}</h2>
+                  <div className="text-xs text-slate-500">담당 {hist.content.owner?.previous?.length ? `${hist.content.owner.previous.join(' → ')} → ` : ''}{nameOf(item.owner_id) || '없음'}</div>
+                  <p className="text-[13.5px] text-slate-700 mt-1.5">{applyEdits(hist.content, hist.edits).summary}</p>
+                  <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400 flex-wrap"><Sparkles size={11} className="text-violet-500" />
+                    {fmtShort(hist.updated_at)} 업데이트 · 새 기록 {hist.new_count}건 반영 · 누적 기록 {hist.record_count}건 · 매주 월요일 자동
+                    <button className="inline-flex items-center gap-1 text-indigo-600 font-semibold disabled:opacity-50" disabled={a.update.isPending} onClick={() => a.update.mutate({ itemIds: [item.id], force: true })}>
+                      <RefreshCw size={11} className={cx(a.update.isPending && 'animate-spin')} />{a.update.isPending ? '업데이트 중…' : '지금 업데이트'}</button></div>
+                </div>
+                <Button variant="secondary" onClick={() => setSendOpen(true)}><Send size={14} />이 과제만 공유</Button>
+              </div>
+              {request && (
+                <div className="text-xs text-slate-500 flex items-center gap-2"><CheckCircle2 size={12} className="text-violet-600" />{nameOf(request.to_id)} 님 요청에 답하는 중
+                  <button className="ml-auto hover:text-slate-800" onClick={() => a.decline.mutate(request.id)}>요청 보류</button></div>
+              )}
+              <HistoryView title={item.title} content={applyEdits(hist.content, hist.edits)} edits={hist.edits} editable onEdit={(e) => a.edit.mutate({ itemId: item.id, edits: e })} />
+              <Card>
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-sm"><MessageSquare size={14} className="text-slate-400" /><b>이 과제 공유 기록</b>
+                  <span className="text-xs text-slate-400">{itemShares.length}건 · 확인 {itemShares.filter((s) => s.status === 'read').length}</span></div>
+                {!itemShares.length ? <p className="px-4 py-4 text-sm text-slate-400">아직 공유하지 않았습니다. 이 과제만 함께 일할 사람에게 넘길 때 [이 과제만 공유]를 쓰세요.</p>
+                  : <ul>{itemShares.map((s) => <ShareRow key={s.id} s={s} focus={params.get('share') === s.id} />)}</ul>}
+              </Card>
+              <SendModal open={sendOpen} onClose={() => { setSendOpen(false); const p = new URLSearchParams(params); p.delete('send'); p.delete('to'); p.delete('request'); setParams(p, { replace: true }); }}
+                item={item} hist={hist} request={request} />
+            </>
+          )}
+          {item && !hist && request && (
+            <Card className="px-4 py-3 text-sm flex items-center gap-2"><Inbox size={14} className="text-violet-600" /><b>{nameOf(request.to_id)}</b> 님의 요청 — 히스토리를 만든 뒤 공유할 수 있습니다.
+              <button className="ml-auto text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1" onClick={() => a.decline.mutate(request.id)}><X size={12} />요청 보류</button></Card>
+          )}
+        </TaskDrawer>
+      )}
     </section>
+  );
+}
+
+/** 과제 상세 서랍 — 핵심 업무 화면 위에 오른쪽에서 열린다 */
+function TaskDrawer({ onClose, back, children }: { onClose: () => void; back?: string; children: ReactNode }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-30">
+      <button aria-label="닫기" className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
+      <aside className="absolute inset-y-0 right-0 w-full max-w-[1040px] bg-[#F6F7F9] shadow-2xl flex flex-col">
+        <div className="flex items-center gap-2 px-5 py-3 bg-white border-b border-slate-200">
+          <button onClick={onClose} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-indigo-700">← 돌아가기{back && <span className="font-normal text-slate-400"> · {back}</span>}</button>
+          <button onClick={onClose} className="ml-auto inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"><X size={16} />닫기</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
+/** 핵심 업무에 묶인 과제 — 누르면 서랍으로 상세 */
+function LinkedTasks({ tasks, items, histOf, isNew, nameOf, onOpen, sel }: {
+  tasks: CoreTask[]; items: WorkItem[]; histOf: Map<string, TaskHistory>; isNew: (i: WorkItem) => boolean; nameOf: (id: string | null | undefined) => string; onOpen: (id: string) => void; sel: string;
+}) {
+  const rows = tasks.filter((t) => t.item_id).sort((a, b) => b.year - a.year);
+  if (!rows.length) return null;
+  const ST = { active: ['진행 중', 'bg-indigo-50 text-indigo-700'], blocked: ['막힘', 'bg-rose-50 text-rose-700'], done: ['완료', 'bg-slate-100 text-slate-500'] } as const;
+  return (
+    <Card>
+      <div className="px-4 py-3 border-b border-slate-100 text-sm flex items-center gap-2"><Hash size={14} className="text-slate-400" /><b>연결된 과제</b>
+        <span className="text-xs text-slate-400">지금 앱에서 진행한 과제 {rows.length}개 · 눌러서 상세 보기 · 지난 해 과제는 위 연도별 흐름에 요약돼 있습니다</span></div>
+      <ul className="divide-y divide-slate-100">{rows.map((t) => {
+        const it = items.find((i) => i.id === t.item_id);
+        const h = t.item_id ? histOf.get(t.item_id) : undefined;
+        return (
+          <li key={t.item_id}><button onClick={() => onOpen(t.item_id!)} className={cx('w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm hover:bg-slate-50', sel === t.item_id && 'bg-indigo-50/60')}>
+            <span className="w-11 text-xs text-slate-400 num shrink-0">{t.year}</span>
+            <span className="flex-1 min-w-0 truncate font-medium text-slate-800">{t.title}</span>
+            {it && isNew(it) && h && <span className="text-[10px] font-semibold text-violet-700 shrink-0">새 기록 {h.new_count}</span>}
+            <span className="text-xs text-slate-500 shrink-0 w-14 truncate text-right">{it ? nameOf(it.owner_id) || '—' : '—'}</span>
+            <span className={cx('text-[10px] font-semibold rounded px-1.5 py-0.5 shrink-0', ST[t.status][1])}>{ST[t.status][0]}</span>
+            <span className="text-xs text-indigo-600 font-semibold shrink-0">{h ? '상세 →' : '만들기 →'}</span>
+          </button></li>
+        );
+      })}</ul>
+    </Card>
   );
 }
