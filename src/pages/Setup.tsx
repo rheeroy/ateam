@@ -5,7 +5,7 @@
 // 상태는 teams.settings.onboarding 에 둔다. 시작하기 안의 AI는 크레딧을 쓰지 않는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, Image as ImageIcon, Plus, Presentation, Send, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, Image as ImageIcon, Lock, Plus, Presentation, Send, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_ONBOARD, IMAGE_EXT, MAX_BYTES, extractText, safeName, shrinkImage } from '../lib/extract';
@@ -788,6 +788,7 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
   const okLinks = made.filter((x) => x.link);
 
   const cell = 'w-full min-w-0 bg-transparent text-sm px-3 py-2.5 placeholder:text-slate-300 focus:outline-none focus:bg-indigo-50/50';
+  const memoCell = 'w-full min-w-0 bg-amber-50/40 text-[13px] text-slate-600 px-3 py-2.5 placeholder:text-amber-900/25 focus:outline-none focus:bg-amber-50';
   const cols = 'sm:grid-cols-[minmax(0,1.35fr)_minmax(0,0.75fr)_minmax(0,1fr)_minmax(0,1fr)_2.25rem]';
   const copyAll = () => { void navigator.clipboard.writeText(okLinks.map((x) => `${x.email}  ${x.link}`).join('\n')); toast('모두 복사했습니다'); };
 
@@ -821,18 +822,22 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
       )}
 
       <div className="rounded-2xl bg-white ring-1 ring-slate-200 overflow-hidden">
-        <div className={cx('hidden sm:grid gap-px bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500', cols)}>
-          <span className="px-3 py-2">이메일</span><span className="px-3 py-2">직무</span>
-          <span className="px-3 py-2">강점 <span className="font-normal text-slate-400">선택</span></span>
-          <span className="px-3 py-2">보완할 점 <span className="font-normal text-slate-400">선택</span></span><span />
+        {/* 위: 초대할 사람(필수) / 오른쪽: 팀장님만 보는 참고 메모(선택) — 메모는 초대와 별개로 곁들이는 칸 */}
+        <div className={cx('hidden sm:grid border-b border-slate-200 text-[11px] font-semibold', cols)}>
+          <span className="col-span-2 px-3 pt-2.5 pb-1 text-slate-700 bg-slate-50">초대할 사람</span>
+          <span className="col-span-2 px-3 pt-2.5 pb-1 text-amber-800 bg-amber-50/70 border-l-2 border-dashed border-amber-200 inline-flex items-center gap-1"><Lock size={11} />참고 메모 <span className="font-normal text-amber-700/70">선택 · 팀장님만 봅니다</span></span><span className="bg-slate-50" />
+          <span className="px-3 pb-2 pt-0.5 font-normal text-slate-500 bg-slate-50">이메일</span><span className="px-3 pb-2 pt-0.5 font-normal text-slate-500 bg-slate-50">직무</span>
+          <span className="px-3 pb-2 pt-0.5 font-normal text-amber-700/80 bg-amber-50/70 border-l-2 border-dashed border-amber-200">강점</span>
+          <span className="px-3 pb-2 pt-0.5 font-normal text-amber-700/80 bg-amber-50/70">보완할 점</span><span className="bg-slate-50" />
         </div>
         <ul className="divide-y divide-slate-100">
           {rows.map((r, i) => (
             <li key={i} className={cx('grid grid-cols-2 sm:divide-x divide-slate-100 items-center', cols)}>
               <input type="email" className={cx(cell, 'col-span-2 sm:col-span-1')} value={r.email} onChange={(e) => set(i, 'email', e.target.value)} placeholder="name@company.com" aria-label={`${i + 1}번째 이메일`} />
-              <input className={cell} value={r.title} onChange={(e) => set(i, 'title', e.target.value)} placeholder="기획" aria-label={`${i + 1}번째 직무`} />
-              <input className={cell} value={r.strength} onChange={(e) => set(i, 'strength', e.target.value)} placeholder="예) 기획이 빠름" aria-label={`${i + 1}번째 강점`} />
-              <input className={cx(cell, 'col-span-2 sm:col-span-1')} value={r.weak} onChange={(e) => set(i, 'weak', e.target.value)} placeholder="예) 숫자 근거가 약함" aria-label={`${i + 1}번째 보완할 점`} />
+              <input className={cx(cell, 'col-span-2 sm:col-span-1')} value={r.title} onChange={(e) => set(i, 'title', e.target.value)} placeholder="기획" aria-label={`${i + 1}번째 직무`} />
+              <span className="col-span-2 sm:hidden px-3 pt-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50/60 inline-flex items-center gap-1"><Lock size={10} />참고 메모(강점 · 보완할 점) · 선택 · 팀장님만 봅니다</span>
+              <input className={cx(memoCell, 'sm:border-l-2 sm:border-dashed sm:border-amber-200')} value={r.strength} onChange={(e) => set(i, 'strength', e.target.value)} placeholder="예) 기획이 빠름" aria-label={`${i + 1}번째 강점 메모`} />
+              <input className={memoCell} value={r.weak} onChange={(e) => set(i, 'weak', e.target.value)} placeholder="예) 숫자 근거가 약함" aria-label={`${i + 1}번째 보완할 점 메모`} />
               <span className="hidden sm:flex justify-center">
                 {rows.length > 1 && <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} className="p-1.5 text-slate-300 hover:text-rose-600" aria-label="이 사람 빼기"><X size={14} /></button>}
               </span>
@@ -842,7 +847,7 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
         <button type="button" onClick={() => setRows([...rows, { email: '', title: '', strength: '', weak: '' }])}
           className="w-full border-t border-slate-100 px-3 py-2.5 text-left text-sm text-indigo-700 font-semibold hover:bg-indigo-50/40 inline-flex items-center gap-1"><Plus size={14} />한 명 더</button>
       </div>
-      <p className="mt-2 text-xs text-slate-500">강점·보완할 점은 1on1 준비와 팀원관리 추천에 참고하며, <b className="font-semibold text-slate-700">팀원에게는 보이지 않습니다.</b></p>
+      <p className="mt-2 text-xs text-slate-500">참고 메모는 비워 둬도 초대에는 영향이 없습니다. 적어 두면 합류 후 팀장님 개인 메모로 옮겨져 1on1 준비와 팀원관리 추천에 참고하며, <b className="font-semibold text-slate-700">팀원에게는 보이지 않고 초대 메일에도 들어가지 않습니다.</b></p>
 
       <StepFoot onBack={onBack} right={valid.length ? <>
         <Button variant="ghost" onClick={onFinish} disabled={busy || finishing}>{okLinks.length ? '이대로 시작하기' : '건너뛰고 시작하기'}</Button>

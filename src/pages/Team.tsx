@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Link2, Mail, Send, Trash2, UserPlus } from 'lucide-react';
 import { useTeam } from '../state/session';
-import { inviteNote, saveInviteNote } from '../lib/onboarding';
 import { mailInvite } from '../lib/invite';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { Invitation, TeamMember } from '../lib/types';
@@ -43,8 +42,6 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [title, setTitle] = useState('');
-  const [strength, setStrength] = useState('');
-  const [weak, setWeak] = useState('');
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [byMail, setByMail] = useState(true);
 
@@ -60,13 +57,11 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
   const invite = useMutation({
     mutationFn: async () => {
       const token = await q<string>(supabase.rpc('create_invitation', { p_team: team.id, p_email: email, p_job_title: title }));
-      // 강점·보완할 점 → 합류하면 팀장 개인 메모로 (실패해도 초대는 그대로)
-      await saveInviteNote(team.id, token, inviteNote(strength, weak)).catch(() => toast('메모는 저장하지 못했습니다. 합류 후 팀원관리에서 남겨 주세요'));
       const mailErr = byMail ? await mailInvite(token) : 'SKIP';
       return { token, to: email.trim(), mailErr };
     },
     onSuccess: ({ token, to, mailErr }) => {
-      setLastLink(link(token)); setEmail(''); setTitle(''); setStrength(''); setWeak('');
+      setLastLink(link(token)); setEmail(''); setTitle('');
       navigator.clipboard?.writeText(link(token)).catch(() => {});
       toast(!mailErr ? `${to}로 초대 메일을 보냈습니다. 링크도 복사해 두었습니다.` : mailErr === 'SKIP' ? '초대 링크를 만들어 복사했습니다. 메신저나 메일로 보내 주세요.' : `초대는 만들었지만 메일은 보내지 못했습니다 · ${mailErr}`);
       qc.invalidateQueries({ queryKey: ['invites'] }); qc.invalidateQueries({ queryKey: ['seats'] });
@@ -107,8 +102,6 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
             <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
               <Field label="이메일"><input type="email" required className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="member@company.com" /></Field>
               <Field label="직무" hint="선택"><input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="기획" /></Field>
-              <Field label="강점" hint="선택 · 팀원에게는 보이지 않습니다"><input className={inputCls} value={strength} onChange={(e) => setStrength(e.target.value)} placeholder="예) 기획 속도가 빠르고 꼼꼼함" /></Field>
-              <Field label="보완할 점" hint="선택 · 팀원에게는 보이지 않습니다"><input className={inputCls} value={weak} onChange={(e) => setWeak(e.target.value)} placeholder="예) 숫자 근거가 약함" /></Field>
               <ErrorBox error={invite.error ? errorText(invite.error) : null} />
               {invite.error && String(invite.error).includes('PLAN_LIMIT') && <Link to="/settings" className="text-xs text-indigo-600">요금제 보기 →</Link>}
               <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" className="size-4 accent-indigo-600" checked={byMail} onChange={(e) => setByMail(e.target.checked)} />초대 메일 바로 보내기</label>

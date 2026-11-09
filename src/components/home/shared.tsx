@@ -917,7 +917,7 @@ export function SetupResume({ teamId }: { teamId: string }) {
   const steps = [
     { n: 1 as const, done: st.data.it > 0, title: '팀목표 초안', desc: '가지고 있는 자료로 목표 › 과제 › 할 일 초안을 만듭니다', to: '/goals' },
     { n: 2 as const, done: st.data.kh > 0, title: '업무 기준·노하우', desc: '평가 기준·보고 양식을 넣으면 AI가 팀장님 기준을 먼저 적용합니다', to: '/knowhow?tab=mine' },
-    { n: 3 as const, done: st.data.inv > 0 || members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/settings?tab=members' },
+    { n: 3 as const, done: st.data.inv > 0 || members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '이메일만 넣으면 초대 메일이 갑니다. 팀원은 무료', to: '/settings?tab=members' },
   ];
   const doneN = steps.filter((x) => x.done).length;
   if (doneN === steps.length) return null;
@@ -925,29 +925,32 @@ export function SetupResume({ teamId }: { teamId: string }) {
     setOpening(n);
     try { await saveOnboarding(teamId, { status: 'pending', step: n }); refresh(); } finally { setOpening(null); }
   };
+  const next = steps.find((x) => !x.done)!;
   return (
-    <div className="rounded-2xl bg-indigo-50/70 border border-indigo-100 p-4">
+    <div className="rounded-2xl bg-indigo-50/70 border border-indigo-200 p-4">
       <div className="flex items-center gap-3">
         <Sparkles size={16} className="text-indigo-600 shrink-0" />
-        <div className="font-semibold text-sm">시작하기 이어서 하기</div>
+        <span className="rounded-md bg-indigo-600 px-1.5 py-0.5 text-[11px] font-bold text-white shrink-0">온보딩</span>
+        <div className="font-semibold text-sm text-slate-900">남은 단계를 마저 설정해 주세요</div>
         <div className="flex-1 h-1.5 rounded-full bg-indigo-100 max-w-40"><div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${(doneN / steps.length) * 100}%` }} /></div>
         <span className="font-mono text-xs text-indigo-700">{doneN}/{steps.length}</span>
-        <span className="ml-auto hidden sm:inline text-xs text-slate-500">세 가지를 채우면 이 안내는 사라집니다</span>
+        <span className="ml-auto hidden sm:inline text-xs text-slate-500">세 단계를 마치면 ATEAM이 팀장님 기준으로 움직이고, 이 안내는 사라집니다</span>
       </div>
       <div className="mt-3 grid sm:grid-cols-3 gap-2">
         {steps.map((x) => {
+          const isNext = x.n === next.n;
           const inner = (
             <>
               {x.done ? <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                : <span className="w-4 h-4 mt-0.5 rounded-full border-2 border-indigo-300 text-[9px] font-bold flex items-center justify-center text-indigo-600 shrink-0">{x.n}</span>}
+                : <span className={cx('w-4 h-4 mt-0.5 rounded-full border-2 text-[9px] font-bold flex items-center justify-center shrink-0', isNext ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-indigo-300 text-indigo-600')}>{x.n}</span>}
               <span className="min-w-0 flex-1">
                 <span className={cx('font-semibold block', x.done && 'line-through')}>{x.title}</span>
                 {!x.done && <span className="text-xs text-slate-500 block mt-0.5">{aiText(x.desc)}</span>}
               </span>
-              {!x.done && <span className="text-xs font-semibold text-indigo-700 shrink-0 mt-0.5">{opening === x.n ? '여는 중…' : '이어서 하기 →'}</span>}
+              {!x.done && <span className={cx('text-xs font-semibold shrink-0 mt-0.5', isNext ? 'text-indigo-700' : 'text-indigo-500')}>{opening === x.n ? '여는 중…' : isNext ? '지금 하기 →' : '이어서 하기 →'}</span>}
             </>
           );
-          const cls = cx('rounded-xl px-3 py-2.5 text-sm flex items-start gap-2.5 text-left', x.done ? 'text-slate-400' : 'bg-white border border-indigo-100 hover:border-indigo-300');
+          const cls = cx('rounded-xl px-3 py-2.5 text-sm flex items-start gap-2.5 text-left', x.done ? 'text-slate-400' : isNext ? 'bg-white border border-indigo-300 ring-2 ring-indigo-100 hover:border-indigo-400' : 'bg-white border border-indigo-100 hover:border-indigo-300');
           if (x.done) return <div key={x.n} className={cls}>{inner}</div>;
           return young
             ? <button key={x.n} type="button" disabled={opening != null} onClick={() => void open(x.n)} className={cls}>{inner}</button>
@@ -984,7 +987,7 @@ function QuickStartLegacy({ teamId, members }: { teamId: string; members: Return
   if (hidden || !st.data) return null;
   const steps = [
     { done: st.data.it > 0, title: '목표 세우기', desc: '계획서를 넣으면 AI가 목표·과제 초안을 만듭니다', to: '/goals' },
-    { done: members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '링크 하나로 초대, 팀원은 무료', to: '/settings?tab=members' },
+    { done: members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '이메일만 넣으면 초대 메일이 갑니다. 팀원은 무료', to: '/settings?tab=members' },
     { done: st.data.org > 0, title: '위에서 온 것 남기기', desc: '전사 방침·임원 관심사를 넣으면 팀 목표와 맞춰 봅니다', to: '/upward' },
     { done: st.data.kh > 0, title: '내 노하우 넣기', desc: '원칙·자료를 넣으면 AI가 ATEAM Method™보다 팀장님 기준을 먼저 적용합니다', to: '/knowhow?tab=mine' },
   ];
