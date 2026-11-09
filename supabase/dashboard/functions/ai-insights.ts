@@ -1,11 +1,23 @@
 // functions/_shared/http.ts
 import { AsyncLocalStorage } from "node:async_hooks";
 var reqCtx = new AsyncLocalStorage();
-var corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
+var ORIGINS = (Deno.env.get("APP_ORIGIN") ?? "*").split(",").map((x) => x.trim().replace(/\/$/, "")).filter(Boolean);
+function allowOrigin(origin) {
+  if (!ORIGINS.length || ORIGINS.includes("*")) return "*";
+  if (origin && ORIGINS.includes(origin.replace(/\/$/, ""))) return origin;
+  return ORIGINS[0];
+}
+var BASE_CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+function cors(origin) {
+  const store = reqCtx.getStore();
+  if (store?.anyOrigin) return { ...BASE_CORS, "Access-Control-Allow-Origin": "*" };
+  const o = origin !== void 0 ? origin : store?.origin ?? null;
+  return { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(o), Vary: "Origin" };
+}
+var corsHeaders = { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(null) };
 var HttpError = class extends Error {
   constructor(status, code, message) {
     super(message ?? code);
@@ -16,12 +28,12 @@ var HttpError = class extends Error {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" }
+    headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" }
   });
 }
-function serve(handler) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+function serve(handler, opts = {}) {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin"), anyOrigin: opts.anyOrigin }, async () => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req.headers.get("Origin")) });
     try {
       return await handler(req);
     } catch (e) {
@@ -261,7 +273,9 @@ var CORE = [
   "task_history",
   "autopilot",
   "team_direction",
-  "perf_extract"
+  "perf_extract",
+  "decision_asks",
+  "core_work"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -284,6 +298,8 @@ var CREDITS = {
   autopilot: 0,
   team_direction: 0,
   perf_extract: 0,
+  decision_asks: 0,
+  core_work: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -690,8 +706,8 @@ async function loadRaw(db, teamId, leaderId, minEvidence) {
     safe(db.rpc("care_radar", { p_team: teamId }), null),
     // moods·note 는 24_condition.sql 이후 — 아직 안 돌렸으면 예전 칸만 읽는다
     (async () => {
-      const r = await db.from("checkins").select("user_id, week_start, condition, moods, note, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35));
-      return r.error ? safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []) : r.data ?? [];
+      const r = await db.from("checkins").select("user_id, week_start, condition, moods, note, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -63));
+      return r.error ? safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -63)), []) : r.data ?? [];
     })().catch(() => []),
     safe(db.from("submissions").select("id, author_id, status, created_at, submission_versions(version, created_at)").eq("team_id", teamId).gte("updated_at", since60), []),
     safe(db.rpc("member_data_depth", { p_team: teamId }), null),
@@ -1113,7 +1129,7 @@ function analyze(raw, members) {
       severity: 3,
       periods: DW,
       title: `${r.full_name}\uB2D8 \uCEE8\uB514\uC158\uC774 3\uC8FC \uC5F0\uC18D \uB5A8\uC5B4\uC84C\uC2B5\uB2C8\uB2E4 (${s.label.replace("\uCEE8\uB514\uC158 ", "")})`,
-      detail: "\uBC88\uC544\uC6C3\xB7\uC774\uD0C8 \uC2E0\uD638\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC774\uBC88 \uC8FC \uC548\uC5D0 1on1\uC744 \uAD8C\uD569\uB2C8\uB2E4.",
+      detail: "\uC9C0\uCCD0 \uC788\uB2E4\uB294 \uC2E0\uD638\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC774\uBC88 \uC8FC \uC548\uC5D0 1on1\uB85C \uADFC\uD669\uC744 \uBB3C\uC5B4 \uBCF4\uC138\uC694.",
       rule: "\uACF5\uC720\uD55C \uCEE8\uB514\uC158 3\uC8FC \uC5F0\uC18D \uD558\uB77D, \uCD5C\uADFC \uAC12 3 \uC774\uD558",
       action: { label: "1on1 \uC7A1\uAE30", to: `/one-on-ones?new=${r.user_id}` }
     });
@@ -1171,7 +1187,8 @@ function analyze(raw, members) {
     rule: "\uC218\uC694\uC77C \uC774\uD6C4 \uC774\uBC88 \uC8FC \uCEE8\uB514\uC158 \uACF5\uC720 \uC5C6\uC74C",
     action: { label: "\uCEE8\uB514\uC158 \uACF5\uC720 \uC694\uCCAD \uBCF4\uB0B4\uAE30", to: "/settings?tab=members" }
   });
-  const condOf = (pred) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition);
+  const ci5 = raw.checkins.filter((c) => c.week_start >= addDaysYmd(thisMon, -35));
+  const condOf = (pred) => ci5.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition);
   const thisWeek = condOf((w) => w >= thisMon);
   const lastMon = addDaysYmd(thisMon, -7);
   const curC = avg(thisWeek.length >= 2 ? thisWeek : condOf((w) => w === lastMon));
@@ -1269,7 +1286,7 @@ function analyze(raw, members) {
   }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
   const ciLast = new Set(raw.checkins.filter((c) => c.week_start === lastMon).map((c) => c.user_id)).size;
-  const ciWeeks = new Set(raw.checkins.map((c) => c.week_start)).size;
+  const ciWeeks = new Set(ci5.map((c) => c.week_start)).size;
   const inReview = raw.subs.filter((s) => s.status === "in_review");
   const waitDays = (s) => daysSince(s.submission_versions.reduce((a, v) => v.created_at > a ? v.created_at : a, s.created_at));
   const aged = inReview.filter((s) => waitDays(s) >= 3);

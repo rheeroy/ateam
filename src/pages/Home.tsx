@@ -411,7 +411,7 @@ function Tiles({ m }: { m: HomeModel }) {
           { label: '이탈 가능성', value: <><span className={high ? 'text-rose-600' : 'text-slate-300'}>{high}</span><span className="text-slate-300 text-base mx-0.5">·</span><span className={mid ? 'text-amber-600' : 'text-slate-300'}>{mid}</span></>,
             under: <People items={members.filter((mb) => mb.role === 'member').map((mb) => ({ mb, lv: pi.idx.get(mb.user_id)?.flight.level }))
               .sort((a, b) => (b.lv === 'risk' ? 2 : b.lv === 'watch' ? 1 : 0) - (a.lv === 'risk' ? 2 : a.lv === 'watch' ? 1 : 0))
-              .map(({ mb, lv }) => ({ tone: lv === 'risk' ? 'rose' as const : lv === 'watch' ? 'amber' as const : 'slate' as const, title: `${mb.profiles?.full_name ?? '팀원'} · ${lv === 'risk' ? '이탈 가능성 높음' : lv === 'watch' ? '주의' : '안정'}` }))} /> },
+              .map(({ mb, lv }) => ({ tone: lv === 'risk' ? 'rose' as const : lv === 'watch' ? 'amber' as const : 'slate' as const, title: `${mb.profiles?.full_name ?? '팀원'} · ${lv === 'risk' ? '이탈 가능성 높음' : lv === 'watch' ? '주의' : lv === 'none' ? '판단 보류' : '안정'}` }))} /> },
           { label: '1on1 공백', value: ooGap, sub: '2주 넘게', tone: ooGap ? 'amber' : undefined },
         ]}
         ai={topAi('people') ?? pa.out?.content.summary} fallback={sig('people') ? `자동 감지 · ${sig('people')}` : null} />

@@ -1,11 +1,23 @@
 // functions/_shared/http.ts
 import { AsyncLocalStorage } from "node:async_hooks";
 var reqCtx = new AsyncLocalStorage();
-var corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
+var ORIGINS = (Deno.env.get("APP_ORIGIN") ?? "*").split(",").map((x) => x.trim().replace(/\/$/, "")).filter(Boolean);
+function allowOrigin(origin) {
+  if (!ORIGINS.length || ORIGINS.includes("*")) return "*";
+  if (origin && ORIGINS.includes(origin.replace(/\/$/, ""))) return origin;
+  return ORIGINS[0];
+}
+var BASE_CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+function cors(origin) {
+  const store = reqCtx.getStore();
+  if (store?.anyOrigin) return { ...BASE_CORS, "Access-Control-Allow-Origin": "*" };
+  const o = origin !== void 0 ? origin : store?.origin ?? null;
+  return { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(o), Vary: "Origin" };
+}
+var corsHeaders = { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(null) };
 var HttpError = class extends Error {
   constructor(status, code, message) {
     super(message ?? code);
@@ -16,12 +28,12 @@ var HttpError = class extends Error {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" }
+    headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" }
   });
 }
-function serve(handler) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+function serve(handler, opts = {}) {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin"), anyOrigin: opts.anyOrigin }, async () => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req.headers.get("Origin")) });
     try {
       return await handler(req);
     } catch (e) {
@@ -262,7 +274,9 @@ var CORE = [
   "task_history",
   "autopilot",
   "team_direction",
-  "perf_extract"
+  "perf_extract",
+  "decision_asks",
+  "core_work"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -285,6 +299,8 @@ var CREDITS = {
   autopilot: 0,
   team_direction: 0,
   perf_extract: 0,
+  decision_asks: 0,
+  core_work: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,

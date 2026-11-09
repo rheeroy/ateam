@@ -120,8 +120,8 @@ export async function loadRaw(db: Client, teamId: string, leaderId: string, minE
     safe<Raw['care']>(db.rpc('care_radar', { p_team: teamId }), null),
     // moods·note 는 24_condition.sql 이후 — 아직 안 돌렸으면 예전 칸만 읽는다
     (async () => {
-      const r = await db.from('checkins').select('user_id, week_start, condition, moods, note, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35));
-      return r.error ? safe<Raw['checkins']>(db.from('checkins').select('user_id, week_start, condition, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -35)), []) : ((r.data ?? []) as Raw['checkins']);
+      const r = await db.from('checkins').select('user_id, week_start, condition, moods, note, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -63));   // 9주 — 이탈 가능성은 장기 흐름을 본다 (다른 신호는 최근 5주로 다시 자른다)
+      return r.error ? safe<Raw['checkins']>(db.from('checkins').select('user_id, week_start, condition, did, blocked').eq('team_id', teamId).gte('week_start', addDaysYmd(mon, -63)), []) : ((r.data ?? []) as Raw['checkins']);
     })().catch(() => [] as Raw['checkins']),
     safe<Raw['subs']>(db.from('submissions').select('id, author_id, status, created_at, submission_versions(version, created_at)').eq('team_id', teamId).gte('updated_at', since60), []),
     safe<Raw['depth']>(db.rpc('member_data_depth', { p_team: teamId }), null),
@@ -371,7 +371,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   const noOO: string[] = []; const missing: string[] = [];
   for (const r of raw.care ?? []) for (const s of r.signals) {
     if (s.type === 'condition_down') S.push({ id: `care-cond-${r.user_id}`, domain: 'people', type: 'risk', severity: 3, periods: DW,
-      title: `${r.full_name}님 컨디션이 3주 연속 떨어졌습니다 (${s.label.replace('컨디션 ', '')})`, detail: '번아웃·이탈 신호일 수 있습니다. 이번 주 안에 1on1을 권합니다.',
+      title: `${r.full_name}님 컨디션이 3주 연속 떨어졌습니다 (${s.label.replace('컨디션 ', '')})`, detail: '지쳐 있다는 신호일 수 있습니다. 이번 주 안에 1on1로 근황을 물어 보세요.',
       rule: '공유한 컨디션 3주 연속 하락, 최근 값 3 이하', action: { label: '1on1 잡기', to: `/one-on-ones?new=${r.user_id}` } });
     if (s.type === 'blocked_repeat' && !has(r.user_id, 'frustrated')) S.push({ id: `care-block-${r.user_id}`, domain: 'people', type: 'risk', severity: 2, periods: DW,
       title: `${r.full_name}님이 2주째 같은 문제로 막혀 있습니다`, detail: s.detail ? `"${s.detail}"` : undefined,
@@ -393,7 +393,8 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   }
   if (missing.length) S.push({ id: `care-ci-${thisMon}`, domain: 'people', type: 'data', severity: 1, periods: DW,
     title: `이번 주 컨디션을 공유하지 않은 팀원 ${missing.length}명`, detail: `${names(missing)} — 컨디션 공유가 빠지면 컨디션·막힘 신호를 놓칩니다.`, rule: '수요일 이후 이번 주 컨디션 공유 없음', action: { label: '컨디션 공유 요청 보내기', to: '/settings?tab=members' } });
-  const condOf = (pred: (w: string) => boolean) => raw.checkins.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition!);
+  const ci5 = raw.checkins.filter((c) => c.week_start >= addDaysYmd(thisMon, -35));   // 팀 컨디션 추이 · 공유율은 최근 5주 기준
+  const condOf = (pred: (w: string) => boolean) => ci5.filter((c) => pred(c.week_start) && c.condition != null).map((c) => c.condition!);
   const thisWeek = condOf((w) => w >= thisMon);
   const lastMon = addDaysYmd(thisMon, -7);
   const curC = avg(thisWeek.length >= 2 ? thisWeek : condOf((w) => w === lastMon));
@@ -427,7 +428,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
   }
   const ciThis = new Set(raw.checkins.filter((c) => c.week_start >= thisMon).map((c) => c.user_id)).size;
   const ciLast = new Set(raw.checkins.filter((c) => c.week_start === lastMon).map((c) => c.user_id)).size;
-  const ciWeeks = new Set(raw.checkins.map((c) => c.week_start)).size;
+  const ciWeeks = new Set(ci5.map((c) => c.week_start)).size;
 
   // ---------------- 결과물·리뷰 ----------------
   const inReview = raw.subs.filter((s) => s.status === 'in_review');

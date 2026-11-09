@@ -1,11 +1,23 @@
 // functions/_shared/http.ts
 import { AsyncLocalStorage } from "node:async_hooks";
 var reqCtx = new AsyncLocalStorage();
-var corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
+var ORIGINS = (Deno.env.get("APP_ORIGIN") ?? "*").split(",").map((x) => x.trim().replace(/\/$/, "")).filter(Boolean);
+function allowOrigin(origin) {
+  if (!ORIGINS.length || ORIGINS.includes("*")) return "*";
+  if (origin && ORIGINS.includes(origin.replace(/\/$/, ""))) return origin;
+  return ORIGINS[0];
+}
+var BASE_CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+function cors(origin) {
+  const store = reqCtx.getStore();
+  if (store?.anyOrigin) return { ...BASE_CORS, "Access-Control-Allow-Origin": "*" };
+  const o = origin !== void 0 ? origin : store?.origin ?? null;
+  return { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(o), Vary: "Origin" };
+}
+var corsHeaders = { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(null) };
 var HttpError = class extends Error {
   constructor(status, code, message) {
     super(message ?? code);
@@ -16,12 +28,12 @@ var HttpError = class extends Error {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" }
+    headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" }
   });
 }
-function serve(handler) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+function serve(handler, opts = {}) {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin"), anyOrigin: opts.anyOrigin }, async () => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req.headers.get("Origin")) });
     try {
       return await handler(req);
     } catch (e) {
@@ -261,7 +273,9 @@ var CORE = [
   "task_history",
   "autopilot",
   "team_direction",
-  "perf_extract"
+  "perf_extract",
+  "decision_asks",
+  "core_work"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -284,6 +298,8 @@ var CREDITS = {
   autopilot: 0,
   team_direction: 0,
   perf_extract: 0,
+  decision_asks: 0,
+  core_work: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -609,6 +625,10 @@ var PEOPLE_ACTIONS = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uC8FC\uC5D0
 - \uD300\uC6D0\uB9C8\uB2E4 0~2\uAC1C, \uC804\uCCB4 4~8\uAC1C. \uC774\uBC88 \uC8FC\uC5D0 \uD558\uC9C0 \uC54A\uC73C\uBA74 \uC190\uD574\uAC00 \uD070 \uAC83\uBD80\uD130 urgency 3.
 - why(\uBA85\uBD84)\uB294 \uC785\uB825 \uC0AC\uC2E4\uB9CC\uC73C\uB85C 1~2\uBB38\uC7A5, [E#] \uD0DC\uADF8\uB97C \uBD99\uC785\uB2C8\uB2E4. \uCD94\uCE21\xB7\uC9C4\uB2E8\xB7\uC131\uACA9 \uD310\uB2E8 \uAE08\uC9C0.
 - \uCEE8\uB514\uC158\uC774 2 \uC774\uD558\uC774\uAC70\uB098 \uB5A8\uC5B4\uC9C0\uB294 \uC0AC\uB78C\uC5D0\uAC8C push \uB97C \uCD94\uCC9C\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
+- '\uC5C5\uBB34 \uAE30\uB85D'(\uC571\uC5D0 \uB0A8\uAE34 \uB300\uD654 \xB7 \uC9C4\uCC99 \xB7 \uACB0\uACFC\uBB3C \xB7 \uC751\uB2F5 \uC218, \uC8FC\uBCC4)\uACFC '\uC2DC\uAC04\uC678 \uBE44\uC728'\uC744 \uBD05\uB2C8\uB2E4. \uAC19\uC740 \uC0AC\uB78C\uC758 \uC9C0\uB09C 4\uC8FC\uC640 \uBE44\uAD50\uD558\uB294 \uAC83\uC774 \uAE30\uBCF8\uC785\uB2C8\uB2E4.
+  \uAE30\uB85D\uC774 \uD06C\uAC8C \uC904\uC5C8\uB294\uB370 \uCEE8\uB514\uC158\uB3C4 \uB0B4\uB824\uAC00\uAC70\uB098 \uACF5\uC720\uAC00 \uB04A\uACBC\uC73C\uBA74 \u2192 one_on_one(\uADFC\uD669\uD615 opener) \xB7 \uAE30\uB85D\uB9CC \uC904\uC5C8\uC73C\uBA74 \u2192 one_on_one \uB610\uB294 support("\uB9C9\uD78C \uAC83 \xB7 \uAE30\uB2E4\uB9AC\uB294 \uAC83"\uC744 \uBB3B\uB294 \uB9D0) \xB7
+  \uBD80\uD558\uAC00 \uB192\uAC70\uB098 \uC2DC\uAC04\uC678 \uBE44\uC728\uC774 30% \uC774\uC0C1\uC774\uBA74 \u2192 support(\uB35C\uC5B4 \uC8FC\uAE30: \uBBF8\uB8E8\uAC70\uB098 \uB118\uAE38 \uC77C\uC744 \uAC19\uC774 \uACE0\uB974\uC790\uB294 \uB9D0), push \uAE08\uC9C0 \xB7
+  \uBD80\uD558\uB3C4 \uAE30\uB85D\uB3C4 \uD300\uBCF4\uB2E4 \uD06C\uAC8C \uC801\uC73C\uBA74(\uD569\uB958 \uCD08\uAE30 \uC81C\uC678) \u2192 develop(\uBC30\uCE58\xB7\uC5ED\uD560 \uD655\uC778\uACFC \uD55C \uB2E8\uACC4 \uC5B4\uB824\uC6B4 \uAE30\uD68C). why \uC5D0 \uC22B\uC790\uB97C \uC4F0\uB418 "\uB180\uACE0 \uC788\uB2E4", "\uC758\uC695\uC774 \uC5C6\uB2E4" \uAC19\uC740 \uD574\uC11D\uC740 \uC4F0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
 - '\uD300\uC7A5 \uC811\uC810'(\uCD5C\uADFC 28\uC77C \uD300\uC7A5\uC774 \uADF8 \uC0AC\uB78C\uC5D0\uAC8C \uC4F4 1on1\xB7\uCF54\uBA58\uD2B8\xB7\uAD00\uCC30\xB7\uC694\uCCAD, \uB9AC\uBDF0 \uCCAB \uBC18\uC751 \uC2DC\uAC04)\uC744 \uBD05\uB2C8\uB2E4. \uD544\uC694\uB3C4\uAC00 \uB192\uC740\uB370(\uCEE8\uB514\uC158 \uD558\uB77D\xB7\uC774\uD0C8 \uC8FC\uC758\xB7\uC2E0\uADDC\xB7\uB9C9\uD798 \uBC18\uBCF5) \uC811\uC810\uC774 \uD300 \uC911\uC559\uAC12\uBCF4\uB2E4 \uD06C\uAC8C \uC801\uAC70\uB098 \uB9AC\uBDF0 \uBC18\uC751\uC774 \uB2A6\uC740 \uC0AC\uB78C\uC5D0\uAC8C\uB294
   one_on_one \uB610\uB294 support \uB97C \uC6B0\uC120 \uCD94\uCC9C\uD558\uACE0, why \uC5D0 "\uD300\uC7A5 \uC2DC\uAC04\uC774 \uB35C \uAC00\uACE0 \uC788\uB2E4"\uB294 \uC0AC\uC2E4\uC744 \uC22B\uC790\uB85C \uBC1D\uD799\uB2C8\uB2E4. \uBC18\uB300\uB85C \uC811\uC810\uC774 \uC18C\uC218\uC5D0\uAC8C \uBAB0\uB824 \uC788\uC73C\uBA74 summary \uC5D0\uC11C \uC9DA\uC2B5\uB2C8\uB2E4. (\uC571 \uAE30\uB85D \uAE30\uC900\uC774\uB77C \uAD6C\uB450 \uB300\uD654\uB294 \uBE60\uC838 \uC788\uC744 \uC218 \uC788\uC74C)
 - praise \uC5D0\uB294 \uD300\uC6D0\uC5D0\uAC8C \uADF8\uB300\uB85C \uBCF4\uB0BC \uC218 \uC788\uB294 \uCE6D\uCC2C \uBB38\uAD6C(message) \uD55C \uBB38\uC7A5 \u2014 \uC5B4\uB5A4 \uD589\uB3D9\uC744 \uD588\uACE0 \uADF8\uAC8C \uD300\uC774\uB098 \uC77C\uC5D0 \uC5B4\uB5A4 \uACB0\uACFC\uB97C \uB0C8\uB294\uC9C0\uB97C \uAD6C\uCCB4\uC801\uC73C\uB85C, \uACFC\uC7A5 \uC5C6\uC774. "\uC218\uACE0\uD588\uC5B4\uC694", "\uACE0\uC0DD \uB9CE\uC558\uC5B4\uC694" \uAC19\uC740 \uC77C\uBC18\uC801\uC778 \uB9D0\uB85C \uB05D\uB0B4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.
@@ -617,7 +637,7 @@ var PEOPLE_ACTIONS = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uC8FC\uC5D0
 - one_on_one \uC5D0\uB294 \uB300\uD654\uB97C \uC5EC\uB294 \uCCAB \uC9C8\uBB38(opener) \uD55C \uBB38\uC7A5 \u2014 \uC5C5\uBB34 \uB0B4\uC6A9\uC774 \uC544\uB2C8\uB77C \uC0AC\uB78C(\uC5D0\uB108\uC9C0\xB7\uC5B4\uB824\uC6C0\xB7\uBC14\uB77C\uB294 \uAC83)\uC5D0 \uB300\uD55C \uC9C8\uBB38.
 - push \xB7 support \xB7 develop \uC5D0\uB294 \uD300\uC6D0\uC5D0\uAC8C \uBCF4\uB0BC \uD55C \uBB38\uC7A5(request) \u2014 \uD2B9\uC815 \uACFC\uC81C \uC9C0\uC2DC\uAC00 \uC544\uB2CC \uB9AC\uB4EC\xB7\uC9C0\uC6D0\xB7\uAE30\uD68C\uC5D0 \uB300\uD55C \uB9D0.
 - members \uC5D0\uB294 \uC785\uB825\uC5D0 \uC788\uB294 \uD300\uC6D0 \uC804\uC6D0\uC744 \uB123\uC2B5\uB2C8\uB2E4. work_view \uB294 \uC5C5\uBB34 \uC218\uD589 \uACBD\uACFC(\uC9C4\uCC99\xB7\uACC4\uD68D \uB300\uBE44\xB7\uACB0\uACFC\uBB3C \uD488\uC9C8\xB7\uC694\uCCAD \uCC98\uB9AC)\uB97C \uC885\uD569\uD55C 2\uBB38\uC7A5 \uD310\uB2E8 [E#] \u2014 \uC5EC\uAE30\uC11C\uB294 \uC5C5\uBB34 \uC0AC\uC2E4\uC744 \uC368\uB3C4 \uB429\uB2C8\uB2E4.
-  flight_risk \uB294 \uC785\uB825\uC758 \uCEE8\uB514\uC158 \uCD94\uC774\xB71on1 \uACF5\uBC31\xB7\uB9C9\uD798\xB7\uC6B0\uB824 \uAD00\uCC30\xB7\uC120\uD589 \uC2E0\uD638\uB85C\uB9CC low|medium|high \uB97C \uACE0\uB985\uB2C8\uB2E4. medium \uC774\uC0C1\uC740 \uADFC\uAC70\uAC00 2\uAC1C \uC774\uC0C1\uC77C \uB54C\uB9CC, \uADFC\uAC70\uAC00 \uD558\uB098\uBFD0\uC774\uBA74 low \uB85C \uB450\uACE0 flight_note \uC5D0 "\uC9C0\uCF1C\uBCFC \uAC83"\uC73C\uB85C \uC501\uB2C8\uB2E4.
+  flight_risk(\uC774\uD0C8 \uAC00\uB2A5\uC131)\uB294 \uBCF4\uC218\uC801\uC73C\uB85C \uACE0\uB985\uB2C8\uB2E4. \uCEE8\uB514\uC158\uC774 \uBA87 \uC8FC \uB098\uBE60\uC9C4 \uAC83 \uD558\uB098\uB85C\uB294 \uC62C\uB9AC\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. 8\uC8FC \uC548\uD30E\uC758 \uC7A5\uAE30 \uAE30\uB85D\uC5D0\uC11C \uC11C\uB85C \uB2E4\uB978 \uC601\uC5ED(\uCEE8\uB514\uC158 \uC7A5\uAE30 \uC800\uD558 \xB7 \uCC38\uC5EC \uC704\uCD95 \xB7 \uB9C9\uD798\xB7\uC778\uC815\xB7\uC131\uC7A5\xB7\uC57D\uC18D \uAC19\uC740 \uB3D9\uC778 \xB7 1on1 \uACF5\uBC31 \xB7 \uD300\uC7A5\uC774 \uB0A8\uAE34 \uC6B0\uB824 \uAD00\uCC30)\uC774 2\uAC1C \uC774\uC0C1 \uACB9\uCE58\uBA74 medium, 3\uAC1C \uC774\uC0C1 \uACB9\uCE58\uAC70\uB098 \uD070 \uC0AC\uAC74(\uC6B0\uB824 \uAD00\uCC30 2\uAC74 \uC774\uC0C1)\uC774 \uB2E4\uB978 \uC2E0\uD638\uC640 \uD568\uAED8 \uC788\uC73C\uBA74 high \uC785\uB2C8\uB2E4. \uADF8 \uBC16\uC5D0\uB294 low \uC774\uACE0, \uC9C0\uCF1C\uBCFC \uC810\uC774 \uC788\uC73C\uBA74 flight_note \uC5D0 "\uC9C0\uCF1C\uBCFC \uAC83"\uC73C\uB85C \uC501\uB2C8\uB2E4. (\uD654\uBA74\uC740 \uADDC\uCE59 \uD310\uB2E8\uBCF4\uB2E4 \uB192\uAC8C \uC62C\uB9AC\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4)
   flight_note \uB294 \uADFC\uAC70 \uD55C \uBB38\uC7A5 \u2014 \uD300\uC7A5\uC774 \uBC14\uAFC0 \uC218 \uC788\uB294 \uAC83(\uC778\uC815\xB7\uC131\uC7A5 \uAE30\uD68C\xB7\uC5C5\uBB34\uB7C9\xB7\uB9C9\uD798\xB7\uD300\uC7A5 \uC57D\uC18D\xB7\uC18C\uD1B5)\uC744 \uBA3C\uC800 \uC501\uB2C8\uB2E4. \uBCF4\uC0C1\xB7\uC81C\uB3C4\uCC98\uB7FC \uD68C\uC0AC \uCC28\uC6D0 \uC774\uC720\uAC00 \uAE30\uB85D\uC5D0 \uBCF4\uC774\uBA74 \uAC1C\uBCC4 \uC561\uC158\uC73C\uB85C \uB9CC\uB4E4\uC9C0 \uB9D0\uACE0 summary \uC5D0 "\uD68C\uC0AC \uCC28\uC6D0 \uC774\uC288 \u2014 \uC0C1\uD5A5 \uBCF4\uACE0 \uD544\uC694"\uB85C\uB9CC \uC9DA\uC2B5\uB2C8\uB2E4.
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
@@ -627,6 +647,33 @@ var PEOPLE_ACTIONS = `\uACFC\uC81C: \uD300\uC7A5\uC774 \uC774\uBC88 \uC8FC\uC5D0
                "message": "", "opener": "", "request": ""}],
   "members": [{"user_id": "\uC785\uB825\uC758 id", "work_status": "good|watch|support", "work_view": "\uC5C5\uBB34 \uC218\uD589 \uACBD\uACFC \uD310\uB2E8 [E2]", "flight_risk": "low|medium|high", "flight_note": "\uADFC\uAC70 \uD55C \uBB38\uC7A5"}]
 }`;
+
+// functions/_shared/activity.ts
+var KST = 9 * 36e5;
+function mondays(n) {
+  const d = new Date(Date.now() + KST);
+  const dow = (d.getUTCDay() + 6) % 7;
+  const mon = Date.parse(d.toISOString().slice(0, 10) + "T00:00:00Z") - dow * 864e5;
+  return Array.from({ length: n }, (_, i) => new Date(mon - (n - 1 - i) * 7 * 864e5).toISOString().slice(0, 10));
+}
+async function activityLines(teamId) {
+  const out = /* @__PURE__ */ new Map();
+  const { data, error } = await admin.rpc("member_activity", { p_team: teamId, p_weeks: 8 });
+  if (error || !data) return out;
+  const rows = data;
+  const ws = mondays(8).slice(0, -1);
+  for (const uid of new Set(rows.map((r) => r.user_id))) {
+    const wk = ws.map((w) => rows.find((r2) => r2.user_id === uid && r2.week_start === w) ?? { total: 0, off_hours: 0 });
+    const rec = wk.slice(-2), bas = wk.slice(-6, -2);
+    const avg2 = (a) => a.reduce((x, y) => x + y.total, 0) / Math.max(1, a.length);
+    const r = avg2(rec), b = avg2(bas);
+    const recTot = rec.reduce((a, w) => a + w.total, 0);
+    const off = recTot ? Math.round(100 * rec.reduce((a, w) => a + w.off_hours, 0) / recTot) : 0;
+    const ch = b >= 1 ? Math.round((r / b - 1) * 100) : null;
+    out.set(uid, `\uC5C5\uBB34 \uAE30\uB85D(\uC571\uC758 \uB300\uD654\xB7\uC9C4\uCC99\xB7\uACB0\uACFC\uBB3C\xB7\uC751\uB2F5) \uC8FC\uBCC4 ${wk.map((w) => w.total).join("\u2192")}\uAC74 \xB7 \uCD5C\uADFC 2\uC8FC \uC8FC\uD3C9\uADE0 ${Math.round(r * 10) / 10}\uAC74${ch != null ? ` (\uC9C0\uB09C 4\uC8FC \uB300\uBE44 ${ch > 0 ? "+" : ""}${ch}%)` : ""} \xB7 \uC2DC\uAC04\uC678(21\uC2DC~7\uC2DC\xB7\uC8FC\uB9D0) ${off}%`);
+  }
+  return out;
+}
 
 // functions/_shared/signals.ts
 var MOOD_LABEL = {
@@ -639,11 +686,11 @@ var MOOD_LABEL = {
   personal: "\uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815",
   need_rest: "\uD734\uC2DD \uD544\uC694"
 };
-var KST = 9 * 36e5;
-var kstToday = (now = Date.now()) => new Date(now + KST).toISOString().slice(0, 10);
+var KST2 = 9 * 36e5;
+var kstToday = (now = Date.now()) => new Date(now + KST2).toISOString().slice(0, 10);
 var addDaysYmd = (ymd, n) => new Date(Date.parse(ymd + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 var kstMonday = (now = Date.now()) => {
-  const d = new Date(now + KST);
+  const d = new Date(now + KST2);
   const dow = (d.getUTCDay() + 6) % 7;
   return addDaysYmd(d.toISOString().slice(0, 10), -dow);
 };
@@ -669,8 +716,8 @@ async function loadRaw(db, teamId, leaderId, minEvidence) {
     safe(db.rpc("care_radar", { p_team: teamId }), null),
     // moods·note 는 24_condition.sql 이후 — 아직 안 돌렸으면 예전 칸만 읽는다
     (async () => {
-      const r = await db.from("checkins").select("user_id, week_start, condition, moods, note, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35));
-      return r.error ? safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -35)), []) : r.data ?? [];
+      const r = await db.from("checkins").select("user_id, week_start, condition, moods, note, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -63));
+      return r.error ? safe(db.from("checkins").select("user_id, week_start, condition, did, blocked").eq("team_id", teamId).gte("week_start", addDaysYmd(mon, -63)), []) : r.data ?? [];
     })().catch(() => []),
     safe(db.from("submissions").select("id, author_id, status, created_at, submission_versions(version, created_at)").eq("team_id", teamId).gte("updated_at", since60), []),
     safe(db.rpc("member_data_depth", { p_team: teamId }), null),
@@ -841,6 +888,7 @@ async function actionsFor(teamId, createdBy) {
   const leaderId = (tm ?? []).find((x) => x.role === "leader")?.user_id;
   const myNotes = leaderId ? await loadLeaderNotes(teamId, leaderId, { types: ["member"], limit: 40 }) : [];
   const raw = leaderId ? await loadRaw(admin, teamId, leaderId, 8).catch(() => null) : null;
+  const acts = await activityLines(teamId).catch(() => /* @__PURE__ */ new Map());
   for (const m of members) {
     const uid = m.user_id;
     const name = m.profiles?.full_name ?? "\uD300\uC6D0";
@@ -883,6 +931,7 @@ async function actionsFor(teamId, createdBy) {
         const a = attn.get(uid);
         return `\uD300\uC7A5 \uC811\uC810 28\uC77C ${a.touch} (\uD300 \uC911\uC559\uAC12 ${medTouch ?? "-"}; 1on1 ${a.oo} \xB7 \uB9AC\uBDF0 \uCF54\uBA58\uD2B8 ${a.comments} \xB7 \uAD00\uCC30 ${a.obs} \xB7 \uCE6D\uCC2C ${a.praise} \xB7 \uC694\uCCAD ${a.reqs} \xB7 \uACFC\uC81C \uCF54\uBA58\uD2B8 ${a.item_comments}) \xB7 \uB9AC\uBDF0 \uCCAB \uBC18\uC751 \uD3C9\uADE0 ${a.resp_hours ?? "-"}\uC2DC\uAC04 \xB7 \uBC18\uC751 \uAE30\uB2E4\uB9AC\uB294 \uACB0\uACFC\uBB3C ${a.waiting}`;
       })()] : [],
+      ...acts.get(uid) ? [acts.get(uid)] : [],
       `\uC785\uC0AC ${Math.floor((Date.now() - Date.parse(m.joined_at)) / DAY)}\uC77C`,
       (() => {
         const f = raw ? flagsFor(raw, uid) : [];

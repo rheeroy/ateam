@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, q, errorText } from './supabase';
 import { useLatestAi } from './hooks';
-import { mondayOf, daysAgo } from './format';
+import { mondayOf, daysAgo, ymd } from './format';
 import type { AiOutput, TeamMember, WorkItem } from './types';
 import { flagsFor, type Raw } from './insights';
 import type { ScoreRow } from './people';
@@ -115,23 +115,38 @@ export function memberIndex(p: {
   const prev = vals.length >= 3 ? vals[vals.length - 3] : vals[0] ?? null;
   const flags = new Set((p.raw?.care ?? []).find((c) => c.user_id === uid)?.signals.map((s) => s.type) ?? []);
   const ooDays = p.lastOoAt ? daysAgo(p.lastOoAt) : null;
-  // 이탈 가능성: 컨디션 수준·하락 · 1on1 공백 · 반복 막힘 · 컨디션 공유 누락 · 우려 관찰
-  let score = 0;
-  if (cond != null) score += cond <= 2 ? 35 : cond === 3 ? 12 : 0;
-  if (cond != null && prev != null && cond < prev) score += 15 + (prev - cond) * 5;
-  if (ooDays == null || ooDays > 21) score += 15; else if (ooDays > 14) score += 8;
-  if (flags.has('blocked_repeat')) score += 10;
-  if (flags.has('checkin_missing')) score += 10;
-  score += Math.min(15, p.concerns * 8);
-  // 이탈 인터뷰에서 반복되는 선행 신호 (signals.ts flagsFor) — 컨디션이 괜찮아도 오른다
+  // 이탈 가능성 — 쉽게 뜨면 안 된다. 컨디션 몇 주 나빠진 것만으로는 오르지 않고(그건 '컨디션' 지표가 맡는다),
+  //   장기간(8주 안팎) 서로 다른 영역의 리스크가 겹치거나, 팀장이 직접 남긴 큰 사건(우려 관찰)이 다른 신호와 함께 있을 때만 '주의' · '높음'
+  //   영역: ① 컨디션 장기 저하(8주 중 4주 이상 2 이하) ② 참여 위축(공유 끊김 · 활동 급감) ③ 바꿀 수 있는 동인 2개 이상 겹침(막힘 · 인정 공백 · 성장 정체 · 약속 밀림)
+  //         ④ 관계 공백(1on1 6주 넘게 없음) ⑤ 큰 사건(팀장이 남긴 우려 관찰)
+  //   합류 8주 미만 · 컨디션 기록 4주 미만이면 판단을 보류한다
   const mf = p.raw ? flagsFor(p.raw, uid) : [];
-  const FW: Record<string, number> = { frustrated: 15, recog_gap: 10, withdrawn: 10, growth_stall: 8, promise_late: 8 };
-  for (const f of mf) score += FW[f.key] ?? 0;
-  score = Math.min(100, score);
+  const has = (k: string) => mf.some((f) => f.key === k);
+  const since8 = ymd(new Date(Date.now() - 56 * 86400000));
+  const long = (p.raw?.checkins ?? []).filter((c) => c.user_id === uid && c.condition != null && c.week_start >= since8);
+  const lowWeeks = long.filter((c) => (c.condition ?? 5) <= 2).length;
+  const actDrop = (p.act?.change ?? 0) <= -0.5 && (p.act?.base ?? 0) >= 3;
+  const drivers = (['frustrated', 'recog_gap', 'growth_stall', 'promise_late'] as const).filter(has);
+  const domains: string[] = [];
+  if (long.length >= 4 && lowWeeks >= 4) domains.push(`컨디션 장기 저하(8주 중 ${lowWeeks}주 2 이하)`);
+  if (has('withdrawn') || actDrop) domains.push(has('withdrawn') ? '참여 위축(컨디션 공유 끊김)' : '활동 급감(4주 전 대비 절반 이하)');
+  if (drivers.length >= 2) domains.push(`동인 겹침(${mf.filter((f) => (drivers as readonly string[]).includes(f.key)).map((f) => f.label).join(' · ')})`);
+  if (ooDays == null ? daysAgo(p.member.joined_at) > 42 : ooDays > 42) domains.push(ooDays == null ? '1on1 기록 없음' : `1on1 ${ooDays}일 공백`);
+  const event = p.concerns > 0;
+  if (event) domains.push(`팀장이 남긴 우려 관찰 ${p.concerns}건`);
+  const tooEarly = daysAgo(p.member.joined_at) < 56 || (long.length < 4 && !event);
+  const ruleLv: Level = tooEarly ? 'none'
+    : domains.length >= 3 || (p.concerns >= 2 && domains.length >= 2) ? 'risk'
+    : domains.length >= 2 ? 'watch' : 'good';
+  const score = Math.min(100, domains.length * 20);
+  // AI 판단은 규칙보다 높게 올리지 못한다 (기록이 겹치지 않았는데 '높음'이 뜨지 않게)
   const ai = p.view?.flight_risk;
-  const lv: Level = ai ? (ai === 'high' ? 'risk' : ai === 'medium' ? 'watch' : 'good') : score >= 55 ? 'risk' : score >= 30 ? 'watch' : 'good';
-  const lvLabel = lv === 'risk' ? '높음' : lv === 'watch' ? '주의' : '낮음';
-  const flagNote = mf.length ? `선행 신호: ${mf.map((f) => f.label).join(' · ')}` : undefined;
+  const aiLv: Level | null = ai ? (ai === 'high' ? 'risk' : ai === 'medium' ? 'watch' : 'good') : null;
+  const rank: Record<Level, number> = { none: -1, good: 0, watch: 1, risk: 2 };
+  const lv: Level = ruleLv === 'none' ? 'none' : aiLv && rank[aiLv] < rank[ruleLv] ? aiLv : ruleLv;
+  const lvLabel = lv === 'none' ? '판단 보류' : lv === 'risk' ? '높음' : lv === 'watch' ? '주의' : '낮음';
+  const flagNote = lv === 'none' ? (daysAgo(p.member.joined_at) < 56 ? '합류 8주 전에는 판단하지 않습니다' : '컨디션 기록이 4주 이상 쌓이면 판단합니다')
+    : domains.length ? `겹친 신호 ${domains.length}개: ${domains.join(' · ')}` : undefined;
   // 업무 부하: 진행 중 담당 항목의 주당 예상 시간 ÷ 가용 시간
   const mine = p.items.filter((i) => i.owner_id === uid && (i.status === 'active' || i.status === 'blocked'));
   const hours = mine.reduce((a, i) => a + Number(i.est_hours_per_week ?? 0), 0);
@@ -146,7 +161,7 @@ export function memberIndex(p: {
   const dep = (p.raw?.depth ?? []).find((d) => d.user_id === uid);
   // 팀장 관심: 필요도(신규 · 컨디션 하락 · 이탈 주의 · 막힘 반복 · 과부하)가 높을수록 기대 접점을 높게 잡는다
   const ar = p.attn?.rows.find((r) => r.user_id === uid);
-  const need = [lv !== 'good', cond != null && cond <= 2, daysAgo(p.member.joined_at) <= 60, flags.has('blocked_repeat'), load != null && load > 110].filter(Boolean).length;
+  const need = [lv === 'watch' || lv === 'risk', cond != null && cond <= 2, daysAgo(p.member.joined_at) <= 60, flags.has('blocked_repeat'), load != null && load > 110].filter(Boolean).length;
   const expect = (p.attn?.median || 0) * (need >= 2 ? 1.5 : need === 1 ? 1.2 : 1);
   const ratio = ar && expect > 0 ? ar.touch / expect : null;
   const slow = ar?.resp_hours != null && p.attn?.respMedian != null && p.attn.respMedian > 0 && ar.resp_hours >= p.attn.respMedian * 2 && ar.resp_hours >= 48;
@@ -155,10 +170,10 @@ export function memberIndex(p: {
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   return {
     condition: cond, load, flags: [...flags], act: { stat: sa, read },
-    flight: { score, level: lv, label: lvLabel, ai: !!ai, note: p.view?.flight_note ?? flagNote },
+    flight: { score, level: lv, label: lvLabel, ai: !!ai && lv !== 'none', note: lv !== 'none' && aiLv && lv === aiLv && p.view?.flight_note ? p.view.flight_note : flagNote },
     indices: [
       { key: 'cond', label: '컨디션', value: cond != null ? `${cond}/5` : '—', sub: cond != null && prev != null && cond !== prev ? `3주 전 ${prev}` : '컨디션 공유 기준', level: cond == null ? 'none' : cond <= 2 ? 'risk' : cond === 3 ? 'watch' : 'good', pct: cond != null ? cond * 20 : undefined },
-      { key: 'flight', label: '이탈 가능성', value: lvLabel, sub: ai ? 'AI 판단' : `지표 ${score}`, level: lv, pct: ai ? ({ risk: 85, watch: 50, good: 15, none: 0 } as const)[lv] : score },
+      { key: 'flight', label: '이탈 가능성', value: lvLabel, sub: lv === 'none' ? '장기 기록 기준' : `겹친 신호 ${domains.length}/5 · 8주 기준`, level: lv, pct: lv === 'none' ? undefined : score },
       { key: 'load', label: '업무 부하', value: load != null ? `${load}%` : '—', sub: `${load == null ? '' : load <= 90 ? '여유 · ' : load <= 110 ? '가끔 몰림 · ' : load <= 130 ? '종종 시간외 · ' : '상시 시간외 · '}진행 ${mine.length}건 · 주 ${hours}h`, level: load == null ? 'none' : load > 110 ? 'risk' : load > 90 ? 'watch' : 'good', pct: load != null ? Math.min(100, load) : undefined },
       { key: 'act', label: '활동', value: sa && read.key !== 'none' ? read.label : '—', sub: read.key === 'none' || !sa ? '업무 기록 기준' : `주 ${sa.recent}건${sa.change != null && Math.abs(sa.change) >= 0.2 ? ` · 4주 전 대비 ${sa.change > 0 ? '+' : ''}${Math.round(sa.change * 100)}%` : sa.rel != null ? ` · 팀의 ${sa.rel}배` : ''}${sa.offShare >= 0.2 ? ` · 밤·주말 ${Math.round(sa.offShare * 100)}%` : ''}`,
         level: actLv, pct: sa?.rel != null ? Math.min(100, Math.round(sa.rel * 50)) : undefined },

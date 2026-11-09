@@ -1,11 +1,23 @@
 // functions/_shared/http.ts
 import { AsyncLocalStorage } from "node:async_hooks";
 var reqCtx = new AsyncLocalStorage();
-var corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
+var ORIGINS = (Deno.env.get("APP_ORIGIN") ?? "*").split(",").map((x) => x.trim().replace(/\/$/, "")).filter(Boolean);
+function allowOrigin(origin) {
+  if (!ORIGINS.length || ORIGINS.includes("*")) return "*";
+  if (origin && ORIGINS.includes(origin.replace(/\/$/, ""))) return origin;
+  return ORIGINS[0];
+}
+var BASE_CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+function cors(origin) {
+  const store = reqCtx.getStore();
+  if (store?.anyOrigin) return { ...BASE_CORS, "Access-Control-Allow-Origin": "*" };
+  const o = origin !== void 0 ? origin : store?.origin ?? null;
+  return { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(o), Vary: "Origin" };
+}
+var corsHeaders = { ...BASE_CORS, "Access-Control-Allow-Origin": allowOrigin(null) };
 var HttpError = class extends Error {
   constructor(status, code, message) {
     super(message ?? code);
@@ -16,12 +28,12 @@ var HttpError = class extends Error {
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" }
+    headers: { ...cors(), "Content-Type": "application/json; charset=utf-8" }
   });
 }
-function serve(handler) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "" }, async () => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+function serve(handler, opts = {}) {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get("x-demo-token"), auth: req.headers.get("Authorization") ?? "", origin: req.headers.get("Origin"), anyOrigin: opts.anyOrigin }, async () => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req.headers.get("Origin")) });
     try {
       return await handler(req);
     } catch (e) {
@@ -266,7 +278,9 @@ var CORE = [
   "task_history",
   "autopilot",
   "team_direction",
-  "perf_extract"
+  "perf_extract",
+  "decision_asks",
+  "core_work"
 ];
 var CREDITS = {
   one_on_one_prep: 0,
@@ -289,6 +303,8 @@ var CREDITS = {
   autopilot: 0,
   team_direction: 0,
   perf_extract: 0,
+  decision_asks: 0,
+  core_work: 0,
   evaluation_draft: 5,
   plan_draft: 2,
   forecast_note: 1,
@@ -604,6 +620,7 @@ var PREP = `\uACFC\uC81C: 1on1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC77
 - \uD569\uB958\uD55C \uC9C0 \uC5BC\uB9C8 \uC548 \uB428: \uC774 \uD300\uC5D0\uC11C '\uC798\uD588\uB2E4'\uC758 \uAE30\uC900\uC744 \uC5B4\uB5BB\uAC8C \uC774\uD574\uD558\uACE0 \uC788\uB294\uC9C0, \uC544\uC9C1 \uBABB \uBC1B\uC740 \uC815\uBCF4.
 [\uD300\uC6D0 \uC218\uC900\uC5D0 \uB9DE\uCD94\uAE30] \uACB0\uACFC\uBB3C \uD310\uB2E8 \uAE4A\uC774\uAC00 3 \uC774\uC0C1\uC774\uBA74 \uC2A4\uC2A4\uB85C \uB2F5\uC744 \uCC3E\uAC8C \uD558\uB294 \uC9C8\uBB38 \uC704\uC8FC\uB85C, 2 \uC774\uD558\uC774\uBA74 \uC120\uD0DD\uC9C0 2~3\uAC1C\uB97C \uD568\uAED8 \uC8FC\uB294 \uC9C8\uBB38\uC744 \uD558\uB098 \uC774\uC0C1 \uC11E\uC2B5\uB2C8\uB2E4.
 \uAE08\uC9C0: "\uC5B8\uC81C\uAE4C\uC9C0 \uD560 \uAC74\uAC00\uC694?", "\uC65C \uC548 \uD588\uB098\uC694?" \uAC19\uC740 \uCD94\uAD81\uD615 \xB7 \uC608/\uC544\uB2C8\uC624\uB85C \uB05D\uB098\uB294 \uC9C8\uBB38 \xB7 \uC9C8\uBB38 \uD558\uB098\uC5D0 \uB450 \uAC00\uC9C0 \uBB3B\uAE30.
+- \uC5C5\uBB34 \uAE30\uB85D\uC774 \uD3C9\uC18C\uBCF4\uB2E4 \uD06C\uAC8C \uC904\uC5C8\uAC70\uB098 \uC2DC\uAC04\uC678 \uBE44\uC728\uC774 \uB192\uC73C\uBA74 watch \uC5D0 \uC22B\uC790\uB85C \uC4F0\uB418, \uD300\uC6D0\uC5D0\uAC8C \uC22B\uC790\uB97C \uB4E4\uC774\uBC00\uC9C0 \uB9D0\uACE0 \uADFC\uD669 \xB7 \uB9C9\uD798 \uC9C8\uBB38\uC73C\uB85C \uC5EC\uB294 \uAC83\uC744 \uAD8C\uD569\uB2C8\uB2E4.
 
 \uCD9C\uB825 JSON \uD615\uC2DD:
 {
@@ -616,6 +633,33 @@ var PREP = `\uACFC\uC81C: 1on1 \uBA74\uB2F4 \uC9C1\uC804\uC5D0 \uD300\uC7A5\uC77
 }
 since \uB294 \uCD5C\uB300 5\uAC1C, \uC624\uB798\uB41C \uC21C\uC11C.`;
 
+// functions/_shared/activity.ts
+var KST = 9 * 36e5;
+function mondays(n) {
+  const d = new Date(Date.now() + KST);
+  const dow = (d.getUTCDay() + 6) % 7;
+  const mon = Date.parse(d.toISOString().slice(0, 10) + "T00:00:00Z") - dow * 864e5;
+  return Array.from({ length: n }, (_, i) => new Date(mon - (n - 1 - i) * 7 * 864e5).toISOString().slice(0, 10));
+}
+async function activityLines(teamId) {
+  const out = /* @__PURE__ */ new Map();
+  const { data, error } = await admin.rpc("member_activity", { p_team: teamId, p_weeks: 8 });
+  if (error || !data) return out;
+  const rows = data;
+  const ws = mondays(8).slice(0, -1);
+  for (const uid of new Set(rows.map((r) => r.user_id))) {
+    const wk = ws.map((w) => rows.find((r2) => r2.user_id === uid && r2.week_start === w) ?? { total: 0, off_hours: 0 });
+    const rec = wk.slice(-2), bas = wk.slice(-6, -2);
+    const avg = (a) => a.reduce((x, y) => x + y.total, 0) / Math.max(1, a.length);
+    const r = avg(rec), b = avg(bas);
+    const recTot = rec.reduce((a, w) => a + w.total, 0);
+    const off = recTot ? Math.round(100 * rec.reduce((a, w) => a + w.off_hours, 0) / recTot) : 0;
+    const ch = b >= 1 ? Math.round((r / b - 1) * 100) : null;
+    out.set(uid, `\uC5C5\uBB34 \uAE30\uB85D(\uC571\uC758 \uB300\uD654\xB7\uC9C4\uCC99\xB7\uACB0\uACFC\uBB3C\xB7\uC751\uB2F5) \uC8FC\uBCC4 ${wk.map((w) => w.total).join("\u2192")}\uAC74 \xB7 \uCD5C\uADFC 2\uC8FC \uC8FC\uD3C9\uADE0 ${Math.round(r * 10) / 10}\uAC74${ch != null ? ` (\uC9C0\uB09C 4\uC8FC \uB300\uBE44 ${ch > 0 ? "+" : ""}${ch}%)` : ""} \xB7 \uC2DC\uAC04\uC678(21\uC2DC~7\uC2DC\xB7\uC8FC\uB9D0) ${off}%`);
+  }
+  return out;
+}
+
 // functions/_shared/signals.ts
 var MOOD_LABEL = {
   rested: "\uCDA9\uBD84\uD55C \uD734\uC2DD",
@@ -627,7 +671,7 @@ var MOOD_LABEL = {
   personal: "\uAC1C\uC778\xB7\uAC00\uC871 \uC0AC\uC815",
   need_rest: "\uD734\uC2DD \uD544\uC694"
 };
-var KST = 9 * 36e5;
+var KST2 = 9 * 36e5;
 
 // functions/_shared/condition.ts
 var COND_LABEL = { 1: "\uB9CE\uC774 \uC9C0\uCE68", 2: "\uB2E4\uC18C \uC9C0\uCE68", 3: "\uBCF4\uD1B5", 4: "\uC591\uD638", 5: "\uB9E4\uC6B0 \uC88B\uC74C" };
@@ -703,6 +747,8 @@ serve(async (req) => {
   for (const it of its ?? []) {
     book.add("task", it.id, `\uB2F4\uB2F9 \uD56D\uBAA9 \xB7 ${it.title}`, `${ST[it.status] ?? it.status}, \uC9C4\uCC99 ${it.progress}%, \uB9C8\uAC10 ${it.due_date ?? "-"}${it.base_due && it.due_date && it.base_due !== it.due_date ? ` (\uCC98\uC74C \uACC4\uD68D ${it.base_due}, \uBCC0\uACBD ${it.replan_count}\uD68C)` : ""}${it.needs_plan ? ", \uD558\uC704 \uACC4\uD68D \uC694\uCCAD \uC911" : ""}`);
   }
+  const act = (await activityLines(oo.team_id).catch(() => /* @__PURE__ */ new Map())).get(oo.member_id);
+  if (act) book.add("member", oo.member_id, `${member.full_name} \uC5C5\uBB34 \uAE30\uB85D \uD750\uB984`, act);
   await addKnowhow(book, oo.team_id, "prep");
   const prompt = `\uD300\uC6D0: ${member.full_name}
 \uBA74\uB2F4 \uC77C\uC2DC: ${oo.scheduled_at}
