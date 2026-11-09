@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Link2, Trash2, UserPlus } from 'lucide-react';
+import { Copy, Link2, Mail, Send, Trash2, UserPlus } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { inviteNote, saveInviteNote } from '../lib/onboarding';
+import { mailInvite } from '../lib/invite';
 import { supabase, q, errorText } from '../lib/supabase';
 import type { Invitation, TeamMember } from '../lib/types';
 import { fmtDate } from '../lib/format';
@@ -45,6 +46,7 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
   const [strength, setStrength] = useState('');
   const [weak, setWeak] = useState('');
   const [lastLink, setLastLink] = useState<string | null>(null);
+  const [byMail, setByMail] = useState(true);
 
   const invites = useQuery({
     queryKey: ['invites', team.id],
@@ -60,14 +62,20 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
       const token = await q<string>(supabase.rpc('create_invitation', { p_team: team.id, p_email: email, p_job_title: title }));
       // 강점·보완할 점 → 합류하면 팀장 개인 메모로 (실패해도 초대는 그대로)
       await saveInviteNote(team.id, token, inviteNote(strength, weak)).catch(() => toast('메모는 저장하지 못했습니다. 합류 후 팀원관리에서 남겨 주세요'));
-      return token;
+      const mailErr = byMail ? await mailInvite(token) : 'SKIP';
+      return { token, to: email.trim(), mailErr };
     },
-    onSuccess: (token) => {
+    onSuccess: ({ token, to, mailErr }) => {
       setLastLink(link(token)); setEmail(''); setTitle(''); setStrength(''); setWeak('');
       navigator.clipboard?.writeText(link(token)).catch(() => {});
-      toast('초대 링크를 만들어 복사했습니다. 메신저나 메일로 보내 주세요.');
+      toast(!mailErr ? `${to}로 초대 메일을 보냈습니다. 링크도 복사해 두었습니다.` : mailErr === 'SKIP' ? '초대 링크를 만들어 복사했습니다. 메신저나 메일로 보내 주세요.' : `초대는 만들었지만 메일은 보내지 못했습니다 · ${mailErr}`);
       qc.invalidateQueries({ queryKey: ['invites'] }); qc.invalidateQueries({ queryKey: ['seats'] });
     },
+  });
+  const resend = useMutation({
+    mutationFn: async (i: Invitation) => { const err = await mailInvite(i.token); if (err) throw new Error(err); return i.email; },
+    onSuccess: (to) => { toast(`${to}로 초대 메일을 다시 보냈습니다`); qc.invalidateQueries({ queryKey: ['invites'] }); },
+    onError: (e) => toast(errorText(e)),
   });
   const revoke = useMutation({
     mutationFn: (id: string) => q(supabase.from('invitations').delete().eq('id', id)),
@@ -81,7 +89,7 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
       {params.get('welcome') && (
         <div className="mb-5 rounded-2xl bg-indigo-600 text-white p-5">
           <div className="font-semibold">팀을 만들었습니다. 이제 팀원을 초대하세요.</div>
-          <p className="text-sm text-indigo-100 mt-1">초대 링크를 만들어 메신저로 보내면, 팀원이 로그인해서 바로 합류합니다. 합류한 팀원은 '매니징 보드'에서 이번 주 컨디션 공유부터 시작합니다.</p>
+          <p className="text-sm text-indigo-100 mt-1">팀원 이메일을 넣으면 초대 메일이 바로 가고, 팀원이 그 메일 주소로 로그인하면 바로 합류합니다. 합류한 팀원은 '매니징 보드'에서 이번 주 컨디션 공유부터 시작합니다.</p>
         </div>
       )}
       <div className="grid lg:grid-cols-3 gap-5 items-start">
@@ -103,7 +111,8 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
               <Field label="보완할 점" hint="선택 · 팀원에게는 보이지 않습니다"><input className={inputCls} value={weak} onChange={(e) => setWeak(e.target.value)} placeholder="예) 숫자 근거가 약함" /></Field>
               <ErrorBox error={invite.error ? errorText(invite.error) : null} />
               {invite.error && String(invite.error).includes('PLAN_LIMIT') && <Link to="/settings" className="text-xs text-indigo-600">요금제 보기 →</Link>}
-              <Button type="submit" className="w-full" loading={invite.isPending}><Link2 size={15} />초대 링크 만들기</Button>
+              <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" className="size-4 accent-indigo-600" checked={byMail} onChange={(e) => setByMail(e.target.checked)} />초대 메일 바로 보내기</label>
+              <Button type="submit" className="w-full" loading={invite.isPending}>{byMail ? <><Send size={15} />초대 메일 보내기</> : <><Link2 size={15} />초대 링크 만들기</>}</Button>
             </form>
             {lastLink && (
               <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs break-all">
@@ -111,7 +120,7 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
                 <button className="ml-2 text-indigo-600 inline-flex items-center gap-1" onClick={() => { navigator.clipboard.writeText(lastLink); toast('복사했습니다'); }}><Copy size={12} />복사</button>
               </div>
             )}
-            <p className="mt-3 text-xs text-slate-500">링크는 14일 동안 유효합니다. 메일은 자동으로 보내지 않습니다.</p>
+            <p className="mt-3 text-xs text-slate-500">초대 메일은 ATEAM(invite@leada.team)에서 가고, 답장은 팀장님 메일로 옵니다. 링크는 14일 동안 유효하며 메신저로 직접 보내셔도 됩니다.</p>
           </Card>
           <Card>
             <CardHead title="대기 중인 초대" />
@@ -119,7 +128,8 @@ export default function TeamPage({ embedded }: { embedded?: boolean } = {}) {
               <ul className="divide-y divide-slate-100 text-sm">
                 {invites.data.map((i) => (
                   <li key={i.id} className="px-5 py-3 flex items-center gap-2">
-                    <span className="flex-1 truncate">{i.email}<span className="block text-xs text-slate-400">{new Date(i.expires_at) < new Date() ? '만료됨' : `${fmtDate(i.expires_at)}까지`}</span></span>
+                    <span className="flex-1 truncate">{i.email}<span className="block text-xs text-slate-400">{new Date(i.expires_at) < new Date() ? '만료됨' : `${fmtDate(i.expires_at)}까지`}{i.mailed_at ? ` · 메일 보냄 ${fmtDate(i.mailed_at)}` : ' · 메일 안 보냄'}</span></span>
+                    {new Date(i.expires_at) >= new Date() && <button className="text-slate-400 hover:text-indigo-600 disabled:opacity-40" title={i.mailed_at ? '초대 메일 다시 보내기' : '초대 메일 보내기'} disabled={resend.isPending} onClick={() => resend.mutate(i)}><Mail size={14} /></button>}
                     <button className="text-slate-400 hover:text-indigo-600" title="링크 복사" onClick={() => { navigator.clipboard.writeText(link(i.token)); toast('복사했습니다'); }}><Copy size={14} /></button>
                     <button className="text-slate-400 hover:text-rose-600" title="취소" onClick={() => revoke.mutate(i.id)}><Trash2 size={14} /></button>
                   </li>

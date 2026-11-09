@@ -5,12 +5,13 @@
 // 상태는 teams.settings.onboarding 에 둔다. 시작하기 안의 AI는 크레딧을 쓰지 않는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, Image as ImageIcon, Link2, Plus, Presentation, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, Image as ImageIcon, Plus, Presentation, Send, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_ONBOARD, IMAGE_EXT, MAX_BYTES, extractText, safeName, shrinkImage } from '../lib/extract';
 import { applyOps, useLevelNames, type PlanOp } from '../lib/items';
 import { inviteNote, onboardingOf, saveInviteNote, saveOnboarding } from '../lib/onboarding';
+import { mailInvite } from '../lib/invite';
 import { PLAYBOOK } from '../lib/playbook';
 import type { AiOutput, OrgNoteKind } from '../lib/types';
 import { cx } from '../lib/format';
@@ -35,7 +36,7 @@ const STEPS = [
   { n: 3, label: '팀원 초대' },
 ] as const;
 
-const STEP_DESC: Record<1 | 2 | 3, string> = { 1: '자료로 목표 › 과제 › 할 일', 2: '팀장님 방식대로 일하는 기준', 3: '링크 하나로, 팀원은 무료' };
+const STEP_DESC: Record<1 | 2 | 3, string> = { 1: '자료로 목표 › 과제 › 할 일', 2: '팀장님 방식대로 일하는 기준', 3: '메일 한 통으로, 팀원은 무료' };
 const STEP_ICON = { 1: Target, 2: BookOpen, 3: UserPlus } as const;
 
 /** 앱 위에 크게 뜨는 팝업 — 왼쪽 진행 패널 + 오른쪽 작업 영역 (모바일은 전체 화면) */
@@ -730,7 +731,7 @@ function StepKnowhow({ onBack, onNext }: { onBack: () => void; onNext: () => voi
 // 3단계 — 팀원 초대
 // ---------------------------------------------------------------------
 interface Row { email: string; title: string; strength: string; weak: string }
-interface Made { email: string; link?: string; error?: string }
+interface Made { email: string; link?: string; error?: string; mailed?: boolean; mailErr?: string }
 
 function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFinish: () => void; finishing: boolean }) {
   const { team } = useTeam();
@@ -762,7 +763,8 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
     for (const r of valid) {
       try {
         const token = await q<string>(supabase.rpc('create_invitation', { p_team: team.id, p_email: r.email.trim(), p_job_title: r.title.trim() }));
-        res.push({ email: r.email.trim(), link: link(token) });
+        const mailErr = await mailInvite(token);
+        res.push({ email: r.email.trim(), link: link(token), mailed: !mailErr, mailErr: mailErr ?? undefined });
         // 메모 저장이 실패해도 초대는 그대로 쓴다
         await saveInviteNote(team.id, token, inviteNote(r.strength, r.weak)).catch(() => toast(`${r.email.trim()}: 메모는 저장하지 못했습니다. 합류 후 팀원관리에서 남겨 주세요`));
       } catch (e) {
@@ -778,7 +780,8 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
     const ok = res.filter((x) => x.link);
     if (ok.length) {
       navigator.clipboard?.writeText(ok.map((x) => `${x.email}  ${x.link}`).join('\n')).catch(() => {});
-      toast(`초대 링크 ${ok.length}개를 만들어 복사했습니다. 메신저나 메일로 보내 주세요`);
+      const sent = ok.filter((x) => x.mailed).length;
+      toast(sent === ok.length ? `초대 메일 ${sent}통을 보냈습니다. 링크도 복사해 두었습니다` : sent ? `초대 메일 ${sent}통을 보냈습니다. 나머지 ${ok.length - sent}명은 복사한 링크를 직접 보내 주세요` : `초대 링크 ${ok.length}개를 만들어 복사했습니다. 메일은 보내지 못했으니 메신저나 메일로 보내 주세요`);
     }
   };
   const set = (i: number, k: keyof Row, v: string) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
@@ -791,15 +794,15 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
   return (
     <section className="flex-1 flex flex-col">
       <StepHead title="팀원을 초대하세요" preview={3}>
-        초대 링크를 만들어 메신저나 메일로 보내 주세요. 팀원이 초대한 메일 주소로 로그인하면 바로 합류합니다. 팀원은 무료이고, 링크는 14일 동안 유효합니다.
+        팀원 이메일을 넣으면 초대 메일이 바로 갑니다. 팀원이 그 메일 주소로 로그인하면 바로 합류합니다. 팀원은 무료이고, 링크는 14일 동안 유효합니다.
       </StepHead>
 
       {!!made.length && (
         <div className="mb-4 rounded-2xl bg-emerald-50/70 ring-1 ring-emerald-200/70 p-4">
           <div className="flex items-center gap-2">
             <Check size={15} className="text-emerald-600" />
-            <span className="text-sm font-semibold text-emerald-900">초대 링크 {okLinks.length}개를 만들었습니다</span>
-            <span className="text-xs text-emerald-800/70 hidden sm:inline">메신저나 메일로 보내 주세요</span>
+            <span className="text-sm font-semibold text-emerald-900">팀원 {okLinks.length}명을 초대했습니다</span>
+            <span className="text-xs text-emerald-800/70 hidden sm:inline">메일이 안 간 사람은 링크를 복사해 보내 주세요</span>
             {okLinks.length > 0 && <Button size="sm" variant="secondary" className="ml-auto" onClick={copyAll}><Copy size={12} />모두 복사</Button>}
           </div>
           <ul className="mt-2.5 space-y-1 text-xs">
@@ -807,7 +810,8 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
               <li key={i} className="flex items-center gap-2 min-w-0">
                 <span className="font-medium text-slate-700 shrink-0 max-w-[45%] truncate">{m.email}</span>
                 {m.link
-                  ? <><span className="text-slate-500 truncate flex-1">{m.link}</span>
+                  ? <><span className={cx('shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold', m.mailed ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500')} title={m.mailErr}>{m.mailed ? '메일 보냄' : m.mailErr ? '메일 못 보냄' : '링크'}</span>
+                    <span className="text-slate-500 truncate flex-1">{m.link}</span>
                     <button type="button" className="text-slate-400 hover:text-indigo-700 shrink-0" aria-label="링크 복사" onClick={() => { void navigator.clipboard.writeText(m.link!); toast('복사했습니다'); }}><Copy size={13} /></button></>
                   : <span className="text-rose-600 flex-1 truncate">{m.error}</span>}
               </li>
@@ -842,12 +846,12 @@ function StepInvite({ onBack, onFinish, finishing }: { onBack: () => void; onFin
 
       <StepFoot onBack={onBack} right={valid.length ? <>
         <Button variant="ghost" onClick={onFinish} disabled={busy || finishing}>{okLinks.length ? '이대로 시작하기' : '건너뛰고 시작하기'}</Button>
-        <Button onClick={create} loading={busy}><Link2 size={15} />초대 링크 {valid.length}개 만들기</Button>
+        <Button onClick={create} loading={busy}><Send size={15} />초대 메일 {valid.length}통 보내기</Button>
       </> : okLinks.length ? (
         <Button onClick={onFinish} loading={finishing}>ATEAM 시작하기<ArrowRight size={15} /></Button>
       ) : <>
         <Button variant="ghost" onClick={onFinish} loading={finishing}>건너뛰고 시작하기</Button>
-        <Button disabled><Link2 size={15} />초대 링크 만들기</Button>
+        <Button disabled><Send size={15} />초대 메일 보내기</Button>
       </>} />
     </section>
   );

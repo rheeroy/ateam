@@ -12,7 +12,7 @@ export interface TeamMember {
   team_id: string; user_id: string; role: Role; job_title: string; weekly_hours: number;
   status: 'active' | 'left'; joined_at: string; profiles?: Profile;
 }
-export interface Invitation { id: string; team_id: string; email: string; role: Role; job_title: string; token: string; accepted_at: string | null; expires_at: string; created_at: string }
+export interface Invitation { id: string; team_id: string; email: string; role: Role; job_title: string; token: string; accepted_at: string | null; expires_at: string; created_at: string; mailed_at?: string | null; mail_count?: number }
 
 /** 컨디션 공유 (did·blocked·next 는 예전 주간 체크인의 업무 칸 — 새로 쓰지 않음) */
 export interface Checkin { id: string; team_id: string; user_id: string; week_start: string; did: string; blocked: string; next: string; condition: number | null; moods?: string[] | null; note?: string | null; created_at: string; updated_at: string }
