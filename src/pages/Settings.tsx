@@ -428,7 +428,7 @@ function CheckoutModal({ plan, cycle, members, onClose, onPay }: { plan: Plan; c
         <ul className="text-xs text-slate-500 leading-relaxed list-disc pl-4 space-y-0.5">
           <li>{cycle === 'year' ? '12개월' : '1개월'}마다 같은 날 등록한 카드로 자동 결제됩니다. 설정 &gt; 요금제에서 언제든 해지 예약할 수 있고, 남은 기간은 그대로 이용합니다.</li>
           <li>프리미엄 AI 크레딧(월 제공분 · 추가 구매분)은 그 결제 주기 안에서만 쓰며, 다음 달로 이월되지 않습니다.</li>
-          <li>결제 후 7일 이내이고 이용 기록이 없으면 전액 환불됩니다. 자세한 기준은 환불정책을 따릅니다.</li>
+          <li>결제 후 7일 이내이고 이용 기록이 없으면 전액 환불을 요청할 수 있습니다. 자세한 기준은 환불정책을 따릅니다.</li>
         </ul>
         <label className="flex items-start gap-2 text-sm cursor-pointer">
           <input type="checkbox" className="mt-0.5" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
