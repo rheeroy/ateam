@@ -139,6 +139,8 @@ export default function Layout() {
   const proposedN = proposedQ.data ?? 0;
   // 체험·구독이 끝나면 잠금 (기록은 보관) — 팀장은 설정(요금제)만 열린다
   const locked = credits?.plan_id === 'free' && !team?.is_demo && !loc.pathname.startsWith('/settings');
+  const expired = credits?.plan_id === 'free' && !team?.is_demo;   // 메모 · 알림은 설정 화면에서도 숨긴다
+  const ownsTeam = memberships.some((m) => m.teams?.owner_id === profile?.id && !m.teams?.is_demo);
   const demo = !!team?.is_demo;   // 데모 팀: 설정 · 새 팀 만들기 · 로그아웃 숨김 (나가기는 위 띠의 '내 팀으로 시작하기')
   const demoLink = demo && !!getDemo();
   const trialDays = !demo && credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
@@ -197,13 +199,13 @@ export default function Layout() {
                 프리미엄 <span className="font-mono font-semibold text-slate-800">{credits.monthly_remaining + credits.topup_remaining}</span>
               </NavLink>
             )}
-            {isLeader && (
+            {isLeader && !expired && (
               <button onClick={() => openQuickNote()} title="내 메모 — 지금 보던 화면에 붙여 둡니다"
                 className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100">
                 <StickyNote size={14} /><span className="hidden sm:inline">메모</span></button>
             )}
             {isLeader && !locked && team && <HeaderToday />}
-            <Notifications />
+            {!expired && <Notifications />}
             <div className="relative">
               <button onClick={() => setMenu((x) => !x)} className="flex items-center gap-2 text-sm text-slate-600">
                 <Avatar name={profile?.full_name} tone={isLeader ? 'indigo' : 'slate'} size={7} />
@@ -219,7 +221,8 @@ export default function Layout() {
                     {!demoLink && <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>}
                   </> : <>
                     {!isLeader && <NavLink to="/settings" onClick={() => setMenu(false)} className="block px-3 py-2 hover:bg-slate-50 md:hidden">설정</NavLink>}
-                    <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>
+                    {/* 계정당 팀 하나 — 이미 내가 만든 팀이 있으면 숨긴다 (팀원으로만 속한 사람은 자기 팀을 하나 만들 수 있다) */}
+                    {!ownsTeam && <NavLink to="/onboarding?new=1" className="block px-3 py-2 hover:bg-slate-50">새 팀 만들기</NavLink>}
                     <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-3 py-2 hover:bg-slate-50 inline-flex items-center gap-2"><LogOut size={14} />로그아웃</button>
                   </>}
                 </div>
