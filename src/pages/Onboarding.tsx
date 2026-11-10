@@ -6,7 +6,7 @@ import { saveOnboarding } from '../lib/onboarding';
 import { Button, ErrorBox, Field, inputCls } from '../components/ui';
 
 export default function Onboarding() {
-  const { team, refresh, setTeamId, profile, session } = useSession();
+  const { team, refresh, setTeamId, profile, session, memberships } = useSession();
   const [params] = useSearchParams();
   const nav = useNavigate();
   const [name, setName] = useState('');
@@ -16,7 +16,9 @@ export default function Onboarding() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  if (team && !params.get('new')) return <Navigate to="/" replace />;
+  // 계정당 팀 하나 — 이미 내가 만든 팀이 있으면 새 팀 만들기로 들어와도 돌려보낸다
+  const ownsTeam = memberships.some((m) => m.teams?.owner_id === profile?.id && !m.teams?.is_demo);
+  if (team && (!params.get('new') || ownsTeam)) return <Navigate to="/" replace />;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +51,7 @@ export default function Onboarding() {
               {session?.user.email} · 다른 계정으로 로그인
             </button>
           </div>
-          <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">이 계정에는 아직 팀이 없습니다. 팀원으로 초대받았다면 팀장이 보낸 초대 링크로 들어오세요.</p>
+          {!team && <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">이 계정에는 아직 팀이 없습니다. 팀원으로 초대받았다면 팀장이 보낸 초대 링크로 들어오세요.</p>}
           <h1 className="mt-2 text-2xl font-bold">팀을 만들어 주세요</h1>
           <p className="mt-1 text-sm text-slate-500">14일 동안 모든 기능을 무료로 씁니다. 카드 등록은 필요 없고, 체험이 끝난 뒤 요금제를 고르면 기록 그대로 이어서 씁니다.</p>
         </div>
