@@ -2,7 +2,7 @@
 //   왼쪽: 받은 요청 · 이번 주 업데이트 · 변동 없음 · 아직 없음 / 오른쪽: 과제 히스토리 (그림·문서) + 전달 기록(확인 · 질문/답)
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, ChevronDown, Hash, FolderClock, Inbox, Lock, MessageSquare, RefreshCw, Search, Send, Sparkles, Waypoints, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Hash, FolderClock, Inbox, MessageSquare, RefreshCw, Search, Send, Sparkles, Waypoints, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useItems } from '../lib/items';
 import type { WorkItem } from '../lib/types';
@@ -61,7 +61,6 @@ function SendModal({ open, onClose, item, hist, core, request }: { open: boolean
         </div>
         <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1.5">
           <div>전달되는 것: {core ? '연도별 흐름 · 담당자 시기 · 지켜 온 원칙 · 반복되는 일 · 해 봤는데 안 된 것 · 관계자 · 열린 숙제 · 조심할 것 (지금 화면 그대로)' : <>현황 · 진행 흐름 · 관계자 · 확정/미결 사항 · 리스크 · 이전 시도 · 확인 필요 <span className="text-slate-400">(숨긴 항목 제외, 지금 화면 그대로)</span></>}</div>
-          <div className="inline-flex items-center gap-1"><Lock size={12} className="text-slate-400" />전달되지 않는 것: 1on1 · 컨디션 · 팀장 메모 · 평가 · ATEAM 업무 피드백</div>
         </div>
         {canOwner && (
           <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={owner} onChange={(e) => setOwner(e.target.checked)} className="rounded border-slate-300 text-violet-600" />

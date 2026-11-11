@@ -110,7 +110,13 @@ export function useHistoryActions() {
   const qc = useQueryClient();
   const toast = useToast();
   const inval = () => ['histories', 'history-shares', 'history-msgs', 'member-badges', 'notifications'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-  const fail = (e: unknown) => toast(/task_histories|history_shares|history_messages/.test(errorText(e)) ? '히스토리 SQL(30_history.sql)을 먼저 실행해 주세요.' : errorText(e));
+  // 표가 아예 없을 때만 SQL 안내 — 권한(RLS) 오류까지 'SQL을 실행하라'로 보이면 원인을 가린다
+  const fail = (e: unknown) => {
+    const m = errorText(e);
+    if (/(task_histories|history_shares|history_messages)/.test(m) && /does not exist|schema cache|42P01|PGRST205/i.test(m)) return toast('히스토리 SQL(30_history.sql)을 먼저 실행해 주세요.');
+    if (/row-level security/i.test(m)) return toast('전달할 권한이 없습니다. 최신 SQL(48_core_share.sql)을 실행했는지 확인해 주세요.');
+    toast(m);
+  };
   return {
     /** 만들기·업데이트 (AI) — 처음은 여러 과제를 나눠서 */
     update: useMutation({
