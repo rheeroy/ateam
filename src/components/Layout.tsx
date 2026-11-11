@@ -17,7 +17,7 @@ import { isOpenSub, useSubmissionsAi } from '../lib/work';
 import { QuickNote } from './notes/Notes';
 import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
-import { ATeam, ATeamAdvice, CoreAI, ExecIcon, LogoBlock, LogoMark } from './Brand';
+import { ATeam, ATeamAdvice, ExecIcon, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
 import { AutopilotFab } from './autopilot/Fab';
@@ -105,7 +105,7 @@ function LeaderNav({ lvl, proposedN, demo }: { lvl?: string; proposedN: number; 
             <div className="hidden md:block h-px bg-slate-100 my-3" />
             <NavItem to="/notes" label="내 메모 모아보기" icon={StickyNote} />
             <NavItem to="/knowhow" label="노하우 라이브러리" icon={Library} />
-            <NavItem to="/insight" label={<><CoreAI /> 인사이트</>} tip="Core AI 인사이트" icon={Layers} badge={lvl} />
+            <NavItem to="/insight" label="데이터 깊이" tip="데이터 깊이 — 기록이 쌓일수록 Core AI가 볼 수 있는 깊이" icon={Layers} badge={lvl} />
             {!demo && <NavItem to="/settings" label="설정" icon={Settings} />}
             <AdminNav />
     </>

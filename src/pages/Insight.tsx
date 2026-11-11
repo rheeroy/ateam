@@ -59,7 +59,7 @@ export default function Insight() {
 
   return (
     <section>
-      <PageHeader title={<><CoreAI /> 인사이트 레벨</>} sub={aiText('기록이 쌓일수록 AI가 볼 수 있는 깊이가 달라집니다. 근거가 모자라면 추측하지 않고 "아직 판단할 수 없다"고 말합니다.')} />
+      <PageHeader title="데이터 깊이" sub={aiText('기록이 쌓일수록 AI가 볼 수 있는 깊이가 달라집니다. 근거가 모자라면 추측하지 않고 "아직 판단할 수 없다"고 말합니다.')} />
       <div className="rounded-2xl bg-slate-900 text-white p-6">
         <div className="text-xs font-semibold tracking-wider text-violet-300">{team.name}</div>
         <div className="mt-3 flex items-end gap-4 flex-wrap">

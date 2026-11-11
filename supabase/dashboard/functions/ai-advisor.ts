@@ -1491,8 +1491,8 @@ function analyze(raw, members) {
         periods: M,
         title: `${gl} ${gap.target - gap.current}${gap.unit ?? ""}\uB9CC \uB354 \uC313\uC774\uBA74 AI\uAC00 'L${next.level} ${next.name}'\uAE4C\uC9C0 \uBD05\uB2C8\uB2E4`,
         detail: `\uC9C0\uAE08\uC740 L${lv.level} ${lv.levels[lv.level - 1].name} \uB2E8\uACC4\uC785\uB2C8\uB2E4.`,
-        rule: "AI \uC778\uC0AC\uC774\uD2B8 \uB808\uBCA8 \uC870\uAC74",
-        action: { label: "\uB808\uBCA8 \uC870\uAC74 \uBCF4\uAE30", to: "/insight" }
+        rule: "\uB370\uC774\uD130 \uAE4A\uC774 \uC870\uAC74",
+        action: { label: "\uB370\uC774\uD130 \uAE4A\uC774 \uBCF4\uAE30", to: "/insight" }
       });
     }
   }

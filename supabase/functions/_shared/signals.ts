@@ -515,7 +515,7 @@ export function analyze(raw: Raw, members: RawMember[]): { signals: Signal[]; do
       const gd: Domain = /체크인|컨디션|1:1|1on1/.test(gl) ? 'people' : /결과물/.test(gl) ? 'output' : /근거/.test(gl) ? 'growth' : /공수/.test(gl) ? 'exec' : 'goal';
       S.push({ id: `level-${lv.level}-${gl}`, domain: gd, type: 'data', severity: 1, periods: M,
         title: `${gl} ${gap.target - gap.current}${gap.unit ?? ''}만 더 쌓이면 AI가 'L${next.level} ${next.name}'까지 봅니다`,
-        detail: `지금은 L${lv.level} ${lv.levels[lv.level - 1].name} 단계입니다.`, rule: 'AI 인사이트 레벨 조건', action: { label: '레벨 조건 보기', to: '/insight' } });
+        detail: `지금은 L${lv.level} ${lv.levels[lv.level - 1].name} 단계입니다.`, rule: '데이터 깊이 조건', action: { label: '데이터 깊이 보기', to: '/insight' } });
     }
   }
 
