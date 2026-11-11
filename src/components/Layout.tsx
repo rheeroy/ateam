@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardCheck, FolderClock, LaptopMinimal, Blocks, Library, ChevronDown, Home, LayoutDashboard, Layers, LogOut,
-  ScatterChart, Settings, StickyNote, Target, Users, Split, Lock, Inbox, Contact } from 'lucide-react';
+  ScatterChart, Settings, StickyNote, Target, Users, Split, Lock, Inbox, Contact, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useSession } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { InsightLevel } from '../lib/types';
@@ -143,16 +143,17 @@ export default function Layout() {
   const ownsTeam = memberships.some((m) => m.teams?.owner_id === profile?.id && !m.teams?.is_demo);
   const demo = !!team?.is_demo;   // 데모 팀: 설정 · 새 팀 만들기 · 로그아웃 숨김 (나가기는 위 띠의 '내 팀으로 시작하기')
   const demoLink = demo && !!getDemo();
+  const side = useSideCollapsed();
   const trialDays = !demo && credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
     <div className="min-h-screen md:flex bg-[#F6F7F9]">
-      <aside className={cx('md:w-16 xl:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:px-2 md:py-4 xl:p-4 overflow-x-auto md:overflow-y-auto', !isLeader && 'hidden md:block')}>
+      <aside className={cx(side.collapsed && 'side-collapsed', 'relative md:w-16 xl:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:px-2 md:py-4 xl:p-4 overflow-x-auto md:overflow-y-auto', !isLeader && 'hidden md:block')}>
         <Link to="/" title="대시보드로" className="hidden md:flex items-center justify-center xl:justify-start gap-2.5 xl:px-2 pb-4 rounded-lg hover:opacity-80">
           <LogoBlock size={34} />
           <div className="min-w-0 hidden xl:block">
             <ATeam className="block text-[16px] text-slate-900" />
-            <div className="text-[11px] text-slate-400 truncate">{team?.name}</div>
+            <div className="text-xs font-semibold text-slate-600 truncate">{team?.name}</div>
           </div>
         </Link>
         {isLeader ? (
@@ -169,6 +170,11 @@ export default function Layout() {
             {!demo && <NavItem to="/settings" label="설정" icon={Settings} />}
           </nav>
         )}
+        {/* 메뉴 접기 · 펴기 (넓은 화면에서만 · 브라우저에 기억) */}
+        <button onClick={side.toggle} title={side.collapsed ? '메뉴 펴기' : '메뉴 접기'} aria-label={side.collapsed ? '메뉴 펴기' : '메뉴 접기'}
+          className="side-toggle hidden xl:flex items-center gap-2 w-full mt-4 px-3 py-2 rounded-lg text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          {side.collapsed ? <PanelLeftOpen size={16} className="shrink-0" /> : <><PanelLeftClose size={16} className="shrink-0" /><span>메뉴 접기</span></>}
+        </button>
       </aside>
 
       <main className="flex-1 min-w-0">
@@ -183,7 +189,11 @@ export default function Layout() {
                 {memberships.map((m) => <option key={m.team_id} value={m.team_id}>{m.teams.name}{m.role === 'leader' ? ' · 팀장' : ''}</option>)}
               </select>
             ) : (
-              <span className="font-semibold text-slate-800 truncate md:hidden">{team?.name}</span>
+              <span className="inline-flex items-center gap-1.5 min-w-0 rounded-lg bg-slate-100 px-2.5 py-1">
+                <Users size={13} className="text-slate-500 shrink-0" />
+                <span className="font-semibold text-slate-800 truncate">{team?.name}</span>
+                <span className="text-xs text-slate-500 shrink-0">· {isLeader ? '팀장' : '팀원'}</span>
+              </span>
             )}
             {team?.is_demo && (
               <span className="text-[11px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 shrink-0">데모</span>
@@ -276,4 +286,11 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
       {leader && <Link to="/settings?tab=billing" className="mt-5 inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700">요금제 고르기</Link>}
     </div>
   );
+}
+
+/** 왼쪽 메뉴 접기 — 넓은 화면(xl)에서 아이콘만 남긴다. 브라우저에 기억 (실패해도 동작) */
+function useSideCollapsed() {
+  const [collapsed, set] = useState(() => { try { return localStorage.getItem('ateam.side') === 'collapsed'; } catch { return false; } });
+  const toggle = () => set((c) => { const n = !c; try { localStorage.setItem('ateam.side', n ? 'collapsed' : 'open'); } catch { /* 저장 못 해도 이번 화면에선 동작 */ } return n; });
+  return { collapsed, toggle };
 }
