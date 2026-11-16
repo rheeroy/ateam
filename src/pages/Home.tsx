@@ -19,7 +19,7 @@ import { AiIcon, aiText, AteamAI, ExecIcon, LogoMark } from '../components/Brand
 import { onboardingOf } from '../lib/onboarding';
 import { useNotes } from '../lib/notes';
 import {
-  MemoModal, PeriodTabs, QuickStart, SetupResume, periodRangeLabel, STATUS_META,
+  MemoModal, PeriodTabs, SetupResume, periodRangeLabel, STATUS_META,
   dDay, isToday, todayYmd, useAnsweredRequests, useHomeModel, usePeriod, usePromises, useReviewQueue, useWeekOneOnOnes,
   type HomeModel, type MainSection,
   type PromiseRow,
@@ -551,12 +551,12 @@ export default function Home() {
   return (
     <div className="space-y-3">
       <Header />
-      {onboardingOf(team.settings).status === 'done' && <SetupResume teamId={team.id} />}
+      {/* 시작하기 안내는 맨 위 한 곳에만 — 시작하기를 거치기 전에 만든 팀(예전 방식)도 같은 안내를 본다 */}
+      {onboardingOf(team.settings).status !== 'pending' && <SetupResume teamId={team.id} />}
       <DailyBriefing m={m} />
       <div className="pt-2 flex items-center gap-2 flex-wrap"><h2 className="text-[15px] font-extrabold tracking-tight text-slate-900">Managing Views</h2><span className="text-xs font-semibold text-slate-500 num">{periodRangeLabel(period)}</span>
         <span className="ml-auto"><PeriodTabs period={period} setPeriod={setPeriod} /></span></div>
       <Tiles m={m} />
-      <div className="pt-4"><QuickStart teamId={team.id} /></div>
       <div className="h-12" aria-hidden />
       <MemoModal teamId={team.id} open={memo.open} preset={memo.who} onClose={() => setMemo({ open: false, who: null })} />
     </div>
