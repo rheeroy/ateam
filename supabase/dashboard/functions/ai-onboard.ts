@@ -303,6 +303,7 @@ var CREDITS = {
   core_work: 0,
   evaluation_draft: 5,
   plan_draft: 2,
+  folder_scan: 2,
   forecast_note: 1,
   strategy_check: 1,
   scenario_note: 1
@@ -615,15 +616,7 @@ var PLAN_DRAFT = `\uACFC\uC81C: \uD300\uC7A5(\uB610\uB294 \uD300\uC6D0)\uC774 \u
 }
 parent \uB294 null(\uCD5C\uC0C1\uC704), \uAC19\uC740 \uC751\uB2F5\uC758 \uB2E4\uB978 add \uD56D\uBAA9\uC758 ref, \uB610\uB294 \uAE30\uC874 \uD56D\uBAA9 id. \uD56D\uBAA9\uC740 30\uAC1C \uC774\uD558.`;
 
-// functions/_shared/signals.ts
-var KST = 9 * 36e5;
-var kstToday = (now = Date.now()) => new Date(now + KST).toISOString().slice(0, 10);
-
-// functions/ai-onboard/index.ts
-var IMAGE_MIME = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-var MAX_FILES = 10;
-var MAX_TOTAL = 16 * 1024 * 1024;
-var FREE_RUNS = 3;
+// functions/_shared/onboard.ts
 var ONBOARD_PLAN = `${PLAN_DRAFT}
 
 [\uC628\uBCF4\uB529] \uC774 \uC790\uB8CC\uB294 \uD300\uC7A5\uC774 ATEAM\uC744 \uCC98\uC74C \uC2DC\uC791\uD558\uBA70 \uD55C\uAEBC\uBC88\uC5D0 \uC62C\uB9B0 \uAC83\uC785\uB2C8\uB2E4(\uC0AC\uC5C5\uACC4\uD68D\uC11C, \uC5C5\uBB34 \uBD84\uC7A5, \uD68C\uC758\uB85D, \uC784\uC6D0 \uBCF4\uACE0 \uC790\uB8CC, \uD654\uBA74 \uCEA1\uCC98 \uB4F1).
@@ -648,6 +641,16 @@ async function setJob(teamId, job) {
   const onboarding = settings.onboarding ?? {};
   await admin.from("teams").update({ settings: { ...settings, onboarding: { ...onboarding, job } } }).eq("id", teamId);
 }
+
+// functions/_shared/signals.ts
+var KST = 9 * 36e5;
+var kstToday = (now = Date.now()) => new Date(now + KST).toISOString().slice(0, 10);
+
+// functions/ai-onboard/index.ts
+var IMAGE_MIME = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+var MAX_FILES = 10;
+var MAX_TOTAL = 16 * 1024 * 1024;
+var FREE_RUNS = 3;
 serve(async (req) => {
   const body = await readJson(req);
   if (!body.team_id) throw new HttpError(400, "MISSING_FIELDS");

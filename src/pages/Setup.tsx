@@ -5,7 +5,7 @@
 // 상태는 teams.settings.onboarding 에 둔다. 시작하기 안의 AI는 크레딧을 쓰지 않는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, Image as ImageIcon, Lock, Plus, Presentation, Send, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, Copy, Eye, FileText, FolderOpen, Image as ImageIcon, Lock, Plus, Presentation, Send, Sheet, Target, Upload, UserPlus, UserRound, X } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q, invoke, errorText } from '../lib/supabase';
 import { ACCEPT_ONBOARD, IMAGE_EXT, MAX_BYTES, extractText, safeName, shrinkImage } from '../lib/extract';
@@ -19,6 +19,7 @@ import { Button, ErrorBox, inputCls, useToast } from '../components/ui';
 import { AiIcon, AteamAI, CoreAI, LogoBlock } from '../components/Brand';
 import { ProvChip } from '../components/Prov';
 import { ORG_KIND } from '../components/home/shared';
+import { FolderScan } from '../components/setup/FolderScan';
 
 interface OrgCand { kind: string; title: string; body?: string; source?: string; event_date?: string | null; exec?: string }
 interface ExecCand { name: string; title?: string; interests?: string }
@@ -26,26 +27,28 @@ interface OnboardJob { id?: string; status?: 'running' | 'done' | 'failed'; at?:
 /** 뒤에서 만드는 초안의 진행 상태 (teams.settings.onboarding.job) */
 const jobOf = (settings: Record<string, unknown> | undefined): OnboardJob =>
   (((settings?.onboarding ?? {}) as { job?: OnboardJob }).job ?? {});
-interface OnboardOut { summary: string; ops: PlanOp[]; org?: OrgCand[]; execs?: ExecCand[]; onboarding?: boolean }
+interface OnboardOut { summary: string; ops: PlanOp[]; org?: OrgCand[]; execs?: ExecCand[]; onboarding?: boolean; folder?: boolean; docs?: number }
 
 const MAX_FILES = 10;
 const FREE_RUNS = 3;
+type Step = 1 | 2 | 3 | 4;
 const STEPS = [
-  { n: 1, label: '팀목표 초안' },
-  { n: 2, label: '업무 기준·노하우' },
-  { n: 3, label: '팀원 초대' },
+  { n: 1, label: '팀 자료 정리' },
+  { n: 2, label: '팀목표 초안' },
+  { n: 3, label: '업무 기준·노하우' },
+  { n: 4, label: '팀원 초대' },
 ] as const;
 
-const STEP_DESC: Record<1 | 2 | 3, string> = { 1: '자료로 목표 › 과제 › 할 일', 2: '팀장님 방식대로 일하는 기준', 3: '메일 한 통으로, 팀원은 무료' };
-const STEP_ICON = { 1: Target, 2: BookOpen, 3: UserPlus } as const;
+const STEP_DESC: Record<Step, string> = { 1: '폴더 속 계획·보고·회의록 읽기', 2: '목표 › 과제 › 할 일', 3: '팀장님 방식대로 일하는 기준', 4: '메일 한 통으로, 팀원은 무료' };
+const STEP_ICON = { 1: FolderOpen, 2: Target, 3: BookOpen, 4: UserPlus } as const;
 
 /** 앱 위에 크게 뜨는 팝업 — 왼쪽 진행 패널 + 오른쪽 작업 영역 (모바일은 전체 화면) */
 export default function Setup() {
   const { team, refresh, profile } = useTeam();
-  const [step, setStep] = useState<1 | 2 | 3>(() => onboardingOf(team.settings).step ?? 1);
+  const [step, setStep] = useState<Step>(() => onboardingOf(team.settings).step ?? 1);
   const [leaving, setLeaving] = useState(false);
   const [finishErr, setFinishErr] = useState<string | null>(null);
-  const go = (n: 1 | 2 | 3) => { setStep(n); void saveOnboarding(team.id, { step: n }).catch(() => {}); };
+  const go = (n: Step) => { setStep(n); void saveOnboarding(team.id, { step: n }).catch(() => {}); };
   // 마치거나 건너뛰면 'done' — settings 가 바뀌면 팝업이 닫히고 뒤의 앱이 그대로 쓰인다
   const finish = async () => {
     setLeaving(true); setFinishErr(null);
@@ -68,10 +71,10 @@ export default function Setup() {
           <div aria-hidden className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-indigo-600/25 blur-3xl" />
           <div className="relative flex items-center gap-2.5"><LogoBlock size={28} /><span className="font-black tracking-tight">ATEAM</span></div>
           <div className="relative mt-10">
-            <div className="text-[11px] font-semibold tracking-widest text-violet-300">시작하기 · 약 5분</div>
+            <div className="text-[11px] font-semibold tracking-widest text-violet-300">시작하기 · 약 10분</div>
             <p className="mt-3 text-[17px] font-semibold leading-relaxed">
               안녕하세요{first ? `, ${first} 팀장님` : ''}.<br />
-              저는 <AteamAI supCls="text-violet-300" />입니다. 바로 시작할 수 있도록 세 가지만 함께 준비해 볼게요.
+              저는 <AteamAI supCls="text-violet-300" />입니다. 바로 시작할 수 있도록 네 가지만 함께 준비해 볼게요.
             </p>
           </div>
           <ol className="relative mt-8 space-y-1" aria-label="시작하기 단계">
@@ -99,15 +102,16 @@ export default function Setup() {
           <div className="md:hidden flex items-center gap-3 px-5 py-3.5 border-b border-slate-100">
             <LogoBlock size={24} />
             <div className="flex gap-1.5">{STEPS.map((st) => <span key={st.n} className={cx('h-1.5 rounded-full', st.n === step ? 'w-7 bg-indigo-600' : st.n < step ? 'w-4 bg-indigo-300' : 'w-4 bg-slate-200')} />)}</div>
-            <span className="text-xs text-slate-400">{step} / 3</span>
+            <span className="text-xs text-slate-400">{step} / 4</span>
             <button type="button" onClick={finish} disabled={leaving} className="ml-auto text-xs text-slate-500">나중에 하기</button>
           </div>
-          <div key={step} className="flex-1 overflow-y-auto px-5 sm:px-10 pt-7 sm:pt-9 flex flex-col">
-            <div className="text-xs font-semibold text-indigo-600 mb-1.5">{step}단계 / 3</div>
+          <div key={step} data-setup-scroll className="flex-1 overflow-y-auto px-5 sm:px-10 pt-7 sm:pt-9 flex flex-col">
+            <div className="text-xs font-semibold text-indigo-600 mb-1.5">{step}단계 / 4</div>
             {finishErr && <div className="mb-4"><ErrorBox error={`시작하기를 마치지 못했습니다: ${finishErr}`} /></div>}
-            {step === 1 && <StepPlan onNext={() => go(2)} />}
-            {step === 2 && <StepKnowhow onBack={() => go(1)} onNext={() => go(3)} />}
-            {step === 3 && <StepInvite onBack={() => go(2)} onFinish={finish} finishing={leaving} />}
+            {step === 1 && <FolderScan onNext={() => go(2)} />}
+            {step === 2 && <StepPlan onBack={() => go(1)} onNext={() => go(3)} />}
+            {step === 3 && <StepKnowhow onBack={() => go(2)} onNext={() => go(4)} />}
+            {step === 4 && <StepInvite onBack={() => go(3)} onFinish={finish} finishing={leaving} />}
           </div>
         </div>
       </div>
@@ -328,7 +332,7 @@ async function uploadBlob(teamId: string, p: Prepared, prefix: string): Promise<
 // ---------------------------------------------------------------------
 const RUN_MSGS = ['자료를 올리는 중…', '자료를 읽는 중…', '목표 › 과제 › 할 일로 구조화하는 중…', '위에서 내려온 방침·요청·일정을 골라내는 중…', '초안을 다듬는 중…'];
 
-function StepPlan({ onNext }: { onNext: () => void }) {
+function StepPlan({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const { team } = useTeam();
   const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState('');
@@ -453,7 +457,7 @@ function StepPlan({ onNext }: { onNext: () => void }) {
         </div>
         <ErrorBox error={err} />
       </div>
-      <StepFoot
+      <StepFoot onBack={onBack}
         left={blocked
           ? `시작하기에서는 초안을 ${FREE_RUNS}번까지 만들 수 있습니다. 팀목표 화면에서 이어서 다듬어 주세요`
           : `시작하기에서는 크레딧을 쓰지 않습니다${runs ? ` · ${FREE_RUNS - runs}번 남음` : ''}`}
@@ -462,6 +466,26 @@ function StepPlan({ onNext }: { onNext: () => void }) {
           <Button onClick={run} disabled={(!files.length && !text.trim()) || blocked}><AiIcon size={16} />초안 만들기<ArrowRight size={15} /></Button>
         </>} />
     </section>
+  );
+}
+
+/** 폴더 맡기기로 만든 초안 — 히스토리 · 노하우로 함께 들어간 것 */
+function FolderDone({ docs }: { docs: number }) {
+  const { team } = useTeam();
+  const chapters = useQuery({
+    queryKey: ['folder-chapters', team.id],
+    queryFn: async () => (await supabase.from('core_work_chapters').select('id', { count: 'exact', head: true }).eq('team_id', team.id).eq('content->>source', 'folder')).count ?? 0,
+  });
+  const n = chapters.data ?? 0;
+  return (
+    <div className="rounded-xl bg-white ring-1 ring-indigo-100 px-4 py-3 text-sm text-slate-700 flex items-start gap-2.5">
+      <FolderOpen size={16} className="mt-0.5 text-indigo-600 shrink-0" />
+      <p className="leading-relaxed">
+        팀 폴더에서 문서 <b>{docs}개</b>를 읽었습니다.
+        {n ? <> 지난 흐름 <b>{n}장</b>은 히스토리 관리 › 핵심 업무로 정리되고 있습니다.</> : null}
+        {' '}기준 · 가이드 문서는 노하우 라이브러리에서 카드로 정리됩니다.
+      </p>
+    </div>
   );
 }
 
@@ -528,7 +552,7 @@ function PlanReview({ out, canRedo, onRedo, onNext }: { out: AiOutput<OnboardOut
         d.opsErr = fixed.length ? await applyOps(team.id, fixed, members) : [];
         d.ops = fixed.length;
       }
-      await saveOnboarding(team.id, { plan_applied: out.id, step: 2 });
+      await saveOnboarding(team.id, { plan_applied: out.id, step: 3 });
       refresh();
       qc.invalidateQueries();
       if (d.opsErr?.length) toast(`일부 반영 실패: ${d.opsErr[0]}`);
@@ -548,6 +572,7 @@ function PlanReview({ out, canRedo, onRedo, onNext }: { out: AiOutput<OnboardOut
           <ProvChip kind="ai" label="AI 제안" sources={out.sources} level={out.level} depth={out.depth} note="올린 자료에 있는 내용만 구조화했습니다. 없는 목표나 숫자는 만들지 않습니다." />
           <p className="flex-1 leading-relaxed">{out.content.summary}</p>
         </div>
+        {out.content.folder && <FolderDone docs={out.content.docs ?? 0} />}
 
         <ReviewBlock icon={<FileText size={15} />} title="팀목표 초안" count={ops.length} sel={selOps.size} empty="자료에서 목표·과제를 찾지 못했습니다."
           onAll={(on) => setSelOps(on ? new Set(ops.map((_, i) => i)) : new Set())}>

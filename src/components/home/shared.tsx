@@ -923,7 +923,8 @@ export function SetupResume({ teamId }: { teamId: string }) {
   if (doneN === steps.length) return null;
   const open = async (n: 1 | 2 | 3) => {
     setOpening(n);
-    try { await saveOnboarding(teamId, { status: 'pending', step: n }); refresh(); } finally { setOpening(null); }
+    // 시작하기 1단계는 팀 자료 정리(선택)라 한 칸씩 밀린다
+    try { await saveOnboarding(teamId, { status: 'pending', step: (n + 1) as 2 | 3 | 4 }); refresh(); } finally { setOpening(null); }
   };
   const next = steps.find((x) => !x.done)!;
   return (
