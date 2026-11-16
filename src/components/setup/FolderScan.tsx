@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, FileText, FolderOpen, Presen
 import { useQueryClient } from '@tanstack/react-query';
 import { useTeam } from '../../state/session';
 import { supabase, q, invoke, errorText } from '../../lib/supabase';
-import { classify, estimate, fromDrop, fromInput, readAll, BATCH_CREDITS, type Picked, type ReadOutcome, type ReadProgress, type ScanFile, type ScanResult } from '../../lib/folderScan';
+import { classify, estimate, fromDrop, fromInput, fromPicker, readAll, BATCH_CREDITS, type Picked, type ReadOutcome, type ReadProgress, type ScanFile, type ScanResult } from '../../lib/folderScan';
 import { cx } from '../../lib/format';
 import { Button, ErrorBox } from '../ui';
 import { AiIcon, CoreAI } from '../Brand';
@@ -112,11 +112,21 @@ export function FolderScan({ onNext }: { onNext: () => void }) {
     }
   };
 
+  // 크롬 · 엣지는 폴더 읽기 창('파일 보기' 허용)으로, 그 밖의 브라우저는 폴더 선택 창으로
+  const pick = async () => {
+    setErr(null);
+    try {
+      const viaPicker = await fromPicker((n) => setSeen((x) => ({ ...x, n })), () => setPhase('scanning'));
+      if (viaPicker === null) { input.current?.click(); return; }
+      if (viaPicker.length) void scan(viaPicker); else setPhase('pick');
+    } catch { setPhase('pick'); setErr('폴더를 읽지 못했습니다. 다시 골라 주세요'); }
+  };
+
   // ---------- 고르기 전 ----------
   if (phase === 'pick') return (
-    <Shell title="팀 폴더의 지난 자료로 시작합니다"
-      desc={<>팀 공유 폴더나 내 업무 폴더를 고르면 그 안의 계획 · 보고 · 회의록을 읽어 팀목표 초안과 핵심 업무 히스토리의 기반을 만듭니다. 어떤 파일을 읽을지는 다음 화면에서 팀장님이 직접 고릅니다.</>}>
-      <button type="button" onClick={() => input.current?.click()}
+    <Shell title="폴더 하나로 운영에 필요한 기초 정보를 한방에"
+      desc={<>팀 관련 자료들을 한데 모은 폴더를 지정하면 팀 운영에 필요한 목표, 성과, 팀원관리, 업무 기준 등을 한번에 세팅합니다.</>}>
+      <button type="button" onClick={pick}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={(e) => {
           e.preventDefault(); setOver(false); setPhase('scanning');
@@ -130,12 +140,6 @@ export function FolderScan({ onNext }: { onNext: () => void }) {
       </button>
       <input ref={input} type="file" multiple className="hidden" {...({ webkitdirectory: '' } as Record<string, string>)}
         onChange={(e) => { const p = fromInput(e.target.files); e.target.value = ''; void scan(p); }} />
-      <ul className="mt-4 grid sm:grid-cols-3 gap-2 text-xs text-slate-600">
-        <Note t="팀장님이 고릅니다">읽을 파일 목록을 먼저 보여 드리고, 체크한 파일만 읽습니다. 시작 전에 쓸 크레딧도 보여 드립니다</Note>
-        <Note t="개인 정보는 뺍니다">급여 · 평가 · 이력서 같은 파일은 처음부터 목록에서 빼 둡니다. 문서 속 개인 평가 · 급여 내용도 옮기지 않습니다</Note>
-        <Note t="원본은 올리지 않습니다">팀장님 컴퓨터에서 글만 뽑아 읽고, 파일 자체는 어디에도 저장하지 않습니다</Note>
-      </ul>
-      <p className="mt-3 text-xs text-slate-500">폴더를 고를 때 브라우저가 '업로드' 확인을 물을 수 있습니다. 파일 목록을 보기 위한 브라우저 안내이고, 원본은 올라가지 않습니다.</p>
       <ErrorBox error={err} />
       <Foot left="폴더가 없거나 나중에 하려면 건너뛰어도 됩니다 · 다음 단계에서 파일 몇 개만 올릴 수도 있습니다"
         right={<Button variant="ghost" onClick={onNext}>건너뛰기</Button>} />
@@ -353,10 +357,6 @@ function Stat({ n, t, tone }: { n: number; t: string; tone?: 'indigo' | 'amber' 
       <b className="text-lg font-black tabular-nums">{n.toLocaleString()}</b><span className="text-xs">{t}</span>
     </span>
   );
-}
-
-function Note({ t, children }: { t: string; children: ReactNode }) {
-  return <li className="rounded-xl bg-slate-50 ring-1 ring-slate-200/70 px-3 py-2.5"><b className="block text-slate-800 mb-0.5">{t}</b>{children}</li>;
 }
 
 function Shell({ title, desc, onBack, backLabel = '이전', children }: { title: string; desc: ReactNode; onBack?: () => void; backLabel?: string; children: ReactNode }) {
