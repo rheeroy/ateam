@@ -51,6 +51,32 @@ export interface Picked { file: File; path: string }
 export const fromInput = (list: FileList | null): Picked[] =>
   Array.from(list ?? []).map((f) => ({ file: f, path: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name }));
 
+/** 폴더 읽기 창(크롬 · 엣지) — 브라우저가 '업로드'가 아니라 '파일 보기' 허용을 묻는다. 지원하지 않으면 null */
+export async function fromPicker(onCount?: (n: number) => void, onPicked?: () => void): Promise<Picked[] | null> {
+  const w = window as unknown as { showDirectoryPicker?: (o?: { mode?: 'read' }) => Promise<FileSystemDirectoryHandle> };
+  if (typeof w.showDirectoryPicker !== 'function' || window.self !== window.top) return null;
+  let root: FileSystemDirectoryHandle;
+  try { root = await w.showDirectoryPicker({ mode: 'read' }); } catch { return []; }   // 취소
+  onPicked?.();
+  const out: Picked[] = [];
+  const walk = async (dir: FileSystemDirectoryHandle, path: string, depth: number): Promise<void> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for await (const h of (dir as any).values() as AsyncIterable<FileSystemHandle>) {
+      if (out.length >= MAX_SCAN) return;
+      const p = `${path}/${h.name}`;
+      if (h.kind === 'file') {
+        try { out.push({ file: await (h as FileSystemFileHandle).getFile(), path: p }); } catch { /* 읽을 권한 없음 */ }
+        if (out.length % 50 === 0) onCount?.(out.length);
+      } else if (depth < MAX_DEPTH && !SKIP_DIR.test(`/${p}/`)) {
+        await walk(h as FileSystemDirectoryHandle, p, depth + 1);
+      }
+    }
+  };
+  await walk(root, root.name, 0);
+  onCount?.(out.length);
+  return out;
+}
+
 /** 끌어 놓기 — 폴더면 하위 폴더까지 */
 export async function fromDrop(dt: DataTransfer, onCount?: (n: number) => void): Promise<Picked[]> {
   const entries = Array.from(dt.items ?? []).map((i) => (i.kind === 'file' ? i.webkitGetAsEntry?.() : null)).filter((e): e is FileSystemEntry => !!e);
