@@ -25,7 +25,7 @@ import { HeaderToday } from '../pages/Home';
 import { DemoBar } from './demo/DemoBar';
 import { actionKey, useActionStatus, usePeopleActions } from '../lib/peopleActions';
 import { getDemo } from '../lib/demo';
-import { useIsAdmin } from '../pages/AdminDemo';
+import { demoSeenAt, useIsAdmin } from '../pages/AdminDemo';
 
 type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; tip?: string; locked?: boolean };
 
@@ -33,9 +33,14 @@ type Item = { to: string; label: ReactNode; icon: typeof Home; badge?: string; t
 /** 관리자(app_admins)에게만 — 데모 신청 승인 */
 function AdminNav() {
   const admin = useIsAdmin();
+  // 숫자 = 데모 신청 화면을 마지막으로 연 뒤 새로 들어온 신청 (1분마다 · 창으로 돌아올 때 다시 확인)
   const pending = useQuery({
-    queryKey: ['admin-demo-pending'], enabled: !!admin.data, refetchInterval: 300_000,
-    queryFn: async () => ((await q<{ status: string }[]>(supabase.rpc('admin_demo_list'))) ?? []).filter((r) => r.status === 'pending').length,
+    queryKey: ['admin-demo-pending'], enabled: !!admin.data, refetchInterval: 60_000, refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const rows = (await q<{ status: string; created_at: string }[]>(supabase.rpc('admin_demo_list'))) ?? [];
+      const seen = demoSeenAt();
+      return seen ? rows.filter((r) => Date.parse(r.created_at) > seen).length : rows.filter((r) => r.status === 'pending').length;
+    },
   });
   if (!admin.data) return null;
   return <>
