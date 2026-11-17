@@ -20,7 +20,7 @@ const KIND_LABEL: Record<string, string> = {
 /** 모든 요금제에 들어 있는 것 — 요금제마다 다른 건 팀원 수 · 평가 시뮬레이션 · ATEAM Method™ · 히스토리 관리 · 크레딧 (요금제 카드에 표시) */
 const INCLUDED: { title: string; sub: string; items: string[] }[] = [
   { title: '기록·협업', sub: '팀원은 무료로 초대', items: ['팀목표 · 과제', '업무플랫폼', '컨디션 공유 · 1on1 · 약속', '팀원 요청 · 칭찬', '의사결정 보드', '노하우 라이브러리 · 내 메모'] },
-  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트', 'ATEAM의 제안', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM 업무 피드백', '임원 브리핑'] },
+  { title: 'AI 참모', sub: '구독에 포함 · 횟수 신경 쓰지 않고', items: ['AI 인사이트', '자동화', '팀원관리 액션', '결과물 AI 1차 검토', '1on1 준비 · ATEAM 업무 피드백', '임원 브리핑'] },
   { title: '프리미엄', sub: '월 크레딧으로 · 1회 차감', items: ['AI 목표 초안 2', '노하우 자료 정리 2', '성과 해석 1'] },
 ];
 
@@ -154,7 +154,7 @@ function Billing() {
                   const [cls, text] = pct >= 100 ? ['bg-rose-50 text-rose-800', '이번 달 기본 AI를 모두 썼습니다. 다음 결제일에 다시 열립니다.']
                     : pct >= 75 ? ['bg-amber-50 text-amber-800', '사용이 많은 달이라 자동 1차 검토는 다음 결제일까지 쉽니다. 결과물에서 직접 \'검토\'를 누르면 됩니다.']
                     : pct >= 60 ? ['bg-amber-50 text-amber-800', '이번 달은 평소보다 AI를 많이 쓰고 있습니다. 이대로면 월말에 자동 1차 검토가 쉴 수 있습니다.']
-                    : ['bg-slate-50 text-slate-600', '인사이트 · ATEAM의 제안 · 1차 검토 · 1on1 준비 · 임원 브리핑은 횟수를 신경 쓰지 않고 씁니다.'];
+                    : ['bg-slate-50 text-slate-600', '인사이트 · 자동화 · 1차 검토 · 1on1 준비 · 임원 브리핑은 횟수를 신경 쓰지 않고 씁니다.'];
                   return <p className={cx('mt-2 rounded-lg px-3 py-2 text-xs leading-relaxed', cls)}>{text}</p>;
                 })()}
               </div>

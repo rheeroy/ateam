@@ -170,7 +170,7 @@ function ForecastSection({ teamId, scope }: { teamId: string; scope: ForecastSco
               }}><Copy size={12} />보고용 문장 복사</button>
             <div className="flex gap-2">
               <Button variant="secondary" className="flex-1" onClick={() => setDataOpen(true)}>실적·딜 입력</Button>
-              <Link to="/advisor" className="flex-1"><Button variant="soft" className="w-full"><Lightbulb size={14} />A·Team의 제안</Button></Link>
+              <Link to="/advisor" className="flex-1"><Button variant="soft" className="w-full"><Lightbulb size={14} />자동화</Button></Link>
             </div>
           </div>
         </div>

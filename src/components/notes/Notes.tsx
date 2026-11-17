@@ -101,7 +101,7 @@ export function QuickNote() {
         </div>
         <div className="flex items-center gap-4 flex-wrap text-sm">
           <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} />맨 위에 고정</label>
-          <label className="flex items-center gap-2 cursor-pointer" title="켜면 1on1 준비 노트 · 팀원 액션 · ATEAM의 제안 · 임원 브리핑이 이 메모를 참고합니다. 평가 초안에는 쓰지 않습니다.">
+          <label className="flex items-center gap-2 cursor-pointer" title="켜면 1on1 준비 노트 · 팀원 액션 · 자동화 · 임원 브리핑이 이 메모를 참고합니다. 평가 초안에는 쓰지 않습니다.">
             <input type="checkbox" className="accent-violet-600" checked={f.ai_allowed} onChange={(e) => setF({ ...f, ai_allowed: e.target.checked })} />
             <span className="inline-flex items-center gap-1"><CoreAI />가 참고해도 돼요</span></label>
         </div>

@@ -89,7 +89,7 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
     out.push({ key: r.card_key, score: 195, kind: 'A·Team 제안', title: r.title, why: r.note || undefined, evidence: [], action: '제안 원문 보기', to: '/advisor', ai: true, y: 0.82, x: 0.72 });
   for (const g of m.lowGoals) out.push({ key: `goal:${g.goal_id}`, score: 170 - (g.probability ?? 0), kind: '목표 결정',
     title: `'${g.title}' 목표를 조정할지, 자원을 더 넣어 지킬지`, impact: `달성 가능성 ${g.probability}% · 진척 ${g.progress}%${g.blocked ? ` · 막힌 하위 항목 ${g.blocked}건` : ''}`,
-    options: ['목표 수준을 현실에 맞게 조정', '사람·예산을 더 넣어 목표 유지', '범위를 줄이고 핵심만 지킴'], evidence: evidenceFor(g.title, g.goal_id), action: 'A·Team의 제안 보기', to: '/advisor',
+    options: ['목표 수준을 현실에 맞게 조정', '사람·예산을 더 넣어 목표 유지', '범위를 줄이고 핵심만 지킴'], evidence: evidenceFor(g.title, g.goal_id), action: '자동화 보기', to: '/advisor',
     y: 0.95 - (g.probability ?? 0) / 200, x: 0.78 - (g.probability ?? 0) / 300 });
   for (const n of m.orgSt.high) {
     const im = m.org.data?.impactOf.get(n.id)?.content;
@@ -100,7 +100,7 @@ export function usePriorities(m: HomeModel, opts: { hidden?: boolean } = {}): Pr
       evidence: [], action: '영향 분석 보기', to: '/upward', y: 0.72, x: d != null ? 1 - Math.min(Math.max(d, 0), 60) / 60 : 0.5 });
   }
   const conc = m.visible.find((s) => s.id.startsWith('exec-conc-'));
-  if (conc) out.push({ key: `rule:${conc.id}`, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: 'A·Team의 제안 보기', to: '/advisor', y: 0.6, x: 0.55 });
+  if (conc) out.push({ key: `rule:${conc.id}`, score: 130, kind: '배분 결정', title: '몰린 일을 다시 나눌지', why: conc.title, impact: '한 사람이 막히면 팀 일정 전체가 밀리는 구조를 풉니다', evidence: [conc], action: '자동화 보기', to: '/advisor', y: 0.6, x: 0.55 });
   const low = m.visible.find((s) => s.id === 'exec-lowvalue');
   if (low) out.push({ key: `rule:${low.id}`, score: 125, kind: '우선순위 결정', title: '기여가 낮은 과제를 줄이고 핵심 목표에 시간을 돌릴지', why: low.title, evidence: [low], action: '시간 배분 보기', to: '/goals/edit?view=table', y: 0.55, x: 0.35 });
   const replan = m.visible.find((s) => s.id.startsWith('exec-replan-'));

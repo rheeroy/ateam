@@ -106,7 +106,7 @@ function useBriefing(m: HomeModel): BLine[] {
   if (pr.length) out.push({ key: 'decide', tone: 'agent', icon: Split, text: <><AteamAI />가 시급한 의사결정 {n(pr.length, '건')}을 정리했어요.</>, go: '의사결정을', to: '/decide' });
   // 최근 7일 안에 마친 AUTOPILOT 결과가 있으면 바로 가기
   const apLast = apRuns.data?.find((r) => r.status === 'done' && Date.now() - Date.parse(r.created_at) < 7 * 86400000);
-  if (apLast) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <>AUTOPILOT 결과를 확인해 보세요 · 보낸 액션 {n(Object.values(apLast.actions ?? {}).filter((a) => a.status === 'sent').length, '건')}</>, go: 'ATEAM AI의 제안을', to: `/advisor?run=${apLast.id}` });
+  if (apLast) out.push({ key: 'advisor', tone: 'agent', icon: AdvisorIcon, text: <>AUTOPILOT 결과를 확인해 보세요 · 보낸 액션 {n(Object.values(apLast.actions ?? {}).filter((a) => a.status === 'sent').length, '건')}</>, go: '자동화를', to: `/advisor?run=${apLast.id}` });
   if (pa.out?.content.actions?.length) out.push({ key: 'pa', tone: 'agent', icon: Users, text: <><AteamAI />가 팀원별 이번 주 액션 {n(pa.out.content.actions.length, '개')}를 추천했어요.</>, go: '팀원관리를', to: '/people' });
   if (reviewed) out.push({ key: 'rev', tone: 'agent', icon: FileText, text: <><AteamAI />가 리뷰 대기 결과물 {n(reviewed, '건')}을 먼저 검토해 뒀어요.</>, go: '업무플랫폼을', to: '/work' });
   else if (waiting.length) out.push({ key: 'wait', tone: old ? 'amber' : 'slate', icon: FileText, text: <>리뷰를 기다리는 결과물이 {n(waiting.length, '건')} 있어요.</>, go: '업무플랫폼을', to: '/work' });

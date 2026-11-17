@@ -76,7 +76,7 @@ function Head({ run, quotaText, onSettings, onHistory, hasHistory }: { run: ApRu
         <div className="flex items-center gap-4 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2.5"><span className="ap-font text-xl">AUTOPILOT</span><span className="ap-on text-base text-violet-400">ON</span></div>
-            <div className="text-[12.5px] text-indigo-200 mt-1">ATEAM AI의 제안 · {run ? `${fmtDate(run.created_at)} ${fmtTime(run.created_at)} 실행` : '아직 실행하지 않았습니다'}{quotaText ? ` · ${quotaText}` : ''}</div>
+            <div className="text-[12.5px] text-indigo-200 mt-1">자동화 Beta · {run ? `${fmtDate(run.created_at)} ${fmtTime(run.created_at)} 실행` : '아직 실행하지 않았습니다'}{quotaText ? ` · ${quotaText}` : ''}</div>
           </div>
           <div className="ml-auto flex gap-2">
             {hasHistory && <button onClick={onHistory} className="text-[13px] rounded-xl px-3 py-2 ring-1 ring-white/20 hover:bg-white/10 inline-flex items-center gap-1.5"><History size={14} />지난 실행</button>}
