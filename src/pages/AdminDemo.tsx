@@ -1,6 +1,6 @@
 // 관리자 — 데모 신청 승인 (app_admins 에 등록된 계정만)
 //   승인하면 7일짜리 개인 링크가 생기고, demo-mail 함수(Resend)가 신청자에게 바로 메일로 보낸다. 실패하면 메일 문구를 복사해 둔다
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Mail, RotateCcw, Send } from 'lucide-react';
 import { supabase, q, errorText, invoke } from '../lib/supabase';
@@ -15,6 +15,10 @@ interface Req {
 }
 const ST: Record<Req['status'], [string, string]> = { pending: ['대기', 'bg-amber-100 text-amber-800'], approved: ['승인', 'bg-emerald-100 text-emerald-800'], rejected: ['거절', 'bg-slate-100 text-slate-500'] };
 
+/** 데모 신청 화면을 마지막으로 연 시각 — 메뉴의 '새 신청' 숫자 기준 (이 브라우저 기준) */
+const SEEN_KEY = 'ateam.demo.seen';
+export const demoSeenAt = () => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; } };
+
 export function useIsAdmin() {
   return useQuery({ queryKey: ['is-admin'], queryFn: () => q<boolean>(supabase.rpc('is_app_admin')), retry: false, staleTime: 600_000 });
 }
@@ -24,7 +28,13 @@ export default function AdminDemo() {
   const qc = useQueryClient();
   const toast = useToast();
   const [filter, setFilter] = useState<'all' | Req['status']>('all');
-  const list = useQuery({ queryKey: ['admin-demo'], enabled: !!admin.data, queryFn: () => q<Req[]>(supabase.rpc('admin_demo_list')) });
+  const list = useQuery({ queryKey: ['admin-demo'], enabled: !!admin.data, refetchInterval: 60_000, queryFn: () => q<Req[]>(supabase.rpc('admin_demo_list')) });
+  // 이 화면을 보고 있으면 새 신청은 '본 것' — 메뉴 숫자를 지운다
+  useEffect(() => {
+    if (!list.data) return;
+    try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch { /* 저장 불가 */ }
+    qc.setQueryData(['admin-demo-pending'], 0);
+  }, [list.data, qc]);
   const decide = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' | 'extend' }) => q<Req>(supabase.rpc('admin_demo_decide', { p_id: id, p_action: action })),
     onSuccess: async (r, v) => {
