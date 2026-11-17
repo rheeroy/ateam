@@ -896,6 +896,7 @@ const QS_KEY = 'ateam.quickstart.hidden';
 /** 시작하기(온보딩)를 거친 팀: 건너뛴 단계를 대시보드에서 이어서 — 세 단계를 어느 정도 채우면 사라진다 */
 export function SetupResume({ teamId }: { teamId: string }) {
   const { team, members, refresh } = useTeam();
+  const [hiding, setHiding] = useState(false);
   const [opening, setOpening] = useState<number | null>(null);
   const st = useQuery({
     queryKey: ['setup-resume', teamId],
@@ -920,7 +921,12 @@ export function SetupResume({ teamId }: { teamId: string }) {
     { n: 3 as const, done: st.data.inv > 0 || members.some((m) => m.role === 'member'), title: '팀원 초대', desc: '이메일만 넣으면 초대 메일이 갑니다. 팀원은 무료', to: '/settings?tab=members' },
   ];
   const doneN = steps.filter((x) => x.done).length;
-  if (doneN === steps.length) return null;
+  if (doneN === steps.length || onboardingOf(team.settings).resume_hidden) return null;
+  // X — 이 팀에서는 다시 띄우지 않는다 (팀 설정에 남겨 다른 기기에서도 같음)
+  const hide = async () => {
+    setHiding(true);
+    try { await saveOnboarding(teamId, { resume_hidden: true }); refresh(); } finally { setHiding(false); }
+  };
   const open = async (n: 1 | 2 | 3) => {
     setOpening(n);
     // 시작하기 1단계는 팀 자료 정리(선택)라 한 칸씩 밀린다
@@ -936,6 +942,8 @@ export function SetupResume({ teamId }: { teamId: string }) {
         <div className="flex-1 h-1.5 rounded-full bg-indigo-100 max-w-40"><div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${(doneN / steps.length) * 100}%` }} /></div>
         <span className="font-mono text-xs text-indigo-700">{doneN}/{steps.length}</span>
         <span className="ml-auto hidden sm:inline text-xs text-slate-500">세 단계를 마치면 ATEAM이 팀장님 기준으로 움직이고, 이 안내는 사라집니다</span>
+        <button type="button" onClick={() => void hide()} disabled={hiding} aria-label="온보딩 안내 닫기" title="닫기"
+          className="ml-auto sm:ml-1 -mr-1 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-indigo-100 shrink-0"><X size={16} /></button>
       </div>
       <div className="mt-3 grid sm:grid-cols-3 gap-2">
         {steps.map((x) => {
@@ -1071,4 +1079,3 @@ export function MemoModal({ teamId, open, preset, onClose, onSaved, initialBody 
     </Modal>
   );
 }
-
