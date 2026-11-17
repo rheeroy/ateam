@@ -2,7 +2,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 /** 요청별 값 — 데모 링크 토큰(x-demo-token) · 인증 헤더 · 요청 출처. gateway 의 데모 AI 한도와 CORS가 읽는다 */
-export const reqCtx = new AsyncLocalStorage<{ demoToken: string | null; auth: string; origin: string | null }>();
+export const reqCtx = new AsyncLocalStorage<{ demoToken: string | null; auth: string; origin: string | null; anyOrigin?: boolean }>();
 
 // 허용 출처: APP_ORIGIN 에 쉼표로 여러 개 (예: https://leada.team,https://app.leada.team). 비어 있으면 모두 허용
 const ORIGINS = (Deno.env.get('APP_ORIGIN') ?? '*').split(',').map((x) => x.trim().replace(/\/$/, '')).filter(Boolean);
@@ -17,7 +17,10 @@ const BASE_CORS = {
 };
 /** 지금 요청에 맞는 CORS 헤더 (요청 출처가 허용 목록에 있으면 그 출처를 돌려준다) */
 export function cors(origin?: string | null): Record<string, string> {
-  const o = origin !== undefined ? origin : reqCtx.getStore()?.origin ?? null;
+  const store = reqCtx.getStore();
+  // 로그인 없이 공개로 부르는 함수(랜딩 가이드북 신청 등)는 APP_ORIGIN 과 상관없이 어느 출처든 받는다
+  if (store?.anyOrigin) return { ...BASE_CORS, 'Access-Control-Allow-Origin': '*' };
+  const o = origin !== undefined ? origin : store?.origin ?? null;
   return { ...BASE_CORS, 'Access-Control-Allow-Origin': allowOrigin(o), Vary: 'Origin' };
 }
 /** 예전 이름 — 직접 쓰는 곳이 있으면 첫 허용 출처 기준 */
@@ -37,8 +40,8 @@ export function json(body: unknown, status = 200): Response {
 }
 
 /** 핸들러를 감싸 CORS·오류 응답을 일관되게 처리한다 */
-export function serve(handler: (req: Request) => Promise<Response>) {
-  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get('x-demo-token'), auth: req.headers.get('Authorization') ?? '', origin: req.headers.get('Origin') }, async () => {
+export function serve(handler: (req: Request) => Promise<Response>, opts: { anyOrigin?: boolean } = {}) {
+  Deno.serve((req) => reqCtx.run({ demoToken: req.headers.get('x-demo-token'), auth: req.headers.get('Authorization') ?? '', origin: req.headers.get('Origin'), anyOrigin: opts.anyOrigin }, async () => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req.headers.get('Origin')) });
     try {
       return await handler(req);
