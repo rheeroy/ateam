@@ -46,6 +46,7 @@ export default function MySubmissions() {
         <Chip on={!group} onClick={() => setTab('me')} n={group ? n({ kind: 'user', id: uid }) : 0}>💬 내 스페이스</Chip>
         {myGroups.map((g) => <Chip key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })}>👥 {g.name}</Chip>)}
         <Link to="/my/direction" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">📌 팀 방향</Link>
+        <Link to="/my/memo" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">📝 메모</Link>
         <Link to="/my/sim" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">🔒 Sim.Box</Link>
       </div>
       {group

@@ -25,6 +25,7 @@ const Insight = lazy(() => import('./pages/Insight'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const MySubmissions = lazy(() => import('./pages/MySubmissions'));
 const MyDirection = lazy(() => import('./pages/MySubmissions').then((m) => ({ default: m.MyDirection })));
+const MyMemo = lazy(() => import('./pages/MyMemo'));
 const MySim = lazy(() => import('./pages/MySubmissions').then((m) => ({ default: m.MySim })));
 const MyOneOnOnes = lazy(() => import('./pages/MyOneOnOnes'));
 const Knowhow = lazy(() => import('./pages/Knowhow'));
@@ -168,6 +169,7 @@ export default function App() {
         <Route path="my/submissions" element={<MySubmissions />} />
         <Route path="my/direction" element={<MyDirection />} />
         <Route path="my/sim" element={<MySim />} />
+        <Route path="my/memo" element={<MyMemo />} />
         <Route path="my/one-on-ones" element={<MyOneOnOnes />} />
         <Route path="my/history" element={<HistoryLink />} />
         <Route path="my/record" element={<Navigate to="/my/one-on-ones" replace />} />
