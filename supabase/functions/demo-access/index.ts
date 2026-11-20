@@ -2,6 +2,7 @@
 //   request: 신청서 저장 (로그인 없이). 같은 이메일은 하루 3번까지
 //   enter:   승인된 링크면 데모 팀장/팀원 계정의 일회용 로그인 값을 돌려준다 (비밀번호 없이, 메일 발송 없이)
 //   check:   링크가 아직 유효한지 (앱 상단 데모 띠가 부른다)
+import { sendDemoMail } from '../_shared/demoMail.ts';
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
 import { admin } from '../_shared/supabase.ts';
 
@@ -38,10 +39,9 @@ serve(async (req) => {
         status: 'approved', token: crypto.randomUUID(), approved_at: new Date().toISOString(), expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
       }).eq('id', row.id);
       if (e1) { console.error('demo auto approve', e1); return json({ ok: true, auto: false }); }
-      // 메일은 demo-mail 이 보낸다 (관리자 '메일 다시 보내기'와 같은 함수). 실패해도 신청은 승인된 채로 남고, 관리자 화면에서 다시 보낼 수 있다
-      const { error: e2 } = await admin.functions.invoke('demo-mail', { body: { id: row.id } });
-      if (e2) console.error('demo auto mail', e2);
-      return json({ ok: true, auto: true, mailed: !e2 });
+      // 메일은 관리자 '메일 다시 보내기'와 같은 본체(_shared/demoMail)로 바로 보낸다. 실패해도 신청은 승인된 채로 남고, 관리자 화면에서 다시 보낼 수 있다
+      try { await sendDemoMail(row.id); return json({ ok: true, auto: true, mailed: true }); }
+      catch (e2) { console.error('demo auto mail', e2); return json({ ok: true, auto: true, mailed: false }); }
     }
     return json({ ok: true, auto: false });
   }

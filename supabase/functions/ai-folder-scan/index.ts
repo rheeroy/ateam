@@ -7,7 +7,8 @@
 //   진행 상태는 ai-onboard 와 같은 teams.settings.onboarding.job — 화면은 같은 방식으로 기다린다
 //   읽지 않는 것: 개인 평가 · 급여 · 인사 기록 (화면에서 파일 이름으로 먼저 빼고, 여기서도 내용으로 걸러 버린다)
 import { serve, readJson, json, HttpError } from '../_shared/http.ts';
-import { admin, getCaller } from '../_shared/supabase.ts';
+import { admin, getCaller, assertFeature } from '../_shared/supabase.ts';
+import { runCoreWorks } from '../_shared/coreWorks.ts';
 import { runAi, SourceBook, BASE_RULES, assertCredits } from '../_shared/gateway.ts';
 import { MODEL_SMART, MODEL_FAST, callClaude, parseJson, type Block } from '../_shared/anthropic.ts';
 import { ONBOARD_PLAN, ONBOARD_ORG, setJob } from '../_shared/onboard.ts';
@@ -198,7 +199,11 @@ serve(async (req) => {
       if (rows.length) {
         const { error } = await admin.from('core_work_chapters').insert(rows);
         if (error) console.error('folder chapters insert failed', error);
-        else await admin.functions.invoke('ai-core-works', { body: { team_id: body.team_id } }).catch((e) => console.error('core works kick failed', e));
+        else {
+          // 핵심 업무 정리를 바로 돌린다 (히스토리 기능이 있는 요금제만) — HTTP 호출이 아니라 직접 실행
+          try { await assertFeature(body.team_id, 'history'); await runCoreWorks(body.team_id, caller.userId); }
+          catch (e) { console.error('core works kick failed', e); }
+        }
       }
 
       const merged = { ...(output.content as Record<string, unknown>), org: (extra.org ?? []).slice(0, 8), execs: (extra.execs ?? []).slice(0, 5) };
