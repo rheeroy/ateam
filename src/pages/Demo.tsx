@@ -1,5 +1,5 @@
 // 데모 — 신청서(/demo) · 승인 링크로 입장(/demo?t=…)
-//   신청은 로그인 없이. 관리자가 승인하면 7일짜리 개인 링크를 메일로 받는다
+//   신청은 로그인 없이. 신청 즉시 자동 승인되어 7일짜리 개인 링크를 메일로 받는다 (DEMO_AUTO_APPROVE=off 면 관리자 승인)
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
@@ -80,7 +80,7 @@ function RequestForm({ expired }: { expired: boolean }) {
       <div>
         <p className="text-sm font-bold text-indigo-600">데모 신청</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">6개월치 기록이 쌓인 팀으로 먼저 체험해 보세요</h1>
-        <p className="mt-2 text-sm text-slate-500 leading-relaxed">신청을 확인한 뒤 메일로 7일짜리 데모 링크를 보내 드립니다. 팀장 화면과 팀원 화면을 모두 볼 수 있습니다.</p>
+        <p className="mt-2 text-sm text-slate-500 leading-relaxed">신청하면 바로 메일로 7일짜리 데모 링크를 보내 드립니다. 팀장 화면과 팀원 화면을 모두 볼 수 있습니다.</p>
         {expired && <p className="mt-3 rounded-lg bg-amber-50 text-amber-800 text-sm px-3 py-2">데모 기간이 끝났습니다. 다시 신청하거나 내 팀으로 바로 시작해 보세요.</p>}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
