@@ -19,6 +19,7 @@ import { InstallPrompt } from './InstallPrompt';
 import { openQuickNote } from '../lib/notes';
 import { ATeam, ATeamAdvice, ExecIcon, LogoBlock, LogoMark } from './Brand';
 import { useMemberBadges } from './member/Member';
+import { MemberNav } from './member/MemberNav';
 import { useHistoryTodo, useUnreadShares } from '../lib/history';
 import { AutopilotFab } from './autopilot/Fab';
 import { HeaderToday } from '../pages/Home';
@@ -152,8 +153,15 @@ export default function Layout() {
   const trialDays = !demo && credits?.status === 'trialing' && credits.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(credits.trial_ends_at) - Date.now()) / 86400000)) : null;
 
   return (
-    <div className="min-h-screen md:flex bg-[#F6F7F9]">
-      <aside className={cx(side.collapsed && 'side-collapsed', 'relative md:w-16 xl:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:px-2 md:py-4 xl:p-4 overflow-x-auto md:overflow-y-auto', !isLeader && 'hidden md:block')}>
+    <div className={cx('min-h-screen md:flex', isLeader ? 'bg-[#F6F7F9]' : 'bg-white notion')}>
+      <aside className={cx(side.collapsed && 'side-collapsed', 'relative md:w-16 xl:w-60 md:shrink-0 md:h-screen md:sticky md:top-0 border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:px-2 md:py-4 xl:p-4 overflow-x-auto md:overflow-y-auto', isLeader ? 'bg-white' : 'hidden md:block bg-[#F7F7F5] border-[#EDEDEB]')}>
+        {!isLeader && team ? (
+          <Link to="/my/submissions" title={team.name} className="hidden md:flex items-center justify-center xl:justify-start gap-2 xl:px-2 pb-3 rounded-md hover:opacity-80">
+            <span className="w-6 h-6 rounded-md bg-indigo-600 text-white text-[12px] font-extrabold flex items-center justify-center shrink-0">{(team.name || 'A').slice(0, 1)}</span>
+            <span className="hidden xl:block flex-1 min-w-0 truncate text-[14px] font-semibold text-[#37352F]">{team.name}</span>
+            <span className="hidden xl:block text-[11.5px] text-slate-400">팀원</span>
+          </Link>
+        ) : (
         <Link to="/" title="대시보드로" className="hidden md:flex items-center justify-center xl:justify-start gap-2.5 xl:px-2 pb-4 rounded-lg hover:opacity-80">
           <LogoBlock size={34} />
           <div className="min-w-0 hidden xl:block">
@@ -161,19 +169,13 @@ export default function Layout() {
             <div className="text-xs font-semibold text-slate-600 truncate">{team?.name}</div>
           </div>
         </Link>
+        )}
         {isLeader ? (
           <nav className="flex md:flex-col gap-1 md:gap-0.5">
             <LeaderNav lvl={lvl} proposedN={proposedN} demo={demo} />
           </nav>
         ) : (
-          <nav className="flex md:flex-col gap-1 md:gap-0.5">
-            <NavItem to="/my/goals" label="팀목표" icon={Target} />
-            <NavItem to="/my/submissions" label="업무플랫폼" icon={LaptopMinimal} badge={(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0) ? `${(mb.data?.needsWork ?? 0) + (mb.data?.workRequests ?? 0)}` : undefined} />
-            <NavItem to="/my/one-on-ones" label="매니징 보드" icon={Blocks}
-              badge={leaderTodo + (hUnread.data ?? 0) ? `${leaderTodo + (hUnread.data ?? 0)}` : undefined} />
-            {!demo && <div className="hidden md:block h-px bg-slate-100 my-3" />}
-            {!demo && <NavItem to="/settings" label="설정" icon={Settings} />}
-          </nav>
+          team ? <MemberNav boardN={leaderTodo} historyN={hUnread.data ?? 0} demo={demo} /> : null
         )}
         {/* 메뉴 접기 · 펴기 (넓은 화면에서만 · 브라우저에 기억) */}
         <button onClick={side.toggle} title={side.collapsed ? '메뉴 펴기' : '메뉴 접기'} aria-label={side.collapsed ? '메뉴 펴기' : '메뉴 접기'}
@@ -186,9 +188,10 @@ export default function Layout() {
         {/* 데모 띠 + 상단 바를 함께 위에 고정 */}
         <div className="sticky top-0 z-20">
         <DemoBar />
-        <div className="bg-white/90 backdrop-blur border-b border-slate-200 px-4 md:px-8 py-3 flex items-center justify-between gap-3">
+        <div className={cx('bg-white/90 backdrop-blur border-b px-4 md:px-8 py-3 flex items-center justify-between gap-3', isLeader ? 'border-slate-200' : 'border-transparent')}>
           <div className="flex items-center gap-2 text-sm text-slate-500 min-w-0">
-            {memberships.length > 1 ? (
+            {!isLeader && memberships.length <= 1 ? <span className="hidden md:inline truncate text-[13.5px] text-[#787774]">{crumb(loc.pathname, loc.search)}</span> : null}
+            {!isLeader && memberships.length <= 1 ? <span className="md:hidden font-semibold text-slate-800 truncate">{team?.name}</span> : memberships.length > 1 ? (
               <select aria-label="팀 선택" value={team?.id} onChange={(e) => { setTeamId(e.target.value); nav('/'); }}
                 className="text-sm font-semibold text-slate-800 bg-transparent border-0 focus:ring-0 pr-6 truncate">
                 {memberships.map((m) => <option key={m.team_id} value={m.team_id}>{m.teams.name}{m.role === 'leader' ? ' · 팀장' : ''}</option>)}
@@ -262,7 +265,7 @@ export default function Layout() {
 /** 팀원 모바일 하단 탭 */
 function MemberTabBar({ needsWork, withLeader, history }: { needsWork: number; withLeader: boolean; history: number }) {
   const tabs = [
-    { to: '/my/goals', label: '팀목표', I: Target }, { to: '/my/submissions', label: '업무플랫폼', I: LaptopMinimal, dot: needsWork > 0 },
+    { to: '/my/submissions', label: '업무 스레드', I: LaptopMinimal, dot: needsWork > 0 }, { to: '/my/goals', label: '팀 목표', I: Target },
     { to: '/my/one-on-ones', label: '매니징 보드', I: Blocks, dot: withLeader || history > 0 },
   ];
   return (
@@ -291,6 +294,19 @@ function Locked({ leader, trial }: { leader: boolean; trial: boolean }) {
       {leader && <Link to="/settings?tab=billing" className="mt-5 inline-flex items-center rounded-lg bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700">요금제 고르기</Link>}
     </div>
   );
+}
+
+/** 팀원 상단 경로 (노션처럼 '업무 스레드 / 내 스페이스') */
+function crumb(path: string, search: string) {
+  const q = new URLSearchParams(search);
+  if (path === '/my/submissions') return `업무 스레드 / ${q.get('g') ? '협업 스페이스' : '내 스페이스'}`;
+  if (path === '/my/direction') return '업무 스레드 / 팀 방향';
+  if (path === '/my/goals') return '업무 스레드 / 팀 목표';
+  if (path === '/my/one-on-ones') return `매니징 보드 / ${q.get('view') === 'history' || q.has('history') ? '받은 히스토리' : '1on1 · 피드백'}`;
+  if (path === '/my/sim') return '나만 보기 / Sim.Box';
+  if (path === '/my/memo') return '나만 보기 / 메모';
+  if (path.startsWith('/settings')) return '설정';
+  return '';
 }
 
 /** 왼쪽 메뉴 접기 — 넓은 화면(xl)에서 아이콘만 남긴다. 브라우저에 기억 (실패해도 동작) */

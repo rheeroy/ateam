@@ -1,7 +1,8 @@
-// 팀원 업무플랫폼 — [📌 팀 방향](고정) · [Sim.Box](나만 보는 시뮬레이션) · 내 스페이스(나↔팀장) · 그룹방 탭. 스페이스 탭은 채팅형 업무 스페이스(components/space/Space)
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Pin, Plus, Settings2, Target, Users } from 'lucide-react';
+// 팀원 업무 스레드 — 💬 내 스페이스(나↔팀장) · 👥 협업 스페이스(?g=) 를 왼쪽 메뉴에서 고른다. 화면은 채팅형 업무 스페이스(components/space/Space)
+//   📌 팀 방향(/my/direction) · 🔒 Sim.Box(/my/sim) 는 따로 떨어진 메뉴 (MyDirection · MySim)
+import { useState, type ReactNode } from 'react';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Settings2, Target, Users } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { useGroups, type WorkGroup } from '../lib/groups';
 import { useItems } from '../lib/items';
@@ -11,8 +12,9 @@ import { Avatar } from '../components/ui';
 import { GuideButton } from '../components/LeaderGuide';
 import { GroupModal } from '../components/work/GroupModal';
 import { Space } from '../components/space/Space';
-import { TeamDirection, useDirectionBadge } from '../components/direction/TeamDirection';
+import { TeamDirection } from '../components/direction/TeamDirection';
 import { SimBox } from '../components/simbox/SimBox';
+import { NotionHead } from '../components/NotionHead';
 
 export const STATUS = {
   in_review: { label: '리뷰 중', tone: 'indigo' as const },
@@ -25,64 +27,86 @@ export default function MySubmissions() {
   const { team, uid } = useTeam();
   const [params, setParams] = useSearchParams();
   const tab = params.get('g') ?? 'me';
-  const top = params.get('t');   // 'direction' | 'sim' | null(스페이스)
-  const setTab = (g: string) => { const p = new URLSearchParams(params); p.delete('t'); if (g === 'me') p.delete('g'); else p.set('g', g); p.delete('open'); setParams(p, { replace: true }); };
-  const setTop = (t: 'direction' | 'sim') => { const p = new URLSearchParams(params); p.set('t', t); p.delete('g'); p.delete('open'); setParams(p, { replace: true }); };
-  const dirBadge = useDirectionBadge();
+  const top = params.get('t');   // 예전 링크(?t=direction · ?t=sim) → 따로 떨어진 메뉴로
+  const setTab = (g: string) => { const p = new URLSearchParams(params); if (g === 'me') p.delete('g'); else p.set('g', g); p.delete('open'); setParams(p, { replace: true }); };
   const groups = useGroups();
   const [groupModal, setGroupModal] = useState<{ group?: WorkGroup | null } | null>(null);
   const myGroups = (groups.data ?? []).filter((g) => g.work_group_members.some((m) => m.user_id === uid) || g.created_by === uid);
-  const group = !top && tab !== 'me' ? myGroups.find((g) => g.id === tab) ?? null : null;
+  const group = tab !== 'me' ? myGroups.find((g) => g.id === tab) ?? null : null;
   const refs: SpaceRef[] = [{ kind: 'user', id: uid }, ...myGroups.map((g) => ({ kind: 'group' as const, id: g.id }))];
   const unread = useSpaceUnread(refs);
   const n = (r: SpaceRef) => unread.data?.[spaceKey(r)] ?? 0;
+  if (top === 'direction') return <Navigate to="/my/direction" replace />;
+  if (top === 'sim') return <Navigate to="/my/sim" replace />;
 
   return (
     <section>
-      <div className="flex items-baseline gap-3 flex-wrap mb-2">
-        <h1 className="text-xl font-bold tracking-tight">업무플랫폼</h1>
-        <p className="text-sm text-slate-500">결과물·자료·진행 상황을 올리고 팀장님과 대화하는 공간입니다</p>
+      {/* 좁은 화면: 왼쪽 메뉴 대신 스페이스 고르기 */}
+      <div className="md:hidden -mx-1 mb-3 flex items-center gap-1.5 overflow-x-auto pb-1">
+        <Chip on={!group} onClick={() => setTab('me')} n={group ? n({ kind: 'user', id: uid }) : 0}>💬 내 스페이스</Chip>
+        {myGroups.map((g) => <Chip key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })}>👥 {g.name}</Chip>)}
+        <Link to="/my/direction" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">📌 팀 방향</Link>
+        <Link to="/my/memo" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">📝 메모</Link>
+        <Link to="/my/sim" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">🔒 Sim.Box</Link>
       </div>
-      <div className="flex items-end gap-2 border-b border-slate-200 mb-3">
-        <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden min-w-0 flex-1 -mb-px pb-px">
-        <div className="flex items-center gap-0.5 self-center rounded-lg bg-slate-100 p-0.5 mr-1 shrink-0">
-          <PinTab on={top === 'direction'} onClick={() => setTop('direction')} n={top === 'direction' ? 0 : dirBadge}><Pin size={11} className={top === 'direction' ? 'text-indigo-500' : 'text-slate-400'} />팀 방향</PinTab>
-          <span className={cx('w-px h-3.5 bg-slate-300 shrink-0', top && 'opacity-0')} aria-hidden />
-          <PinTab on={top === 'sim'} onClick={() => setTop('sim')} n={0}><span className="ap-font text-[10px]">Sim.Box</span></PinTab>
-        </div>
-        <span className="w-px h-5 bg-slate-200 mr-1 self-center shrink-0" />
-        <TabBtn on={!top && !group} onClick={() => setTab('me')} n={top || group ? n({ kind: 'user', id: uid }) : 0}>내 스페이스</TabBtn>
-        {myGroups.map((g) => <TabBtn key={g.id} on={!top && group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })} icon>{g.name}</TabBtn>)}
-        <button onClick={() => setGroupModal({})} className="px-3 py-2.5 text-sm text-slate-400 hover:text-indigo-700 inline-flex items-center gap-1 whitespace-nowrap"><Plus size={14} />그룹 만들기</button>
-        </div>
-        <span className="shrink-0 pb-1.5"><GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} /></span>
-      </div>
-      {top === 'direction' ? <TeamDirection /> : top === 'sim' ? <SimBox /> : <>
-      {group && <GroupBar g={group} onEdit={() => setGroupModal({ group })} />}
-      <Space space={group ? { kind: 'group', id: group.id } : { kind: 'user', id: uid }} group={group} offset={group ? '16.5rem' : '12.5rem'} />
-      </>}
+      {group
+        ? <NotionHead emoji="👥" title={group.name} sub={<GroupMeta g={group} />}
+            right={<GroupEdit g={group} onEdit={() => setGroupModal({ group })} />} />
+        : <NotionHead emoji="💬" title="내 스페이스" sub="팀장님과 나 둘만의 공간 · 결과물 · 자료 · 진행 상황을 올리고 대화합니다"
+            right={<GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} />} />}
+      <Space space={group ? { kind: 'group', id: group.id } : { kind: 'user', id: uid }} group={group} offset="11rem" flat />
       {groupModal && <GroupModal group={groupModal.group} onClose={() => setGroupModal(null)} onSaved={(id) => setTab(id)} />}
     </section>
   );
 }
 
-/** 팀 방향 · Sim.Box — 스페이스 탭(메인)보다 한 단계 낮은 회색 토글형 탭 */
-function PinTab({ on, onClick, n, children }: { on: boolean; onClick: () => void; n: number; children: React.ReactNode }) {
+/** 팀원 · 팀 방향 (왼쪽 메뉴 📌) */
+export function MyDirection() {
   return (
-    <button onClick={onClick} className={cx('px-2.5 py-1 rounded-md text-[12.5px] inline-flex items-center gap-1 whitespace-nowrap transition-colors', on ? 'bg-white text-slate-800 font-semibold shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
-      {children}
-      {n > 0 && <span className="text-[10px] font-bold rounded-full px-1.5 num text-amber-800 bg-amber-100">{n}</span>}
+    <section className="max-w-4xl">
+      <NotionHead emoji="📌" title="팀 방향" sub="팀장님이 정리한 우리 팀의 일하는 기준 · 새로 바뀐 것은 NEW로 표시됩니다" />
+      <TeamDirection />
+    </section>
+  );
+}
+
+/** 팀원 · Sim.Box (왼쪽 메뉴 🔒) */
+export function MySim() {
+  return (
+    <section>
+      <NotionHead emoji="🔒" title="Sim.Box" sub={<span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-slate-600">🔒 나만 봅니다 · 팀장님도 볼 수 없어요 · 30일 뒤 자동 삭제</span>} />
+      <SimBox />
+    </section>
+  );
+}
+
+function Chip({ on, onClick, n, children }: { on: boolean; onClick: () => void; n: number; children: ReactNode }) {
+  return (
+    <button onClick={onClick} className={cx('shrink-0 rounded-full text-xs px-3 py-1.5 inline-flex items-center gap-1', on ? 'bg-slate-800 text-white font-semibold' : 'bg-slate-100 text-slate-600')}>
+      {children}{n > 0 && <span className="text-[10px] font-bold rounded-full px-1.5 text-white bg-rose-500">{n}</span>}
     </button>
   );
 }
 
-function TabBtn({ on, onClick, n, icon, badge, children }: { on: boolean; onClick: () => void; n: number; icon?: boolean; badge?: 'amber'; children: React.ReactNode }) {
+function GroupMeta({ g }: { g: WorkGroup }) {
+  const { team, uid, nameOf } = useTeam();
+  const items = useItems(team.id);
+  const goal = g.item_id ? (items.data ?? []).find((i) => i.id === g.item_id) : null;
+  const ids = g.work_group_members.map((m) => m.user_id);
   return (
-    <button onClick={onClick} className={cx('px-3.5 py-2.5 text-sm -mb-px border-b-2 inline-flex items-center gap-1.5 whitespace-nowrap', on ? 'border-indigo-600 text-indigo-700 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800')}>
-      {icon && <Users size={14} />}{children}
-      {n > 0 && <span className={cx('text-[10px] font-bold rounded-full px-1.5 num', badge === 'amber' ? 'text-amber-800 bg-amber-100' : 'text-white bg-rose-500')}>{n}</span>}
-    </button>
+    <span className="inline-flex items-center gap-2.5 flex-wrap">
+      <span>협업 스페이스 · {ids.length}명</span>
+      <span className="flex -space-x-2">{ids.slice(0, 6).map((u) => <span key={u} className="ring-2 ring-white rounded-full" title={nameOf(u)}><Avatar name={nameOf(u)} size={7} tone={u === uid ? 'indigo' : 'slate'} /></span>)}</span>
+      {goal && <span className="inline-flex items-center gap-1 rounded bg-indigo-50 text-indigo-700 px-1.5 py-0.5 text-xs"><Target size={11} />{goal.title}</span>}
+      <span className="text-xs text-slate-400">팀장님도 함께 봅니다</span>
+    </span>
   );
+}
+
+function GroupEdit({ g, onEdit }: { g: WorkGroup; onEdit: () => void }) {
+  const { uid, isLeader } = useTeam();
+  if (!(isLeader || g.created_by === uid)) return null;
+  return <button onClick={onEdit} className="text-xs text-slate-600 rounded-md ring-1 ring-[#EDEDEB] bg-white px-2.5 py-1.5 hover:bg-slate-50 inline-flex items-center gap-1"><Settings2 size={13} />스페이스 설정</button>;
 }
 
 export function GroupBar({ g, onEdit }: { g: WorkGroup; onEdit: () => void }) {

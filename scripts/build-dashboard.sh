@@ -70,3 +70,4 @@ node -e 'const fs=require("fs");const m={marketing:fs.readFileSync("dashboard/06
 { echo "-- ATEAM 데모 링크 메일 (demo-mail 함수가 발송 시각 · 횟수를 남긴다) — 45_invite_mail 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261122000055_demo_mail.sql; } > dashboard/46_demo_mail.sql
 { echo "-- ATEAM 시작하기 팀 자료 정리 (ai-folder-scan 함수) — 46_demo_mail 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261123000056_folder_scan.sql; } > dashboard/47_folder_scan.sql
 { echo "-- ATEAM 핵심 업무 인수인계 전달 권한 고침 — 47_folder_scan 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261123000057_core_share.sql; } > dashboard/48_core_share.sql
+{ echo "-- ATEAM 팀원 메모 (나만 보기 › 메모) — 48_core_share 다음에 SQL Editor에서 한 번 Run (다시 Run 해도 안전)"; echo; cat migrations/20261124000058_member_memo.sql; } > dashboard/49_member_memo.sql
