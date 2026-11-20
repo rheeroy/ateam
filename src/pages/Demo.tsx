@@ -50,7 +50,7 @@ function RequestForm({ expired }: { expired: boolean }) {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<false | { auto?: boolean; mailed?: boolean }>(false);
   const S = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
   const submit = async (e: React.FormEvent) => {
@@ -58,7 +58,7 @@ function RequestForm({ expired }: { expired: boolean }) {
     setErr(null);
     if (!consent) return setErr('개인정보 수집 · 이용에 동의해 주세요.');
     setBusy(true);
-    try { await invoke('demo-access', { action: 'request', ...f, consent }); setDone(true); }
+    try { setDone(await invoke<{ auto?: boolean; mailed?: boolean }>('demo-access', { action: 'request', ...f, consent })); }
     catch (e2) { setErr(errorText(e2)); }
     finally { setBusy(false); }
   };
@@ -66,8 +66,11 @@ function RequestForm({ expired }: { expired: boolean }) {
   if (done) return (
     <div className="w-full max-w-md rounded-2xl bg-white ring-1 ring-slate-200 p-8 text-center">
       <CheckCircle2 size={40} className="mx-auto text-emerald-500" />
-      <h1 className="mt-4 text-xl font-bold">신청이 접수됐습니다</h1>
-      <p className="mt-2 text-sm text-slate-600 leading-relaxed">확인 후 <b>{f.email}</b>로 데모 링크를 보내 드립니다.<br />링크를 받으면 7일 동안 6개월치 기록이 쌓인 데모 팀을<br />팀장 화면과 팀원 화면으로 둘러볼 수 있어요.</p>
+      <h1 className="mt-4 text-xl font-bold">{done.auto && done.mailed ? '데모 링크를 보내 드렸습니다' : '신청이 접수됐습니다'}</h1>
+      <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+        {done.auto && done.mailed
+          ? <><b>{f.email}</b> 메일함을 확인해 주세요. 몇 분 안에 도착하지 않으면 스팸함도 확인해 주세요.<br /></>
+          : <>확인 후 <b>{f.email}</b>로 데모 링크를 보내 드립니다.<br /></>}링크를 받으면 7일 동안 6개월치 기록이 쌓인 데모 팀을<br />팀장 화면과 팀원 화면으로 둘러볼 수 있어요.</p>
       <a href="/login?mode=signup" className="mt-6 block rounded-lg ring-1 ring-slate-200 font-semibold py-2.5 text-sm hover:bg-slate-50">기다리지 않고 내 팀으로 바로 시작하기 (14일 무료)</a>
     </div>
   );
