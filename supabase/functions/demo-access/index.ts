@@ -12,6 +12,7 @@ type Body = {
 };
 const s = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const AUTO_APPROVE = (Deno.env.get('DEMO_AUTO_APPROVE') ?? 'on') !== 'off';   // 기본 켬
 const MEMBER_NAME = '정우성';   // 팀원 화면 기본(팀 설정 demo_default_member 가 없을 때) — member 로 다른 팀원 이름을 주면 그 사람
 type DemoTeam = { id: string; name: string; settings: { demo_key?: string; demo_label?: string; demo_default_member?: string } | null };
 
@@ -27,11 +28,22 @@ serve(async (req) => {
     const since = new Date(Date.now() - 86400000).toISOString();
     const { count } = await admin.from('demo_requests').select('id', { count: 'exact', head: true }).ilike('email', email).gte('created_at', since);
     if ((count ?? 0) >= 3) throw new HttpError(429, 'TOO_MANY', '이미 신청이 접수됐습니다. 확인 후 메일로 연락드릴게요.');
-    const { error } = await admin.from('demo_requests').insert({
+    const { data: row, error } = await admin.from('demo_requests').insert({
       name, company, email, job_title: s(b.job_title, 60), team_size: s(b.team_size, 20), dept: s(b.dept, 20), phone: s(b.phone, 30), note: s(b.note, 1000), consent: true,
-    });
+    }).select('id').single();
     if (error) throw error;
-    return json({ ok: true });
+    // 자동 승인 — 신청 즉시 7일 링크를 만들고 메일로 보낸다. 나중에 신청이 많아지면 Secret DEMO_AUTO_APPROVE=off 로 끄면 관리자 승인 방식으로 돌아간다
+    if (AUTO_APPROVE) {
+      const { error: e1 } = await admin.from('demo_requests').update({
+        status: 'approved', token: crypto.randomUUID(), approved_at: new Date().toISOString(), expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+      }).eq('id', row.id);
+      if (e1) { console.error('demo auto approve', e1); return json({ ok: true, auto: false }); }
+      // 메일은 demo-mail 이 보낸다 (관리자 '메일 다시 보내기'와 같은 함수). 실패해도 신청은 승인된 채로 남고, 관리자 화면에서 다시 보낼 수 있다
+      const { error: e2 } = await admin.functions.invoke('demo-mail', { body: { id: row.id } });
+      if (e2) console.error('demo auto mail', e2);
+      return json({ ok: true, auto: true, mailed: !e2 });
+    }
+    return json({ ok: true, auto: false });
   }
 
   if (b.action === 'enter' || b.action === 'check' || b.action === 'teams') {
