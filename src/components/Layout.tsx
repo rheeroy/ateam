@@ -266,7 +266,7 @@ export default function Layout() {
 function MemberTabBar({ needsWork, withLeader, history }: { needsWork: number; withLeader: boolean; history: number }) {
   const tabs = [
     { to: '/my/submissions', label: '업무 스레드', I: LaptopMinimal, dot: needsWork > 0 }, { to: '/my/goals', label: '팀 목표', I: Target },
-    { to: '/my/one-on-ones', label: '매니징 보드', I: Blocks, dot: withLeader || history > 0 },
+    { to: '/my/one-on-ones', label: '팀장님과', I: Blocks, dot: withLeader || history > 0 },
   ];
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
@@ -302,9 +302,8 @@ function crumb(path: string, search: string) {
   if (path === '/my/submissions') return `업무 스레드 / ${q.get('g') ? '협업 스페이스' : '내 스페이스'}`;
   if (path === '/my/direction') return '업무 스레드 / 팀 방향';
   if (path === '/my/goals') return '업무 스레드 / 팀 목표';
-  if (path === '/my/one-on-ones') return `매니징 보드 / ${q.get('view') === 'history' || q.has('history') ? '받은 히스토리' : '1on1 · 피드백'}`;
+  if (path === '/my/one-on-ones') return `팀장님과 / ${q.get('view') === 'history' || q.has('history') ? '받은 히스토리' : '1on1 · 피드백'}`;
   if (path === '/my/sim') return '나만 보기 / Sim.Box';
-  if (path === '/my/memo') return '나만 보기 / 메모';
   if (path.startsWith('/settings')) return '설정';
   return '';
 }

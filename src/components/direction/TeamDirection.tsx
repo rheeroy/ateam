@@ -90,7 +90,7 @@ export function DirectionCard() {
         <Pin size={14} className="text-indigo-600" />
         <b className="text-sm">팀장님 주요 지침</b>
         {c?.generated_at && <span className="text-[11px] text-slate-400">{fmtShort(c.generated_at)} 정리</span>}
-        <Link to="/my/submissions?t=direction" className="ml-auto text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-0.5">팀 방향 전체 보기<ArrowRight size={12} /></Link>
+        <Link to="/my/direction" className="ml-auto text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-0.5">팀 방향 전체 보기<ArrowRight size={12} /></Link>
       </div>
       {d.isLoading ? <div className="py-3"><Spinner /></div> : !top.length ? (
         <p className="mt-2 text-[13px] text-slate-500">{d.data?.status === 'running' || !d.data ? 'ATEAM이 팀 방향을 정리하고 있어요.' : '아직 정리된 지침이 없어요.'}</p>

@@ -1,7 +1,7 @@
 // 업무 스페이스 (채팅형) — 왼쪽 과제 레일 · 가운데 대화 흐름 · 오른쪽 스레드
 //   그냥 말은 말풍선, 파일·링크는 말풍선 안의 '업무 카드'(상태·버전·승인). 대화는 스레드에서 이어 간다.
 //   개인 스페이스(나↔팀장)와 그룹방이 같은 화면을 쓴다. AI 1차 검토는 팀장에게만.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCircle2, CircleDot, Crosshair, Download, ExternalLink, FileText, FileUp, Hash, Image as ImageIcon, Inbox, Link2, Maximize2, MessageSquare, Paperclip, Plus, RotateCcw, Send, StickyNote, Target, Undo2, Upload, Users, X } from 'lucide-react';
@@ -42,7 +42,10 @@ const UPLOAD_TYPES: { r: RequestType; sub: string; ai: boolean; tone: string }[]
 ];
 const KIND_ICON = { document: FileText, image: ImageIcon, link: Link2, note: StickyNote, number: Hash } as const;
 
-export function Space({ space, group, leaderView, offset = '14rem' }: { space: SpaceRef; group?: WorkGroup | null; leaderView?: boolean; offset?: string }) {
+/** 팀원 화면(노션 느낌): 상자 없이 얇은 세로선으로 세 칸 · 이모지 레일 */
+const FlatCtx = createContext(false);
+
+export function Space({ space, group, leaderView, offset = '14rem', flat = false }: { space: SpaceRef; group?: WorkGroup | null; leaderView?: boolean; offset?: string; flat?: boolean }) {
   const { team, uid } = useTeam();
   const [params, setParams] = useSearchParams();
   const data = useSpace(space);
@@ -150,26 +153,28 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
     : <InfoPanel space={space} group={group} />;
 
   return (
-    <div className="relative grid gap-3 md:h-[var(--sp-h)] md:min-h-[520px] md:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_360px] min-[1180px]:grid-rows-[minmax(0,1fr)] min-[1180px]:grid-cols-[172px_minmax(0,1fr)_380px] xl:grid-cols-[184px_minmax(0,1fr)_420px]" style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
+    <FlatCtx.Provider value={flat}>
+    <div className={cx('relative grid md:h-[var(--sp-h)] md:min-h-[520px] md:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_360px] min-[1180px]:grid-rows-[minmax(0,1fr)]',
+      flat ? 'gap-0 -mt-3 min-[1180px]:grid-cols-[236px_minmax(0,1fr)_340px] xl:grid-cols-[250px_minmax(0,1fr)_380px]' : 'gap-3 min-[1180px]:grid-cols-[172px_minmax(0,1fr)_380px] xl:grid-cols-[184px_minmax(0,1fr)_420px]')} style={{ ['--sp-h' as string]: `calc(100vh - ${offset})` }}>
       {/* 왼쪽 레일 — 창이 좁으면 위쪽 한 줄로 */}
-      <aside className="rounded-2xl bg-white ring-1 ring-slate-200 p-1.5 flex items-center gap-1 overflow-x-auto lg:col-span-2 min-[1180px]:col-span-1 min-[1180px]:block min-[1180px]:p-2 min-[1180px]:overflow-x-visible min-[1180px]:overflow-y-auto">
+      <aside className={cx(flat ? 'p-1.5 border-b border-[#EDEDEB] min-[1180px]:border-b-0 min-[1180px]:border-r min-[1180px]:px-2.5 min-[1180px]:py-3' : 'rounded-2xl bg-white ring-1 ring-slate-200 p-1.5 min-[1180px]:p-2', 'flex items-center gap-1 overflow-x-auto lg:col-span-2 min-[1180px]:col-span-1 min-[1180px]:block min-[1180px]:overflow-x-visible min-[1180px]:overflow-y-auto')}>
         <div className="px-2 pt-0.5 pb-1 text-[10px] font-semibold text-slate-400 hidden min-[1180px]:block">모아보기</div>
         <div className="flex min-[1180px]:block gap-1 shrink-0">
-          <RailItem on={filter === 'all'} onClick={() => setFilter('all')} icon={<Inbox size={13} />} label="전체" n={counts.all} />
-          <RailItem on={filter === 'wait'} onClick={() => setFilter('wait')} icon={<CircleDot size={13} className="text-indigo-500" />} label="결론 대기" n={counts.wait} />
-          <RailItem on={filter === 'fix'} onClick={() => setFilter('fix')} icon={<RotateCcw size={13} className="text-amber-500" />} label="보완 중" n={counts.fix} />
-          <RailItem on={filter === 'unread'} onClick={() => setFilter('unread')} icon={<MessageSquare size={13} className="text-rose-500" />} label="안 읽음" n={counts.unread} dot={counts.unread > 0} />
+          <RailItem on={filter === 'all'} onClick={() => setFilter('all')} icon={flat ? '🗂️' : <Inbox size={13} />} label="전체" n={counts.all} />
+          <RailItem on={filter === 'wait'} onClick={() => setFilter('wait')} icon={flat ? '⏳' : <CircleDot size={13} className="text-indigo-500" />} label="결론 대기" n={counts.wait} />
+          <RailItem on={filter === 'fix'} onClick={() => setFilter('fix')} icon={flat ? '🔁' : <RotateCcw size={13} className="text-amber-500" />} label="보완 중" n={counts.fix} />
+          <RailItem on={filter === 'unread'} onClick={() => setFilter('unread')} icon={flat ? '🔴' : <MessageSquare size={13} className="text-rose-500" />} label="안 읽음" n={counts.unread} dot={counts.unread > 0} />
           {counts.unread > 0 && <button onClick={() => { setAllReadAt(new Date(Date.now() + 1000).toISOString()); if (filter === 'unread') setFilter('all'); }}
             className="hidden min-[1180px]:block w-full text-left pl-7 pr-2 pb-1 text-[10px] text-slate-400 hover:text-indigo-700">모두 읽음으로</button>}
         </div>
         <div className="flex items-center gap-1 border-l border-slate-100 pl-1 shrink-0 min-[1180px]:block min-[1180px]:mt-2 min-[1180px]:border-l-0 min-[1180px]:border-t min-[1180px]:pl-0 min-[1180px]:pt-2">
-          <div className="px-2 pb-1 text-[10px] font-semibold text-slate-400 hidden min-[1180px]:flex items-center gap-1"><Target size={10} />{space.kind === 'user' ? '맡은 과제' : '그룹 과제'}</div>
+          <div className="px-2 pb-1 text-[10px] font-semibold text-slate-400 hidden min-[1180px]:flex items-center gap-1">{!flat && <Target size={10} />}{space.kind === 'user' ? '맡은 과제' : (flat ? '이 스페이스의 과제' : '그룹 과제')}</div>
           <div className="flex min-[1180px]:block gap-1">
             {tasks.map((n) => (
               <div key={n.id} role="button" tabIndex={0} onClick={() => setFilter(`i:${n.id}`)} onKeyDown={(ev) => { if (ev.key === 'Enter') setFilter(`i:${n.id}`); }}
-                className={cx('group/task shrink-0 min-[1180px]:w-full rounded-lg px-2 py-1 min-[1180px]:py-1.5 text-left cursor-pointer', filter === `i:${n.id}` ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50')}>
-                <div className="flex items-center gap-1 text-[13px]"><Hash size={12} className="text-slate-400 shrink-0" />
-                  <span className={cx('flex-1 truncate max-w-[150px]', filter === `i:${n.id}` ? 'font-semibold text-indigo-800' : 'text-slate-700')}>{n.title}</span>
+                className={cx('group/task shrink-0 min-[1180px]:w-full rounded-lg px-2 py-1 min-[1180px]:py-1.5 text-left cursor-pointer', filter === `i:${n.id}` ? (flat ? 'bg-black/[.06]' : 'bg-indigo-50 ring-1 ring-indigo-200') : (flat ? 'hover:bg-black/[.04]' : 'hover:bg-slate-50'))}>
+                <div className="flex items-center gap-1 text-[13px]">{flat ? <span className="w-4 text-center text-[13px] shrink-0">📄</span> : <Hash size={12} className="text-slate-400 shrink-0" />}
+                  <span className={cx('flex-1 truncate', !flat && 'max-w-[150px]', filter === `i:${n.id}` ? (flat ? 'font-semibold text-[#37352F]' : 'font-semibold text-indigo-800') : 'text-slate-700')}>{n.title}</span>
                   <span className="text-[10px] text-slate-400 num">{countFor(n.id)}</span></div>
                 <div className="mt-1 ml-4 hidden min-[1180px]:flex items-center gap-1.5"><span className="flex-1 h-1 rounded-full bg-slate-100"><span className="block h-1 rounded-full bg-indigo-500" style={{ width: `${n.progress}%` }} /></span>
                   <span className="text-[10px] text-slate-400 num">{n.progress}%{n.due_date ? ` · ~${fmtShort(n.due_date)}` : ''}</span>
@@ -177,32 +182,32 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
                     className="shrink-0 -my-1 rounded-md p-1 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700"><Crosshair size={13} /></button>}</div>
               </div>
             ))}
-            <RailItem on={filter === 'none'} onClick={() => setFilter('none')} icon={<Hash size={13} className="text-slate-300" />} label="기타 (태그 없음)" n={counts.none} />
+            <RailItem on={filter === 'none'} onClick={() => setFilter('none')} icon={flat ? '📎' : <Hash size={13} className="text-slate-300" />} label="기타 (태그 없음)" n={counts.none} />
           </div>
         </div>
       </aside>
 
       {/* 가운데 대화 흐름 */}
-      <section className={cx('rounded-2xl bg-slate-50/80 ring-1 ring-slate-200 flex flex-col h-[72vh] md:h-auto md:min-h-0 relative overflow-hidden', drag && 'ring-2 ring-indigo-500')}
+      <section className={cx(flat ? 'bg-white' : 'rounded-2xl bg-slate-50/80 ring-1 ring-slate-200', 'flex flex-col h-[72vh] md:h-auto md:min-h-0 relative overflow-hidden', drag && 'ring-2 ring-indigo-500')}
         onDragEnter={(e) => { if (e.dataTransfer.types.includes('Files')) setDrag(true); }}
         onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setDrag(false); }}
         onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}>
         {drag && <div className="absolute inset-0 z-10 bg-indigo-50/90 flex flex-col items-center justify-center text-indigo-700 pointer-events-none"><Upload size={24} /><div className="mt-1.5 font-semibold">놓으면 업무 카드로 올릴 준비가 됩니다</div></div>}
-        <div className="px-4 py-2.5 border-b border-slate-200 bg-white flex items-center gap-2 text-sm">
-          {filterItem ? <><Hash size={14} className="text-indigo-600" /><b className="truncate">{filterItem.title}</b><span className="text-xs text-slate-400 shrink-0">이 과제 태그가 붙은 것만</span></>
-            : <><Inbox size={14} className="text-slate-500" /><b>{({ all: '전체', wait: '결론 대기', fix: '보완 중', unread: '안 읽음', none: '기타 (태그 없음)' } as Record<string, string>)[filter]}</b><span className="text-xs text-slate-400 truncate">대화와 올린 업무가 시간순으로 · 업무는 스레드에서 이어 갑니다</span></>}
+        <div className={cx('py-2.5 border-b bg-white flex items-center gap-2 text-sm', flat ? 'px-6 border-[#EDEDEB]' : 'px-4 border-slate-200')}>
+          {filterItem ? <>{flat ? <span>📄</span> : <Hash size={14} className="text-indigo-600" />}<b className="truncate">{filterItem.title}</b><span className="text-xs text-slate-400 shrink-0">이 과제 태그가 붙은 것만</span></>
+            : <>{flat ? <span>🗂️</span> : <Inbox size={14} className="text-slate-500" />}<b>{({ all: '전체', wait: '결론 대기', fix: '보완 중', unread: '안 읽음', none: '기타 (태그 없음)' } as Record<string, string>)[filter]}</b><span className="text-xs text-slate-400 truncate">대화와 올린 업무가 시간순으로 · 업무는 스레드에서 이어 갑니다</span></>}
           {filter !== 'all' && <button onClick={() => setFilter('all')} className="ml-auto text-xs text-slate-500 hover:text-indigo-700 shrink-0">전체 보기</button>}
           {canPerf && <Button size="sm" className={cx('shrink-0', filter === 'all' && 'ml-auto')} title={PERF_TIP} onClick={() => setPerfItem({ itemId: filterItem?.id ?? null })}><Crosshair size={13} />성과입력</Button>}
         </div>
-        <div ref={scroller} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-4 space-y-3.5">
+        <div ref={scroller} className={cx('flex-1 min-h-0 overflow-y-auto py-4 space-y-3.5', flat ? 'px-4 sm:px-8' : 'px-3 sm:px-4')}>
           {loaded && data.days < 400 && (
             <div className="text-center"><button onClick={data.more} className="text-xs text-slate-500 hover:text-indigo-700 rounded-full bg-white ring-1 ring-slate-200 px-3 py-1">이전 기록 더 보기 · 지금은 최근 {data.days}일</button></div>
           )}
           {!loaded ? <Spinner /> : !shown.length ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-sm text-slate-500 py-10">
               <MessageSquare size={22} className="text-slate-300" />
-              <p className="mt-2">{filter === 'all' ? (space.kind === 'group' ? '그룹방의 첫 이야기를 남겨 보세요.' : '아직 대화가 없습니다. 메시지를 남기거나 파일을 끌어다 놓아 보세요.') : '해당하는 것이 없습니다.'}</p>
+              <p className="mt-2">{filter === 'all' ? (space.kind === 'group' ? (flat ? '협업 스페이스의 첫 이야기를 남겨 보세요.' : '그룹방의 첫 이야기를 남겨 보세요.') : '아직 대화가 없습니다. 메시지를 남기거나 파일을 끌어다 놓아 보세요.') : '해당하는 것이 없습니다.'}</p>
             </div>
           ) : shown.map((e, i) => {
             const prev = shown[i - 1];
@@ -229,15 +234,18 @@ export function Space({ space, group, leaderView, offset = '14rem' }: { space: S
       {perfFor && <CheckinModal open onClose={() => setPerfFor(null)} itemId={perfFor.item_id} evidence={{ t: 'sub', id: perfFor.id, title: perfFor.title }}
         spaceId={space.kind === 'user' ? space.id : null} groupId={space.kind === 'group' ? space.id : null} />}
       {/* 오른쪽 스레드 — 넓으면 한 칸, 태블릿 폭이면 대화 위로 오른쪽에서 덮고, 폰이면 전체 화면 */}
-      <div className={cx('lg:block lg:min-h-0 lg:h-full', sel ? 'fixed inset-0 z-40 bg-white p-2 md:absolute md:inset-auto md:top-0 md:bottom-0 md:right-0 md:w-[420px] md:p-0 md:bg-transparent md:shadow-2xl md:rounded-2xl lg:static lg:w-auto lg:shadow-none' : 'hidden')}>{panel}</div>
+      <div className={cx('lg:block lg:min-h-0 lg:h-full', flat && 'lg:border-l lg:border-[#EDEDEB]', sel ? 'fixed inset-0 z-40 bg-white p-2 md:absolute md:inset-auto md:top-0 md:bottom-0 md:right-0 md:w-[420px] md:p-0 md:bg-transparent md:shadow-2xl md:rounded-2xl lg:static lg:w-auto lg:shadow-none' : 'hidden')}>{panel}</div>
     </div>
+    </FlatCtx.Provider>
   );
 }
 
 function RailItem({ on, onClick, icon, label, n, dot }: { on: boolean; onClick: () => void; icon: React.ReactNode; label: string; n: number; dot?: boolean }) {
+  const flat = useContext(FlatCtx);
   return (
-    <button onClick={onClick} className={cx('shrink-0 min-[1180px]:w-full flex items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] text-left whitespace-nowrap', on ? 'bg-indigo-50 text-indigo-800 font-semibold' : 'text-slate-600 hover:bg-slate-50')}>
-      {icon}<span className="flex-1 truncate">{label}</span>{dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}<span className="text-[10px] text-slate-400 num">{n}</span>
+    <button onClick={onClick} className={cx('shrink-0 min-[1180px]:w-full flex items-center gap-1.5 px-2 text-[13px] text-left whitespace-nowrap',
+      flat ? cx('rounded-md py-1.5', on ? 'bg-black/[.06] text-[#37352F] font-semibold' : 'text-slate-600 hover:bg-black/[.04]') : cx('rounded-lg py-1', on ? 'bg-indigo-50 text-indigo-800 font-semibold' : 'text-slate-600 hover:bg-slate-50'))}>
+      {typeof icon === 'string' ? <span className="w-4 text-center text-[13px]">{icon}</span> : icon}<span className="flex-1 truncate">{label}</span>{dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}<span className="text-[10px] text-slate-400 num">{n}</span>
     </button>
   );
 }
@@ -274,9 +282,8 @@ function EntryView({ e, msgs, byId, unread, showThread, sel, onSel, onAnswer, nu
         <div className={cx('text-[11px] text-slate-400 flex items-center gap-1', aiMark && 'w-[360px] max-w-full')}><span><b className="text-slate-600">{nm(who)}</b> · {time}{unread && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle" />}</span>
           {aiMark && (e.t === 'post' || e.t === 'ver') && <AiMark m={aiMark} onClick={() => onSel({ t: 'sub', id: e.s.id, aiVer: aiMark.versionId })} />}</div>
 
-        {e.t === 'msg' && (
-          <button onClick={() => onSel({ t: 'msg', id: e.m.id })} className={cx('text-left rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm', isSel && 'ring-2 ring-violet-400')}>{e.m.body}</button>
-        )}
+        {e.t === 'msg' && (blockOf(e.m.body) ? <BlockMsg body={e.m.body} sel={isSel} onClick={() => onSel({ t: 'msg', id: e.m.id })} />
+            : <button onClick={() => onSel({ t: 'msg', id: e.m.id })} className={cx('text-left rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words', me ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white ring-1 ring-slate-200 text-slate-800 rounded-tl-sm', isSel && 'ring-2 ring-violet-400')}>{e.m.body}</button>)}
 
         {e.t === 'req' && (
           <div className={cx('rounded-2xl bg-white ring-1 px-3.5 py-2.5 w-[340px] max-w-full', isSel ? 'ring-2 ring-violet-500' : 'ring-violet-200', me ? 'rounded-tr-sm' : 'rounded-tl-sm')}>
@@ -431,6 +438,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
   space: SpaceRef; tasks: Node[]; defaultTag: string | null; file: File | null; setFile: (f: File | null) => void;
   recent: { id: string; title: string }[];
 }) {
+  const flat = useContext(FlatCtx);
   const [ck, setCk] = useState(false);
   const [ckFile, setCkFile] = useState<File | null>(null);   // 끌어다 놓은 파일로 성과입력
   const { team, uid, isLeader, hasFeature } = useTeam();
@@ -442,6 +450,7 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
   const [req, setReq] = useState<RequestType>('approval');
   const [tag, setTag] = useState<string>('');
   const [menu, setMenu] = useState(false);
+  const [slashAt, setSlashAt] = useState(0);   // '/' 블록 메뉴에서 고른 줄
   const [asReq, setAsReq] = useState(false);
   const [due, setDue] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -508,8 +517,21 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
   });
   const ready = (!!file || !!text.trim()) && !askType;
   const pick = (fn: () => void) => { setMenu(false); fn(); };
+  // '/' 블록 — 빈 입력칸에 '/'를 치면 노션처럼 블록 메뉴. 고르면 성과입력 · 파일 · 막힘 · 결정 요청으로
+  const prefix = (p: string) => { setText(`${p} `); setTimeout(() => { area.current?.focus(); const n = p.length + 1; area.current?.setSelectionRange(n, n); }, 0); };
+  const blocks: SlashItem[] = [
+    ...(!isLeader ? [{ emoji: '📈', title: '성과 기록', sub: '숫자 · 진척을 남기면 팀목표에 반영 · 팀장님 승인', run: () => { setText(''); setCk(true); } }] : []),
+    { emoji: '📎', title: isLeader ? '자료 올리기' : '결과물 올리기', sub: '파일 · 링크 · 캡처를 업무 카드로', run: () => { setText(''); fileRef.current?.click(); } },
+    ...(!isLeader ? [
+      { emoji: '🚧', title: '막힘 · 도움 요청', sub: '막힌 일을 팀장님께 바로 알리기', run: () => prefix(BLOCK.stuck) },
+      { emoji: '⚖️', title: '결정 요청', sub: '정해 주실 것 · 선택지를 함께 — 팀장님 의사결정 보드로', run: () => prefix(BLOCK.decide) },
+    ] : []),
+    ...(canReq ? [{ emoji: '📨', title: '요청 보내기', sub: '기한 · 완료 추적 · 늦으면 알림', run: () => { setText(''); setAsReq(true); setFile(null); area.current?.focus(); } }] : []),
+  ];
+  const slash = text === '/' && !file && !reqOn;
+  useEffect(() => { if (slash) setSlashAt(0); }, [slash]);
   return (
-    <div className="p-3 border-t border-slate-100 bg-white">
+    <div className={cx('bg-white', flat ? 'px-4 sm:px-6 pb-4 pt-2' : 'p-3 border-t border-slate-100')}>
       <input ref={fileRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ''; }} />
       {/* 올리는 방식 고르기 — 컨펌·의견 요청은 AI 1차 검토가 붙는다 */}
       {askType && file && (
@@ -573,7 +595,22 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
           ))}
         </div>
       )}
-      <div className={cx('flex items-end gap-1.5 rounded-xl ring-1 px-1.5 py-1.5', reqOn ? 'ring-violet-300 focus-within:ring-violet-500' : 'ring-slate-200 focus-within:ring-indigo-400')}>
+      {slash && (
+        <div className="relative">
+          <div role="listbox" aria-label="블록" className="absolute bottom-full left-2 mb-2 z-30 w-80 rounded-xl bg-white p-1.5 text-sm shadow-[0_0_0_1px_rgba(15,15,15,.05),0_3px_6px_rgba(15,15,15,.1),0_9px_24px_rgba(15,15,15,.2)]">
+            <div className="px-2 pt-1 pb-1.5 text-[11px] font-semibold text-slate-400">ATEAM 블록</div>
+            {blocks.map((b, i) => (
+              <button key={b.title} role="option" aria-selected={i === slashAt} onMouseEnter={() => setSlashAt(i)} onMouseDown={(e) => { e.preventDefault(); b.run(); }}
+                className={cx('w-full text-left flex items-center gap-2.5 rounded-md px-2 py-1.5', i === slashAt && 'bg-slate-100')}>
+                <span className="w-9 h-9 rounded-md ring-1 ring-slate-200 bg-white flex items-center justify-center text-[17px] shrink-0">{b.emoji}</span>
+                <span className="min-w-0"><span className="block font-semibold text-slate-800">{b.title}</span><span className="block text-[11px] text-slate-400 truncate">{b.sub}</span></span>
+              </button>
+            ))}
+            <div className="px-2 pt-1.5 text-[10.5px] text-slate-400">↑↓ 고르기 · Enter 넣기 · Esc 닫기</div>
+          </div>
+        </div>
+      )}
+      <div className={cx('flex items-end gap-1.5 rounded-xl ring-1 px-1.5 py-1.5', flat && 'px-2 py-2 shadow-[0_4px_16px_-10px_rgba(15,15,15,.25)] ring-[#E3E2E0]', reqOn ? 'ring-violet-300 focus-within:ring-violet-500' : 'ring-slate-200 focus-within:ring-indigo-400')}>
         <div className="relative shrink-0" ref={menuRef}>
           <button onClick={() => setMenu((x) => !x)} aria-expanded={menu} aria-label="더하기" title="파일 · 성과입력 · 요청"
             className={cx('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', menu ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100')}>
@@ -589,9 +626,20 @@ function SpaceComposer({ space, tasks, defaultTag, file, setFile, recent }: {
         </div>
         <textarea ref={area} rows={Math.min(5, Math.max(1, text.split('\n').length))} value={text} onChange={(e) => setText(e.target.value)} aria-label="메시지"
           onPaste={(e) => { const f = e.clipboardData.files?.[0]; if (f) { e.preventDefault(); setFile(namedPaste(f)); } }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (ready && !post.isPending) post.mutate(); } }}
+          onKeyDown={(e) => {
+            if (slash) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSlashAt((i) => (i + 1) % blocks.length); return; }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setSlashAt((i) => (i - 1 + blocks.length) % blocks.length); return; }
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); blocks[slashAt]?.run(); return; }
+              if (e.key === 'Escape') { e.preventDefault(); setText(''); return; }
+            }
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (ready && !post.isPending) post.mutate(); } }}
           className="flex-1 min-w-0 resize-none text-sm px-1.5 py-1.5 leading-6 focus:outline-none placeholder:text-slate-400 bg-transparent"
-          placeholder={work ? '덧붙일 말 (선택)' : reqOn ? '요청할 내용 (첫 줄이 제목)' : '메시지를 입력하세요'} />
+          placeholder={work ? '덧붙일 말 (선택)' : reqOn ? '요청할 내용 (첫 줄이 제목)' : isLeader ? '메시지를 입력하세요 · "/" 자료 · 요청' : '메시지를 입력하세요 · "/" 성과 · 막힘 · 결정'} />
+        {flat && !text && !file && !reqOn && (
+          <button onClick={() => { setText('/'); area.current?.focus(); }} title="블록 넣기 — 성과 · 결과물 · 막힘 · 결정 요청"
+            className="shrink-0 mb-1.5 rounded-md ring-1 ring-[#E3E2E0] px-1.5 text-xs text-slate-500 hover:bg-slate-50 font-mono">/</button>
+        )}
         {tagName ? (
           <span className="shrink-0 mb-1 inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 pl-2 pr-1 py-0.5 text-xs font-semibold max-w-[40%]">
             <Hash size={11} className="shrink-0" /><span className="truncate">{tagName}</span>
@@ -627,9 +675,10 @@ function MenuItem({ icon, title, sub, onClick }: { icon: React.ReactNode; title:
 // 오른쪽 패널들
 // ---------------------------------------------------------------------
 function PanelShell({ title, sub, actions, onClose, children, footer }: { title: React.ReactNode; sub?: React.ReactNode; actions?: React.ReactNode; onClose?: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
+  const flat = useContext(FlatCtx);
   return (
-    <aside className="rounded-2xl bg-white ring-1 ring-slate-200 flex flex-col h-full min-h-0 max-h-[calc(100vh-1rem)] md:max-h-none overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100">
+    <aside className={cx(flat ? 'bg-white' : 'rounded-2xl bg-white ring-1 ring-slate-200', 'flex flex-col h-full min-h-0 max-h-[calc(100vh-1rem)] md:max-h-none overflow-hidden')}>
+      <div className={cx('py-3', flat ? 'px-5' : 'px-4 border-b border-slate-100')}>
         <div className="flex items-center gap-2 min-w-0">{title}{onClose && <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700 shrink-0" aria-label="닫기"><X size={16} /></button>}</div>
         {sub && <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">{sub}</div>}
         {actions && <div className="mt-2 flex items-center gap-1.5 flex-wrap">{actions}</div>}
@@ -910,14 +959,16 @@ function TaskPanel({ n, entries, onPerf }: { n: Node; entries: Entry[]; onPerf?:
 
 function InfoPanel({ space, group }: { space: SpaceRef; group?: WorkGroup | null }) {
   const { nameOf, uid, isLeader } = useTeam();
+  const flat = useContext(FlatCtx);
   return (
-    <PanelShell title={<><MessageSquare size={15} className="text-indigo-600" /><span className="font-semibold text-sm">이렇게 쓰세요</span></>}>
+    <PanelShell title={<>{flat ? <span>💡</span> : <MessageSquare size={15} className="text-indigo-600" />}<span className="font-semibold text-sm">이렇게 쓰세요</span></>}>
       <div className="p-4 space-y-3 text-sm text-slate-600">
         <ul className="space-y-2 list-disc pl-4">
           <li>여기에서 최대한 많은 <b className="text-slate-800">업무 소통</b>을 하세요. {isLeader
             ? <>많이 할수록 <b className="text-slate-800">ATEAM 에이전트의 자동항법 엔진</b>이 강력해집니다.</>
             : <>많이 할수록 <b className="text-slate-800">내 성과를 높일 수 있는 기회</b>가 증대됩니다.</>}</li>
           <li>파일·링크·캡처를 올리면 <b className="text-slate-800">업무 카드</b>가 됩니다. 컨펌·의견·공유를 고르면 상태와 버전이 따라갑니다.</li>
+          <li><b className="text-slate-800">/</b> 를 누르면 {isLeader ? '자료 올리기 · 요청 보내기' : '성과 기록 · 막힘 · 결정 요청'}을 대화 중에 바로 넣을 수 있어요.</li>
           <li><b className="text-slate-800"># 과제 태그</b>를 붙이면 왼쪽에서 과제별로 모아 볼 수 있습니다.</li>
           {isLeader && space.kind === 'user' && <li>무언가를 맡길 때는 입력창의 <b className="text-slate-800">＋ › 요청 보내기</b>를 쓰세요. 기한 내 완료 여부가 추적되고, 기한을 넘기면 대시보드에 알려 드립니다.</li>}
           <li>말풍선이나 카드를 누르면 여기에서 <b className="text-slate-800">스레드</b>로 이어 갑니다.</li>
@@ -931,5 +982,24 @@ function InfoPanel({ space, group }: { space: SpaceRef; group?: WorkGroup | null
         )}
       </div>
     </PanelShell>
+  );
+}
+
+// ---------------------------------------------------------------------
+// '/' 블록 — 막힘 · 결정 요청은 머리말을 붙인 대화로 보낸다 (결정 요청은 '결정' 표현이라 의사결정 보드 후보가 된다)
+// ---------------------------------------------------------------------
+type SlashItem = { emoji: string; title: string; sub: string; run: () => void };
+const BLOCK = { stuck: '🚧 막힘 · 도움 요청 —', decide: '⚖️ 결정 요청 —' } as const;
+const blockOf = (body: string) => (body.startsWith(BLOCK.stuck) ? 'stuck' : body.startsWith(BLOCK.decide) ? 'decide' : null);
+
+function BlockMsg({ body, sel, onClick }: { body: string; sel: boolean; onClick: () => void }) {
+  const k = blockOf(body)!;
+  const rest = body.slice((k === 'stuck' ? BLOCK.stuck : BLOCK.decide).length).trim();
+  return (
+    <button onClick={onClick} className={cx('text-left rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ring-1 min-w-[240px]',
+      k === 'stuck' ? 'bg-amber-50 ring-amber-200 text-amber-950' : 'bg-violet-50 ring-violet-200 text-violet-950', sel && 'ring-2 ring-violet-400')}>
+      <span className={cx('block text-xs font-bold mb-0.5', k === 'stuck' ? 'text-amber-700' : 'text-violet-700')}>{k === 'stuck' ? '🚧 막힘 · 도움 요청' : '⚖️ 결정 요청'}</span>
+      <span className="block whitespace-pre-wrap break-words">{rest}</span>
+    </button>
   );
 }

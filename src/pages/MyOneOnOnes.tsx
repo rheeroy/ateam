@@ -5,13 +5,14 @@
 import { useState } from 'react';
 import { noteHead } from '../lib/format';
 import { Link, useSearchParams } from 'react-router-dom';
+import { NotionHead } from '../components/NotionHead';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, CheckCircle2, ChevronRight, MessageSquare, MessageSquarePlus, Users } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ChevronRight, MessageSquare, MessageSquarePlus } from 'lucide-react';
 import { useTeam } from '../state/session';
 import { supabase, q } from '../lib/supabase';
 import type { OneOnOne, TeamRequest } from '../lib/types';
 import { cx, fmtDate, fmtTime, relDay } from '../lib/format';
-import { Button, PageHeader, Pill, useToast } from '../components/ui';
+import { Button, Pill, useToast } from '../components/ui';
 import { BoardSection } from '../components/member/BoardSection';
 import { errorText } from '../lib/supabase';
 import { ReceivedHistories } from '../components/history/ReceivedHistories';
@@ -131,34 +132,28 @@ export default function MyOneOnOnes() {
   const pending = useMyOORequest();
   const req = pending.data?.[0];
   const focus = params.get('coach') ?? params.get('req') ?? params.get('praise');
+  // 왼쪽 메뉴: 🤝 1on1 · 피드백 / 📚 받은 히스토리 (?view=history · 예전 ?history=id 링크도 여기로)
+  const hist = params.get('view') === 'history' || params.has('history');
+  if (hist) return (
+    <section className="max-w-3xl">
+      <NotionHead emoji="📚" title="받은 히스토리" sub="팀장님이 넘겨준 업무의 지난 흐름 · 원칙 · 관계자" />
+      <ReceivedHistories />
+    </section>
+  );
   return (
     <section>
-      <PageHeader title="매니징 보드" sub="받은 히스토리와 팀장님과의 소통 · 피드백 · 1on1을 한곳에서"
+      <NotionHead emoji="🤝" title="1on1 · 피드백" sub="팀장님 지침을 확인하고, 피드백에 답하고, 1on1을 함께 준비합니다"
         right={<div className="flex items-center gap-3 flex-wrap justify-end">
           <ConditionShare inline />
           <span className="hidden sm:block w-px h-6 bg-slate-200" />
           {req ? <span className="text-xs text-slate-600 bg-slate-100 rounded-lg px-3 py-2">1on1 요청함 · {fmtDate(req.created_at)} · 일정 대기</span>
             : <Button variant="secondary" onClick={() => setReqOpen(true)}><MessageSquarePlus size={15} />1on1 요청하기</Button>}
         </div>} />
-      <div className="space-y-5">
-        <div className="grid lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-6 items-start">
-          <ReceivedHistories />
-          {/* 소통 및 피드백 — Feedback(팀장님 액션) · 1on1 을 한 묶음으로 */}
-          <section className="min-w-0 lg:border-l lg:border-slate-200 lg:pl-6 pt-5 lg:pt-0 border-t border-slate-200 lg:border-t-0">
-            <div className="flex items-end gap-3 mb-2.5 px-1 min-h-[44px]">
-              <div className="min-w-0">
-                <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-1.5"><Users size={16} className="text-slate-400" />소통 및 피드백</h2>
-                <p className="text-xs text-slate-500 mt-0.5">팀장님 지침을 확인하고, 피드백에 답하고, 1on1을 함께 준비합니다</p>
-              </div>
-            </div>
-            <div className="rounded-2xl bg-slate-100/70 ring-1 ring-slate-200/70 p-4 space-y-4">
-              <DirectionCard />
-              <div className="grid 2xl:grid-cols-2 gap-4 items-start">
-                <FromLeader focus={focus} />
-                <OneOnOnePanel />
-              </div>
-            </div>
-          </section>
+      <div className="space-y-4">
+        <DirectionCard />
+        <div className="grid 2xl:grid-cols-2 gap-4 items-start">
+          <FromLeader focus={focus} />
+          <OneOnOnePanel />
         </div>
       </div>
       {reqOpen && <RequestOOModal onClose={() => setReqOpen(false)} />}

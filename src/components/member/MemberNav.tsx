@@ -1,6 +1,6 @@
 // 팀원 왼쪽 메뉴 — 노션처럼 가볍게 (이모지 · 회색 묶음 이름)
 //   업무 스레드: 💬 내 스페이스(팀장님과 나) · 👥 협업 스페이스들 · ＋ 만들기 · 📌 팀 방향 · 🎯 팀 목표
-//   매니징 보드: 🤝 1on1 · 피드백 · 📚 받은 히스토리 / 나만 보기: 📝 메모 · 🔒 Sim.Box
+//   팀장님과: 🤝 1on1 · 피드백 · 📚 받은 히스토리 / 나만 보기: 🔒 Sim.Box
 //   숫자 = 안 읽은 대화 · 답할 것. 넓은 화면에서 메뉴를 접으면 이모지만 남는다 (Layout side-collapsed)
 import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -42,11 +42,10 @@ export function MemberNav({ boardN, historyN, demo }: { boardN: number; historyN
       </button>
       <Row to="/my/direction" emoji="📌" on={at('/my/direction')} dot={dir > 0}>팀 방향</Row>
       <Row to="/my/goals" emoji="🎯" on={at('/my/goals')}>팀 목표</Row>
-      <Head>매니징 보드</Head>
+      <Head>팀장님과</Head>
       <Row to="/my/one-on-ones" emoji="🤝" on={at('/my/one-on-ones') && !histView} n={boardN}>1on1 · 피드백</Row>
       <Row to="/my/one-on-ones?view=history" emoji="📚" on={histView} n={historyN}>받은 히스토리</Row>
       <Head>나만 보기</Head>
-      <Row to="/my/memo" emoji="📝" on={at('/my/memo')}>메모</Row>
       <Row to="/my/sim" emoji="🔒" on={at('/my/sim')} tail="나만 봄">Sim.Box</Row>
       {!demo && <><div className="hidden md:block h-3" /><Row to="/settings" emoji="⚙️" on={at('/settings')}>설정</Row></>}
       {make && <GroupModal onClose={() => setMake(false)} onSaved={(id) => { setMake(false); nav(`/my/submissions?g=${id}`); }} />}
