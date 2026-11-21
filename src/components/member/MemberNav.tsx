@@ -10,6 +10,10 @@ import { spaceKey, useSpaceUnread, type SpaceRef } from '../../lib/space';
 import { useDirectionBadge } from '../direction/TeamDirection';
 import { GroupModal } from '../work/GroupModal';
 import { cx } from '../../lib/format';
+import { Users } from 'lucide-react';
+
+/** 협업 스페이스 표시 — 파란 사람 아이콘 (이모지 👥 는 기기마다 회색으로 보여서) */
+export const GroupIcon = ({ size = 15 }: { size?: number }) => <Users size={size} strokeWidth={2.4} className="inline-block text-blue-500 fill-blue-100" />;
 
 export function MemberNav({ boardN, historyN, demo }: { boardN: number; historyN: number; demo: boolean }) {
   const { uid } = useTeam();
@@ -34,7 +38,7 @@ export function MemberNav({ boardN, historyN, demo }: { boardN: number; historyN
       <Head>업무 스레드</Head>
       <Row to="/my/submissions" emoji="💬" on={onSpace && !g} n={n({ kind: 'user', id: uid })}>내 스페이스</Row>
       {mine.map((x) => (
-        <Row key={x.id} to={`/my/submissions?g=${x.id}`} emoji="👥" on={onSpace && g === x.id} n={n({ kind: 'group', id: x.id })}>{x.name}</Row>
+        <Row key={x.id} to={`/my/submissions?g=${x.id}`} emoji={<GroupIcon />} on={onSpace && g === x.id} n={n({ kind: 'group', id: x.id })}>{x.name}</Row>
       ))}
       <button onClick={() => setMake(true)} title="협업 스페이스 만들기"
         className="hidden xl:flex items-center gap-2 w-full px-2.5 h-[30px] rounded-md text-[13px] text-slate-400 hover:bg-black/[.04] hover:text-slate-600">
@@ -58,13 +62,13 @@ const Head = ({ children }: { children: ReactNode }) => (
   <div className="hidden xl:block px-2.5 pt-4 pb-1 text-[11.5px] font-semibold text-slate-400">{children}</div>
 );
 
-function Row({ to, emoji, on, n, dot, tail, children }: { to: string; emoji: string; on: boolean; n?: number; dot?: boolean; tail?: string; children: ReactNode }) {
+function Row({ to, emoji, on, n, dot, tail, children }: { to: string; emoji: ReactNode; on: boolean; n?: number; dot?: boolean; tail?: string; children: ReactNode }) {
   const label = typeof children === 'string' ? children : undefined;
   return (
     <Link to={to} title={label} aria-current={on ? 'page' : undefined}
       className={cx('relative flex items-center gap-2 w-full px-2.5 md:px-0 md:justify-center xl:px-2.5 xl:justify-start h-[31px] rounded-md whitespace-nowrap',
         on ? 'bg-black/[.06] text-slate-900 font-semibold' : 'text-slate-600 hover:bg-black/[.04]')}>
-      <span className="w-5 text-center text-[15px] leading-none shrink-0">{emoji}</span>
+      <span className="w-5 flex justify-center text-[15px] leading-none shrink-0">{emoji}</span>
       <span className="flex-1 min-w-0 truncate md:hidden xl:inline">{children}</span>
       {!!n && <span className="hidden xl:inline text-[11px] font-bold text-white bg-rose-500 rounded-full px-1.5 num">{n}</span>}
       {dot && !n && <span className="hidden xl:inline w-1.5 h-1.5 rounded-full bg-rose-500" />}

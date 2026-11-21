@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 
 /** 노션 페이지 머리 — 이모지 + 큰 제목 + 회색 설명 */
-export function NotionHead({ emoji, title, sub, right }: { emoji: string; title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+export function NotionHead({ emoji, title, sub, right }: { emoji: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex items-end gap-3 flex-wrap pb-3 mb-3 border-b border-[#EDEDEB]">
       <h1 className="flex items-center gap-2.5 text-[26px] font-extrabold tracking-tight text-[#37352F] min-w-0">

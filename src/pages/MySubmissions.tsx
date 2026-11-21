@@ -14,6 +14,7 @@ import { GroupModal } from '../components/work/GroupModal';
 import { Space } from '../components/space/Space';
 import { TeamDirection } from '../components/direction/TeamDirection';
 import { SimBox } from '../components/simbox/SimBox';
+import { GroupIcon } from '../components/member/MemberNav';
 import { NotionHead } from '../components/NotionHead';
 
 export const STATUS = {
@@ -44,13 +45,13 @@ export default function MySubmissions() {
       {/* 좁은 화면: 왼쪽 메뉴 대신 스페이스 고르기 */}
       <div className="md:hidden -mx-1 mb-3 flex items-center gap-1.5 overflow-x-auto pb-1">
         <Chip on={!group} onClick={() => setTab('me')} n={group ? n({ kind: 'user', id: uid }) : 0}>💬 내 스페이스</Chip>
-        {myGroups.map((g) => <Chip key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })}>👥 {g.name}</Chip>)}
+        {myGroups.map((g) => <Chip key={g.id} on={group?.id === g.id} onClick={() => setTab(g.id)} n={group?.id === g.id ? 0 : n({ kind: 'group', id: g.id })}><GroupIcon size={13} /> {g.name}</Chip>)}
         <Link to="/my/direction" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">📌 팀 방향</Link>
         <Link to="/my/memo" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">📝 메모</Link>
         <Link to="/my/sim" className="shrink-0 rounded-full bg-slate-100 text-slate-600 text-xs px-3 py-1.5">🔒 Sim.Box</Link>
       </div>
       {group
-        ? <NotionHead emoji="👥" title={group.name} sub={<GroupMeta g={group} />}
+        ? <NotionHead emoji={<GroupIcon size={28} />} title={group.name} sub={<GroupMeta g={group} />}
             right={<GroupEdit g={group} onEdit={() => setGroupModal({ group })} />} />
         : <NotionHead emoji="💬" title="내 스페이스" sub="팀장님과 나 둘만의 공간 · 결과물 · 자료 · 진행 상황을 올리고 대화합니다"
             right={<GuideButton teamId={team.id} kinds={['principle', 'rubric', 'framework', 'glossary']} />} />}
