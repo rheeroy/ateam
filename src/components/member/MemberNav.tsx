@@ -51,7 +51,7 @@ export function MemberNav({ boardN, historyN, demo }: { boardN: number; historyN
       <Row to="/my/one-on-ones?view=history" emoji="📚" on={histView} n={historyN}>받은 히스토리</Row>
       <Head>나만 보기</Head>
       <Row to="/my/memo" emoji="📝" on={at('/my/memo')}>메모</Row>
-      <Row to="/my/sim" emoji="🔒" on={at('/my/sim')} tail="나만 봄">Sim.Box</Row>
+      <Row to="/my/sim" emoji="🔒" on={at('/my/sim')}>Sim.Box</Row>
       {!demo && <><div className="hidden md:block h-3" /><Row to="/settings" emoji="⚙️" on={at('/settings')}>설정</Row></>}
       {make && <GroupModal onClose={() => setMake(false)} onSaved={(id) => { setMake(false); nav(`/my/submissions?g=${id}`); }} />}
     </nav>
